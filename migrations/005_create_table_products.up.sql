@@ -1,0 +1,19 @@
+CREATE TABLE IF NOT EXISTS `products` (
+   `product_id` char(36) NOT NULL,
+   `name` varchar(255) NOT NULL,
+   `description` text,
+   `sku` varchar(50) NOT NULL,
+   `price` decimal(10,2) NOT NULL,
+   `category_id` char(36) NOT NULL,
+   `stock_quantity` int NOT NULL DEFAULT '0',
+   `search_vector` text,
+   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   `last_updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+   PRIMARY KEY (`product_id`),
+   UNIQUE KEY `sku` (`sku`),
+   KEY `idx_products_sku` (`sku`),
+   KEY `idx_products_category_id` (`category_id`),
+   KEY `idx_products_stock_quantity` (`stock_quantity`),
+   KEY `idx_products_search_vector` (`search_vector`(255)),
+   CONSTRAINT `products_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`category_id`) ON DELETE RESTRICT
+ );

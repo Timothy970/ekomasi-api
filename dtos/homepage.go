@@ -1,0 +1,235 @@
+package dtos
+
+import (
+	"mime/multipart"
+	"time"
+)
+
+type SocialMedia struct {
+	Name string `json:"name"`
+	Icon string `json:"icon"`
+	Link string `json:"link"`
+}
+
+type MenuItem struct {
+	Name     string     `json:"name"`
+	Link     string     `json:"link"`
+	SubMenus []MenuItem `json:"subMenus,omitempty"`
+}
+
+type SliderItem struct {
+	Title    string `json:"title"`
+	Subtitle string `json:"subtitle,omitempty"`
+	ImageURL string `json:"imageUrl"`
+	Link     string `json:"link,omitempty"`
+}
+
+type FooterSection struct {
+	Title string     `json:"title"`
+	Links []MenuItem `json:"links"`
+}
+
+// type Footer struct {
+// 	Sections      []FooterSection `json:"sections"`
+// 	CopyrightText string          `json:"copyrightText"`
+// 	PaymentIcons  []string        `json:"paymentIcons"`
+// }
+
+type HomePageData struct {
+	Header   Header       `json:"header"`
+	Menu     []MenuItem   `json:"menu"`
+	Slider   []SliderItem `json:"slider"`
+	Products []Product    `json:"products"`
+	Footer   Footer       `json:"footer"`
+}
+
+type Header struct {
+	TollNumber string        `json:"tollNumber"`
+	Socials    []SocialMedia `json:"socials"`
+}
+type Footer struct {
+	CopyrightText  string
+	CompanyAddress string
+	ContactEmail   string
+	PhoneNumber    string
+}
+
+type SocialLink struct {
+	Platform  string
+	URL       string
+	IconClass string
+}
+type SocialLinkRequest struct {
+	Platform     string `json:"platform" validate:"required"`
+	URL          string `json:"url" validate:"required,url"`
+	IconClass    string `json:"icon_class" `
+	DisplayOrder int    `json:"display_order"`
+}
+
+type MenuLink struct {
+	Title    string
+	URL      string
+	ParentID string
+	ID       string
+}
+
+type Banner struct {
+	ID           int
+	ImageURL     string
+	Text         string
+	Heading      string
+	ButtonText   string
+	ButtonURL    string
+	DisplayOrder int
+	IsActive     bool
+}
+type BannerInfo struct {
+	Image        *multipart.FileHeader `form:"banner_image"`
+	Text         string                `form:"text,omitempty"`
+	Heading      string                `form:"heading,omitempty"`
+	ButtonText   string                `form:"button_text,omitempty"`
+	ButtonURL    string                `form:"button_url,omitempty"`
+	DisplayOrder int                   `form:"display_order,omitempty"`
+	IsActive     bool                  `form:"is_active,omitempty"`
+}
+type UpdateBannerInfo struct {
+	ID           int    `json:"image_id"`
+	Text         string `json:"text,omitempty"`
+	Heading      string `json:"heading,omitempty"`
+	ButtonText   string `json:"button_text,omitempty"`
+	ButtonURL    string `json:"button_url,omitempty"`
+	DisplayOrder int    `json:"display_order,omitempty"`
+	IsActive     *bool  `json:"is_active,omitempty"`
+}
+type CategoryWithProducts struct {
+	CategoryID       string                 `json:"category_id"`
+	Name             string                 `json:"name"`
+	ParentCategoryID *string                `json:"parent_category_id"`
+	Description      string                 `json:"description"`
+	Products         []Product              `json:"products,omitempty"`
+	Subcategories    []CategoryWithProducts `json:"subcategories,omitempty"`
+}
+type Promotion struct {
+	ID                   string                  `json:"promotion_id"`
+	Name                 string                  `json:"name"`
+	StartDate            time.Time               `json:"start_date"`
+	EndDate              time.Time               `json:"end_date"`
+	IsActive             bool                    `json:"is_active"`
+	PromotionType        string                  `json:"promotion_type"`
+	Amount               string                  `json:"amount"`
+	PromotionDescription string                  `json:"promotion_description"`
+	PromotionProducts    []PromotionProductGroup `json:"promotion_products"`
+}
+type PromotionProductGroup struct {
+	ID                 string          `json:"promotion_product_id"`
+	PromotionID        string          `json:"promotion_id"`
+	ProductID          string          `json:"product_id"`
+	DiscountPercentage float64         `json:"discount_percentage"`
+	Categories         []CategoryGroup `json:"categories"`
+}
+type PromotionProduct struct {
+	ID                 string  `json:"promotion_product_id"`
+	PromotionID        string  `json:"promotion_id"`
+	ProductID          string  `json:"product_id"`
+	DiscountPercentage float64 `json:"discount_percentage"`
+}
+type CategoryGroup struct {
+	CategoryID       string    `json:"category_id"`
+	Name             string    `json:"name"`
+	ParentCategoryID *string   `json:"parent_category_id,omitempty"`
+	Description      string    `json:"description"`
+	Products         []Product `json:"products"`
+}
+type Category struct {
+	ID               string  `json:"category_id"`
+	Name             string  `json:"name"`
+	ParentCategoryID *string `json:"parent_category_id"`
+	Description      string  `json:"description"`
+}
+
+type Product struct {
+	ID            string    `json:"product_id"`
+	Name          string    `json:"name"`
+	Description   string    `json:"description"`
+	SKU           string    `json:"sku"`
+	Price         float64   `json:"price"`
+	CategoryID    string    `json:"category_id"`
+	StockQuantity int       `json:"stock_quantity"`
+	SearchVector  string    `json:"search_vector"`
+	CreatedAt     time.Time `json:"created_at"`
+	LastUpdated   time.Time `json:"last_updated"`
+	Images        []Image   `json:"urls,omitempty"`
+}
+type FeaturedProduct struct {
+	ID        int64     `json:"id"`
+	ProductID int64     `json:"product_id"`
+	Product   Product   `json:"product"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type PromotionProductDetail struct {
+	PromotionProduct
+	Product Product `json:"product"`
+}
+type Image struct {
+	ImageID   string `json:"image_id"`
+	URL       string `json:"url"`
+	IsPrimary bool   `json:"is_primary"`
+}
+type DeliveryFeedback struct {
+	FeedbackID string `json:"feedback_id"`
+	DeliveryID string `json:"delivery_id"`
+	Score      int    `json:"score"`
+	Details    string `json:"details"`
+}
+
+type PromotionType struct {
+	ID          string `json:"promotion_type_id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Value       string `json:"value"`
+}
+type NewPromotion struct {
+	Name            string    `json:"name" validate:"required"`
+	PromotionIdType int       `json:"promotion_type_id" validate:"required"`
+	StartDate       time.Time `json:"start_date" validate:"required"`
+	EndDate         time.Time `json:"end_date" validate:"required"`
+}
+type DeletePromotion struct {
+	PromotionID string `json:"promotion_id"`
+}
+type EditPromotion struct {
+	PromotionID     string    `json:"promotion_id"`
+	Name            string    `json:"name"`
+	PromotionIdType int       `json:"promotion_type_id"`
+	StartDate       time.Time `json:"start_date"`
+	EndDate         time.Time `json:"end_date"`
+	IsActive        *bool     `json:"is_active"`
+}
+type AttachProductToPromotion struct {
+	PromotionID string   `json:"promotion_id"`
+	ProductIDs  []string `json:"product_ids"`
+}
+type Blog struct {
+	BlogID      string `json:"blog_id"`
+	Title       string `json:"title" validate:"required"`
+	Content     string `json:"content" validate:"required"`
+	AuthorID    string `json:"author_id" validate:"required"`
+	PublishedAt string `json:"published_at"`
+	IsPublished bool   `json:"is_published"`
+}
+type UpdateBlog struct {
+	// BlogID      string `json:"blog_id"`
+	// Title       string `json:"title" validate:"required"`
+	// Content     string `json:"content" validate:"required"`
+	// AuthorID    string `json:"author_id" validate:"required"`
+	// PublishedAt string `json:"published_at"`
+	IsPublished bool `json:"is_published" validate:"required"`
+}
+
+type MenuLinkRequest struct {
+	Title        string  `json:"title" validate:"required"`
+	URL          string  `json:"url" validate:"required"`
+	DisplayOrder int     `json:"display_order" validate:"required"`
+	ParentID     *string `json:"parent_id"`
+}

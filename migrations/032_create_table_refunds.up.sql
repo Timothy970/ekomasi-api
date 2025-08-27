@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS  refunds (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id char(36) NOT NULL,
+  order_id char(36) NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  reason TEXT,
+  status varchar(100) DEFAULT 'requested',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);

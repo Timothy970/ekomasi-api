@@ -1,0 +1,11 @@
+.env
+go.mod
+go.sum
+# Ignore only files named adenzo.* inside storage/logs/
+storage/logs/adenzo.*
+
+# But explicitly do NOT ignore the folders
+!storage/
+!storage/logs/
+
+# service.json

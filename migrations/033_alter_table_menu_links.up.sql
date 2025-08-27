@@ -1,0 +1,6 @@
+ALTER TABLE menu_links
+ADD COLUMN parent_id INT,
+ADD CONSTRAINT fk_menu_links_parent
+    FOREIGN KEY (parent_id) REFERENCES adenzo.menu_links(id)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE;

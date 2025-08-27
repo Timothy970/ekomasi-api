@@ -1,0 +1,91 @@
+package dtos
+
+import "time"
+
+type MpesaRequest struct {
+	Phone       string `json:"phone_number"`
+	Amount      int    `json:"amount"`
+	Reference   string `json:"reference"`
+	Description string `json:"description"`
+	OrderID     string `json:"order_id"`
+	DeliveryID  string `json:"delivery_id"`
+}
+type STKCallbackRequest struct {
+	Body struct {
+		StkCallback struct {
+			MerchantRequestID string `json:"MerchantRequestID"`
+			CheckoutRequestID string `json:"CheckoutRequestID"`
+			ResultCode        int    `json:"ResultCode"`
+			ResultDesc        string `json:"ResultDesc"`
+			CallbackMetadata  struct {
+				Item []struct {
+					Name  string      `json:"Name"`
+					Value interface{} `json:"Value"`
+				} `json:"Item"`
+			} `json:"CallbackMetadata"`
+		} `json:"stkCallback"`
+	} `json:"Body"`
+}
+type VoucherRequest struct {
+	VoucherCode string `json:"voucher_code"`
+	Amount      int    `json:"amount"`
+	Reference   string `json:"reference"`
+	Description string `json:"description"`
+	OrderID     string `json:"order_id"`
+	DeliveryID  string `json:"delivery_id"`
+}
+type Voucher struct {
+	VoucherID        string     `json:"voucher_id"`
+	Code             string     `json:"code" validate:"required"`
+	VerificationHash string     `json:"verification_hash"`
+	Amount           float64    `json:"amount" validate:"required"`
+	IsRedeemed       bool       `json:"is_redeemed"`
+	CreatedAt        time.Time  `json:"created_at"`
+	RedeemedAt       *time.Time `json:"redeemed_at"`
+}
+
+type Payment struct {
+	PaymentID     string  `json:"payment_id"`
+	OrderID       string  `json:"order_id" validate:"required"`
+	Amount        float64 `json:"amount" validate:"required"`
+	VoucherID     *string `json:"voucher_id,omitempty"`
+	Status        string  `json:"status"`
+	PaymentMethod string  `json:"payment_method" validate:"required"`
+	TransactionID string  `json:"transaction_id" validate:"required"`
+	CreatedAt     string  `json:"created_at"`
+}
+type PaymentUpdate struct {
+	Status string `json:"status" validate:"required"`
+}
+type PaymentListResponse struct {
+	Payments []Payment      `json:"payments"`
+	Meta     PaginationMeta `json:"pagination"`
+}
+
+type Refund struct {
+	ID        int       `json:"id"`
+	UserID    string    `json:"user_id"`
+	OrderID   string    `json:"order_id" validate:"required"`
+	Amount    float64   `json:"amount" validate:"required"`
+	Reason    string    `json:"reason" validate:"required"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	// UpdatedAt time.Time `json:"updated_at"`
+}
+type RefundPayload struct {
+	Status string `json:"status"` // expected: "approved", "rejected", or "processed"
+}
+
+type PaginatedRefundsResponse struct {
+	Refunds []Refund       `json:"refunds"`
+	Meta    PaginationMeta `json:"pagination"`
+}
+type CreateVoucherRequest struct {
+	VoucherID        string     `json:"voucher_id"`
+	Code             string     `json:"code"`
+	VerificationHash string     `json:"verification_hash"`
+	Amount           float64    `json:"amount"`
+	IsRedeemed       bool       `json:"is_redeemed"`
+	CreatedAt        time.Time  `json:"created_at"`
+	RedeemedAt       *time.Time `json:"redeemed_at,omitempty"`
+}

@@ -1,0 +1,351 @@
+package handlers
+
+import (
+	"adenzo_backend/dtos"
+	"adenzo_backend/models"
+	"adenzo_backend/utils"
+	"context"
+	"database/sql"
+	"fmt"
+	"log"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/gorilla/mux"
+)
+
+// GetReviews godoc
+// @Summary      Product Reviews
+// @Description  Get all reviews for a specific product
+// @Tags         Reviews
+// @Produce      json
+// @Param        product_id  query     string  true  "Product ID"
+// @Success      200         {array}   dtos.ReviewResponse
+// @Failure      400         {object}  map[string]string
+// @Failure      404         {object}  map[string]string
+// @Failure      500         {object}  map[string]string
+// @Router       /api/reviews [get]
+func GetReviews(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	limit := 0
+	page := 1
+	requestSummary := utils.GetRequestSummary(r)
+	// ctx := r.Context()
+	productID := mux.Vars(r)["product_id"]
+	reviewID := mux.Vars(r)["review_id"]
+	pageStr := r.URL.Query().Get("page")
+	limitStr := r.URL.Query().Get("size")
+	if limitStr != "" {
+		limit, _ = strconv.Atoi(limitStr)
+	} else {
+		limit = 10
+	}
+	if pageStr != "" {
+		page, _ = strconv.Atoi(pageStr)
+	}
+
+	// cacheKey := fmt.Sprintf("reviews_%s", productID)
+
+	// // Try from Redis cache first
+	// cachedVal, err := Redis.Get(ctx, cacheKey).Result()
+	// if err == nil {
+	// 	var cachedReviews []dtos.ReviewResponse
+	// 	if err := json.Unmarshal([]byte(cachedVal), &cachedReviews); err == nil {
+	// 		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	// 			Code:      http.StatusOK,
+	// 			Payload:   cachedReviews,
+	// 			Message:   "Reviews",
+	// 			TimeTaken: time.Since(start),
+	// 			Function:  utils.GetCurrentFuncName(),
+	// 			Request:   r,
+	// 			RawBody:   requestSummary})
+	// 		return
+	// 	}
+	// 	log.Printf("Error unmarshaling review cache: %v", err)
+	// }
+
+	// Cache miss — query from DB
+	reviews, pagination, err := models.GetProductReviews(productID, reviewID, limit, page)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusNotFound,
+				Message:   "Product not found",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+		} else {
+			log.Printf("error getting reviews:::%v", err)
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   "Error fetching product reviews",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+		}
+		return
+	}
+
+	// Cache result
+	// if jsonBytes, err := json.Marshal(reviews); err == nil {
+	// 	Redis.Set(ctx, cacheKey, jsonBytes, time.Hour)
+	// }
+	response := map[string]interface{}{
+		"reviews": reviews,
+	}
+	if pagination != nil {
+		response["pagination"] = pagination
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   response,
+		Message:   "Product reviews",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// CreateReview godoc
+// @Summary      Add Product Review(s)
+// @Description  Submit one or more reviews for a product.
+// @Tags         Reviews
+// @Accept       json
+// @Produce      json
+// @Param        reviews  body      []dtos.ReviewRequest  true  "List of reviews to add"
+// @Success      201      {object}  map[string]interface{}
+// @Failure      400      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Router       /api/reviews [post]
+func CreateReview(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	productID := mux.Vars(r)["product_id"]
+	req, ok := DecodeRequestBody[dtos.ReviewRequest](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	//Validate the request
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
+	//check if product exists
+	product, err := models.GetProductByID(productID)
+	if err != nil || product == nil {
+		if err == sql.ErrNoRows {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusNotFound,
+				Message:   productNotFound,
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+		} else {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+		}
+		return
+	}
+	review, err := models.AddNewReview(*req, productID)
+	if err != nil {
+		log.Printf("Error adding new product review: %v", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   fmt.Sprintf("%s", err),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Invalidate Redis cache for the product
+	ctx := context.Background()
+	cacheKey := fmt.Sprintf("reviews_%s", productID)
+	if err := Redis.Del(ctx, cacheKey).Err(); err != nil {
+		log.Printf("Failed to invalidate review cache: %v", err)
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusCreated,
+		Payload:   review,
+		Message:   "Review added succesfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// update review
+// UpdateReview godoc
+// @Summary      Update Product Review
+// @Description  Update review for a product.
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Success      201     {object}  map[string]interface{}
+// @Failure      400      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Router       /api/admin/products/{product_id}reviews/{review_id} [PATCH]
+func UpdateReview(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	if !ok {
+		return
+	}
+	req, ok := DecodeRequestBody[dtos.UpdateReview](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	// ctx := r.Context()
+	productID := mux.Vars(r)["product_id"]
+	reviewID := mux.Vars(r)["review_id"]
+	//check if product exists
+	product, err := models.GetProductByID(productID)
+	if err != nil || product == nil {
+		if err == sql.ErrNoRows {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusNotFound,
+				Message:   productNotFound,
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+		} else {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+		}
+		return
+	}
+	err = models.UpdateReview(*req, reviewID)
+	if err != nil {
+		log.Printf("Error moderating review: %v", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   fmt.Sprintf("%s", err),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Invalidate Redis cache for the product
+	pattern := "reviews_"
+
+	iter := Redis.Scan(r.Context(), 0, pattern, 0).Iterator()
+	for iter.Next(r.Context()) {
+		if err := Redis.Del(r.Context(), iter.Val()).Err(); err != nil {
+			log.Printf("Failed to delete review cache key %s: %v", iter.Val(), err)
+		}
+	}
+	if err := iter.Err(); err != nil {
+		log.Printf("Failed to scan review cache keys: %v", err)
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusCreated,
+		Payload:   nil,
+		Message:   "Review moderated succesfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// Delete a review
+// UpdateReview godoc
+// @Summary      Delete Product Review
+// @Description  Delete review for a product.
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Success      201     {object}  map[string]interface{}
+// @Failure      400      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Router       /api/admin/products/{product_id}reviews/{review_id} [PATCH]
+func DeleteReview(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	ctx := r.Context()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	if !ok {
+		return
+	}
+	productID := mux.Vars(r)["product_id"]
+	reviewID := mux.Vars(r)["review_id"]
+	//check if product exists
+	product, err := models.GetProductByID(productID)
+	if err != nil || product == nil {
+		if err == sql.ErrNoRows {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusNotFound,
+				Message:   productNotFound,
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+		} else {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+		}
+		return
+	}
+	err = models.DeleteReview(reviewID)
+	if err != nil {
+		log.Printf("Error deleteing review: %v", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   fmt.Sprintf("%s", err),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Invalidate Redis cache for the product
+	pattern := "reviews_"
+
+	iter := Redis.Scan(ctx, 0, pattern, 0).Iterator()
+	for iter.Next(ctx) {
+		if err := Redis.Del(ctx, iter.Val()).Err(); err != nil {
+			log.Printf("Failed to delete review cache key %s: %v", iter.Val(), err)
+		}
+	}
+	if err := iter.Err(); err != nil {
+		log.Printf("Failed to scan review cache keys: %v", err)
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusCreated,
+		Payload:   nil,
+		Message:   "Review deleted succesfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
