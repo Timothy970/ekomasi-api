@@ -71,10 +71,10 @@ func GetMenuData() ([]dtos.MenuLink, error) {
 	return links, nil
 }
 
-func GetBannersData() ([]dtos.Banner, error) {
+func GetBannersData(value string) ([]dtos.Banner, error) {
 	rows, err := DB.Query(`
-		SELECT id, image_url, text, heading, button_text, button_url, display_order, is_active
-		FROM banners WHERE is_active = true ORDER BY display_order ASC`)
+		SELECT id, image_url, text, heading, button_text, button_url, display_order, is_active, type
+		FROM banners WHERE is_active = true AND type = ? ORDER BY display_order ASC`, value)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func GetBannersData() ([]dtos.Banner, error) {
 	var banners []dtos.Banner
 	for rows.Next() {
 		var b dtos.Banner
-		err := rows.Scan(&b.ID, &b.ImageURL, &b.Text, &b.Heading, &b.ButtonText, &b.ButtonURL, &b.DisplayOrder, &b.IsActive)
+		err := rows.Scan(&b.ID, &b.ImageURL, &b.Text, &b.Heading, &b.ButtonText, &b.ButtonURL, &b.DisplayOrder, &b.IsActive, &b.Type)
 		if err != nil {
 			return nil, err
 		}
@@ -356,8 +356,8 @@ func fetchProductImages(productID string) ([]dtos.Image, error) {
 }
 
 func InsertBannerDetails(url string, req dtos.BannerInfo) error {
-	query := `INSERT INTO banners (image_url, text, heading, button_text, button_url, display_order, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)`
-	_, err := DB.Exec(query, url, req.Text, req.Heading, req.ButtonText, req.ButtonURL, req.DisplayOrder, req.IsActive)
+	query := `INSERT INTO banners (image_url, text, heading, button_text, button_url, display_order, is_active, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := DB.Exec(query, url, req.Text, req.Heading, req.ButtonText, req.ButtonURL, req.DisplayOrder, req.IsActive, req.Type)
 	return err
 }
 

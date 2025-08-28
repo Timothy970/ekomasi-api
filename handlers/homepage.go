@@ -94,12 +94,12 @@ func HomePageData(w http.ResponseWriter, r *http.Request) {
 // @Tags Home
 // @Produce json
 // @Success 200 {object} map[string]interface{}
-// @Router /api/home/sliders [get]
-func GetSliderData(w http.ResponseWriter, r *http.Request) {
+// @Router /api/home/banners [get]
+func GetHomeBannersData(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	banners, _ := models.GetBannersData()
+	banners, _ := models.GetBannersData("homebanner")
 	var data []map[string]interface{}
 	for _, b := range banners {
 		data = append(data, map[string]interface{}{
@@ -111,6 +111,43 @@ func GetSliderData(w http.ResponseWriter, r *http.Request) {
 			"button_url":    b.ButtonURL,
 			"display_order": b.DisplayOrder,
 			"is_active":     b.IsActive,
+			"type":          b.Type,
+		})
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   data,
+		Message:   "Success",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// GetSliderData returns homepage banner sliders.
+// @Summary Slider Data
+// @Description Get banner/slider data for homepage.
+// @Tags Home
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /api/home/sliders [get]
+func GetSliderData(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	banners, _ := models.GetBannersData("banner")
+	var data []map[string]interface{}
+	for _, b := range banners {
+		data = append(data, map[string]interface{}{
+			"id":            b.ID,
+			"image_url":     b.ImageURL,
+			"text":          b.Text,
+			"heading":       b.Heading,
+			"button_text":   b.ButtonText,
+			"button_url":    b.ButtonURL,
+			"display_order": b.DisplayOrder,
+			"is_active":     b.IsActive,
+			"type":          b.Type,
 		})
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -201,6 +238,7 @@ func GetPromotionsHandler(w http.ResponseWriter, r *http.Request) {
 // @Router /api/admin/banners [POST]
 func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
 
 	// Parse the multipart form
 	err := r.ParseMultipartForm(20 << 20) // 20 MB
@@ -245,17 +283,20 @@ func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 	// Build the request DTO
 	displayOrder, _ := strconv.Atoi(r.FormValue("display_order"))
 	isActive := r.FormValue("is_active") == "true"
-
 	req := dtos.BannerInfo{
 		Image:        header,
-		Text:         r.FormValue("text"),
-		Heading:      r.FormValue("heading"),
-		ButtonText:   r.FormValue("button_text"),
-		ButtonURL:    r.FormValue("button_url"),
-		DisplayOrder: displayOrder,
-		IsActive:     isActive,
+		Text:         utils.StringPtr(r.FormValue("text")),
+		Heading:      utils.StringPtr(r.FormValue("heading")),
+		ButtonText:   utils.StringPtr(r.FormValue("button_text")),
+		ButtonURL:    utils.StringPtr(r.FormValue("button_url")),
+		DisplayOrder: utils.IntPtr(displayOrder),
+		IsActive:     utils.BoolPtr(isActive),
+		Type:         utils.StringPtr(r.FormValue("type")),
 	}
 
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
 	// Insert banner info into DB
 	err = models.InsertBannerDetails(url, req)
 	if err != nil {

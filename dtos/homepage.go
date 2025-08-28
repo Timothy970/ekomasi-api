@@ -82,15 +82,17 @@ type Banner struct {
 	ButtonURL    string
 	DisplayOrder int
 	IsActive     bool
+	Type         string
 }
 type BannerInfo struct {
 	Image        *multipart.FileHeader `form:"banner_image"`
-	Text         string                `form:"text,omitempty"`
-	Heading      string                `form:"heading,omitempty"`
-	ButtonText   string                `form:"button_text,omitempty"`
-	ButtonURL    string                `form:"button_url,omitempty"`
-	DisplayOrder int                   `form:"display_order,omitempty"`
-	IsActive     bool                  `form:"is_active,omitempty"`
+	Text         *string               `form:"text,omitempty"`
+	Heading      *string               `form:"heading,omitempty"`
+	ButtonText   *string               `form:"button_text,omitempty"`
+	ButtonURL    *string               `form:"button_url,omitempty"`
+	DisplayOrder *int                  `form:"display_order,omitempty"`
+	IsActive     *bool                 `form:"is_active,omitempty"`
+	Type         *string               `form:"type" validate:"required, oneof=banner homebanner"`
 }
 type UpdateBannerInfo struct {
 	ID           int    `json:"image_id"`

@@ -30,6 +30,7 @@ func SetupRoutes(router *mux.Router) {
 	home := api.PathPrefix("/home/").Subrouter()
 	home.HandleFunc("/data", handlers.HomePageData).Methods("GET")
 	home.HandleFunc("/sliders", handlers.GetSliderData).Methods("GET")
+	home.HandleFunc("/banners", handlers.GetHomeBannersData).Methods("GET")
 	// home.HandleFunc("/categories", handlers.GetCategories).Methods("GET")
 	home.HandleFunc("/promotions", handlers.GetPromotionsHandler).Methods("GET")
 	home.HandleFunc("/promotions/types", handlers.GetPromotionsTypesHandler).Methods("GET")
@@ -122,7 +123,7 @@ func SetupRoutes(router *mux.Router) {
 	products.HandleFunc("/variants/{product_id}", handlers.ListProductVariants).Methods("GET")
 	//Moderate a review
 	admin.Handle("/products/{product_id}/reviews/{review_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateReview))).Methods("PATCH")
-	//Delete a review
+	//Delete a reviews
 	admin.Handle("/products/{product_id}/reviews/{review_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteReview))).Methods("DELETE")
 	//update a product by id
 	admin.Handle("/products/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateProductHandler))).Methods("PATCH")

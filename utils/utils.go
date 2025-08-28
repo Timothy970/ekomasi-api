@@ -200,3 +200,17 @@ func IsValidKenyanPhone(phone string) bool {
 	re := regexp.MustCompile(`^(?:2547\d{8}|07\d{8})$`)
 	return re.MatchString(phone)
 }
+func StringPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func IntPtr(i int) *int {
+	return &i
+}
+
+func BoolPtr(b bool) *bool {
+	return &b
+}
