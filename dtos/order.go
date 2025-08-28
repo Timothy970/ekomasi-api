@@ -1,6 +1,9 @@
 package dtos
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Order struct {
 	OrderID       string      `json:"order_id"`
@@ -101,19 +104,18 @@ type GenericResponse struct {
 	Message string `json:"message"`
 }
 type OrderItemRequest struct {
-	ProductID string  `json:"product_id"`
-	VariantID string  `json:"variant_id,omitempty"`
-	Quantity  int     `json:"quantity"`
-	UnitPrice float64 `json:"unit_price"`
+	ProductID string  `json:"product_id" validate:"required"`
+	VariantID *string `json:"variant_id,omitempty"`
+	Quantity  int     `json:"quantity" validate:"required"`
+	UnitPrice float64 `json:"unit_price" validate:"required"`
 }
 
 type OrderRequest struct {
-	UserID                   *string            `json:"user_id,omitempty"`
-	IsGuestOrder             bool               `json:"is_guest_order"`
-	GuestNotificationChannel *int               `json:"guest_notification_channel,omitempty"`
-	GuestNotificationDetails *string            `json:"guest_notification_details,omitempty"`
-	GuestDeliveryAddress     *string            `json:"guest_delivery_address,omitempty"`
-	CourierDetails           *string            `json:"courier_details,omitempty"`
-	OrderItems               []OrderItemRequest `json:"order_items"`
-	DeliveryCharge           float64            `json:"delivery_charge"`
+	UserID               *string            `json:"user_id,omitempty"`
+	IsGuestOrder         *bool              `json:"is_guest_order"`
+	GuestPersonalDetails *json.RawMessage   `json:"guest_personal_details,omitempty"`
+	GuestDeliveryAddress *json.RawMessage   `json:"guest_delivery_address,omitempty"`
+	CourierDetails       *string            `json:"courier_details,omitempty"`
+	OrderItems           []OrderItemRequest `json:"order_items" validate:"required,dive"`
+	DeliveryCharge       float64            `json:"delivery_charge" validate:"required"`
 }

@@ -13,13 +13,17 @@ import (
 func CreateOrder(req dtos.OrderRequest, totalAmount, totalDiscount string) (string, string, error) {
 	orderID, _ := shortid.Generate()
 	deliveryID, _ := shortid.Generate()
-
+	isGuest := false
+	if req.IsGuestOrder != nil {
+		isGuest = *req.IsGuestOrder
+	}
 	_, err := DB.Exec(`
-		INSERT INTO orders (
-			order_id, user_id, is_guest_order, status,
-			total_amount, total_discount, delivery_id
-		) VALUES (?, ?, ?, 'pending', ?, ?, ?)
-	`, orderID, req.UserID, req.IsGuestOrder, totalAmount, totalDiscount, deliveryID)
+	INSERT INTO orders (
+		order_id, user_id, is_guest_order, status,
+		total_amount, total_discount, delivery_id, guest_personal_details, guest_delivery_address
+	) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)
+`, orderID, req.UserID, isGuest, totalAmount, totalDiscount, deliveryID,
+		req.GuestPersonalDetails, req.GuestDeliveryAddress)
 
 	if err != nil {
 		return "", "", err
@@ -52,7 +56,24 @@ func CreateDeliveries(orderID, deliveryID string, req dtos.OrderRequest) error {
 	return err
 }
 
-func GetOrderByID(orderID string) (*dtos.Order, error) {
+func GetOrderByID(orderID, userID string) (*dtos.Order, error) {
+	var order dtos.Order
+	err := DB.QueryRow(`
+		SELECT order_id, total_amount, total_discount, delivery_id, status, created_at 
+		FROM orders WHERE order_id = ? AND user_id = ?`, orderID, userID).Scan(
+		&order.OrderID, &order.TotalAmount, &order.TotalDiscount, &order.DeliveryID, &order.Status, &order.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	order.Items, err = getOrderItems(orderID)
+	if err != nil {
+		return nil, err
+	}
+	return &order, nil
+}
+func GetOrder(orderID string) (*dtos.Order, error) {
 	var order dtos.Order
 	err := DB.QueryRow(`
 		SELECT order_id, total_amount, total_discount, delivery_id, status, created_at 
@@ -69,7 +90,6 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 	}
 	return &order, nil
 }
-
 func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 	var order dtos.Order
 	query := `
@@ -129,6 +149,40 @@ func ListOrdersByUser(userID string) ([]dtos.Order, error) {
 		WHERE o.user_id = ?
 		ORDER BY o.order_id
 	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	orders, err := mapOrdersWithItems(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert []*dtos.Order to []dtos.Order
+	result := make([]dtos.Order, len(orders))
+	for i, o := range orders {
+		result[i] = *o
+	}
+	return result, nil
+}
+func ListGuestOrders(orderID, email, phone string) ([]dtos.Order, error) {
+	err := isOrderThere(orderID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := DB.Query(`
+	SELECT 
+		o.order_id, o.total_amount, o.total_discount, o.delivery_id, o.status, o.created_at,
+		oi.product_id, oi.quantity, oi.unit_price
+	FROM orders o
+	LEFT JOIN order_items oi ON o.order_id = oi.order_id
+	WHERE o.order_id = ? 
+	  AND o.guest_personal_details LIKE ? 
+	  AND o.guest_personal_details LIKE ?
+	ORDER BY o.order_id
+`, orderID, "%"+email+"%", "%"+phone+"%")
+
 	if err != nil {
 		return nil, err
 	}

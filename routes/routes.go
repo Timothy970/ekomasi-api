@@ -298,8 +298,9 @@ func SetupRoutes(router *mux.Router) {
 	//orders endpoints
 	order := api.PathPrefix("/order").Subrouter()
 	order.HandleFunc("/create", handlers.CreateOrderHandler).Methods("POST")
-	order.HandleFunc("/view", handlers.ViewOrder).Methods("GET")
+	order.Handle("/view", middleware.AuthenticateToken(http.HandlerFunc(handlers.ViewOrder))).Methods("GET")
 	order.Handle("/list-orders", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListOrders))).Methods("GET")
+	order.HandleFunc("/guest-orders/{order_id}/{email}/{phone_number}", handlers.ListGuestOrders).Methods("GET")
 	//reports
 	// reportsRepo := &repositories.ReportsRepository{DB: db}
 	// reportsHandler := &handlers.ReportsHandler{Repo: reportsRepo}

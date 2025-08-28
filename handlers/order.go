@@ -10,6 +10,8 @@ import (
 	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
+
+	"github.com/gorilla/mux"
 )
 
 var InvalidOrderID = "Invalid order ID"
@@ -34,11 +36,13 @@ func CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
 	totalAmount, totalDiscount, applyFreeShipping, err := processOrderItems(req.OrderItems)
 	if err != nil {
 		log.Printf("Error processing order items: %v", err)
-		respondInternalServerError(w, r, requestSummary, start, "Failed to process order items")
+		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
 
@@ -50,25 +54,25 @@ func CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	orderID, deliveryID, err := models.CreateOrder(*req, utils.ToString(totalAmount), utils.ToString(totalDiscount))
 	if err != nil {
 		log.Printf("Error creating order:::%v", err)
-		respondInternalServerError(w, r, requestSummary, start, "Failed to create order")
+		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
 
 	if err := createOrderItems(orderID, req.OrderItems); err != nil {
 		log.Printf("Error when creating order items:::%v", err)
-		respondInternalServerError(w, r, requestSummary, start, "Failed to create order items")
+		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
 
 	err = models.CreateDeliveries(orderID, deliveryID, *req)
 	if err != nil {
 		log.Printf("Error when creating delivery:::%v", err)
-		respondInternalServerError(w, r, requestSummary, start, "Failed to create delivery")
+		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
 
 	finalAmount := totalAmount + req.DeliveryCharge - totalDiscount
-
+	//send sms and email notification
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusCreated,
 		Payload: map[string]interface{}{
@@ -112,7 +116,13 @@ func processOrderItems(items []dtos.OrderItemRequest) (totalAmount, totalDiscoun
 func createOrderItems(orderID string, items []dtos.OrderItemRequest) error {
 	for _, item := range items {
 		itemTotal := float64(item.Quantity) * item.UnitPrice
-		if _, err := models.CreateOrderItem(orderID, item.ProductID, item.VariantID, utils.ToString(itemTotal), utils.ToString(itemTotal)); err != nil {
+		var variantID string
+		if item.VariantID != nil {
+			variantID = *item.VariantID
+		} else {
+			variantID = ""
+		}
+		if _, err := models.CreateOrderItem(orderID, item.ProductID, variantID, utils.ToString(itemTotal), utils.ToString(itemTotal)); err != nil {
 			return err
 		}
 	}
@@ -174,6 +184,10 @@ func calculateDifferentPromotionTypes(promo *dtos.PromotionData, item dtos.Order
 func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	if !ok {
+		return
+	}
 	orderID := r.URL.Query().Get("order_id")
 	statusParam := r.URL.Query().Get("status")
 	var status *string
@@ -205,7 +219,7 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if orderID != "" {
-		order, err := models.GetOrderByID(orderID)
+		order, err := models.GetOrder(orderID)
 		if err != nil {
 			log.Printf("%s", err)
 			respondWithError(http.StatusInternalServerError, "Could not fetch order")
@@ -324,7 +338,7 @@ func ListOrders(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
-			Message:   "Failed to list orders",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -368,22 +382,22 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	// user, ok := middleware.UserFromContext(r.Context())
-	// if !ok {
-	// 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-	// 		Code:      http.StatusInternalServerError,
-	// 		Message:   noUser,
-	// 		TimeTaken: time.Since(start),
-	// 		Function:  utils.GetCurrentFuncName(),
-	// 		Request:   r,
-	// 		RawBody:   requestSummary})
-	// 	return
-	// }
-	order, err := models.GetOrderByID(orderID)
+	user, ok := middleware.UserFromContext(r.Context())
+	if !ok {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   noUser,
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	order, err := models.GetOrderByID(orderID, user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
-			Message:   "Could not fetch order",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -405,6 +419,46 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 		Code:      http.StatusOK,
 		Payload:   order,
 		Message:   "Orders",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// List Guest orders by order id, email and phone number
+// @Summary      List order for guest
+// @Description  Fetch all order for guest user
+// @Tags         Orders
+// @Produce      json
+// @Success      200  {array}   map[string]interface{}
+// @Failure      500  {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/guest-orders/{order_id}/{email}/{phone_number} [get]
+func ListGuestOrders(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	orderID := mux.Vars(r)["order_id"]
+	email := mux.Vars(r)["email"]
+	phone := mux.Vars(r)["phone_number"]
+
+	orders, err := models.ListGuestOrders(orderID, email, phone)
+	if err != nil {
+		log.Printf("%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   orders,
+		Message:   "List Orders",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
