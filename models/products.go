@@ -11,72 +11,83 @@ import (
 
 var nobundle = "bundle not found"
 var fetchbundle = "bundle_id = ?"
+var limtOffset = " LIMIT ? OFFSET ?"
 
 func GetAllProducts(categoryFilter, productFilter, categoryID string, page, limit int) ([]dtos.CategoryWithProducts, *dtos.PaginationMeta, error) {
-	// Build main query for fetching data
+	// Build queries
 	query, args := buildProductQuery(categoryFilter, productFilter, categoryID, page, limit)
-
-	// Build count query for total items
 	countQuery, countArgs := buildCountQuery(categoryFilter, productFilter, categoryID)
 
-	// Execute main query
+	// Fetch products and categories
 	rows, err := DB.Query(query, args...)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
 
-	// Execute count query
-	var totalItems int
-	err = DB.QueryRow(countQuery, countArgs...).Scan(&totalItems)
-	if err != nil {
+	// Count total items
+	var totalItems int64
+	if err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
 		return nil, nil, err
 	}
 
-	// Process rows (your existing code)
+	// Map of categories
 	categoryMap := make(map[string]*dtos.CategoryWithProducts)
 
+	// Process rows
 	for rows.Next() {
 		cat, prod, err := scanCategoryAndProduct(rows)
 		if err != nil {
 			return nil, nil, err
 		}
 
+		// Ensure category is initialized in the map
 		if _, exists := categoryMap[cat.CategoryID]; !exists {
 			categoryMap[cat.CategoryID] = &cat
 		}
 
+		// Append product if exists
 		if prod != nil {
 			categoryMap[cat.CategoryID].Products = append(categoryMap[cat.CategoryID].Products, *prod)
 		}
 	}
 
 	// Build hierarchy
-	var topLevel []dtos.CategoryWithProducts
-	for _, cat := range categoryMap {
-		if cat.ParentCategoryID != nil {
-			parent, ok := categoryMap[*cat.ParentCategoryID]
-			if ok {
-				parent.Subcategories = append(parent.Subcategories, *cat)
-			}
-		} else {
-			topLevel = append(topLevel, *cat)
-		}
-	}
+	topLevel := buildCategoryHierarchy(categoryMap)
 
-	// Calculate pagination metadata
+	// Pagination
 	pagination := calculatePagination(page, limit, totalItems)
 
 	return topLevel, &pagination, nil
 }
+
+func buildCategoryHierarchy(categoryMap map[string]*dtos.CategoryWithProducts) []dtos.CategoryWithProducts {
+	// First attach subcategories (using pointers)
+	for _, cat := range categoryMap {
+		if cat.ParentCategoryID != nil {
+			if parent, ok := categoryMap[*cat.ParentCategoryID]; ok {
+				parent.Subcategories = append(parent.Subcategories, cat) // keep pointer
+			}
+		}
+	}
+
+	// Then collect only top-level categories
+	var topLevel []dtos.CategoryWithProducts
+	for _, cat := range categoryMap {
+		if cat.ParentCategoryID == nil {
+			topLevel = append(topLevel, *cat) // deref only top-level for return
+		}
+	}
+	return topLevel
+}
+
 func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, []interface{}) {
-	var args []interface{}
 	query := `
-        SELECT COUNT(DISTINCT c.category_id)
-        FROM categories c
-        LEFT JOIN products p ON c.category_id = p.category_id
-        WHERE 1=1
-    `
+		SELECT COUNT(DISTINCT c.category_id)
+		FROM categories c
+		LEFT JOIN products p ON c.category_id = p.category_id
+		WHERE 1=1`
+	var args []interface{}
 
 	if categoryFilter != "" {
 		query += " AND LOWER(c.name) LIKE ?"
@@ -90,21 +101,19 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
 		query += " AND c.category_id = ?"
 		args = append(args, categoryID)
 	}
-
 	return query, args
 }
 
 func buildProductQuery(categoryFilter, productFilter, categoryID string, page, limit int) (string, []interface{}) {
-	var args []interface{}
 	query := `
-        SELECT 
-            c.category_id, c.name, c.parent_category_id, c.description,
-            p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-            p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
-        FROM categories c
-        LEFT JOIN products p ON c.category_id = p.category_id
-        WHERE 1=1
-    `
+		SELECT 
+			c.category_id, c.name, c.parent_category_id, c.description,
+			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+		FROM categories c
+		LEFT JOIN products p ON c.category_id = p.category_id
+		WHERE 1=1`
+	var args []interface{}
 
 	if categoryFilter != "" {
 		query += " AND LOWER(c.name) LIKE ?"
@@ -121,37 +130,34 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 
 	query += " ORDER BY c.category_id"
 
-	// Pagination
 	if limit > 0 {
 		offset := (page - 1) * limit
-		query += " LIMIT ? OFFSET ?"
+		query += fmt.Sprintf(limtOffset)
 		args = append(args, limit, offset)
 	}
 
 	return query, args
 }
-func calculatePagination(page, limit, totalItems int) dtos.PaginationMeta {
+
+func calculatePagination(page, limit int, totalItems int64) dtos.PaginationMeta {
 	if limit <= 0 {
-		limit = 10 // default limit
+		limit = 10
 	}
 	if page <= 0 {
-		page = 1 // default page
+		page = 1
 	}
-
-	totalPages := 0
-	if limit > 0 {
-		totalPages = (totalItems + limit - 1) / limit
-	}
+	totalPages := int((totalItems + int64(limit) - 1) / int64(limit))
 
 	return dtos.PaginationMeta{
 		Page:       page,
 		Size:       limit,
-		TotalItems: totalItems,
+		TotalItems: int(totalItems),
 		TotalPages: totalPages,
 		HasPrev:    page > 1,
 		HasNext:    page < totalPages,
 	}
 }
+
 func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Product, error) {
 	var (
 		catID, catName, catDesc string
@@ -183,6 +189,11 @@ func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Pr
 		return category, nil, nil
 	}
 
+	stock := 0
+	if stockQuantity.Valid {
+		stock = int(stockQuantity.Int64)
+	}
+
 	product := dtos.Product{
 		ID:            productID.String,
 		Name:          name.String,
@@ -190,7 +201,7 @@ func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Pr
 		SKU:           sku.String,
 		Price:         price.Float64,
 		CategoryID:    categoryID.String,
-		StockQuantity: int(stockQuantity.Int64),
+		StockQuantity: stock,
 		SearchVector:  searchVector.String,
 	}
 
@@ -209,6 +220,20 @@ func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Pr
 
 	return category, &product, nil
 }
+
+// func buildCategoryHierarchy(categoryMap map[string]*dtos.CategoryWithProducts) []dtos.CategoryWithProducts {
+// 	var topLevel []dtos.CategoryWithProducts
+// 	for _, cat := range categoryMap {
+// 		if cat.ParentCategoryID != nil {
+// 			if parent, ok := categoryMap[*cat.ParentCategoryID]; ok {
+// 				parent.Subcategories = append(parent.Subcategories, *cat)
+// 			}
+// 		} else {
+// 			topLevel = append(topLevel, *cat)
+// 		}
+// 	}
+// 	return topLevel
+// }
 
 func GetProductByID(productID string) (*dtos.Product, error) {
 	query := `
@@ -378,7 +403,7 @@ func GetRelatedProducts(categoryID, excludeProductID string, limit, page int) ([
 	defer rows.Close()
 
 	// Execute count query
-	var totalItems int
+	var totalItems int64
 	err = DB.QueryRow(countQuery, countArgs...).Scan(&totalItems)
 	if err != nil {
 		return nil, nil, err
@@ -423,7 +448,7 @@ func buildRelatedProductsQuery(categoryID, excludeProductID string, limit, page 
 	// Pagination
 	if limit > 0 {
 		offset := (page - 1) * limit
-		query += " LIMIT ? OFFSET ?"
+		query += fmt.Sprintf(limtOffset)
 		args = append(args, limit, offset)
 	}
 
@@ -556,7 +581,7 @@ func addPagination(baseQuery string, args []interface{}, limit, page int) (*dtos
 	}
 
 	args = append(args, limit, offset)
-	baseQuery += " LIMIT ? OFFSET ?"
+	baseQuery += fmt.Sprintf(limtOffset)
 	return pagination, args, nil
 }
 

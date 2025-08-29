@@ -295,7 +295,7 @@ func SetupRoutes(router *mux.Router) {
 	payment.HandleFunc("/mpesa/callback", payments.HandleMpesaCallback).Methods("POST")
 	payment.HandleFunc("/pay", payments.HandleMpesaPayment).Methods("POST")
 
-	//orders endpoints
+	//orders endpointsPro
 	order := api.PathPrefix("/order").Subrouter()
 	order.HandleFunc("/create", handlers.CreateOrderHandler).Methods("POST")
 	order.Handle("/view", middleware.AuthenticateToken(http.HandlerFunc(handlers.ViewOrder))).Methods("GET")

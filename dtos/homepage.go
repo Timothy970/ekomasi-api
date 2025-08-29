@@ -104,12 +104,12 @@ type UpdateBannerInfo struct {
 	IsActive     *bool  `json:"is_active,omitempty"`
 }
 type CategoryWithProducts struct {
-	CategoryID       string                 `json:"category_id"`
-	Name             string                 `json:"name"`
-	ParentCategoryID *string                `json:"parent_category_id"`
-	Description      string                 `json:"description"`
-	Products         []Product              `json:"products,omitempty"`
-	Subcategories    []CategoryWithProducts `json:"subcategories,omitempty"`
+	CategoryID       string                  `json:"category_id"`
+	Name             string                  `json:"name"`
+	ParentCategoryID *string                 `json:"parent_category_id"`
+	Description      string                  `json:"description"`
+	Products         []Product               `json:"products,omitempty"`
+	Subcategories    []*CategoryWithProducts `json:"subcategories,omitempty"`
 }
 type Promotion struct {
 	ID                   string                  `json:"promotion_id"`

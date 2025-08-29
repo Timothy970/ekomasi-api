@@ -35,8 +35,9 @@ func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	ctx := context.Background()
+	// ctx := context.Background()
 	limit := 0
+	page := 1
 	// Query parameters
 	categoryFilter := r.URL.Query().Get("category")
 	productFilter := r.URL.Query().Get("product")
@@ -48,38 +49,38 @@ func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		limit = 10
 	}
-
-	page, _ := strconv.Atoi(pageStr)
-	isPaginated := page > 0
+	if pageStr != "" {
+		page, _ = strconv.Atoi(pageStr)
+	}
+	// isPaginated := page > 0
 
 	// Only use cache if no filters and no pagination
-	useCache := categoryFilter == "" && productFilter == "" && !isPaginated && categoryID == ""
+	// useCache := categoryFilter == "" && productFilter == "" && !isPaginated && categoryID == ""
 
-	if useCache {
-		if cachedProducts, err := Redis.Get(ctx, "products").Result(); err == nil {
-			log.Printf("Data served from cache")
-			var products []dtos.CategoryWithProducts
-			if err := json.Unmarshal([]byte(cachedProducts), &products); err == nil {
-				utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-					Code:      http.StatusOK,
-					Payload:   products,
-					Message:   "All products",
-					TimeTaken: time.Since(start),
-					Function:  utils.GetCurrentFuncName(),
-					Request:   r,
-					RawBody:   requestSummary})
-				return
-			}
-		}
-	}
+	// if useCache {
+	// 	if cachedProducts, err := Redis.Get(ctx, "products").Result(); err == nil {
+	// 		log.Printf("Data served from cache")
+	// 		var products []dtos.CategoryWithProducts
+	// 		if err := json.Unmarshal([]byte(cachedProducts), &products); err == nil {
+	// 			utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	// 				Code:      http.StatusOK,
+	// 				Payload:   products,
+	// 				Message:   "All products",
+	// 				TimeTaken: time.Since(start),
+	// 				Function:  utils.GetCurrentFuncName(),
+	// 				Request:   r,
+	// 				RawBody:   requestSummary})
+	// 			return
+	// 		}
+	// 	}
+	// }
 
 	// Fetch from DB
 	products, pagination, err := models.GetAllProducts(categoryFilter, productFilter, categoryID, page, limit)
 	if err != nil {
-		log.Printf("Failed to get products: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusNotFound,
-			Message:   "No products found",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -88,11 +89,11 @@ func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store in cache only if it's a non-filtered, full, unpaginated response
-	if useCache {
-		if productBytes, err := json.Marshal(products); err == nil {
-			Redis.Set(ctx, "products", productBytes, 10*time.Minute)
-		}
-	}
+	// if useCache {
+	// 	if productBytes, err := json.Marshal(products); err == nil {
+	// 		Redis.Set(ctx, "products", productBytes, 10*time.Minute)
+	// 	}
+	// }
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusOK,
 		Payload: map[string]interface{}{
@@ -351,7 +352,7 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	limit := 0
+	limit := 10
 	page := 1
 	bundleID := mux.Vars(r)["bundle_id"]
 	ctx := context.Background()
@@ -360,8 +361,6 @@ func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 	limitStr := r.URL.Query().Get("size")
 	if limitStr != "" {
 		limit, _ = strconv.Atoi(limitStr)
-	} else {
-		limit = 10
 	}
 	if pageStr != "" {
 		page, _ = strconv.Atoi(pageStr)
