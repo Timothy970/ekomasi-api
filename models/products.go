@@ -200,6 +200,7 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
           )`
 		args = append(args, categoryID, categoryID)
 	}
+
 	return query, args
 }
 
@@ -235,7 +236,7 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 
 	if limit > 0 {
 		offset := (page - 1) * limit
-		query += fmt.Sprintf(limtOffset)
+		query += " LIMIT ? OFFSET ?"
 		args = append(args, limit, offset)
 	}
 
