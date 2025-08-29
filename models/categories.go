@@ -65,7 +65,13 @@ func getSubcategories(parentID string) ([]dtos.CategoryData, error) {
 }
 
 func getProductsByCategory(categoryID string) ([]dtos.ProductData, error) {
-	rows, err := DB.Query("SELECT product_id, name FROM products WHERE category_id = ? LIMIT 6", categoryID)
+	rows, err := DB.Query(`
+	SELECT p.product_id, p.name, p.price, pg.url
+	FROM products p
+	LEFT JOIN product_images pg ON p.product_id = pg.product_id
+	WHERE p.category_id = ?
+	LIMIT 6
+`, categoryID)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +80,7 @@ func getProductsByCategory(categoryID string) ([]dtos.ProductData, error) {
 	var products []dtos.ProductData
 	for rows.Next() {
 		var p dtos.ProductData
-		if err := rows.Scan(&p.ID, &p.Name); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Price, &p.URL); err != nil {
 			return nil, err
 		}
 		products = append(products, p)
@@ -145,12 +151,9 @@ func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
 }
 func UpdateCategory(id string, input dtos.CreateCategory) (*dtos.Category, error) {
 	// 1. Check if the category with the given ID exists
-	exists, err := CategoryExists(id)
+	err := CategoryExists(id)
 	if err != nil {
 		return nil, err
-	}
-	if !exists {
-		return nil, fmt.Errorf("category not forund")
 	}
 
 	// 2. Check if another category with the same name exists
@@ -181,13 +184,11 @@ func UpdateCategory(id string, input dtos.CreateCategory) (*dtos.Category, error
 	}, err
 }
 func DeleteCategory(id string) error {
-	exists, err := CategoryExists(id)
+	err := CategoryExists(id)
 	if err != nil {
 		return err
 	}
-	if !exists {
-		return fmt.Errorf("category not forund")
-	}
+
 	// Check for child categories
 	// var childCount int
 	// err = DB.QueryRow("SELECT COUNT(*) FROM categories WHERE parent_category_id = ?", id).Scan(&childCount)
@@ -233,7 +234,7 @@ func RecordExists(table, clause string, args ...interface{}) (bool, error) {
 
 	return exists, nil
 }
-func CategoryExists(id string) (bool, error) {
+func CategoryExists(id string) error {
 	var exists bool
 	err := DB.QueryRow(
 		`SELECT EXISTS(SELECT 1 FROM categories WHERE category_id = ?)`,
@@ -241,8 +242,11 @@ func CategoryExists(id string) (bool, error) {
 	).Scan(&exists)
 
 	if err != nil {
-		return false, fmt.Errorf("failed to check category existence: %w", err)
+		return fmt.Errorf("failed to check category existence: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("category not found")
 	}
 
-	return exists, nil
+	return nil
 }

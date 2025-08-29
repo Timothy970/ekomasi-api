@@ -210,7 +210,7 @@ func GetPromotionsHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("promotiones error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
-			Message:   "Failed to fetch promotions",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,

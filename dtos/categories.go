@@ -32,6 +32,8 @@ type CategoryData struct {
 	Products         []ProductData  `json:"products,omitempty"`
 }
 type ProductData struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Price float64 `json:"price"`
+	URL   string  `json:"url,omitempty"`
 }

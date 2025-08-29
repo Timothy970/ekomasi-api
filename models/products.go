@@ -15,6 +15,12 @@ var limtOffset = " LIMIT ? OFFSET ?"
 
 func GetAllProducts(categoryFilter, productFilter, categoryID string, page, limit int) ([]dtos.CategoryWithProducts, *dtos.PaginationMeta, error) {
 	// Build queries
+	if categoryID != "" {
+		err := CategoryExists(categoryID)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 	query, args := buildProductQuery(categoryFilter, productFilter, categoryID, page, limit)
 	countQuery, countArgs := buildCountQuery(categoryFilter, productFilter, categoryID)
 
@@ -52,21 +58,83 @@ func GetAllProducts(categoryFilter, productFilter, categoryID string, page, limi
 		}
 	}
 
-	// Build hierarchy
-	topLevel := buildCategoryHierarchy(categoryMap)
+	var result []dtos.CategoryWithProducts
+	if categoryID != "" {
+		// Find the specific category and build its complete hierarchy including parents
+		if targetCat, exists := categoryMap[categoryID]; exists {
+			// Build the complete hierarchy from root to the target category
+			completeHierarchy := buildCompleteHierarchyWithParents(categoryMap, targetCat)
+			result = completeHierarchy
+		} else {
+			// Category not found, return empty result
+			result = []dtos.CategoryWithProducts{}
+		}
+	} else {
+		// No categoryID specified, return full hierarchy
+		result = buildCategoryHierarchy(categoryMap)
+	}
 
 	// Pagination
 	pagination := calculatePagination(page, limit, totalItems)
 
-	return topLevel, &pagination, nil
+	return result, &pagination, nil
+}
+
+// Helper function to build complete hierarchy including parents for a specific category
+func buildCompleteHierarchyWithParents(categoryMap map[string]*dtos.CategoryWithProducts, targetCat *dtos.CategoryWithProducts) []dtos.CategoryWithProducts {
+	// First, build the hierarchy from the target category down to its children
+	buildCompleteHierarchy(categoryMap, targetCat)
+
+	// Then, build the hierarchy upwards to include all parents
+	// var hierarchy []dtos.CategoryWithProducts
+	currentCat := targetCat
+
+	// Build the chain of parents
+	parentChain := []*dtos.CategoryWithProducts{currentCat}
+	for currentCat.ParentCategoryID != nil {
+		if parent, exists := categoryMap[*currentCat.ParentCategoryID]; exists {
+			parentChain = append([]*dtos.CategoryWithProducts{parent}, parentChain...)
+			currentCat = parent
+		} else {
+			break
+		}
+	}
+
+	// Now build the nested hierarchy structure
+	for i := 0; i < len(parentChain)-1; i++ {
+		// Clear any existing subcategories to avoid duplication
+		parentChain[i].Subcategories = []*dtos.CategoryWithProducts{parentChain[i+1]}
+	}
+
+	// Return the top-level category (root of the hierarchy)
+	if len(parentChain) > 0 {
+		return []dtos.CategoryWithProducts{*parentChain[0]}
+	}
+
+	return []dtos.CategoryWithProducts{*targetCat}
+}
+
+// Helper function to build hierarchy downwards (children)
+func buildCompleteHierarchy(categoryMap map[string]*dtos.CategoryWithProducts, targetCat *dtos.CategoryWithProducts) {
+	// Clear existing subcategories to avoid duplication
+	targetCat.Subcategories = []*dtos.CategoryWithProducts{}
+
+	// Attach all direct subcategories
+	for _, cat := range categoryMap {
+		if cat.ParentCategoryID != nil && *cat.ParentCategoryID == targetCat.CategoryID {
+			// Recursively build hierarchy for this subcategory
+			buildCompleteHierarchy(categoryMap, cat)
+			targetCat.Subcategories = append(targetCat.Subcategories, cat)
+		}
+	}
 }
 
 func buildCategoryHierarchy(categoryMap map[string]*dtos.CategoryWithProducts) []dtos.CategoryWithProducts {
-	// First attach subcategories (using pointers)
+	// First attach subcategories
 	for _, cat := range categoryMap {
 		if cat.ParentCategoryID != nil {
 			if parent, ok := categoryMap[*cat.ParentCategoryID]; ok {
-				parent.Subcategories = append(parent.Subcategories, cat) // keep pointer
+				parent.Subcategories = append(parent.Subcategories, cat)
 			}
 		}
 	}
@@ -75,12 +143,13 @@ func buildCategoryHierarchy(categoryMap map[string]*dtos.CategoryWithProducts) [
 	var topLevel []dtos.CategoryWithProducts
 	for _, cat := range categoryMap {
 		if cat.ParentCategoryID == nil {
-			topLevel = append(topLevel, *cat) // deref only top-level for return
+			topLevel = append(topLevel, *cat)
 		}
 	}
 	return topLevel
 }
 
+// Update the queries to fetch the complete hierarchy including parents
 func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, []interface{}) {
 	query := `
 		SELECT COUNT(DISTINCT c.category_id)
@@ -98,12 +167,41 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
 		args = append(args, "%"+strings.ToLower(productFilter)+"%")
 	}
 	if categoryID != "" {
-		query += " AND c.category_id = ?"
-		args = append(args, categoryID)
+		query = `
+        WITH RECURSIVE ancestors AS (
+            SELECT category_id, parent_category_id
+            FROM categories
+            WHERE category_id = ?
+            UNION ALL
+            SELECT c.category_id, c.parent_category_id
+            FROM categories c
+            INNER JOIN ancestors a ON c.category_id = a.parent_category_id
+        ),
+        descendants AS (
+            SELECT category_id, parent_category_id
+            FROM categories
+            WHERE category_id = ?
+            UNION ALL
+            SELECT c.category_id, c.parent_category_id
+            FROM categories c
+            INNER JOIN descendants d ON c.parent_category_id = d.category_id
+        )
+        SELECT COUNT(DISTINCT c.category_id)
+        FROM categories c
+        LEFT JOIN products p ON c.category_id = p.category_id
+        WHERE 1=1
+          AND c.category_id IN (
+              SELECT category_id FROM ancestors
+              UNION
+              SELECT category_id FROM descendants
+          )`
+		args = append(args, categoryID, categoryID)
 	}
+
 	return query, args
 }
 
+// Alternative approach: split into two separate queries
 func buildProductQuery(categoryFilter, productFilter, categoryID string, page, limit int) (string, []interface{}) {
 	query := `
 		SELECT 
@@ -124,15 +222,18 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 		args = append(args, "%"+strings.ToLower(productFilter)+"%")
 	}
 	if categoryID != "" {
-		query += " AND c.category_id = ?"
-		args = append(args, categoryID)
+		// For MySQL, we might need to handle this differently
+		// Option 1: Use application logic to get all related category IDs first
+		// Option 2: Use a simpler approach if hierarchy depth is limited
+		query += " AND (c.category_id = ? OR c.parent_category_id = ? OR c.category_id IN (SELECT parent_category_id FROM categories WHERE category_id = ? AND parent_category_id IS NOT NULL))"
+		args = append(args, categoryID, categoryID, categoryID)
 	}
 
-	query += " ORDER BY c.category_id"
+	query += " ORDER BY c.parent_category_id IS NULL DESC, c.parent_category_id, c.category_id"
 
 	if limit > 0 {
 		offset := (page - 1) * limit
-		query += fmt.Sprintf(limtOffset)
+		query += " LIMIT ? OFFSET ?"
 		args = append(args, limit, offset)
 	}
 
@@ -269,13 +370,11 @@ func AddNewProduct(input dtos.CreateProduct) (*dtos.CreateProduct, error) {
 	if skuExists {
 		return nil, fmt.Errorf("duplicate SKU")
 	}
-	exists, err := CategoryExists(input.CategoryID)
+	err = CategoryExists(input.CategoryID)
 	if err != nil {
 		return nil, err
 	}
-	if !exists {
-		return nil, fmt.Errorf("category not forund")
-	}
+
 	var parentID *string
 	err = DB.QueryRow("SELECT parent_category_id FROM categories WHERE category_id = ?", input.CategoryID).Scan(&parentID)
 	if err != nil {
