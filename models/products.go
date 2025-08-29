@@ -198,6 +198,7 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
           )`
 		args = append(args, categoryID, categoryID)
 	}
+
 	return query, args
 }
 
