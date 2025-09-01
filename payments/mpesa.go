@@ -241,12 +241,17 @@ func HandleMpesaCallback(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("%v", err)
 		}
-		userID := "tim"
-		utils.SendToUser(userID, map[string]interface{}{
-			"event":    "payment_success",
-			"message":  "Your payment was successful!",
-			"order_id": orderID,
-		})
+		utils.SendToUser(
+			"",
+			orderID,
+			deliveryID,
+			map[string]interface{}{
+				"event":       "payment_success",
+				"message":     "Your payment was successful!",
+				"order_id":    orderID,
+				"delivery_id": deliveryID,
+			},
+		)
 
 		// Respond OK
 		w.WriteHeader(http.StatusOK)

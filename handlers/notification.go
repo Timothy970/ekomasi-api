@@ -124,7 +124,7 @@ func sendNotification(req dtos.Notification) error {
 		notification.SendEmail(user.Email, "Notification", req.Content)
 	case "push":
 		//handle websocketing sending
-		utils.SendToUser(req.RecipientID, map[string]interface{}{
+		utils.SendToUser(req.RecipientID, "", "", map[string]interface{}{
 			"event":   "Notification",
 			"message": "Your payment was successful!",
 		})

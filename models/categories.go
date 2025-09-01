@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/teris-io/shortid"
 )
@@ -18,6 +19,7 @@ func GetAllCategories() ([]dtos.CategoryData, error) {
 	defer rows.Close()
 
 	var categories []dtos.CategoryData
+	log.Printf("fetching sub categories888888")
 	for rows.Next() {
 		var cat dtos.CategoryData
 		if err := rows.Scan(&cat.ID, &cat.Name, &cat.ParentCategoryID, &cat.Description); err != nil {

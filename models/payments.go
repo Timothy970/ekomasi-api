@@ -52,7 +52,7 @@ func UpdateStkResponse(stk dtos.STKCallbackRequest, status string) (string, stri
 	err = DB.QueryRow(`
 		SELECT delivery_id, order_id
 		FROM stk_push_responses
-		WHERE checkout_request_id = ? AND merchant_request_id = ?
+		WHERE checkout_request_id = ? AND merchant_request_id = ? LIMIT 1
 	`, stk.Body.StkCallback.CheckoutRequestID, stk.Body.StkCallback.MerchantRequestID).Scan(&deliveryID, &orderID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to fetch delivery/order ids: %w", err)
