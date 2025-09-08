@@ -259,3 +259,86 @@ func DeleteInventory(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+func GetInventoryTurnover(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	groupBy := "weekly"
+	periodStr := r.URL.Query().Get("period")
+	if periodStr != "" {
+		groupBy = periodStr
+	}
+	start, end, _ := ParseDateRange(r)
+	data, err := models.GetInventoryTurnover(start, end, groupBy)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	resp := dtos.InventoryTurnoverResponse{
+		Period: struct {
+			Start time.Time `json:"start"`
+			End   time.Time `json:"end"`
+			Type  string    `json:"type"`
+		}{Start: start, End: end, Type: groupBy},
+		Data: data,
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusCreated,
+		Payload:   resp,
+		Message:   "Summary inventory turnover report",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+func GetInventoryTurnoverByProduct(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	productID := mux.Vars(r)["product_id"]
+	groupBy := "weekly"
+	periodStr := r.URL.Query().Get("period")
+	if periodStr != "" {
+		groupBy = periodStr
+	}
+	start, end, _ := ParseDateRange(r)
+
+	data, err := models.GetInventoryTurnoverByProduct(productID, start, end, groupBy)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	resp := dtos.InventoryTurnoverResponse{
+		Period: struct {
+			Start time.Time `json:"start"`
+			End   time.Time `json:"end"`
+			Type  string    `json:"type"`
+		}{Start: start, End: end, Type: groupBy},
+		Data: data,
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusCreated,
+		Payload:   resp,
+		Message:   "Product inventory turnover report",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}

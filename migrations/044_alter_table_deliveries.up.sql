@@ -1,0 +1,2 @@
+ALTER TABLE deliveries
+ADD COLUMN delivery_address VARCHAR(100) DEFAULT 'Nairobi' AFTER status;

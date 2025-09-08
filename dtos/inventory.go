@@ -35,3 +35,26 @@ type Inventory struct {
 	LowStockThreshold int       `json:"low_stock_threshold"`
 	LastUpdated       time.Time `json:"last_updated"`
 }
+
+type InventoryTurnoverRequest struct {
+	GroupBy string // week, month, quarter, year
+	Start   time.Time
+	End     time.Time
+}
+
+type InventoryTurnoverResponse struct {
+	Period struct {
+		Start time.Time `json:"start"`
+		End   time.Time `json:"end"`
+		Type  string    `json:"type"`
+	} `json:"period"`
+	Data []InventoryTurnoverItem `json:"data"`
+}
+
+type InventoryTurnoverItem struct {
+	ProductID     *string `json:"product_id,omitempty"`
+	CategoryID    *string `json:"category_id,omitempty"`
+	AvgInventory  float64 `json:"average_inventory"`
+	COGS          float64 `json:"cogs"`
+	TurnoverRatio float64 `json:"turnover_ratio"`
+}

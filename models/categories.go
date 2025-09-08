@@ -150,6 +150,7 @@ func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
 		Name:             input.Name,
 		ParentCategoryID: &categoryID,
 		Description:      input.Description,
+		Image:            input.Image,
 	}, err
 }
 func UpdateCategory(id string, input dtos.CreateCategory) (*dtos.Category, error) {

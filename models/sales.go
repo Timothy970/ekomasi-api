@@ -1,6 +1,7 @@
 package models
 
 import (
+	"adenzo_backend/dtos"
 	"fmt"
 	"time"
 )
@@ -179,4 +180,70 @@ func GetSalesTrendsOverTime(period string, start, end time.Time) (SalesTrendsOve
 	response.Data = data
 
 	return response, nil
+}
+
+// Customer segmentation by delivery location
+func GetCustomerSegmentation(start, end time.Time) ([]dtos.CustomerSegment, error) {
+	query := `
+        SELECT 
+            d.delivery_address AS segment_name,
+            COUNT(DISTINCT o.order_id) AS order_count,
+            SUM(oi.unit_price * oi.quantity) AS total_sales,
+            AVG(oi.unit_price * oi.quantity) AS avg_purchase_value,
+            (SUM(oi.unit_price * oi.quantity) / COUNT(DISTINCT o.order_id)) AS avg_order_value,
+            COUNT(DISTINCT o.order_id) AS transactions
+        FROM orders o
+        JOIN order_items oi ON o.order_id = oi.order_id
+        JOIN deliveries d ON o.delivery_id = d.delivery_id
+        WHERE o.created_at BETWEEN ? AND ?
+        GROUP BY d.delivery_address
+    `
+
+	rows, err := DB.Query(query, start, end)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var segments []dtos.CustomerSegment
+	for rows.Next() {
+		var seg dtos.CustomerSegment
+		if err := rows.Scan(&seg.SegmentName, &seg.OrderCount, &seg.TotalSales, &seg.AvgPurchaseValue, &seg.AvgOrderValue, &seg.Transactions); err != nil {
+			return nil, err
+		}
+		segments = append(segments, seg)
+	}
+	return segments, nil
+}
+
+// Sales by region
+func GetSalesByRegion(start, end time.Time) ([]dtos.RegionSales, error) {
+	query := `
+        SELECT 
+            d.delivery_address AS region,
+            SUM(oi.unit_price * oi.quantity) AS total_sales,
+            (SUM(oi.unit_price * oi.quantity) / COUNT(DISTINCT o.order_id)) AS avg_order_value,
+            COUNT(DISTINCT o.order_id) AS transactions
+        FROM orders o
+        JOIN order_items oi ON o.order_id = oi.order_id
+        JOIN deliveries d ON o.delivery_id = d.delivery_id
+        WHERE o.created_at BETWEEN ? AND ?
+        GROUP BY d.delivery_address
+    `
+
+	rows, err := DB.Query(query, start, end)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var regions []dtos.RegionSales
+	for rows.Next() {
+		var rgn dtos.RegionSales
+		if err := rows.Scan(&rgn.Region, &rgn.TotalSales, &rgn.AvgOrderValue, &rgn.Transactions); err != nil {
+			return nil, err
+		}
+		regions = append(regions, rgn)
+	}
+	return regions, nil
 }
