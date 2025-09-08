@@ -8,4 +8,4 @@ storage/logs/adenzo.*
 !storage/
 !storage/logs/
 
-# service.json
+service.json

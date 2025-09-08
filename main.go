@@ -134,6 +134,13 @@ func main() {
 	router := mux.NewRouter()
 	// Swagger route
 	router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
+
+	// Run cart reminders every 3 days (check daily at midnight, or use cron if needed)
+	// handlers.StartCartReminderScheduler(24*time.Hour, 3)
+	handlers.StartCartReminderScheduler(1*time.Hour, 1)
+	// Run wishlist reminders every 7 days
+	handlers.StartWishlistReminderScheduler(1*time.Minute, 7)
+	// handlers.StartWishlistReminderScheduler(24*time.Hour, 7)
 	// Define routes
 	routes.SetupRoutes(router)
 

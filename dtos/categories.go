@@ -4,6 +4,7 @@ type CreateCategory struct {
 	Name        string  `json:"name" validate:"required"`
 	Description string  `json:"description" validate:"required"`
 	ParentID    *string `json:"parent_id"`
+	Image       string  `json:"image_url" validate:"required"`
 }
 type UpdateCategory struct {
 	Name        string `json:"name" validate:"required"`
@@ -28,6 +29,7 @@ type CategoryData struct {
 	Name             string         `json:"name"`
 	ParentCategoryID *string        `json:"parent_category_id"`
 	Description      string         `json:"description"`
+	Image            *string        `json:"image_url"`
 	Subcategories    []CategoryData `json:"subcategories,omitempty"`
 	Products         []ProductData  `json:"products,omitempty"`
 }

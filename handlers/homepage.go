@@ -921,7 +921,7 @@ func ListBlogsHandler(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   response,
-		Message:   "Blogs fetdched successfully",
+		Message:   "Blogs fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

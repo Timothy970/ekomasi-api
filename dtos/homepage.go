@@ -147,6 +147,7 @@ type Category struct {
 	Name             string  `json:"name"`
 	ParentCategoryID *string `json:"parent_category_id"`
 	Description      string  `json:"description"`
+	Image            string  `json:"image_url"`
 }
 
 type Product struct {

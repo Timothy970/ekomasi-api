@@ -6,13 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/teris-io/shortid"
 )
 
 func GetAllCategories() ([]dtos.CategoryData, error) {
 	// 1. Get top-level categories
-	rows, err := DB.Query("SELECT category_id, name, parent_category_id, description FROM categories WHERE parent_category_id IS NULL")
+	rows, err := DB.Query("SELECT category_id, name, parent_category_id, image, description FROM categories WHERE parent_category_id IS NULL")
 	if err != nil {
 		return nil, err
 	}
@@ -22,7 +23,7 @@ func GetAllCategories() ([]dtos.CategoryData, error) {
 	log.Printf("fetching sub categories888888")
 	for rows.Next() {
 		var cat dtos.CategoryData
-		if err := rows.Scan(&cat.ID, &cat.Name, &cat.ParentCategoryID, &cat.Description); err != nil {
+		if err := rows.Scan(&cat.ID, &cat.Name, &cat.ParentCategoryID, &cat.Image, &cat.Description); err != nil {
 			return nil, err
 		}
 
@@ -40,7 +41,7 @@ func GetAllCategories() ([]dtos.CategoryData, error) {
 }
 
 func getSubcategories(parentID string) ([]dtos.CategoryData, error) {
-	rows, err := DB.Query("SELECT category_id, name, parent_category_id, description FROM categories WHERE parent_category_id = ?", parentID)
+	rows, err := DB.Query("SELECT category_id, name, parent_category_id, image,description FROM categories WHERE parent_category_id = ?", parentID)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +50,7 @@ func getSubcategories(parentID string) ([]dtos.CategoryData, error) {
 	var subs []dtos.CategoryData
 	for rows.Next() {
 		var sub dtos.CategoryData
-		if err := rows.Scan(&sub.ID, &sub.Name, &sub.ParentCategoryID, &sub.Description); err != nil {
+		if err := rows.Scan(&sub.ID, &sub.Name, &sub.ParentCategoryID, &sub.Image, &sub.Description); err != nil {
 			return nil, err
 		}
 
@@ -124,9 +125,9 @@ func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
 		// Insert without parent_id
 		//Safe to insert to DB
 		_, err := DB.Exec(`
-		INSERT INTO categories (category_id, name, description)
-		VALUES (?, ?, ?)`,
-			categoryID, input.Name, categoryID,
+		INSERT INTO categories (category_id, name, description, image)
+		VALUES (?, ?, ?, ?)`,
+			categoryID, input.Name, categoryID, input.Image,
 		)
 		if err != nil {
 			return nil, err
@@ -139,9 +140,9 @@ func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
 			return nil, err
 		}
 		_, err = DB.Exec(`
-		INSERT INTO categories (category_id, name, parent_category_id, description)
+		INSERT INTO categories (category_id, name, parent_category_id, description, image)
 		VALUES (?, ?, ?, ?)`,
-			categoryID, input.Name, input.ParentID, input.Description,
+			categoryID, input.Name, input.ParentID, input.Description, input.Image,
 		)
 	}
 	return &dtos.Category{
@@ -152,39 +153,73 @@ func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
 	}, err
 }
 func UpdateCategory(id string, input dtos.CreateCategory) (*dtos.Category, error) {
-	// 1. Check if the category with the given ID exists
-	err := CategoryExists(id)
-	if err != nil {
+	// 1. Ensure the category exists
+	if err := CategoryExists(id); err != nil {
 		return nil, err
 	}
 
-	// 2. Check if another category with the same name exists
-	var nameExists bool
-	err = DB.QueryRow(`
-		SELECT EXISTS(
-			SELECT 1 FROM categories WHERE name = ? AND category_id != ?
-		)
-	`, input.Name, id).Scan(&nameExists)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check name uniqueness: %w", err)
+	// 2. Check uniqueness of name (if provided)
+	if input.Name != "" {
+		var nameExists bool
+		err := DB.QueryRow(`
+			SELECT EXISTS(
+				SELECT 1 FROM categories WHERE name = ? AND category_id != ?
+			)
+		`, input.Name, id).Scan(&nameExists)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check name uniqueness: %w", err)
+		}
+		if nameExists {
+			return nil, fmt.Errorf("a category with the name '%s' already exists", input.Name)
+		}
 	}
-	if nameExists {
-		return nil, fmt.Errorf("a category with the name '%s' already exists", input.Name)
-	}
-	_, err = DB.Exec(`
-		UPDATE categories
-		SET name = ?, parent_category_id = ?, description = ?
-		WHERE category_id = ?`,
-		input.Name, id, input.Description, id,
-	)
 
+	// 3. Build update query dynamically
+	setClauses := []string{}
+	args := []interface{}{}
+
+	if input.Name != "" {
+		setClauses = append(setClauses, "name = ?")
+		args = append(args, input.Name)
+	}
+	if input.ParentID != nil {
+		setClauses = append(setClauses, "parent_category_id = ?")
+		args = append(args, *input.ParentID)
+	}
+	if input.Description != "" {
+		setClauses = append(setClauses, "description = ?")
+		args = append(args, input.Description)
+	}
+	if input.Image != "" { // assuming image is a string, not *string
+		setClauses = append(setClauses, "image = ?")
+		args = append(args, input.Image)
+	}
+
+	// No fields to update
+	if len(setClauses) == 0 {
+		return nil, fmt.Errorf("no fields to update")
+	}
+
+	// Add category_id to args
+	args = append(args, id)
+
+	query := fmt.Sprintf(`UPDATE categories SET %s WHERE category_id = ?`, strings.Join(setClauses, ", "))
+
+	_, err := DB.Exec(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update category: %w", err)
+	}
+
+	// 4. Return updated category DTO
 	return &dtos.Category{
 		ID:               id,
 		Name:             input.Name,
-		ParentCategoryID: &id,
+		ParentCategoryID: input.ParentID,
 		Description:      input.Description,
-	}, err
+		Image:            input.Image,
+	}, nil
 }
+
 func DeleteCategory(id string) error {
 	err := CategoryExists(id)
 	if err != nil {

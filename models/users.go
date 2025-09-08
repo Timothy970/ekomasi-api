@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/teris-io/shortid"
 )
@@ -238,4 +239,118 @@ func GetAllUsersWithPagination(limit, offset int) ([]dtos.User, *dtos.Pagination
 	}
 
 	return users, meta, nil
+}
+
+// Get purchased product categories for the user
+func GetPurchasedCategories(userID string) ([]string, error) {
+	rows, err := DB.Query(`
+		SELECT DISTINCT p.category_id
+		FROM orders o
+		JOIN order_items oi ON o.order_id = oi.order_id
+		JOIN products p ON oi.product_id = p.product_id
+		WHERE o.user_id = ?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, err
+		}
+		categories = append(categories, c)
+	}
+	return categories, nil
+}
+
+// Get wishlist product categories for the user
+func GetWishlistCategories(userID string) ([]string, error) {
+	rows, err := DB.Query(`
+		SELECT DISTINCT p.category_id
+		FROM wishlists w
+		JOIN wishlist_items wi ON w.wishlist_id = wi.wishlist_id
+		JOIN products p ON wi.product_id = p.product_id
+		WHERE w.user_id = ?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, err
+		}
+		categories = append(categories, c)
+	}
+	return categories, nil
+}
+
+// Get related products by category
+// GetProductsByCategories with pagination
+func GetProductsByCategories(categories []string, page, size int) ([]dtos.Product, dtos.PaginationMeta, error) {
+	if len(categories) == 0 {
+		return []dtos.Product{}, dtos.PaginationMeta{}, nil
+	}
+
+	offset := (page - 1) * size
+
+	// Build placeholders for IN clause
+	placeholders := strings.Repeat(",?", len(categories)-1)
+	query := `
+		SELECT SQL_CALC_FOUND_ROWS
+		       p.product_id, p.name, p.description, p.sku, p.price, 
+		       p.category_id, p.stock_quantity, p.search_vector, 
+		       p.created_at, p.last_updated_at
+		FROM products p
+		WHERE p.category_id IN (?` + placeholders + `)
+		LIMIT ? OFFSET ?`
+
+	args := make([]interface{}, len(categories)+2)
+	for i, v := range categories {
+		args[i] = v
+	}
+	args[len(categories)] = size
+	args[len(categories)+1] = offset
+
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, dtos.PaginationMeta{}, err
+	}
+	defer rows.Close()
+
+	var products []dtos.Product
+	for rows.Next() {
+		var p dtos.Product
+		if err := rows.Scan(
+			&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price,
+			&p.CategoryID, &p.StockQuantity, &p.SearchVector,
+			&p.CreatedAt, &p.LastUpdated,
+		); err != nil {
+			return nil, dtos.PaginationMeta{}, err
+		}
+		p.Images, _ = fetchProductImages(p.ID)
+		products = append(products, p)
+	}
+
+	// Get total count
+	var totalItems int
+	if err := DB.QueryRow(`SELECT FOUND_ROWS()`).Scan(&totalItems); err != nil {
+		return nil, dtos.PaginationMeta{}, err
+	}
+
+	totalPages := (totalItems + size - 1) / size
+	meta := dtos.PaginationMeta{
+		Page:       page,
+		Size:       size,
+		TotalItems: totalItems,
+		TotalPages: totalPages,
+		HasPrev:    page > 1,
+		HasNext:    page < totalPages,
+	}
+
+	return products, meta, nil
 }

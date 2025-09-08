@@ -547,7 +547,7 @@ func UpdateAddress(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
-			Message:   "User not found",
+			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -685,6 +685,88 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 		Code:      http.StatusOK,
 		Payload:   nil,
 		Message:   "User details updated successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+//get recommended user products based on purchase history and wishlist
+
+func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	authUser, ok := middleware.UserFromContext(r.Context())
+	if !ok {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   noUser,
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	// Parse pagination params
+	page := 1
+	limit := 10
+	pageStr := r.URL.Query().Get("page")
+	limitStr := r.URL.Query().Get("size")
+	if limitStr != "" {
+		limit, _ = strconv.Atoi(limitStr)
+	}
+	if pageStr != "" {
+		page, _ = strconv.Atoi(pageStr)
+	}
+	// get categories from purchase history & wishlist
+	purchaseCats, err := models.GetPurchasedCategories(authUser.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	wishlistCats, err := models.GetWishlistCategories(authUser.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// merge categories
+	categories := append(purchaseCats, wishlistCats...)
+
+	// fetch recommended products
+	recommended, pagination, err := models.GetProductsByCategories(categories, page, limit)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code: http.StatusOK,
+		Payload: map[string]interface{}{
+			"products":   recommended,
+			"pagination": pagination,
+		},
+		Message:   "Recommended products fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

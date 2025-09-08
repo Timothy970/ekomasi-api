@@ -342,5 +342,6 @@ func SetupRoutes(router *mux.Router) {
 	reports.HandleFunc("/customers/retention", handlers.GetCustomerRetention).Methods("GET")
 	reports.HandleFunc("/customers/retention/trend", handlers.GetCustomerRetentionTrends).Methods("GET")
 	reports.HandleFunc("/customers/retention/summary", handlers.GetCustomerRetentionSummary).Methods("GET")
-
+	//user based recommended products
+	user.Handle("/products/recommendations", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserBasedProductsRecommendations))).Methods("GET")
 }

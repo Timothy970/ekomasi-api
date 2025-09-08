@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -31,47 +32,94 @@ import (
 // @Router /api/products/categories [post]
 func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
-	if !ok {
+
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
 		return
 	}
-	//decode request body
-	req, ok := DecodeRequestBody[dtos.CreateCategory](r, w, requestSummary, start)
-	if !ok {
-		return
-	}
-	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
-		return
-	}
-	//add the category to the DB
-	product, err := models.AddNewCategory(*req)
-	if err != nil {
-		log.Printf("Error adding new product %s", err)
+
+	// Parse multipart form (20 MB max)
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusBadRequest,
-			Message:   fmt.Sprintf("%s", err),
+			Message:   "Failed to parse form: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   requestSummary})
+		})
+		return
+	}
+
+	// Get image file
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Image is required",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	defer file.Close()
+
+	// Upload image to GCS
+	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   "Failed to upload image: " + err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+
+	// Build DTO
+	req := dtos.CreateCategory{
+		Image:       url,
+		Name:        r.FormValue("name"),
+		Description: r.FormValue("description"),
+		ParentID:    utils.StringPtr(r.FormValue("parent_id")),
+	}
+
+	// Validate request
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
+
+	// Insert category into DB
+	category, err := models.AddNewCategory(req)
+	if err != nil {
+		log.Printf("Error adding new category: %v", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   fmt.Sprintf("Failed to add category: %v", err),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
 		return
 	}
 
 	// Invalidate categories cache
 	ctx := context.Background()
 	Redis.Del(ctx, "categories")
+
+	// Respond success
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
-		Payload:   product,
+		Payload:   category,
 		Message:   "Category created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
-		RawBody:   requestSummary})
+		RawBody:   requestSummary,
+	})
 }
 
 // Update new category
@@ -88,55 +136,87 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 // @Router /api/admin/products/categories/{category_id} [PATCH]
 func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
-	if !ok {
+
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.CreateCategory](r, w, requestSummary, start)
-	if !ok {
-		return
-	}
-	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
-		return
-	}
-	id := mux.Vars(r)["category_id"]
-	if id == "" {
+
+	// Parse multipart form (20 MB max)
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusBadRequest,
-			Message:   noCategoryID,
+			Message:   "Failed to parse form: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   requestSummary})
+		})
+		return
 	}
-	product, err := models.UpdateCategory(id, *req)
+
+	// Handle optional image upload
+	var imageURL string
+	if file, header, err := r.FormFile("image"); err == nil {
+		defer file.Close()
+		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   "Failed to upload image: " + err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+			})
+			return
+		}
+		imageURL = url
+	}
+
+	// Build DTO (image is optional)
+	req := dtos.CreateCategory{
+		Image:       imageURL,
+		Name:        r.FormValue("name"),
+		Description: r.FormValue("description"),
+		ParentID:    utils.StringPtr(r.FormValue("parent_id")),
+	}
+
+	// Validate request
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
+
+	// Get category ID from URL
+	id := mux.Vars(r)["category_id"]
+	// Update category
+	category, err := models.UpdateCategory(id, req)
 	if err != nil {
-		log.Printf("Error updating product %s", err)
+		log.Printf("Error updating category: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusBadRequest,
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   requestSummary})
+			RawBody:   requestSummary,
+		})
 		return
 	}
 
 	// Invalidate cache
 	ctx := context.Background()
 	Redis.Del(ctx, "categories")
+
+	// Respond success
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
-		Payload:   product,
-		Message:   "Category updated sucessfully",
+		Code:      http.StatusOK,
+		Payload:   category,
+		Message:   "Category updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
-		RawBody:   requestSummary})
+		RawBody:   requestSummary,
+	})
 }
 
 // Delete category
