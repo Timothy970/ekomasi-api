@@ -149,7 +149,7 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 	res, err := getCartItemsByCartID(req.CartID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			Code:      404,
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
