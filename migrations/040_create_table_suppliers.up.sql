@@ -1,4 +1,4 @@
-CREATE TABLE suppliers (
+CREATE TABLE IF NOT EXISTS suppliers (
    `supplier_id` char(36) NOT NULL,
    `name` varchar(100) NOT NULL,
    `contact_email` varchar(255) DEFAULT NULL,

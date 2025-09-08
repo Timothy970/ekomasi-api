@@ -1,4 +1,4 @@
-CREATE TABLE warehouses (
+CREATE TABLE IF NOT EXISTS warehouses (
    `warehouse_id` char(36) NOT NULL,
    `name` varchar(100) NOT NULL,
    `location` varchar(255) NOT NULL,
