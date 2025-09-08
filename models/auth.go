@@ -122,6 +122,16 @@ func isProductThere(id string) error {
 	}
 	return nil
 }
+func isBundleThere(id string) error {
+	exists, err := RecordExists("product_bundles", "bundle_id = ?", id)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("bundle not found")
+	}
+	return nil
+}
 func isRestockNotification(userID, productID string) error {
 	exists, err := RecordExists("restock_notifications", "product_id = ? AND user_id = ?", productID, userID)
 	if err != nil {

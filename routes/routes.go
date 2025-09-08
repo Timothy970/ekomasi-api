@@ -66,9 +66,9 @@ func SetupRoutes(router *mux.Router) {
 	products.HandleFunc("/related", handlers.GetRelatedProductsHandler).Methods("GET")
 	product.HandleFunc("/{product_id}", handlers.GetProductByIDHandler).Methods("GET")
 	product.HandleFunc("/upload-images", handlers.UploadProductImageHandler).Methods("POST")
-	product.HandleFunc("/update/bundle", handlers.UpdateBundleHandler).Methods("PATCH")
-	product.HandleFunc("/delete/bundle", handlers.DeleteBundleHandler).Methods("DELETE")
-	product.HandleFunc("/add-products/bundle", handlers.AddProductsToBundleHandler).Methods("POST")
+	product.Handle("/update/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateBundleHandler))).Methods("PATCH")
+	product.Handle("/delete/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBundleHandler))).Methods("DELETE")
+	product.Handle("/add-products/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductsToBundleHandler))).Methods("POST")
 	// featured products
 	products.HandleFunc("/featured", handlers.GetFeatured).Methods("GET")
 
@@ -89,10 +89,12 @@ func SetupRoutes(router *mux.Router) {
 	// Cart routes
 	cart := api.PathPrefix("/cart").Subrouter()
 
-	cart.Handle("/add", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddToCartHandler))).Methods("POST")
-	cart.Handle("/view", middleware.AuthenticateToken(http.HandlerFunc(handlers.ViewCartHandler))).Methods("GET")
-	cart.Handle("/update", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateCartItemHandler))).Methods("PATCH")
-	cart.Handle("/remove", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveFromCartHandler))).Methods("DELETE")
+	cart.HandleFunc("", handlers.CreateCartHandler).Methods("POST")
+	cart.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserCartHandler))).Methods("GET")
+	cart.HandleFunc("/add", handlers.AddToCartHandler).Methods("POST")
+	cart.HandleFunc("/view/{cart_id}", handlers.ViewCartHandler).Methods("GET")
+	cart.HandleFunc("/update/{cart_id}", handlers.UpdateCartItemHandler).Methods("PATCH")
+	cart.HandleFunc("/remove/{cart_id}", handlers.RemoveFromCartHandler).Methods("DELETE")
 	cart.Handle("/apply-coupon", middleware.AuthenticateToken(http.HandlerFunc(handlers.ApplyCouponHandler))).Methods("POST")
 
 	//get shipping fee
@@ -118,7 +120,7 @@ func SetupRoutes(router *mux.Router) {
 	// Add a product variant
 	admin.Handle("/add-products/variants/{variant_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductVariant))).Methods("POST")
 	// Remove a product variant
-	admin.Handle("/remove-products/variants/{variant_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductVariant))).Methods("DELETE")
+	admin.Handle("/remove-products/variants/{variant_id}/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveProductVariant))).Methods("DELETE")
 	//List Product variants
 	products.HandleFunc("/variants/{product_id}", handlers.ListProductVariants).Methods("GET")
 	//Moderate a review
@@ -135,14 +137,14 @@ func SetupRoutes(router *mux.Router) {
 	admin.Handle("/banners/{banner_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateBannerInfo))).Methods("PATCH")
 	admin.Handle("/banners/{banner_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBannerInfo))).Methods("DELETE")
 	//handle bundle CRUD operationsad
-	adminbundles := admin.PathPrefix("/products/bundles/{bundle_id}").Subrouter()
+	// adminbundles := admin.PathPrefix("/products/bundles/{bundle_id}").Subrouter()
 	admin.Handle("/products/bundles", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateBundleHandler))).Methods("POST")
-	admin.Handle("/products/bundles", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetBundleProductsHandler))).Methods("GET")
-	adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetBundleProductsHandler))).Methods("GET")
-	adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateBundleHandler))).Methods("PATCH")
-	adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBundleHandler))).Methods("DELETE")
+	api.HandleFunc("/products/bundles", handlers.GetBundleProductsHandler).Methods("GET")
+	// adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetBundleProductsHandler))).Methods("GET")
+	// adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateBundleHandler))).Methods("PATCH")
+	// adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBundleHandler))).Methods("DELETE")
 	//add products to a bundle
-	admin.Handle("/products/bundles/products/{bundle_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductsToBundleHandler))).Methods("POST")
+	// admin.Handle("/products/bundles/products/{bundle_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductsToBundleHandler))).Methods("POST")
 	admin.Handle("/products/bundles/products/{bundle_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveProductsFromBundleHandler))).Methods("DELETE")
 	//Admin moderate categories
 	admin.Handle("/products/categories/{category_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateCategoryHandler))).Methods("PATCH")
@@ -323,4 +325,22 @@ func SetupRoutes(router *mux.Router) {
 	//websocket
 	websocket := api.PathPrefix("/ws").Subrouter()
 	websocket.HandleFunc("", utils.HandleWebSocket)
+
+	// Reports
+	reports := api.PathPrefix("/reports").Subrouter()
+	reports.HandleFunc("/analytics/cart-abandonment", handlers.CartAbandonmentReport).Methods("GET")
+	reports.HandleFunc("/analytics/cart-abandonment/trend", handlers.CartAbandonmentTrendReport).Methods("GET")
+	reports.HandleFunc("/analytics/product-performance", handlers.GetProductPerformanceSummary).Methods("GET")
+	reports.HandleFunc("/analytics/product-performance/{product_id}", handlers.GetIndividualProductPerformanceSummary).Methods("GET")
+	reports.HandleFunc("/analytics/sales-trends", handlers.GetSalesTrendsSummary).Methods("GET")
+	reports.HandleFunc("/analytics/sales-trends/trend", handlers.GetSalesTrendsOverTime).Methods("GET")
+
+	reports.HandleFunc("/promotions/effectiveness/{promotion_id}", handlers.GetEffectiveness).Methods("GET")
+	reports.HandleFunc("/promotions/comparison/{promotion_id}", handlers.GetComparison).Methods("GET")
+	reports.HandleFunc("/promotions/summary", handlers.GetSummary).Methods("GET")
+
+	reports.HandleFunc("/customers/retention", handlers.GetCustomerRetention).Methods("GET")
+	reports.HandleFunc("/customers/retention/trend", handlers.GetCustomerRetentionTrends).Methods("GET")
+	reports.HandleFunc("/customers/retention/summary", handlers.GetCustomerRetentionSummary).Methods("GET")
+
 }

@@ -459,37 +459,6 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 // 	json.NewEncoder(w).Encode(user.Profile)
 // }
 
-// UpdateProfileHandler handles updating user profile.
-// @Summary Update Profile
-// @Description Updates the Profile of a logged in user
-// @Tags Auth
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Router /api/auth/update-profile [post]
-func UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	// Extract user information from context (set by middleware)
-	username := r.Context().Value("username").(string)
-
-	req, ok := DecodeRequestBody[dtos.UpdateProfileRequest](r, w, requestSummary, start)
-	if !ok {
-		return
-	}
-
-	// Update user profile in database (replace with database logic)
-	// Simulated update
-	fmt.Printf("Updating profile for user: %s with data: %+v\n", username, req)
-
-	// Respond with success message
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Profile updated successfully"})
-}
-
 // resend otp
 func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
@@ -765,4 +734,30 @@ func respondInternalError(w http.ResponseWriter, msg string, start time.Time, r 
 		Request:   r,
 		RawBody:   raw,
 	})
+}
+
+// auth.go - Modified to use dependency injection
+type UtilsService interface {
+	GetRequestSummary(r *http.Request) string
+	ValidateStructAndRespond(req interface{}, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) bool
+	RespondWithError(w http.ResponseWriter, options utils.ErrorJSONResponseOptions)
+	RespondWithJSON(w http.ResponseWriter, options utils.SuccessJSONResponseOptions)
+	IsValidKenyanPhone(phone string) bool
+	GenerateOTP() (string, error)
+	GetCurrentFuncName() string
+}
+
+type ModelsService interface {
+	CreateUser(input dtos.RegisterRequest) (*dtos.User, error)
+}
+
+var (
+	utilsService  UtilsService
+	modelsService ModelsService
+)
+
+// Initialize with default implementations
+func InitServices(utilsSvc UtilsService, modelsSvc ModelsService) {
+	utilsService = utilsSvc
+	modelsService = modelsSvc
 }

@@ -12,14 +12,22 @@ type VariantResponse struct {
 	Name        string  `json:"name"`
 	HexCode     *string `json:"hex_code,omitempty"`
 }
-
-type ProductVariantRequest struct {
-	ProductID string `json:"product_id" validate:"required,uuid4"`
-	// VariantID       string  `json:"variant_id" validate:"required,uuid4"`
-	AdditionalPrice float64 `json:"additional_price"`
-	StockQuantity   int     `json:"stock_quantity"`
+type GroupedVariants struct {
+	VariantType string            `json:"variant_type"`
+	Variants    []VariantResponse `json:"variants"`
 }
 
+type ProductVariantRequest struct {
+	ProductID string `json:"product_id" validate:"required"`
+	// VariantID       string  `json:"variant_id" validate:"required,uuid4"`
+	AdditionalPrice *float64 `json:"additional_price"`
+	StockQuantity   *int     `json:"stock_quantity"`
+}
+type Variant struct {
+	VariantID   string `json:"variant_id"`
+	VariantType string `json:"variant_type"`
+	Name        string `json:"name"`
+}
 type ProductVariantResponse struct {
 	VariantID       string  `json:"variant_id"`
 	ProductID       string  `json:"product_id"`

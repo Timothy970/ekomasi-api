@@ -8,8 +8,12 @@ type CartItem struct {
 }
 
 type AddToCartRequest struct {
-	ProductID string `json:"product_id"`
-	Quantity  int    `json:"quantity"`
+	ProductID string `json:"product_id" validate:"required"`
+	Quantity  int    `json:"quantity" validate:"required"`
+	CartID    string `json:"cart_id" validate:"required"`
+}
+type CreateCartRequest struct {
+	UserID *string `json:"user_id"`
 }
 
 type AddToCartResponse struct {

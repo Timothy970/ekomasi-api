@@ -354,9 +354,9 @@ func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 	limit := 10
 	page := 1
-	bundleID := mux.Vars(r)["bundle_id"]
 	ctx := context.Background()
 	bundleName := r.URL.Query().Get("bundle_name")
+	bundleID := r.URL.Query().Get("bundle_id")
 	pageStr := r.URL.Query().Get("page")
 	limitStr := r.URL.Query().Get("size")
 	if limitStr != "" {
@@ -389,8 +389,8 @@ func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("bundles get error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Failed to fetch product bundles",
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -432,6 +432,9 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
 	err := models.CreateBundle(*req)
 	if err != nil {
 		log.Printf("create bundle error::%s", err)
@@ -468,13 +471,15 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	bundleID := mux.Vars(r)["bundle_id"]
-	err := models.UpdateBundle(*req, bundleID)
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
+	err := models.UpdateBundle(*req, req.ID)
 	if err != nil {
 		log.Printf("update bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Failed to update product bundle",
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -500,13 +505,19 @@ func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	bundleID := mux.Vars(r)["bundle_id"]
-	err := models.DeleteBundle(bundleID)
+	req, ok := DecodeRequestBody[dtos.DeleteBundle](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
+	err := models.DeleteBundle(req.ID)
 	if err != nil {
 		log.Printf("delete bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Failed to delete product bundle",
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -536,13 +547,15 @@ func AddProductsToBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	bundleID := mux.Vars(r)["bundle_id"]
-	err := models.AddProductsToBundle(*req, bundleID)
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
+	err := models.AddProductsToBundle(*req, req.ID)
 	if err != nil {
 		log.Printf("dd product to bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Failed to add product(s) to a bundle",
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -571,6 +584,9 @@ func RemoveProductsFromBundleHandler(w http.ResponseWriter, r *http.Request) {
 	bundleID := mux.Vars(r)["bundle_id"]
 	req, ok := DecodeRequestBody[dtos.AddProductsToBundle](r, w, requestSummary, start)
 	if !ok {
+		return
+	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
 	err := models.RemoveProductsFromBundle(*req, bundleID)

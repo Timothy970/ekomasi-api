@@ -4,7 +4,9 @@ import (
 	"adenzo_backend/dtos"
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
+	"time"
 
 	"github.com/teris-io/shortid"
 )
@@ -614,29 +616,41 @@ func scanProduct(rows *sql.Rows) (dtos.Product, error) {
 // Get bundles
 func GetBundleProducts(bundleID, bundleName string, limit, page int) ([]dtos.GetBundleRequest, *dtos.PaginationMeta, error) {
 	isPaginated := bundleID == "" && bundleName == ""
-
-	baseQuery, args := buildBaseQuery(bundleID, bundleName)
-
-	var pagination *dtos.PaginationMeta
-	if isPaginated {
-		var err error
-		pagination, args, err = addPagination(baseQuery, args, limit, page)
+	log.Printf("bundle))))id  %s", bundleID)
+	if bundleID != "" {
+		err := isBundleThere(bundleID)
 		if err != nil {
 			return nil, nil, err
 		}
 	}
+	baseQuery, args := buildBaseQuery(bundleID, bundleName)
+	log.Printf("args1111%s", args)
 
+	var pagination *dtos.PaginationMeta
+	if isPaginated {
+		var err error
+		pagination, args, baseQuery, err = addPagination(baseQuery, args, limit, page)
+		if err != nil {
+			log.Printf("000000000000000 %s", err)
+			return nil, nil, err
+		}
+	}
 	query := buildSelectQuery(baseQuery)
+	log.Printf("query.....%s", query)
+	log.Printf("args.....%s", args)
 	rows, err := DB.Query(query, args...)
 	if err != nil {
+		log.Printf("111111111111111111111%s", err)
 		return nil, nil, err
 	}
 	defer rows.Close()
 
 	bundles, err := mapBundlesWithProducts(rows)
 	if err != nil {
+		log.Printf("2222222222222222%s", err)
 		return nil, nil, err
 	}
+	log.Printf("333333333333333333")
 
 	return bundles, pagination, nil
 }
@@ -661,11 +675,11 @@ func buildBaseQuery(bundleID, bundleName string) (string, []interface{}) {
 	return query, args
 }
 
-func addPagination(baseQuery string, args []interface{}, limit, page int) (*dtos.PaginationMeta, []interface{}, error) {
+func addPagination(baseQuery string, args []interface{}, limit, page int) (*dtos.PaginationMeta, []interface{}, string, error) {
 	var total int
 	countQuery := "SELECT COUNT(DISTINCT pb.bundle_id) " + baseQuery
 	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
-		return nil, args, err
+		return nil, args, "", err
 	}
 
 	offset := (page - 1) * limit
@@ -680,8 +694,8 @@ func addPagination(baseQuery string, args []interface{}, limit, page int) (*dtos
 	}
 
 	args = append(args, limit, offset)
-	baseQuery += fmt.Sprintf(limtOffset)
-	return pagination, args, nil
+	baseQuery += " ORDER BY pb.bundle_id LIMIT ? OFFSET ?"
+	return pagination, args, baseQuery, nil
 }
 
 func buildSelectQuery(baseQuery string) string {
@@ -690,7 +704,7 @@ func buildSelectQuery(baseQuery string) string {
 			pb.bundle_id, pb.name, pb.description, pb.bundle_price,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
-	` + baseQuery + " ORDER BY pb.bundle_id"
+	` + baseQuery
 }
 
 func mapBundlesWithProducts(rows *sql.Rows) ([]dtos.GetBundleRequest, error) {
@@ -928,4 +942,101 @@ func RemoveProductsFromBundle(req dtos.AddProductsToBundle, bundleID string) err
 	}
 
 	return nil
+}
+
+// products reports
+func GetProductPerformance(start, end time.Time, categoryID string) ([]map[string]interface{}, error) {
+	rows, err := DB.Query(`
+		SELECT 
+			p.product_id,
+			p.name,
+			c.name AS category,
+			COALESCE(SUM(oi.quantity), 0) AS sales_volume,
+			COALESCE(SUM(r.quantity), 0) AS total_returns,
+			COALESCE(SUM(oi.quantity * (oi.unit_price - p.price)) / NULLIF(SUM(oi.quantity * oi.unit_price), 0), 0) AS profit_margin,
+			COALESCE(SUM(oi.quantity * (oi.unit_price - p.price)), 0) AS net_profit
+		FROM products p
+		JOIN categories c ON p.category_id = c.category_id
+		LEFT JOIN order_items oi ON p.product_id = oi.product_id
+		LEFT JOIN returns r ON p.product_id = r.product_id
+		JOIN orders o ON oi.order_id = o.order_id
+		WHERE o.created_at BETWEEN ? AND ?
+		  AND c.category_id = ?
+		GROUP BY p.product_id, p.name, c.name
+		ORDER BY net_profit DESC
+	`, start, end, categoryID)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var summary []map[string]interface{}
+	for rows.Next() {
+		var productID, name, category string
+		var salesVolume, totalReturns int
+		var profitMargin, netProfit float64
+
+		if err := rows.Scan(&productID, &name, &category, &salesVolume, &totalReturns, &profitMargin, &netProfit); err != nil {
+			return nil, err
+		}
+
+		summary = append(summary, map[string]interface{}{
+			"product_id":    productID,
+			"name":          name,
+			"category":      category,
+			"sales_volume":  salesVolume,
+			"total_returns": totalReturns,
+			"profit_margin": profitMargin,
+			"net_profit":    netProfit,
+		})
+	}
+	return summary, nil
+}
+
+func GetSingleProductPerformance(productID string, start, end time.Time) (map[string]interface{}, error) {
+
+	var name, category string
+	var salesVolume, totalReturns int
+	var returnRate, profitMargin, netProfit float64
+
+	err := DB.QueryRow(`
+		SELECT 
+			p.product_id,
+			p.name,
+			c.name AS category,
+			COALESCE(SUM(oi.quantity), 0) AS sales_volume,
+			COALESCE(SUM(r.quantity), 0) AS total_returns,
+			(COALESCE(SUM(r.quantity), 0) / NULLIF(SUM(oi.quantity), 0)) * 100 AS return_rate,
+			COALESCE(SUM(oi.quantity * (oi.unit_price - p.price)) / NULLIF(SUM(oi.quantity * oi.unit_price), 0), 0) AS profit_margin,
+			COALESCE(SUM(oi.quantity * (oi.unit_price - p.price)), 0) AS net_profit
+		FROM products p
+		JOIN categories c ON p.category_id = c.category_id
+		LEFT JOIN order_items oi ON p.product_id = oi.product_id
+		LEFT JOIN returns r ON p.product_id = r.product_id
+		JOIN orders o ON oi.order_id = o.order_id
+		WHERE o.created_at BETWEEN ? AND ?
+		  AND p.product_id = ?
+		GROUP BY p.product_id, p.name, c.name
+	`, start, end, productID).Scan(&productID, &name, &category, &salesVolume, &totalReturns, &returnRate, &profitMargin, &netProfit)
+
+	if err != nil {
+		return nil, err
+	}
+
+	response := map[string]interface{}{
+		"product_id":    productID,
+		"name":          name,
+		"category":      category,
+		"sales_volume":  salesVolume,
+		"total_returns": totalReturns,
+		"return_rate":   returnRate,
+		"profit_margin": profitMargin,
+		"net_profit":    netProfit,
+		"period": map[string]time.Time{
+			"start": start,
+			"end":   end,
+		},
+	}
+	return response, nil
 }

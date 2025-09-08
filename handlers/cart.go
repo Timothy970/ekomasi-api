@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,14 +10,105 @@ import (
 	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
+
+	"github.com/gorilla/mux"
 )
 
 var notAuthenticated = "User not authenticated"
 
 const cartCacheDuration = 5 * time.Minute
 
-func getCartKey(userID string) string {
-	return fmt.Sprintf("cart:user:%s", userID)
+// Create a cart handler
+// @Summary Create Cart
+// @Description Create a user's cart
+// @Tags Cart
+// @Accept json
+// @Produce json
+// @Success 200 {object} dtos.AddToCartResponse
+// @Failure 400 {object} dtos.ErrorResponse
+// @Failure 500 {object} dtos.ErrorResponse
+// @Security BearerAuth
+// @Router /api/cart [post]
+func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	req, ok := DecodeRequestBody[dtos.CreateCartRequest](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
+
+	cartID, err := models.CreateCart(*req)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   map[string]interface{}{"cart_id": cartID},
+		Message:   "Cart created successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// Get a cart for user
+// @Summary Get Cart
+// @Description Get a user's cart
+// @Tags Cart
+// @Accept json
+// @Produce json
+// @Success 200 {object} dtos.AddToCartResponse
+// @Failure 400 {object} dtos.ErrorResponse
+// @Failure 500 {object} dtos.ErrorResponse
+// @Security BearerAuth
+// @Router /api/cart [get]
+func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	user, ok := middleware.UserFromContext(r.Context())
+	if !ok {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusUnauthorized,
+			Message:   notAuthenticated,
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	cartID, err := models.GetUserCart(user.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   map[string]interface{}{"cart_id": cartID},
+		Message:   "Cart fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
 }
 
 // AddToCartHandler handles adding a product to the cart
@@ -42,21 +131,13 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	user, ok := middleware.UserFromContext(r.Context())
-	if !ok {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
-			Message:   notAuthenticated,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
+
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-	if err := models.InsertCartItem(user.ID, req.ProductID, req.Quantity); err != nil {
-		log.Printf("Error adding item to cart: %v", err)
+	if err := models.InsertCartItem(req.CartID, req.ProductID, req.Quantity); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			Code:      404,
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -65,7 +146,6 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Redis.Del(context.Background(), getCartKey(user.ID))
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -85,47 +165,17 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} dtos.ErrorResponse
 // @Failure 500 {object} dtos.ErrorResponse
 // @Security BearerAuth
-// @Router /api/cart/view [get]
+// @Router /api/cart/view/{cart_id} [get]
 func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	user, ok := middleware.UserFromContext(r.Context())
-	if !ok {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
-			Message:   notAuthenticated,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
-	ctx := context.Background()
-	cartKey := getCartKey(user.ID)
-	log.Printf("user id::::%s", user.ID)
-	if cached, err := Redis.Get(ctx, cartKey).Result(); err == nil {
-		var res dtos.ViewCartResponse
-		if err := json.Unmarshal([]byte(cached), &res); err == nil {
-			utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-				Code:      http.StatusOK,
-				Payload:   res,
-				Message:   "Cart Items fetched successfully",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
-		}
-		Redis.Del(ctx, cartKey)
-	}
-
-	items, err := models.GetCartItems(user.ID)
+	cartID := mux.Vars(r)["cart_id"]
+	items, err := models.GetCartItems(cartID)
 	if err != nil {
-		log.Printf("Error fetching cart items: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
-			Message:   "Failed to fetch cart items",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -138,10 +188,9 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 		//check if any product has a discount
 		productDiscount, err := models.GetProductPromotionData(item.ProductID)
 		if err != nil {
-			log.Printf("Error getting product discount: %v", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				Code:      http.StatusInternalServerError,
-				Message:   "Failed to fetch  item discount",
+				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
 				Request:   r,
@@ -165,8 +214,6 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 		Final:     total,
 		Discount:  discount,
 	}
-	cache, _ := json.Marshal(res)
-	Redis.Set(ctx, cartKey, cache, cartCacheDuration)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   res,
@@ -236,32 +283,22 @@ func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartIt
 // @Failure 400 {object} dtos.ErrorResponse
 // @Failure 500 {object} dtos.ErrorResponse
 // @Security BearerAuth
-// @Router /api/cart/update [put]
+// @Router /api/cart/update/{cart_id} [put]
 func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	user, ok := middleware.UserFromContext(r.Context())
-	if !ok {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
-			Message:   notAuthenticated,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
+	cartID := mux.Vars(r)["cart_id"]
+
 	req, ok := DecodeRequestBody[dtos.UpdateCartItemRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
 
-	if err := models.UpdateCartItem(user.ID, req.ProductID, req.Quantity); err != nil {
-		log.Printf("Error updating cart item: %v", err)
+	if err := models.UpdateCartItem(cartID, req.ProductID, req.Quantity); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
-			Message:   "Failed to update cart item",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -269,7 +306,6 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Redis.Del(context.Background(), getCartKey(user.ID))
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -291,40 +327,28 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} dtos.ErrorResponse
 // @Failure 500 {object} dtos.ErrorResponse
 // @Security BearerAuth
-// @Router /api/cart/remove [delete]
+// @Router /api/cart/remove/{cart_id} [delete]
 func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	ctx := r.Context()
-	user, ok := middleware.UserFromContext(ctx)
-	if !ok {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
-			Message:   notAuthenticated,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
+
 	req, ok := DecodeRequestBody[dtos.RemoveFromCartRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+	cartID := mux.Vars(r)["cart_id"]
 
-	if err := models.DeleteCartItem(user.ID, req.ProductID); err != nil {
-		log.Printf("Error removing item from cart: %v", err)
+	if err := models.DeleteCartItem(cartID, req.ProductID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
-			Message:   "Failed to remove item from cart",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
 			RawBody:   requestSummary})
 		return
 	}
-	Redis.Del(context.Background(), getCartKey(user.ID))
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,

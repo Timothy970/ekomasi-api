@@ -202,7 +202,7 @@ func getAccount(ctx context.Context, accountID string) (dtos.AcctInfo, error) {
 }
 
 // Opening balance up to (but NOT including) From
-func openingBalance(ctx context.Context, accountID string, from time.Time, accountType string) (float64, error) {
+func openingBalance(ctx context.Context, accountID string, from time.Time) (float64, error) {
 	expr := normalBalanceExpr("je")
 	var bal float64
 	err := DB.QueryRowContext(ctx, fmt.Sprintf(`
@@ -229,7 +229,7 @@ func Ledger(accountID string, from, to time.Time, page, size int) (acct dtos.Acc
 	}
 
 	// Opening balance before 'from'
-	opening, err = openingBalance(ctx, accountID, from, acct.Type)
+	opening, err = openingBalance(ctx, accountID, from)
 	if err != nil {
 		return
 	}

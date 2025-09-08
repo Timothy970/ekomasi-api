@@ -198,9 +198,9 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if input.Email == "" || input.Phonenumber == "" {
+	if input.Email == "" && input.Phonenumber == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			Code:      http.StatusBadRequest,
 			Message:   mandatory,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -208,7 +208,21 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	//
+	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start) {
+		return
+	}
+	if input.Phonenumber != "" {
+		if !utils.IsValidKenyanPhone(input.Phonenumber) {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusBadRequest,
+				Message:   "Invalid phone number",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+	}
 	err := models.FindByIdAndUpdate(*input, authuser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -552,7 +566,7 @@ func UpdateAddress(w http.ResponseWriter, r *http.Request) {
 	err := models.UpdateUserAddress(addressID, authUser.ID, input.Address)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			Code:      http.StatusNotFound,
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -589,7 +603,7 @@ func DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			Code:      http.StatusNotFound,
 			Message:   "User not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -601,7 +615,7 @@ func DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	err := models.DeleteUserAddress(addressID, authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			Code:      http.StatusNotFound,
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),

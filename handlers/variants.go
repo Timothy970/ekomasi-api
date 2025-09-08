@@ -4,6 +4,7 @@ import (
 	"adenzo_backend/dtos"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -69,9 +70,16 @@ func CreateVariant(w http.ResponseWriter, r *http.Request) {
 func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	variantID := mux.Vars(r)["variant_id"]
-	name := mux.Vars(r)["variant_name"]
-
+	variantParams := r.URL.Query()["variants"]
+	var variants []dtos.Variant
+	for _, v := range variantParams {
+		var variant dtos.Variant
+		if err := json.Unmarshal([]byte(v), &variant); err != nil {
+			http.Error(w, "invalid variant JSON", http.StatusBadRequest)
+			return
+		}
+		variants = append(variants, variant)
+	}
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
 		page = 1
@@ -81,7 +89,7 @@ func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
 		limit = 10
 	}
 
-	variant, pagination, err := models.GetVariantWithProductsPaginated(variantID, name, page, limit)
+	variant, pagination, err := models.GetVariantsWithProductsPaginated(variants, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -92,20 +100,20 @@ func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	if variant == nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Variant not found",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
+	// if variant == nil {
+	// 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	// 		Code:      http.StatusInternalServerError,
+	// 		Message:   "Variant not found",
+	// 		TimeTaken: time.Since(start),
+	// 		Function:  utils.GetCurrentFuncName(),
+	// 		Request:   r,
+	// 		RawBody:   requestSummary})
+	// 	return
+	// }
 
 	response := struct {
-		Variant    *dtos.VariantWithProducts `json:"variant"`
-		Pagination *dtos.PaginationMeta      `json:"pagination"`
+		Variant    []*dtos.VariantWithProducts `json:"variant"`
+		Pagination *dtos.PaginationMeta        `json:"pagination"`
 	}{
 		Variant:    variant,
 		Pagination: pagination,
@@ -264,7 +272,7 @@ func DeleteVariant(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
-		Message:   "Variants updated successfully",
+		Message:   "Variants deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -325,7 +333,7 @@ func AddProductVariant(w http.ResponseWriter, r *http.Request) {
 // @Tags Admin
 // @Produce json
 // @Success 200 {object} map[string]interface{}
-// @Router /api/admin/remove-products/variants/{variant_id} [POST]
+// @Router /api/admin/remove-products/variants/{variant_id}/{product_id} [POST]
 func RemoveProductVariant(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST

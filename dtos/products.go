@@ -57,14 +57,16 @@ type Bundle struct {
 	Price       float64 `json:"bundle_price"`
 }
 type UpdateBundle struct {
+	ID          string  `json:"bundle_id" validate:"required"`
 	Name        string  `json:"bundle_name" validate:"required"`
 	Description string  `json:"bundle_description" validate:"required"`
 	Price       float64 `json:"bundle_price" validate:"required"`
 }
 type DeleteBundle struct {
-	ID string `json:"bundle_id"`
+	ID string `json:"bundle_id" validate:"required"`
 }
 type AddProductsToBundle struct {
+	ID         string   `json:"bundle_id" validate:"required"`
 	ProductIDs []string `json:"product_ids" validate:"required"`
 }
 

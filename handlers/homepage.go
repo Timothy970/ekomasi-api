@@ -31,7 +31,7 @@ func HomePageData(w http.ResponseWriter, r *http.Request) {
 	if err != nil || len(footerRows) == 0 {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusNotFound,
-			Message:   "Footer data not found",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
