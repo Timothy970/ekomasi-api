@@ -210,7 +210,7 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 		SELECT 
 			c.category_id, c.name, c.parent_category_id, c.description,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at_at_at
 		FROM categories c
 		LEFT JOIN products p ON c.category_id = p.category_id
 		WHERE 1=1`
@@ -592,7 +592,7 @@ func buildRelatedProductsQuery(categoryID, excludeProductID string, limit, page 
 	query := `
         SELECT 
             p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-            p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+            p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at_at_at
         FROM products p
         WHERE p.category_id = ?
     `
@@ -767,7 +767,7 @@ func buildSelectQuery(baseQuery string) string {
 		SELECT 
 			pb.bundle_id, pb.name, pb.description, pb.bundle_price,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at_at_at
 	` + baseQuery
 }
 
@@ -807,7 +807,7 @@ func mapBundlesWithProducts(rows *sql.Rows) ([]dtos.GetBundleRequest, error) {
 // 		SELECT
 // 			pb.bundle_id, pb.name, pb.description, pb.bundle_price,
 // 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-// 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+// 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at_at_at
 // 		FROM product_bundles pb
 // 		LEFT JOIN bundle_products bp ON pb.bundle_id = bp.bundle_id
 // 		LEFT JOIN products p ON bp.product_id = p.product_id
