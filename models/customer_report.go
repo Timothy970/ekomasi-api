@@ -6,7 +6,7 @@ import (
 )
 
 type CustomerOrderDetail struct {
-	UserID     int64   `json:"user_id"`
+	UserID     string  `json:"user_id"`
 	OrderCount int64   `json:"order_count"`
 	Revenue    float64 `json:"revenue"`
 }

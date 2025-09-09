@@ -233,9 +233,9 @@ func SetupRoutes(router *mux.Router) {
 	restockNotifications.Handle("/{user_id}/{notification_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.CancelRestockNotification))).Methods("DELETE")
 	restockNotifications.Handle("/trigger", middleware.AuthenticateToken(http.HandlerFunc(handlers.TriggerRestockNotifications))).Methods("POST")
 	//inventory ebdpoints
-	api.HandleFunc("/inventory", handlers.ListInventory).Methods("GET")
+	api.Handle("/inventory", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListInventory))).Methods("GET")
 	admin.Handle("/inventory", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateInventory))).Methods("POST")
-	api.HandleFunc("/inventory/{inventory_id}", handlers.GetInventory).Methods("GET")
+	api.Handle("/inventory/{inventory_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetInventory))).Methods("GET")
 	adminInventory := admin.PathPrefix("/inventory/{inventory_id}").Subrouter()
 	adminInventory.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateInventory))).Methods("PATCH")
 	adminInventory.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteInventory))).Methods("DELETE")
@@ -252,9 +252,9 @@ func SetupRoutes(router *mux.Router) {
 	//warehouses endpoints
 	adminWarehouses := admin.PathPrefix("/warehouses").Subrouter()
 	warehouses := api.PathPrefix("/warehouses").Subrouter()
-	warehouses.HandleFunc("", handlers.ListWarehouses).Methods("GET")
+	warehouses.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListWarehouses))).Methods("GET")
 	adminWarehouses.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateWarehouse))).Methods("POST")
-	warehouses.HandleFunc("/{warehouse_id}", handlers.GetWarehouse).Methods("GET")
+	warehouses.Handle("/{warehouse_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetWarehouse))).Methods("GET")
 	adminWarehouses.Handle("/{warehouse_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateWarehouse))).Methods("PATCH")
 	api.Handle("/admin/warehouses/{warehouse_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteWarehouse))).Methods("DELETE")
 	//
@@ -267,11 +267,11 @@ func SetupRoutes(router *mux.Router) {
 	adminstockTransfers.Handle("/{transfer_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateStockTransfer))).Methods("PATCH")
 	// suppliers endpoints
 	suppliers := admin.PathPrefix("/suppliers").Subrouter()
-	suppliers.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateSupplier))).Methods("POST")                 // Create supplier
-	api.HandleFunc("/suppliers", handlers.ListSuppliers).Methods("GET")                                                           // List suppliers with pagination
-	api.HandleFunc("/suppliers/{supplier_id}", handlers.GetSupplierByID).Methods("GET")                                           // Get supplier details
-	suppliers.Handle("/{supplier_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateSupplier))).Methods("PATCH")  // Update supplier
-	suppliers.Handle("/{supplier_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteSupplier))).Methods("DELETE") // Delete supplier
+	suppliers.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateSupplier))).Methods("POST")                   // Create supplier
+	api.Handle("/suppliers", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListSuppliers))).Methods("GET")                 // List suppliers with pagination
+	api.Handle("/suppliers/{supplier_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetSupplierByID))).Methods("GET") // Get supplier details
+	suppliers.Handle("/{supplier_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateSupplier))).Methods("PATCH")    // Update supplier
+	suppliers.Handle("/{supplier_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteSupplier))).Methods("DELETE")   // Delete supplier
 	//featured admin products
 	admin.Handle("/products/featured/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddFeaturedProduct))).Methods("POST")
 	admin.Handle("/products/featured/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveFeatured))).Methods("DELETE")

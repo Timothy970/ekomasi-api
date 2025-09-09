@@ -72,6 +72,10 @@ func ListSuppliers(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
 	if page < 1 {
@@ -120,6 +124,10 @@ func GetSupplierByID(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
 	id := mux.Vars(r)["supplier_id"]
 
 	supplier, err := models.GetSupplierByID(id)
@@ -170,7 +178,16 @@ func UpdateSupplier(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-
+	if !utils.IsValidKenyanPhone(req.ContactPhone) {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Invalid phone number",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 	id := mux.Vars(r)["supplier_id"]
 
 	if err := models.UpdateSupplier(*req, id); err != nil {
@@ -227,7 +244,7 @@ func DeleteSupplier(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		Code:      http.StatusOK,
 		Payload:   nil,
 		Message:   "Suplier deleted successfully",
 		TimeTaken: time.Since(start),

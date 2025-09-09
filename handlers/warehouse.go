@@ -73,11 +73,11 @@ func ListWarehouses(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	// //check if user is admin
-	// _, ok := utils.RequireAdmin(r, w, start, requestSummary)
-	// if !ok {
-	// 	return
-	// }
+	//check if user is admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	if !ok {
+		return
+	}
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
 	if page <= 0 {
@@ -126,6 +126,10 @@ func GetWarehouse(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
 	id := mux.Vars(r)["warehouse_id"]
 	warehouse, err := models.GetWarehouseByID(id)
 	if err != nil {
