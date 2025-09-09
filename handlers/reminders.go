@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"adenzo_backend/models"
+	"adenzo_backend/notification"
+	"adenzo_backend/utils"
+	"fmt"
 	"log"
 	"time"
 )
@@ -32,11 +35,22 @@ func sendCartReminders(days int) {
 		log.Printf("error fetching stale cart users: %v", err)
 		return
 	}
-
+	log.Printf("Found cart users %v", users)
 	for _, u := range users {
-		// 👇 call your notification methods
-		// notify.SendEmail(u.Email, "Reminder: Items left in your cart!")
-		// notify.SendWhatsApp(u.Phone, "Hey! You still have items in your cart.")
+		// notify.SendEmail
+		if u.Email != "" {
+			log.Printf("Sending cart reminder to %s", u.Email)
+			htmlBody := utils.CartReminderEmail("app.uat.adenzo.co.ke/login", "timothy.kimani@gmial.com", "254746166343")
+			notification.SendEmail(u.Email, "Did you forget something?", htmlBody)
+		}
+		// notify.SendSms
+		if u.Phone != "" {
+			log.Printf("Sending cart reminder to %s", u.Phone)
+
+			reminder := CartReminderSMS("app.uat.adenzo.co.ke", "gmail@gmial.com", "2324542")
+			notification.SendSmsMessages(u.Phone, reminder)
+
+		}
 		// notify.SendAppNotification(u.ID, "Don't forget your cart items.")
 
 		log.Printf("Cart reminder sent to user %s", u.ID)
@@ -49,13 +63,37 @@ func sendWishlistReminders(days int) {
 		log.Printf("error fetching stale wishlist users: %v", err)
 		return
 	}
-
+	log.Printf("Found wishlist users %v", users)
 	for _, u := range users {
-		// 👇 call your notification methods
-		// notify.SendEmail(u.Email, "Reminder: Items waiting in your wishlist!")
-		// notify.SendWhatsApp(u.Phone, "Your wishlist items are waiting for you 😍")
+		// notify.SendEmail
+		if u.Email != "" {
+			log.Printf("Sending wishlist reminder to %s", u.Email)
+			// htmlBody := utils.WishlistReminderEmail("app.uat.adenzo.co.ke/login", "timothy.kimani@gmial.com", "254746166343")
+			// notification.SendEmail(u.Email, "Did you forget something?", htmlBody)
+		}
+		// notify.SendSms
+		if u.Phone != "" {
+			log.Printf("Sending wishlist reminder to %s", u.Phone)
+
+			// reminder := WishlistReminderSMS("app.uat.adenzo.co.ke")
+			// notification.SendSmsMessages(u.Phone, reminder)
+
+		}
 		// notify.SendAppNotification(u.ID, "Check your wishlist today!")
 
 		log.Printf("Wishlist reminder sent to user %s", u.ID)
 	}
+}
+func CartReminderSMS(cartLink, supportEmail, phone string) string {
+	return fmt.Sprintf(
+		"Hi, you left items in your Adenzo cart. Complete your order here %s. Need help? Contact us at %s or %s. – The Adenzo Team",
+		cartLink, supportEmail, phone,
+	)
+}
+
+// Wishlist Reminder SMS (plain text)
+func WishlistReminderSMS(wishlistLink string) string {
+	return fmt.Sprintf(
+		"Hi, your wishlist is waiting . Don’t miss out on your favorite items! Check it here  %s. – The Adenzo Team", wishlistLink,
+	)
 }

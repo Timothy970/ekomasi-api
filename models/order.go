@@ -49,9 +49,9 @@ func CreateOrderItem(orderID, productID, variantID, quantity, unitPrice string) 
 func CreateDeliveries(orderID, deliveryID string, req dtos.OrderRequest) error {
 	_, err := DB.Exec(`
 		INSERT INTO deliveries (
-			delivery_id, order_id, delivery_charge, status, courier_details
-		) VALUES (?, ?, ?, 'Pending Payment', ?)
-	`, deliveryID, orderID, req.DeliveryCharge, req.CourierDetails)
+			delivery_id, order_id, delivery_charge, status, courier_details, delivery_address
+		) VALUES (?, ?, ?, 'Processing', ?, ?)
+	`, deliveryID, orderID, req.DeliveryCharge, req.CourierDetails, req.DeliveryAddress)
 
 	return err
 }

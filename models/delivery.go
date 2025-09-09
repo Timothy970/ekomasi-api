@@ -22,9 +22,9 @@ func CreateNewDelivery(delivery dtos.Delivery) error {
 		delivery.Status = "PENDING"
 	}
 
-	_, err = DB.Exec(`INSERT INTO deliveries (delivery_id, order_id, delivery_charge, status, courier_details)
-		VALUES (?, ?, ?, ?, ?)`,
-		deliveryID, delivery.OrderID, delivery.DeliveryCharge, delivery.Status, delivery.CourierDetails)
+	_, err = DB.Exec(`INSERT INTO deliveries (delivery_id, order_id, delivery_charge, status, courier_details, delivery_address)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		deliveryID, delivery.OrderID, delivery.DeliveryCharge, delivery.Status, delivery.CourierDetails, delivery.DeliveryAddress)
 
 	if err != nil {
 		return err
@@ -46,7 +46,7 @@ func ListDeliveries(page, size int) (*dtos.PagedDeliveries, error) {
 	}
 
 	offset := (page - 1) * size
-	rows, err := DB.Query(`SELECT delivery_id, order_id, delivery_charge, status, courier_details
+	rows, err := DB.Query(`SELECT delivery_id, order_id, delivery_charge, status, courier_details, delivery_address
 		FROM deliveries LIMIT ? OFFSET ?`, size, offset)
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func ListDeliveries(page, size int) (*dtos.PagedDeliveries, error) {
 	var deliveries []dtos.Delivery
 	for rows.Next() {
 		var d dtos.Delivery
-		if err := rows.Scan(&d.DeliveryID, &d.OrderID, &d.DeliveryCharge, &d.Status, &d.CourierDetails); err != nil {
+		if err := rows.Scan(&d.DeliveryID, &d.OrderID, &d.DeliveryCharge, &d.Status, &d.CourierDetails, &d.DeliveryAddress); err != nil {
 			return nil, err
 		}
 		deliveries = append(deliveries, d)
@@ -136,9 +136,9 @@ func ListDeliveriesByUserID(userID string, page, size int) (*dtos.PagedDeliverie
 func GetDeliveryByID(deliveryID string) (dtos.Delivery, error) {
 
 	var d dtos.Delivery
-	err := DB.QueryRow(`SELECT delivery_id, order_id, delivery_charge, status, courier_details
+	err := DB.QueryRow(`SELECT delivery_id, order_id, delivery_charge, status, courier_details, delivery_address
 		FROM deliveries WHERE delivery_id = ?`, deliveryID).
-		Scan(&d.DeliveryID, &d.OrderID, &d.DeliveryCharge, &d.Status, &d.CourierDetails)
+		Scan(&d.DeliveryID, &d.OrderID, &d.DeliveryCharge, &d.Status, &d.CourierDetails, &d.DeliveryAddress)
 
 	if err == sql.ErrNoRows {
 		return dtos.Delivery{}, fmt.Errorf("delivery not found")

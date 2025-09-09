@@ -9,9 +9,9 @@ func GetUsersWithStaleCart(days int) ([]dtos.User, error) {
 	rows, err := DB.Query(`
 		SELECT DISTINCT u.user_id, u.email, u.phone_number
 		FROM users u
-		JOIN carts c ON u.user_id = c.user_id
+		JOIN cart c ON u.user_id = c.user_id
 		JOIN cart_items ci ON c.cart_id = ci.cart_id
-		WHERE ci.added_at < NOW() - INTERVAL ? DAY`, days)
+		WHERE ci.updated_at < NOW() - INTERVAL ? DAY`, days)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func GetUsersWithStaleWishlist(days int) ([]dtos.User, error) {
 		FROM users u
 		JOIN wishlists w ON u.user_id = w.user_id
 		JOIN wishlist_items wi ON w.wishlist_id = wi.wishlist_id
-		WHERE wi.added_at < NOW() - INTERVAL ? DAY`, days)
+		WHERE w.last_updated_at < NOW() - INTERVAL ? DAY`, days)
 	if err != nil {
 		return nil, err
 	}

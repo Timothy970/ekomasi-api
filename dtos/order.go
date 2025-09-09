@@ -118,4 +118,5 @@ type OrderRequest struct {
 	CourierDetails       *string            `json:"courier_details,omitempty"`
 	OrderItems           []OrderItemRequest `json:"order_items" validate:"required,dive"`
 	DeliveryCharge       float64            `json:"delivery_charge" validate:"required"`
+	DeliveryAddress      string             `json:"delivery_address" validate:"required"`
 }

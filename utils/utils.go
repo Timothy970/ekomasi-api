@@ -214,3 +214,179 @@ func IntPtr(i int) *int {
 func BoolPtr(b bool) *bool {
 	return &b
 }
+
+func CartReminderEmail(cartLink, supportEmail, phone string) string {
+	return `
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+	  <meta charset="UTF-8">
+	  <title>Cart Reminder</title>
+	  <style>
+	    body {
+	      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+	      background-color: #f8f6fb;
+	      margin: 0;
+	      padding: 0;
+	      color: #333;
+	    }
+	    .container {
+	      max-width: 600px;
+	      margin: 30px auto;
+	      background: #ffffff;
+	      border-radius: 16px;
+	      box-shadow: 0 4px 12px rgba(150, 120, 200, 0.15);
+	      overflow: hidden;
+	    }
+	    .header {
+	      background-color: #d9b3ff;
+	      padding: 20px;
+	      text-align: center;
+	      color: #4a148c;
+	      font-size: 24px;
+	      font-weight: bold;
+	    }
+	    .content {
+	      padding: 25px;
+	      font-size: 16px;
+	      line-height: 1.6;
+	    }
+	    .cta {
+	      display: inline-block;
+	      background: #b388ff;
+	      color: #fff !important;
+	      padding: 14px 28px;
+	      margin: 20px 0;
+	      border-radius: 8px;
+	      font-size: 16px;
+	      text-decoration: none;
+	      font-weight: bold;
+	      box-shadow: 0 3px 8px rgba(150, 120, 200, 0.25);
+	      transition: background 0.3s ease;
+	    }
+	    .cta:hover {
+	      background: #9c6cff;
+	    }
+	    .footer {
+	      background: #f3e8ff;
+	      padding: 15px;
+	      text-align: center;
+	      font-size: 14px;
+	      color: #555;
+	      border-top: 1px solid #e1c4ff;
+	    }
+	  </style>
+	</head>
+	<body>
+	  <div class="container">
+	    <div class="header">
+	      🛒 You Forgot Something!
+	    </div>
+	    <div class="content">
+	      <p>Hi ,</p>
+	      <p>It looks like you left a few things in your shopping cart. We've saved them for you in case you'd like to come back and complete your purchase.</p>
+	      <p>Ready to make them yours?</p>
+	      <a href="` + cartLink + `" class="cta">Complete Your Order</a>
+	      <p>If you have any questions or ran into an issue, don't hesitate to contact our support team at <a href="mailto:` + supportEmail + `">` + supportEmail + `</a> or call us at <strong>` + phone + `</strong>.</p>
+	      <p>Thanks,<br>The Adenzo Team</p>
+	    </div>
+	    <div class="footer">
+	      &copy; 2025 Adenzo. All rights reserved.
+	    </div>
+	  </div>
+	</body>
+	</html>
+	`
+}
+
+// Wishlist Reminder Email (returns HTML string)
+func WishlistReminderEmail(customerName, wishlistLink, supportEmail, phone string) string {
+	return `
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+	  <meta charset="UTF-8">
+	  <title>Wishlist Reminder</title>
+	  <style>
+	    body {
+	      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+	      background-color: #f8f6fb;
+	      margin: 0;
+	      padding: 0;
+	      color: #333;
+	    }
+	    .container {
+	      max-width: 600px;
+	      margin: 30px auto;
+	      background: #ffffff;
+	      border-radius: 16px;
+	      box-shadow: 0 4px 12px rgba(150, 120, 200, 0.15);
+	      overflow: hidden;
+	    }
+	    .header {
+	      background-color: #d9b3ff;
+	      padding: 20px;
+	      text-align: center;
+	      color: #4a148c;
+	      font-size: 24px;
+	      font-weight: bold;
+	    }
+	    .content {
+	      padding: 25px;
+	      font-size: 16px;
+	      line-height: 1.6;
+	    }
+	    .cta {
+	      display: inline-block;
+	      background: #b388ff;
+	      color: #fff !important;
+	      padding: 14px 28px;
+	      margin: 20px 0;
+	      border-radius: 8px;
+	      font-size: 16px;
+	      text-decoration: none;
+	      font-weight: bold;
+	      box-shadow: 0 3px 8px rgba(150, 120, 200, 0.25);
+	      transition: background 0.3s ease;
+	    }
+	    .cta:hover {
+	      background: #9c6cff;
+	    }
+	    .footer {
+	      background: #f3e8ff;
+	      padding: 15px;
+	      text-align: center;
+	      font-size: 14px;
+	      color: #555;
+	      border-top: 1px solid #e1c4ff;
+	    }
+	  </style>
+	</head>
+	<body>
+	  <div class="container">
+	    <div class="header">
+	      💜 Your Wishlist Awaits!
+	    </div>
+	    <div class="content">
+	      <p>Hi ` + customerName + `,</p>
+	      <p>We noticed you saved some items in your wishlist. They're still waiting for you — and they might not be available forever!</p>
+	      <p>Why not treat yourself today?</p>
+	      <a href="` + wishlistLink + `" class="cta">View My Wishlist</a>
+	      <p>If you need any assistance, reach out to our support team at <a href="mailto:` + supportEmail + `">` + supportEmail + `</a> or call us at <strong>` + phone + `</strong>.</p>
+	      <p>Happy Shopping,<br>The Adenzo Team</p>
+	    </div>
+	    <div class="footer">
+	      &copy; 2025 Adenzo. All rights reserved.
+	    </div>
+	  </div>
+	</body>
+	</html>`
+}
+
+// Wishlist Reminder SMS (plain text)
+func WishlistReminderSMS(customerName, wishlistLink string) string {
+	return fmt.Sprintf(
+		"Hi %s, your wishlist is waiting 💜. Don’t miss out on your favorite items! Check it here 👉 %s. – The Adenzo Team",
+		customerName, wishlistLink,
+	)
+}
