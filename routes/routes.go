@@ -62,7 +62,7 @@ func SetupRoutes(router *mux.Router) {
 	products := api.PathPrefix("/products").Subrouter()
 	//Get product all products with their categories
 	products.HandleFunc("", handlers.GetProductsHandler).Methods("GET")
-	products.HandleFunc("/categories/{category_id}", handlers.GetProductsHandler).Methods("GET")
+	products.HandleFunc("/subcategories/{subcategory_id}", handlers.GetProductsHandlerBySubCategoryID).Methods("GET")
 	products.HandleFunc("/related", handlers.GetRelatedProductsHandler).Methods("GET")
 	product.HandleFunc("/{product_id}", handlers.GetProductByIDHandler).Methods("GET")
 	product.HandleFunc("/upload-images", handlers.UploadProductImageHandler).Methods("POST")
@@ -246,9 +246,9 @@ func SetupRoutes(router *mux.Router) {
 	poAdmin := admin.PathPrefix("/purchase-orders/{po_id}").Subrouter()
 	poAdmin.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePurchaseOrder))).Methods("PATCH")
 	poAdmin.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePurchaseOrder))).Methods("DELETE")
-	poItems := admin.PathPrefix("/purchase_order_items").Subrouter()
-	poItems.HandleFunc("", handlers.AddPurchaseOrderItem).Methods("POST")
-	poItems.HandleFunc("/{po_item_id}", handlers.RemovePurchaseOrderItem).Methods("DELETE")
+	poItems := admin.PathPrefix("/purchase-order-items").Subrouter()
+	poItems.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddPurchaseOrderItem))).Methods("POST")
+	poItems.Handle("/{po_item_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemovePurchaseOrderItem))).Methods("DELETE")
 	//warehouses endpoints
 	adminWarehouses := admin.PathPrefix("/warehouses").Subrouter()
 	warehouses := api.PathPrefix("/warehouses").Subrouter()

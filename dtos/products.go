@@ -86,3 +86,13 @@ type PaginationMeta struct {
 	HasPrev    bool `json:"has_prev"`
 	HasNext    bool `json:"has_next"`
 }
+
+type SubcategoryProducts struct {
+	ID                     string    `json:"id"`
+	Name                   string    `json:"name"`
+	ImageURL               string    `json:"image_url"`
+	ParentID               string    `json:"parent_id"`
+	ParentCategoryName     string    `json:"parent_category_name"`
+	ParentCategoryImageURL string    `json:"parent_category_image_url"`
+	Products               []Product `json:"products"`
+}

@@ -304,14 +304,6 @@ func RemovePurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.PurchaseOrderItem](r, w, requestSummary, start)
-	if !ok {
-		return
-	}
-	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
-		return
-	}
 	vars := mux.Vars(r)
 	itemID := vars["po_item_id"]
 	err := models.RemoveProductFromPurchaseOrder(itemID)
@@ -329,7 +321,7 @@ func RemovePurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
-		Message:   "Product removed to purchase order successfully",
+		Message:   "Product removed from purchase order successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

@@ -28,9 +28,33 @@ func AddNewPurcahseOrder(req dtos.CreatePurchaseOrderRequest) error {
 
 	return nil
 }
+func fetchPurchaseOrderItems(poID string) ([]dtos.PurchaseOrderItems, error) {
+	rows, err := DB.Query(`
+		SELECT po_item_id, po_id, product_id, variant_id, quantity, unit_cost
+		FROM purchase_order_items
+		WHERE po_id = ?`, poID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []dtos.PurchaseOrderItems
+	for rows.Next() {
+		var item dtos.PurchaseOrderItems
+		if err := rows.Scan(
+			&item.PoItemID, &item.PoID, &item.ProductID, &item.VariantID,
+			&item.Quantity, &item.UnitCost,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
 
 func ListPurchaseOrders(page, size int) ([]dtos.PurchaseOrderResponse, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * size
+
 	// Get total count
 	var totalItems int
 	if err := DB.QueryRow(`SELECT COUNT(*) FROM purchase_orders`).Scan(&totalItems); err != nil {
@@ -41,8 +65,7 @@ func ListPurchaseOrders(page, size int) ([]dtos.PurchaseOrderResponse, *dtos.Pag
 		SELECT po_id, supplier_id, status, total_cost, created_at, approved_at
 		FROM purchase_orders
 		ORDER BY created_at DESC
-		LIMIT ? OFFSET ?
-	`, size, offset)
+		LIMIT ? OFFSET ?`, size, offset)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -54,6 +77,14 @@ func ListPurchaseOrders(page, size int) ([]dtos.PurchaseOrderResponse, *dtos.Pag
 		if err := rows.Scan(&po.PoID, &po.SupplierID, &po.Status, &po.TotalCost, &po.CreatedAt, &po.ApprovedAt); err != nil {
 			return nil, nil, err
 		}
+
+		// fetch items
+		items, err := fetchPurchaseOrderItems(po.PoID)
+		if err != nil {
+			return nil, nil, err
+		}
+		po.Items = items
+
 		orders = append(orders, po)
 	}
 
@@ -67,21 +98,31 @@ func ListPurchaseOrders(page, size int) ([]dtos.PurchaseOrderResponse, *dtos.Pag
 	}
 	return orders, meta, nil
 }
+
 func GetPurchaseOrderByID(id string) (dtos.PurchaseOrderResponse, error) {
 	var po dtos.PurchaseOrderResponse
 	err := DB.QueryRow(`
 		SELECT po_id, supplier_id, status, total_cost, created_at, approved_at
-		FROM purchase_orders WHERE po_id = ?
-	`, id).Scan(&po.PoID, &po.SupplierID, &po.Status, &po.TotalCost, &po.CreatedAt, &po.ApprovedAt)
+		FROM purchase_orders WHERE po_id = ?`, id).
+		Scan(&po.PoID, &po.SupplierID, &po.Status, &po.TotalCost, &po.CreatedAt, &po.ApprovedAt)
 
 	if err == sql.ErrNoRows {
-		return dtos.PurchaseOrderResponse{}, errors.New(nopurcahseorder)
+		return dtos.PurchaseOrderResponse{}, errors.New("purchase order not found")
 	}
 	if err != nil {
 		return dtos.PurchaseOrderResponse{}, err
 	}
+
+	// fetch items
+	items, err := fetchPurchaseOrderItems(po.PoID)
+	if err != nil {
+		return dtos.PurchaseOrderResponse{}, err
+	}
+	po.Items = items
+
 	return po, nil
 }
+
 func isPurchaseOrderThere(id string) error {
 	exists, err := RecordExists("purchase_orders", wherepo, id)
 	if err != nil {
@@ -134,6 +175,14 @@ func AddProductToPurchaseOrder(item dtos.PurchaseOrderItem) error {
 	if err != nil {
 		return err
 	}
+	err = isProductThere(item.ProductID)
+	if err != nil {
+		return err
+	}
+	err = isVariantThere(item.VariantID)
+	if err != nil {
+		return err
+	}
 	itemID, _ := shortid.Generate()
 
 	query := `
@@ -149,6 +198,7 @@ func AddProductToPurchaseOrder(item dtos.PurchaseOrderItem) error {
 }
 
 func RemoveProductFromPurchaseOrder(itemID string) error {
+
 	query := `DELETE FROM purchase_order_items WHERE po_item_id = ?`
 
 	result, err := DB.Exec(query, itemID)

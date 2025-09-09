@@ -13,12 +13,13 @@ type UpdatePurchaseOrderRequest struct {
 }
 
 type PurchaseOrderResponse struct {
-	PoID       string     `json:"po_id"`
-	SupplierID string     `json:"supplier_id"`
-	Status     string     `json:"status"`
-	TotalCost  float64    `json:"total_cost"`
-	CreatedAt  time.Time  `json:"created_at"`
-	ApprovedAt *time.Time `json:"approved_at,omitempty"`
+	PoID       string               `json:"po_id"`
+	SupplierID string               `json:"supplier_id"`
+	Status     string               `json:"status"`
+	TotalCost  float64              `json:"total_cost"`
+	CreatedAt  time.Time            `json:"created_at"`
+	ApprovedAt *time.Time           `json:"approved_at,omitempty"`
+	Items      []PurchaseOrderItems `json:"items"`
 }
 
 type PaginatedPurchaseOrdersResponse struct {
@@ -40,5 +41,13 @@ type PurchaseOrderItem struct {
 	ProductID string  `json:"product_id" validate:"required"`
 	VariantID string  `json:"variant_id" validate:"required"`
 	Quantity  int     `json:"quantity" validate:"required"`
-	UnitCost  float64 `json:"unit_cost" validate:"required"`
+	UnitCost  float64 `json:"unit_cost" validate:"required,gt=0"`
+}
+type PurchaseOrderItems struct {
+	PoItemID  string  `json:"po_item_id"`
+	PoID      string  `json:"po_id"`
+	ProductID string  `json:"product_id"`
+	VariantID string  `json:"variant_id"`
+	Quantity  int     `json:"quantity"`
+	UnitCost  float64 `json:"unit_cost"`
 }

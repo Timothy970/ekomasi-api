@@ -610,3 +610,60 @@ func RemoveProductsFromBundleHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// Get products by subcategory ID
+// @Summary All Products Data
+// @Description Get all product categories.
+// @Tags Products
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /api/products/subcategories/{subcategory_id} [get]
+func GetProductsHandlerBySubCategoryID(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// ctx := context.Background()
+	limit := 10
+	page := 1
+
+	pageStr := r.URL.Query().Get("page")
+	limitStr := r.URL.Query().Get("size")
+	if limitStr != "" {
+		limit, _ = strconv.Atoi(limitStr)
+	}
+	if pageStr != "" {
+		page, _ = strconv.Atoi(pageStr)
+	}
+	subCategoryID := mux.Vars(r)["subcategory_id"]
+
+	// Fetch from DB
+	products, pagination, err := models.FetchSubcategoryProducts(subCategoryID, page, limit)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Store in cache only if it's a non-filtered, full, unpaginated response
+	// if useCache {
+	// 	if productBytes, err := json.Marshal(products); err == nil {
+	// 		Redis.Set(ctx, "products", productBytes, 10*time.Minute)
+	// 	}
+	// }
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code: http.StatusOK,
+		Payload: map[string]interface{}{
+			"products":   products,
+			"pagination": pagination,
+		},
+		Message:   "Subcategory products",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}

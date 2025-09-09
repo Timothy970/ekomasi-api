@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"math"
 	"strings"
 	"time"
 
@@ -1039,4 +1040,106 @@ func GetSingleProductPerformance(productID string, start, end time.Time) (map[st
 		},
 	}
 	return response, nil
+}
+
+// FetchSubcategoryProducts retrieves products under a given subcategory with pagination
+func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.SubcategoryProducts, *dtos.PaginationMeta, error) {
+	valid, err := IsValidSubcategory(subcategoryID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !valid {
+		return nil, nil, fmt.Errorf("cannot use a main category ID, must be a subcategory")
+	}
+
+	offset := (page - 1) * size
+
+	// Fetch subcategory but make sure it's not a main category (parent_category_id must NOT be NULL)
+	var sub dtos.SubcategoryProducts
+	err = DB.QueryRow(`
+		SELECT 
+			c.category_id, c.name, c.image, c.parent_category_id,
+			p.name as parent_name, p.image as parent_image
+		FROM categories c
+		LEFT JOIN categories p ON c.parent_category_id = p.category_id
+		WHERE c.category_id = ? AND c.parent_category_id IS NOT NULL`, subcategoryID).
+		Scan(&sub.ID, &sub.Name, &sub.ImageURL, &sub.ParentID, &sub.ParentCategoryName, &sub.ParentCategoryImageURL)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Count total products for pagination
+	var totalItems int
+	err = DB.QueryRow(`SELECT COUNT(*) FROM products WHERE category_id = ?`, subcategoryID).Scan(&totalItems)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Fetch products for the subcategory with pagination
+	rows, err := DB.Query(`
+		SELECT 
+			product_id, name, description, sku, price, category_id, 
+			stock_quantity, search_vector, created_at, last_updated_at
+		FROM products
+		WHERE category_id = ?
+		ORDER BY created_at DESC
+		LIMIT ? OFFSET ?`, subcategoryID, size, offset)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var products []dtos.Product
+	for rows.Next() {
+		var p dtos.Product
+		if err := rows.Scan(
+			&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price,
+			&p.CategoryID, &p.StockQuantity, &p.SearchVector,
+			&p.CreatedAt, &p.LastUpdated,
+		); err != nil {
+			return nil, nil, err
+		}
+
+		// fetch product images (reusable helper)
+		images, err := fetchProductImages(p.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		p.Images = images
+
+		products = append(products, p)
+	}
+	sub.Products = products
+
+	// build pagination metadata
+	totalPages := int(math.Ceil(float64(totalItems) / float64(size)))
+	meta := &dtos.PaginationMeta{
+		Page:       page,
+		Size:       size,
+		TotalItems: totalItems,
+		TotalPages: totalPages,
+		HasPrev:    page > 1,
+		HasNext:    page < totalPages,
+	}
+
+	return &sub, meta, nil
+}
+
+// IsValidSubcategory checks whether a category is a valid subcategory (not a main category).
+func IsValidSubcategory(categoryID string) (bool, error) {
+	var parentID sql.NullString
+	err := DB.QueryRow(`SELECT parent_category_id FROM categories WHERE category_id = ?`, categoryID).Scan(&parentID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, fmt.Errorf("category not found")
+		}
+		return false, err
+	}
+
+	// If parent_category_id is NULL → it's a main category → invalid
+	if !parentID.Valid {
+		return false, nil
+	}
+	return true, nil
 }
