@@ -14,7 +14,7 @@ import (
 	"github.com/teris-io/shortid"
 )
 
-var DB *sql.DB // to be initialized in your db connection setup
+// DB is now defined in database.go
 
 // GetUserByEmail retrieves a user by their email address.
 // It returns a User object or nil if no user is found.

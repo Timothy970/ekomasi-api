@@ -3,13 +3,16 @@ package main
 import (
 	"adenzo_backend/dtos"
 	"adenzo_backend/handlers"
+	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/routes"
+	"adenzo_backend/utils"
 	"context"
 	"database/sql"
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,6 +29,11 @@ import (
 	"github.com/rs/cors"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"github.com/uptrace/uptrace-go/uptrace"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Define constants for JWT
@@ -35,6 +43,11 @@ const (
 
 var Db *sql.DB
 var redisClient *redis.Client
+
+// OpenTelemetry components
+var tracer trace.Tracer
+var meter metric.Meter
+var logger *slog.Logger
 
 const migrationDir = "migrations"
 
@@ -52,15 +65,31 @@ func init() {
 }
 
 func main() {
-	//uptrace connection
-	// Configure OpenTelemetry with sensible defaults.
-	uptrace.ConfigureOpentelemetry(
-		// copy your project DSN here or use UPTRACE_DSN env var
-		uptrace.WithDSN("https://dhzrO5dpdBhEXY8FlQfzsw@api.uptrace.dev?grpc=4317"),
+	ctx := context.Background()
 
+	// Configure OpenTelemetry with comprehensive setup
+	uptrace.ConfigureOpentelemetry(
+		// Use environment variable for DSN or fallback to hardcoded value
+		uptrace.WithDSN(os.Getenv("UPTRACE_DSN")),
 		uptrace.WithServiceName("Adenzo"),
 		uptrace.WithServiceVersion("1.0.0"),
+		uptrace.WithDeploymentEnvironment(os.Getenv("ENVIRONMENT")),
 	)
+
+	// Initialize OpenTelemetry components
+	tracer = otel.Tracer("adenzo-backend")
+	meter = otel.Meter("adenzo-backend")
+
+	// Setup structured logging with OpenTelemetry integration
+	utils.InitLogger()
+	logger = utils.Logger
+
+	// Also set up the standard log package to use structured logging
+	log.SetFlags(0)
+	log.SetOutput(os.Stdout)
+
+	// Ensure proper shutdown
+	defer uptrace.Shutdown(ctx)
 
 	/**
 		// @title AdEnzo API
@@ -115,7 +144,7 @@ func main() {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
 	fmt.Println("Connected to Redis")
-	// Initialize the database connection
+	// Initialize the database connection with OpenTelemetry instrumentation
 	Db, err = initDBConnection(
 		os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"),
 		os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_NAME"),
@@ -125,13 +154,22 @@ func main() {
 	}
 	defer Db.Close()
 
-	// Pass Db to models
-	models.DB = Db
+	// Pass wrapped Db to models for tracing
+	models.DB = utils.NewWrappedDB(Db)
 	//pass redis to models
 	handlers.Redis = redisClient
 	dtos.Redis = redisClient
-	// Initialize router
+	// Initialize router with OpenTelemetry middleware
 	router := mux.NewRouter()
+
+	// Add OpenTelemetry middleware for HTTP requests
+	router.Use(otelmux.Middleware("adenzo-backend"))
+
+	// Add custom telemetry middleware
+	router.Use(middleware.TelemetryMiddleware)
+	router.Use(middleware.BusinessMetricsMiddleware)
+	router.Use(middleware.ErrorHandlingMiddleware)
+
 	// Swagger route
 	router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
 
@@ -163,12 +201,16 @@ func main() {
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},         // Allow specific headers
 		AllowCredentials: true,
 	}).Handler(router)
+
+	// Wrap with OpenTelemetry HTTP instrumentation
+	instrumentedHandler := otelhttp.NewHandler(corsHandler, "adenzo-backend")
+
 	log.Printf("Server started on port %s", port)
 	fmt.Printf("Server listening on port %s...\n", port)
-	log.Fatal(http.ListenAndServe(":"+port, corsHandler))
+	log.Fatal(http.ListenAndServe(":"+port, instrumentedHandler))
 }
 
-// Function to initialize a database connection
+// Function to initialize a database connection with OpenTelemetry instrumentation
 func initDBConnection(user, password, host, port, dbName string) (*sql.DB, error) {
 	cfg := mysql.Config{
 		User:   user,
@@ -183,6 +225,8 @@ func initDBConnection(user, password, host, port, dbName string) (*sql.DB, error
 		},
 	}
 
+	// Open database connection with OpenTelemetry instrumentation
+	// We'll wrap it manually since otelsql package isn't available
 	db, err := sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
 		return nil, fmt.Errorf("error opening database connection: %v", err)

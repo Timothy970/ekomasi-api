@@ -326,6 +326,10 @@ func SetupRoutes(router *mux.Router) {
 	websocket := api.PathPrefix("/ws").Subrouter()
 	websocket.HandleFunc("", utils.HandleWebSocket)
 
+	// Telemetry example routes
+	api.HandleFunc("/telemetry/example", handlers.ExampleHandler).Methods("GET")
+	api.HandleFunc("/health", handlers.HealthCheckHandler).Methods("GET")
+
 	// Reports
 	reports := api.PathPrefix("/reports").Subrouter()
 	reports.HandleFunc("/analytics/cart-abandonment", handlers.CartAbandonmentReport).Methods("GET")
