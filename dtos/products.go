@@ -1,5 +1,7 @@
 package dtos
 
+import "time"
+
 type CreateProduct struct {
 	ID            string  `json:"product_id,omitempty"`
 	Name          string  `json:"name" validate:"required"`
@@ -95,4 +97,39 @@ type SubcategoryProducts struct {
 	ParentCategoryName     string    `json:"parent_category_name"`
 	ParentCategoryImageURL string    `json:"parent_category_image_url"`
 	Products               []Product `json:"products"`
+}
+
+type SubcategoryResponse struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	ParentID string `json:"parent_id"`
+	ImageURL string `json:"image_url"`
+}
+
+type CategoryResponse struct {
+	ID            string                `json:"id"`
+	Name          string                `json:"name"`
+	ParentID      *string               `json:"parent_id"`
+	ImageURL      string                `json:"image_url"`
+	Subcategories []SubcategoryResponse `json:"subcategories"`
+	Products      []CategoryProduct     `json:"products"`
+}
+
+type PaginatedCategoriesResponse struct {
+	Categories []CategoryResponse `json:"categories"`
+	Meta       PaginationMeta     `json:"meta"`
+}
+type CategoryProduct struct {
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	Description   string    `json:"description"`
+	SKU           string    `json:"sku"`
+	Price         float64   `json:"price"`
+	CategoryID    string    `json:"parent_category_id"` // parent category
+	SubcategoryID string    `json:"subcategory_id"`     // child category
+	StockQuantity int       `json:"stock_quantity"`
+	SearchVector  string    `json:"search_vector"`
+	CreatedAt     time.Time `json:"created_at"`
+	LastUpdated   time.Time `json:"last_updated"`
+	Images        []Image   `json:"images"`
 }

@@ -210,7 +210,7 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 		SELECT 
 			c.category_id, c.name, c.parent_category_id, c.description,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at_at_at
 		FROM categories c
 		LEFT JOIN products p ON c.category_id = p.category_id
 		WHERE 1=1`
@@ -533,7 +533,7 @@ func buildRelatedProductsQuery(categoryID, excludeProductID string, limit, page 
 	query := `
         SELECT 
             p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-            p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+            p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at_at_at
         FROM products p
         WHERE p.category_id = ?
     `
@@ -704,7 +704,7 @@ func buildSelectQuery(baseQuery string) string {
 		SELECT 
 			pb.bundle_id, pb.name, pb.description, pb.bundle_price,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at_at_at
 	` + baseQuery
 }
 
@@ -744,7 +744,7 @@ func mapBundlesWithProducts(rows *sql.Rows) ([]dtos.GetBundleRequest, error) {
 // 		SELECT
 // 			pb.bundle_id, pb.name, pb.description, pb.bundle_price,
 // 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-// 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+// 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at_at_at
 // 		FROM product_bundles pb
 // 		LEFT JOIN bundle_products bp ON pb.bundle_id = bp.bundle_id
 // 		LEFT JOIN products p ON bp.product_id = p.product_id
@@ -1142,4 +1142,196 @@ func IsValidSubcategory(categoryID string) (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+func IsValidCategory(categoryID string) (bool, error) {
+	var parentID sql.NullString
+	err := DB.QueryRow(`
+		SELECT parent_category_id 
+		FROM categories 
+		WHERE category_id = ?`, categoryID).
+		Scan(&parentID)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, fmt.Errorf("category not found")
+		}
+		return false, err
+	}
+
+	// Only valid if it's a parent (i.e., has no parent itself)
+	if !parentID.Valid {
+		return true, nil // main category
+	}
+	return false, nil // subcategory, not valid
+}
+
+func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID string) (*dtos.PaginatedCategoriesResponse, error) {
+	if filterCategoryID != "" {
+		ok, err := IsValidCategory(filterCategoryID)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, fmt.Errorf("cannot use a subcategory ID, must be a main category")
+		}
+	}
+	offset := (page - 1) * size
+
+	// Count top-level categories
+	totalItems, err := getTotalCategoriesCount(filterCategoryID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get top-level categories
+	categories, err := getMainCategories(filterCategoryID, size, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	// For each category, attach subcategories & products
+	for i := range categories {
+		subs, subIDs, err := getSubcategoriesProducts(categories[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		categories[i].Subcategories = subs
+
+		if len(subIDs) > 0 {
+			products, err := getProductsForSubcategories(subIDs)
+			if err != nil {
+				return nil, err
+			}
+			categories[i].Products = products
+		}
+	}
+
+	meta := dtos.PaginationMeta{
+		Page:       page,
+		Size:       size,
+		TotalItems: totalItems,
+		TotalPages: (totalItems + size - 1) / size,
+		HasPrev:    page > 1,
+		HasNext:    page*size < totalItems,
+	}
+
+	return &dtos.PaginatedCategoriesResponse{
+		Categories: categories,
+		Meta:       meta,
+	}, nil
+}
+func getTotalCategoriesCount(filterCategoryID string) (int, error) {
+	query := `SELECT COUNT(*) FROM categories WHERE parent_category_id IS NULL`
+	args := []interface{}{}
+	if filterCategoryID != "" {
+		query += " AND category_id = ?"
+		args = append(args, filterCategoryID)
+	}
+
+	var count int
+	if err := DB.QueryRow(query, args...).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func getMainCategories(filterCategoryID string, size, offset int) ([]dtos.CategoryResponse, error) {
+	query := `
+		SELECT category_id, name, parent_category_id, image
+		FROM categories
+		WHERE parent_category_id IS NULL`
+	args := []interface{}{}
+	if filterCategoryID != "" {
+		query += " AND category_id = ?"
+		args = append(args, filterCategoryID)
+	}
+	query += " ORDER BY category_id DESC LIMIT ? OFFSET ?"
+	args = append(args, size, offset)
+
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []dtos.CategoryResponse
+	for rows.Next() {
+		var cat dtos.CategoryResponse
+		if err := rows.Scan(&cat.ID, &cat.Name, &cat.ParentID, &cat.ImageURL); err != nil {
+			return nil, err
+		}
+		categories = append(categories, cat)
+	}
+	return categories, nil
+}
+
+func getSubcategoriesProducts(parentID string) ([]dtos.SubcategoryResponse, []string, error) {
+	rows, err := DB.Query(`
+		SELECT category_id, name, parent_category_id, image
+		FROM categories
+		WHERE parent_category_id = ?`, parentID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var subs []dtos.SubcategoryResponse
+	var ids []string
+	for rows.Next() {
+		var sub dtos.SubcategoryResponse
+		if err := rows.Scan(&sub.ID, &sub.Name, &sub.ParentID, &sub.ImageURL); err != nil {
+			return nil, nil, err
+		}
+		subs = append(subs, sub)
+		ids = append(ids, sub.ID)
+	}
+	return subs, ids, nil
+}
+
+func getProductsForSubcategories(subIDs []string) ([]dtos.CategoryProduct, error) {
+	placeholders := strings.Repeat(",?", len(subIDs)-1)
+	query := fmt.Sprintf(`
+		SELECT p.product_id, p.name, p.description, p.sku, p.price,
+		       p.category_id, c.parent_category_id, p.stock_quantity, p.search_vector,
+		       p.created_at, p.last_updated_at
+		FROM products p
+		JOIN categories c ON p.category_id = c.category_id
+		WHERE p.category_id IN (?%s)`, placeholders)
+
+	args := make([]interface{}, len(subIDs))
+	for i, id := range subIDs {
+		args[i] = id
+	}
+
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []dtos.CategoryProduct
+	for rows.Next() {
+		var pr dtos.CategoryProduct
+		var subcategoryID, parentCategoryID string
+
+		if err := rows.Scan(
+			&pr.ID, &pr.Name, &pr.Description, &pr.SKU, &pr.Price,
+			&subcategoryID, &parentCategoryID, &pr.StockQuantity,
+			&pr.SearchVector, &pr.CreatedAt, &pr.LastUpdated,
+		); err != nil {
+			return nil, err
+		}
+
+		pr.CategoryID = parentCategoryID // top-level / parent category
+		pr.SubcategoryID = subcategoryID // actual subcategory
+
+		images, err := fetchProductImages(pr.ID)
+		if err != nil {
+			return nil, err
+		}
+		pr.Images = images
+
+		products = append(products, pr)
+	}
+	return products, nil
 }

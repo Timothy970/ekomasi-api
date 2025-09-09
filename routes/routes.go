@@ -85,6 +85,9 @@ func SetupRoutes(router *mux.Router) {
 	//Create a category
 	products.Handle("/categories", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateCategoryHandler))).Methods("POST")
 	products.HandleFunc("/categories/{id}", handlers.GetCategoryByIDHandler).Methods("GET")
+	//Get category products
+	products.HandleFunc("/categories-products", handlers.GetCategoryProductsHandler).Methods("GET")
+	products.HandleFunc("/categories-products/{category_id}", handlers.GetCategoryProductsHandler).Methods("GET")
 
 	// Cart routes
 	cart := api.PathPrefix("/cart").Subrouter()
