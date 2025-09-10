@@ -100,10 +100,11 @@ type SubcategoryProducts struct {
 }
 
 type SubcategoryResponse struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	ParentID string `json:"parent_id"`
-	ImageURL string `json:"image_url"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	ParentID    string `json:"parent_id"`
+	ImageURL    string `json:"image_url"`
+	Description string `json:"description"`
 }
 
 type CategoryResponse struct {
@@ -111,13 +112,14 @@ type CategoryResponse struct {
 	Name          string                `json:"name"`
 	ParentID      *string               `json:"parent_id"`
 	ImageURL      string                `json:"image_url"`
+	Description   string                `json:"description"`
 	Subcategories []SubcategoryResponse `json:"subcategories"`
 	Products      []CategoryProduct     `json:"products"`
 }
 
 type PaginatedCategoriesResponse struct {
 	Categories []CategoryResponse `json:"categories"`
-	Meta       PaginationMeta     `json:"meta"`
+	Meta       PaginationMeta     `json:"pagination"`
 }
 type CategoryProduct struct {
 	ID            string    `json:"id"`
@@ -131,5 +133,5 @@ type CategoryProduct struct {
 	SearchVector  string    `json:"search_vector"`
 	CreatedAt     time.Time `json:"created_at"`
 	LastUpdated   time.Time `json:"last_updated"`
-	Images        []Image   `json:"images"`
+	Images        []Image   `json:"urls"`
 }

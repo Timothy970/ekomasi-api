@@ -210,7 +210,7 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 		SELECT 
 			c.category_id, c.name, c.parent_category_id, c.description,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at_at_at
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
 		FROM categories c
 		LEFT JOIN products p ON c.category_id = p.category_id
 		WHERE 1=1`
@@ -533,7 +533,7 @@ func buildRelatedProductsQuery(categoryID, excludeProductID string, limit, page 
 	query := `
         SELECT 
             p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-            p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at_at_at
+            p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
         FROM products p
         WHERE p.category_id = ?
     `
@@ -704,7 +704,7 @@ func buildSelectQuery(baseQuery string) string {
 		SELECT 
 			pb.bundle_id, pb.name, pb.description, pb.bundle_price,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at_at_at
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
 	` + baseQuery
 }
 
@@ -744,7 +744,7 @@ func mapBundlesWithProducts(rows *sql.Rows) ([]dtos.GetBundleRequest, error) {
 // 		SELECT
 // 			pb.bundle_id, pb.name, pb.description, pb.bundle_price,
 // 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-// 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at_at_at
+// 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
 // 		FROM product_bundles pb
 // 		LEFT JOIN bundle_products bp ON pb.bundle_id = bp.bundle_id
 // 		LEFT JOIN products p ON bp.product_id = p.product_id
@@ -1237,7 +1237,7 @@ func getTotalCategoriesCount(filterCategoryID string) (int, error) {
 
 func getMainCategories(filterCategoryID string, size, offset int) ([]dtos.CategoryResponse, error) {
 	query := `
-		SELECT category_id, name, parent_category_id, image
+		SELECT category_id, name, parent_category_id, image, description
 		FROM categories
 		WHERE parent_category_id IS NULL`
 	args := []interface{}{}
@@ -1257,7 +1257,7 @@ func getMainCategories(filterCategoryID string, size, offset int) ([]dtos.Catego
 	var categories []dtos.CategoryResponse
 	for rows.Next() {
 		var cat dtos.CategoryResponse
-		if err := rows.Scan(&cat.ID, &cat.Name, &cat.ParentID, &cat.ImageURL); err != nil {
+		if err := rows.Scan(&cat.ID, &cat.Name, &cat.ParentID, &cat.ImageURL, &cat.Description); err != nil {
 			return nil, err
 		}
 		categories = append(categories, cat)
@@ -1267,7 +1267,7 @@ func getMainCategories(filterCategoryID string, size, offset int) ([]dtos.Catego
 
 func getSubcategoriesProducts(parentID string) ([]dtos.SubcategoryResponse, []string, error) {
 	rows, err := DB.Query(`
-		SELECT category_id, name, parent_category_id, image
+		SELECT category_id, name, parent_category_id, image, description
 		FROM categories
 		WHERE parent_category_id = ?`, parentID)
 	if err != nil {
@@ -1279,7 +1279,7 @@ func getSubcategoriesProducts(parentID string) ([]dtos.SubcategoryResponse, []st
 	var ids []string
 	for rows.Next() {
 		var sub dtos.SubcategoryResponse
-		if err := rows.Scan(&sub.ID, &sub.Name, &sub.ParentID, &sub.ImageURL); err != nil {
+		if err := rows.Scan(&sub.ID, &sub.Name, &sub.ParentID, &sub.ImageURL, &sub.Description); err != nil {
 			return nil, nil, err
 		}
 		subs = append(subs, sub)
