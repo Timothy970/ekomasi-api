@@ -32,7 +32,7 @@ func CreateNewDelivery(delivery dtos.Delivery) error {
 	return nil
 }
 
-func ListDeliveries(page, size int) (*dtos.PagedDeliveries, error) {
+func ListDeliveries(page, size int) ([]dtos.Delivery, *dtos.PaginationMeta, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -42,14 +42,14 @@ func ListDeliveries(page, size int) (*dtos.PagedDeliveries, error) {
 
 	var total int
 	if err := DB.QueryRow(`SELECT COUNT(*) FROM deliveries`).Scan(&total); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	offset := (page - 1) * size
 	rows, err := DB.Query(`SELECT delivery_id, order_id, delivery_charge, status, courier_details, delivery_address
 		FROM deliveries LIMIT ? OFFSET ?`, size, offset)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
@@ -57,7 +57,7 @@ func ListDeliveries(page, size int) (*dtos.PagedDeliveries, error) {
 	for rows.Next() {
 		var d dtos.Delivery
 		if err := rows.Scan(&d.DeliveryID, &d.OrderID, &d.DeliveryCharge, &d.Status, &d.CourierDetails, &d.DeliveryAddress); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		deliveries = append(deliveries, d)
 	}
@@ -71,12 +71,7 @@ func ListDeliveries(page, size int) (*dtos.PagedDeliveries, error) {
 		HasNext:    page < (total+size-1)/size,
 	}
 
-	response := &dtos.PagedDeliveries{
-		Data: deliveries,
-		Meta: meta,
-	}
-
-	return response, nil
+	return deliveries, &meta, nil
 }
 
 func ListDeliveriesByUserID(userID string, page, size int) (*dtos.PagedDeliveries, error) {

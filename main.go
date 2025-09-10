@@ -1,7 +1,6 @@
 package main
 
 import (
-	"adenzo_backend/dtos"
 	"adenzo_backend/handlers"
 	"adenzo_backend/middleware"
 	"adenzo_backend/models"
@@ -158,7 +157,7 @@ func main() {
 	models.DB = utils.NewWrappedDB(Db)
 	//pass redis to models
 	handlers.Redis = redisClient
-	dtos.Redis = redisClient
+	utils.RedisClient = redisClient
 	// Initialize router with OpenTelemetry middleware
 	router := mux.NewRouter()
 

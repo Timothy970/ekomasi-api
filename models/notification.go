@@ -71,13 +71,6 @@ func DeleteNotification(id string) error {
 	return err
 }
 func ListNotifications(page, limit int) ([]dtos.Notification, *dtos.PaginationMeta, error) {
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 10
-	}
-
 	offset := (page - 1) * limit
 
 	var totalItems int

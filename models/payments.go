@@ -172,12 +172,6 @@ func GetPaymentByID(paymentID string) (*dtos.Payment, error) {
 }
 
 func ListPayments(page, limit int) ([]dtos.Payment, *dtos.PaginationMeta, error) {
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 10
-	}
 	offset := (page - 1) * limit
 
 	var totalItems int

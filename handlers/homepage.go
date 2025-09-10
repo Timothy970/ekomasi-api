@@ -205,19 +205,29 @@ func GetPromotionsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	promotions, err := models.GetPromotions()
-	if err != nil {
-		log.Printf("promotiones error::%s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
+	var promotions []dtos.Promotion
+	var cachedPromotions []dtos.Promotion
+	// first try using cache
+	_ = utils.GetCache("promotions", &cachedPromotions)
 
+	if cachedPromotions == nil {
+		var err error
+		promotions, err = models.GetPromotions()
+		if err != nil {
+			log.Printf("promotiones error::%s", err)
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache("promotions", promotions)
+	} else {
+		promotions = cachedPromotions
+	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   promotions,
@@ -420,21 +430,41 @@ func DeleteBannerInfo(w http.ResponseWriter, r *http.Request) {
 // @Router /api/home/promotions/types [get]
 func GetPromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	promotions, err := models.GetPromotionsTypes()
-	if err != nil {
-		log.Printf("promotion types error::%s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Failed to fetch promotion types",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
+
+	var cachedPromotions []dtos.PromotionType
+	var promotions []dtos.PromotionType
+
+	// Try getting from cache
+	_ = utils.GetCache("promotionTypes", &cachedPromotions)
+
+	if cachedPromotions == nil {
+		// Fetch from DB
+		var err error
+		promotions, err = models.GetPromotionsTypes()
+		if err != nil {
+			log.Printf("promotion types error::%s", err)
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   "Failed to fetch promotion types",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+
+		// Cache the result
+		_ = utils.SetCache("promotionTypes", promotions)
+	} else {
+		// Use cached data
+		promotions = cachedPromotions
 	}
 
+	// Respond
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   promotions,
@@ -442,7 +472,8 @@ func GetPromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
-		RawBody:   requestSummary})
+		RawBody:   requestSummary,
+	})
 }
 
 // create a new promotion
@@ -494,6 +525,7 @@ func NewPromotionHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	_ = utils.DeleteCache("promotions")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -536,6 +568,7 @@ func DeletePromotionHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	_ = utils.DeleteCache("promotions")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -582,6 +615,7 @@ func EditPromotionHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	_ = utils.DeleteCache("promotions")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -634,6 +668,7 @@ func AttachProductToPromotionHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	_ = utils.DeleteCache("promotions")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -679,6 +714,7 @@ func RemoveProductFromPromotionHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	_ = utils.DeleteCache("promotions")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -1220,6 +1256,7 @@ func AddFeaturedProduct(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	_ = utils.DeleteCache("featured_products")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -1259,6 +1296,7 @@ func RemoveFeatured(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	_ = utils.DeleteCache("featured_products")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -1280,16 +1318,25 @@ func GetFeatured(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	featured, err := models.GetFeaturedProducts()
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
+	var featured []dtos.Product
+	var cachedFeatured []dtos.Product
+	_ = utils.GetCache("featured_products", &cachedFeatured)
+	if cachedFeatured == nil {
+		var err error
+		featured, err = models.GetFeaturedProducts()
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache("featured_products", featured)
+	} else {
+		featured = cachedFeatured
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,

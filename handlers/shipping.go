@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -103,6 +102,8 @@ func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("locations_")
+	utils.DeleteCacheByPrefix("locations_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -278,25 +279,38 @@ func ListLocations(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeyLocations := fmt.Sprintf("locations_%d_size_%d", page, size)
+	cacheKeyPagination := fmt.Sprintf("locations_pagination_%d_size_%d", page, size)
+	var locations []dtos.Location
+	var cachedLocation []dtos.Location
+	var pagination dtos.PaginationMeta
+	var cachedPagination dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeyLocations, &cachedLocation)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedLocation == nil {
+		var err error
+		locations, pagination, err = models.ListLocations(page, size)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusBadRequest,
+				Message:   fmt.Sprintf("%s", err),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
 
-	locations, meta, err := models.ListLocations(page, size)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   fmt.Sprintf("%s", err),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-
+		}
+		_ = utils.SetCache(cacheKeyLocations, cachedLocation)
+		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
+	} else {
+		locations = cachedLocation
+		pagination = cachedPagination
 	}
-
 	response := map[string]interface{}{
-		"data": locations,
-		"meta": meta,
+		"locations":  locations,
+		"pagination": pagination,
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -383,7 +397,8 @@ func UpdateLocation(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("locations_")
+	utils.DeleteCacheByPrefix("locations_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -424,7 +439,8 @@ func DeleteLocation(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("locations_")
+	utils.DeleteCacheByPrefix("locations_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,

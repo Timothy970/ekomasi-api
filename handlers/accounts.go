@@ -4,8 +4,8 @@ import (
 	"adenzo_backend/dtos"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
+	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -46,6 +46,8 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("entries_")
+	utils.DeleteCacheByPrefix("entries_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -67,24 +69,37 @@ func ListAccounts(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	if page < 1 {
-		page = 1
-	}
-	if size <= 0 {
-		size = 10
-	}
-	accounts, meta, err := models.ListAccounts(page, size)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
 		return
+	}
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeyAccounts := fmt.Sprintf("accounts_%d_size_%d", page, size)
+	cacheKeyPagination := fmt.Sprintf("accounts_pagination_%d_size_%d", page, size)
+	var accounts []dtos.ChartOfAccount
+	var cachedAccounts []dtos.ChartOfAccount
+	var meta dtos.PaginationMeta
+	var cachedPagination dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeyAccounts, &cachedAccounts)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedAccounts == nil {
+		var err error
+		accounts, meta, err = models.ListAccounts(page, size)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache(cacheKeyAccounts, cachedAccounts)
+		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
+	} else {
+		accounts = cachedAccounts
+		meta = cachedPagination
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusOK,
@@ -166,6 +181,8 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("accounts_")
+	utils.DeleteCacheByPrefix("accounts_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -202,6 +219,8 @@ func DeleteAccount(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("accounts_")
+	utils.DeleteCacheByPrefix("accounts_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -248,6 +267,8 @@ func CreateEntry(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("accounts_")
+	utils.DeleteCacheByPrefix("accounts_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -268,24 +289,37 @@ func ListEntries(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	if page < 1 {
-		page = 1
-	}
-	if size <= 0 {
-		size = 10
-	}
-	entries, meta, err := models.ListEntries(page, size)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
 		return
+	}
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeyEntries := fmt.Sprintf("entries_%d_size_%d", page, size)
+	cacheKeyPagination := fmt.Sprintf("entries_pagination_%d_size_%d", page, size)
+	var entries []dtos.JournalEntry
+	var cachedEntries []dtos.JournalEntry
+	var meta dtos.PaginationMeta
+	var cachedPagination dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeyEntries, &cachedEntries)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedEntries == nil {
+		var err error
+		entries, meta, err = models.ListEntries(page, size)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache(cacheKeyEntries, cachedEntries)
+		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
+	} else {
+		entries = cachedEntries
+		meta = cachedPagination
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusOK,
@@ -365,6 +399,8 @@ func UpdateEntry(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("entries_")
+	utils.DeleteCacheByPrefix("entries_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -401,6 +437,8 @@ func DeleteEntry(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("entries_")
+	utils.DeleteCacheByPrefix("entries_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,

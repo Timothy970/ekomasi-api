@@ -4,8 +4,6 @@ import (
 	"adenzo_backend/dtos"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
-	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"time"
@@ -19,34 +17,26 @@ func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	ctx := context.Background()
-
-	if cachedCategories, err := Redis.Get(ctx, "categories").Result(); err == nil {
-		log.Printf("Data served from cache")
-		var products []dtos.Category
-		if err := json.Unmarshal([]byte(cachedCategories), &products); err == nil {
-			utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-				Code:      http.StatusOK,
-				Payload:   products,
-				Message:   "Products fetched successfully",
+	var categories []dtos.CategoryData
+	var cachedCategories []dtos.CategoryData
+	_ = utils.GetCache("category_data", &cachedCategories)
+	if cachedCategories == nil {
+		var err error
+		categories, err = models.GetAllCategories()
+		if err != nil {
+			log.Printf("Failed to get categories: %v", err)
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusNotFound,
+				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
 				Request:   r,
 				RawBody:   requestSummary})
 			return
 		}
-	}
-	categories, err := models.GetAllCategories()
-	if err != nil {
-		log.Printf("Failed to get categories: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
+		_ = utils.SetCache("category_data", categories)
+	} else {
+		categories = cachedCategories
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,

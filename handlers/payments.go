@@ -5,6 +5,7 @@ import (
 	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -46,7 +47,8 @@ func CreatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("payments_")
+	utils.DeleteCacheByPrefix("payments_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -103,24 +105,37 @@ func ListPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-
-	payments, meta, err := models.ListPayments(page, limit)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeyPayments := fmt.Sprintf("payments_%d_size_%d", page, limit)
+	cacheKeyPagination := fmt.Sprintf("payments_pagination_%d_size_%d", page, limit)
+	var payments []dtos.Payment
+	var cachedPayemnts []dtos.Payment
+	var pagination *dtos.PaginationMeta
+	var cachedPagination *dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeyPayments, &cacheKeyPayments)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedPayemnts == nil {
+		var err error
+		payments, pagination, err = models.ListPayments(page, limit)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache(cacheKeyPayments, payments)
+		_ = utils.SetCache(cacheKeyPagination, pagination)
+	} else {
+		payments = cachedPayemnts
+		pagination = cachedPagination
 	}
-
 	resp := dtos.PaymentListResponse{
 		Payments: payments,
-		Meta:     *meta,
+		Meta:     *pagination,
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
@@ -167,6 +182,8 @@ func UpdatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("payments_")
+	utils.DeleteCacheByPrefix("payments_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -197,6 +214,8 @@ func DeletePaymentHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("payments_")
+	utils.DeleteCacheByPrefix("payments_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -250,6 +269,8 @@ func RequestRefund(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("refunds_")
+	utils.DeleteCacheByPrefix("refunds_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -323,22 +344,37 @@ func ListRefundsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	refunds, meta, err := models.ListRefunds(page, size)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeyRefunds := fmt.Sprintf("refunds_%d_size_%d", page, size)
+	cacheKeyPagination := fmt.Sprintf("refunds_pagination_%d_size_%d", page, size)
+	var refunds []dtos.Refund
+	var cachedRefunds []dtos.Refund
+	var pagination *dtos.PaginationMeta
+	var cachedPagination *dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeyRefunds, &cachedRefunds)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedRefunds == nil {
+		var err error
+		refunds, pagination, err = models.ListRefunds(page, size)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache(cacheKeyRefunds, cachedRefunds)
+		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
+	} else {
+		refunds = cachedRefunds
+		pagination = cachedPagination
 	}
 	response := dtos.PaginatedRefundsResponse{
 		Refunds: refunds,
-		Meta:    *meta,
+		Meta:    *pagination,
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
@@ -456,6 +492,8 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("vouchers_")
+	utils.DeleteCacheByPrefix("vouchers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -478,19 +516,33 @@ func ListVouchersHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-
-	vouchers, pagination, err := models.ListVouchers(page, size)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeyVouchers := fmt.Sprintf("vouchers_%d_size_%d", page, size)
+	cacheKeyPagination := fmt.Sprintf("vouchers_pagination_%d_size_%d", page, size)
+	var vouchers []dtos.Voucher
+	var cachedVouchers []dtos.Voucher
+	var pagination *dtos.PaginationMeta
+	var cachedPagination *dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeyVouchers, &cachedVouchers)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedVouchers == nil {
+		var err error
+		vouchers, pagination, err = models.ListVouchers(page, size)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache(cacheKeyVouchers, cachedVouchers)
+		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
+	} else {
+		vouchers = cachedVouchers
+		pagination = cachedPagination
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusOK,
@@ -573,6 +625,8 @@ func DeleteVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("vouchers_")
+	utils.DeleteCacheByPrefix("vouchers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -621,6 +675,8 @@ func UpdateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("vouchers_")
+	utils.DeleteCacheByPrefix("vouchers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,

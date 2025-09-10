@@ -4,9 +4,8 @@ import (
 	"adenzo_backend/dtos"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
-	"math"
+	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -57,6 +56,8 @@ func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("transfers_")
+	utils.DeleteCacheByPrefix("transfers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -82,39 +83,41 @@ func ListStockTransfers(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	if page < 1 {
-		page = 1
-	}
-	if size < 1 {
-		size = 10
-	}
-
-	transfers, total, err := models.ListStockTransfers(page, size)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
 		return
 	}
-
-	meta := dtos.PaginationMeta{
-		Page:       page,
-		Size:       size,
-		TotalItems: total,
-		TotalPages: int(math.Ceil(float64(total) / float64(size))),
-		HasPrev:    page > 1,
-		HasNext:    page < int(math.Ceil(float64(total)/float64(size))),
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeyTransfer := fmt.Sprintf("transfers_%d_size_%d", page, size)
+	cacheKeyPagination := fmt.Sprintf("transfers_pagination_%d_size_%d", page, size)
+	var transfers []dtos.StockTransferDTO
+	var cachedTransfers []dtos.StockTransferDTO
+	var meta *dtos.PaginationMeta
+	var cachedPagination *dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeyTransfer, &cachedTransfers)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedTransfers == nil {
+		var err error
+		transfers, meta, err = models.ListStockTransfers(page, size)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusNotFound,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache(cacheKeyTransfer, cachedTransfers)
+		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
+	} else {
+		transfers = cachedTransfers
+		meta = cachedPagination
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   dtos.StockTransferListResponse{Meta: meta, StockTransfers: transfers},
+		Payload:   dtos.StockTransferListResponse{Meta: *meta, StockTransfers: transfers},
 		Message:   "Stock transfers fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -195,7 +198,8 @@ func UpdateStockTransfer(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("transfers_")
+	utils.DeleteCacheByPrefix("transfers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,

@@ -411,6 +411,10 @@ func AddNewProduct(input dtos.CreateProduct) (*dtos.CreateProduct, error) {
 	}, nil
 }
 func UpdateProductByID(productID string, input dtos.CreateProduct) (*dtos.CreateProduct, error) {
+	errr := isProductThere(productID)
+	if errr != nil {
+		return nil, errr
+	}
 	// Check if SKU exists in another product (exclude current product)
 	var exists bool
 	err := DB.QueryRow(`
@@ -454,6 +458,10 @@ func UpdateProductByID(productID string, input dtos.CreateProduct) (*dtos.Create
 }
 
 func DeleteProductByID(productID string) error {
+	err := isProductThere(productID)
+	if err != nil {
+		return err
+	}
 	// 1. Check if product is used in any uncollected order
 	query := `
 		SELECT COUNT(*) 
@@ -462,7 +470,7 @@ func DeleteProductByID(productID string) error {
 		WHERE oi.product_id = ? AND o.status != 'collected'
 	`
 	var count int
-	err := DB.QueryRow(query, productID).Scan(&count)
+	err = DB.QueryRow(query, productID).Scan(&count)
 	if err != nil {
 		return fmt.Errorf("failed to check product usage in orders: %w", err)
 	}
@@ -1165,14 +1173,14 @@ func IsValidCategory(categoryID string) (bool, error) {
 	return false, nil // subcategory, not valid
 }
 
-func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID string) (*dtos.PaginatedCategoriesResponse, error) {
+func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID string) ([]dtos.CategoryResponse, *dtos.PaginationMeta, error) {
 	if filterCategoryID != "" {
 		ok, err := IsValidCategory(filterCategoryID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if !ok {
-			return nil, fmt.Errorf("cannot use a subcategory ID, must be a main category")
+			return nil, nil, fmt.Errorf("cannot use a subcategory ID, must be a main category")
 		}
 	}
 	offset := (page - 1) * size
@@ -1180,33 +1188,33 @@ func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID 
 	// Count top-level categories
 	totalItems, err := getTotalCategoriesCount(filterCategoryID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Get top-level categories
 	categories, err := getMainCategories(filterCategoryID, size, offset)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// For each category, attach subcategories & products
 	for i := range categories {
 		subs, subIDs, err := getSubcategoriesProducts(categories[i].ID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		categories[i].Subcategories = subs
 
 		if len(subIDs) > 0 {
 			products, err := getProductsForSubcategories(subIDs)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			categories[i].Products = products
 		}
 	}
 
-	meta := dtos.PaginationMeta{
+	meta := &dtos.PaginationMeta{
 		Page:       page,
 		Size:       size,
 		TotalItems: totalItems,
@@ -1215,10 +1223,7 @@ func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID 
 		HasNext:    page*size < totalItems,
 	}
 
-	return &dtos.PaginatedCategoriesResponse{
-		Categories: categories,
-		Meta:       meta,
-	}, nil
+	return categories, meta, nil
 }
 func getTotalCategoriesCount(filterCategoryID string) (int, error) {
 	query := `SELECT COUNT(*) FROM categories WHERE parent_category_id IS NULL`

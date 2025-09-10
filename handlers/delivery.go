@@ -4,6 +4,7 @@ import (
 	"adenzo_backend/dtos"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -51,7 +52,8 @@ func CreateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("deliveries_")
+	utils.DeleteCacheByPrefix("deliveries_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -76,23 +78,42 @@ func ListDeliveriesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	deliveries, err := models.ListDeliveries(page, size)
-	if err != nil {
-		log.Printf("Error adding new shipping rate: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeyDeliveries := fmt.Sprintf("deliveries_%d_size_%d", page, size)
+	cacheKeyPagination := fmt.Sprintf("deliveries_pagination_%d_size_%d", page, size)
+	var deliveries []dtos.Delivery
+	var cachedDeliveries []dtos.Delivery
+	var pagination *dtos.PaginationMeta
+	var cachedPagination *dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeyDeliveries, &cachedDeliveries)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedDeliveries == nil {
+		var err error
+		deliveries, pagination, err = models.ListDeliveries(page, size)
+		if err != nil {
+			log.Printf("Error adding new shipping rate: %v", err)
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusBadRequest,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache(cacheKeyDeliveries, cachedDeliveries)
+		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
+	} else {
+		deliveries = cachedDeliveries
+		pagination = cachedPagination
+	}
+	response := map[string]interface{}{
+		"deliveries": deliveries,
+		"pagination": pagination,
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   deliveries,
+		Payload:   response,
 		Message:   "Deliveries fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -217,6 +238,8 @@ func UpdateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("deliveries_")
+	utils.DeleteCacheByPrefix("deliveries_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -259,6 +282,8 @@ func DeleteDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("deliveries_")
+	utils.DeleteCacheByPrefix("deliveries_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,

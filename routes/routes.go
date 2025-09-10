@@ -87,7 +87,7 @@ func SetupRoutes(router *mux.Router) {
 	products.HandleFunc("/categories/{id}", handlers.GetCategoryByIDHandler).Methods("GET")
 	//Get category products
 	products.HandleFunc("/categories-products", handlers.GetCategoryProductsHandler).Methods("GET")
-	products.HandleFunc("/categories-products/{category_id}", handlers.GetCategoryProductsHandler).Methods("GET")
+	products.HandleFunc("/categories-products/{category_id}", handlers.GetCategoryProductsHandlerByCategoryID).Methods("GET")
 
 	// Cart routes
 	cart := api.PathPrefix("/cart").Subrouter()
@@ -165,8 +165,8 @@ func SetupRoutes(router *mux.Router) {
 	admin.Handle("/promotions", middleware.AuthenticateToken(http.HandlerFunc(handlers.NewPromotionHandler))).Methods("POST")
 	admin.Handle("/promotions/{promotion_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePromotionHandler))).Methods("DELETE")
 	admin.Handle("/promotions/{promotion_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.EditPromotionHandler))).Methods("PATCH")
-	admin.Handle("/add-products/promotions", middleware.AuthenticateToken(http.HandlerFunc(handlers.EditPromotionHandler))).Methods("POST")
-	admin.Handle("/remove-products/promotions", middleware.AuthenticateToken(http.HandlerFunc(handlers.EditPromotionHandler))).Methods("DELETE")
+	admin.Handle("/add-products/promotions", middleware.AuthenticateToken(http.HandlerFunc(handlers.AttachProductToPromotionHandler))).Methods("POST")
+	admin.Handle("/remove-products/promotions", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveProductFromPromotionHandler))).Methods("DELETE")
 	//create blog
 	adminBlog := admin.PathPrefix("/blogs/{blog_id}").Subrouter()
 	admin.Handle("/blogs", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateBlogHandler))).Methods("POST")
@@ -281,14 +281,14 @@ func SetupRoutes(router *mux.Router) {
 	//accounts and journals endpoints
 	accounts := admin.PathPrefix("/accounts").Subrouter()
 	entries := admin.PathPrefix("/entries").Subrouter()
-	accounts.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateAccount))).Methods("POST") // Create chart of account
-	api.HandleFunc("/accounts", handlers.ListAccounts).Methods("GET")                                           // List charts of accounts with pagination
-	api.HandleFunc("/accounts/{account_id}", handlers.GetAccount).Methods("GET")                                // Get chart of account details
+	accounts.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateAccount))).Methods("POST")   // Create chart of account
+	api.Handle("/accounts", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListAccounts))).Methods("GET") // List charts of accounts with pagination
+	api.HandleFunc("/accounts/{account_id}", handlers.GetAccount).Methods("GET")                                  // Get chart of account details
 	accounts.Handle("/{account_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateAccount))).Methods("PATCH")
 	accounts.Handle("/{account_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteAccount))).Methods("DELETE")
 	//create account
 	entries.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateEntry))).Methods("POST")
-	api.HandleFunc("/entries", handlers.ListEntries).Methods("GET")
+	api.Handle("/entries", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListEntries))).Methods("GET")
 	api.HandleFunc("/entries/{entry_id}", handlers.GetEntry).Methods("GET")
 	entries.Handle("/{entry_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateEntry))).Methods("PATCH")
 	entries.Handle("/{entry_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteEntry))).Methods("DELETE")

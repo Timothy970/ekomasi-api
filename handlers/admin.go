@@ -4,8 +4,6 @@ import (
 	"adenzo_backend/dtos"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
-	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"mime/multipart"
@@ -107,9 +105,9 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Invalidate categories cache
-	ctx := context.Background()
-	Redis.Del(ctx, "categories")
-
+	_ = utils.DeleteCache("category_data")
+	_ = utils.DeleteCacheByPrefix("categories_products")
+	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	// Respond success
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
@@ -204,8 +202,9 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Invalidate cache
-	ctx := context.Background()
-	Redis.Del(ctx, "categories")
+	_ = utils.DeleteCache("category_data")
+	_ = utils.DeleteCacheByPrefix("categories_products")
+	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 
 	// Respond success
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -264,8 +263,9 @@ func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Invalidate cache
-	ctx := context.Background()
-	Redis.Del(ctx, "categories")
+	_ = utils.DeleteCache("category_data")
+	_ = utils.DeleteCacheByPrefix("categories_products")
+	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -317,8 +317,10 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Invalidate cache
-	ctx := context.Background()
-	Redis.Del(ctx, "products")
+	_ = utils.DeleteCacheByPrefix("products_page_")
+	_ = utils.DeleteCacheByPrefix("pagination_page_")
+	_ = utils.DeleteCacheByPrefix("categories_products")
+	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   product,
@@ -355,40 +357,8 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	productID := mux.Vars(r)["product_id"]
-	if productID == "" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   productIdRequired,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
-
-	product, err := models.GetProductByID(productID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
-				Message:   productNotFound,
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-		} else {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
-				Message:   "Error fetching product",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-		}
-		return
-	}
 	// update the product
-	updatedProduct, err := models.UpdateProductByID(product.ID, *req)
+	updatedProduct, err := models.UpdateProductByID(productID, *req)
 
 	if err != nil {
 		log.Printf("Error for updating new product %s", err)
@@ -402,8 +372,10 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Invalidate cache
-	ctx := context.Background()
-	Redis.Del(ctx, "products")
+	_ = utils.DeleteCacheByPrefix("products_page_")
+	_ = utils.DeleteCacheByPrefix("pagination_page_")
+	_ = utils.DeleteCacheByPrefix("categories_products")
+	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   updatedProduct,
@@ -434,39 +406,8 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	productID := mux.Vars(r)["product_id"]
-	if productID == "" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   productIdRequired,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
-	product, err := models.GetProductByID(productID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
-				Message:   productNotFound,
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-		} else {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
-				Message:   "Error fetching product",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-		}
-		return
-	}
 	//delete product
-	err = models.DeleteProductByID(product.ID)
+	err := models.DeleteProductByID(productID)
 	if err != nil {
 		log.Printf("Error for updating new product %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -479,8 +420,10 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Invalidate cache
-	ctx := context.Background()
-	Redis.Del(ctx, "products")
+	_ = utils.DeleteCacheByPrefix("products_page_")
+	_ = utils.DeleteCacheByPrefix("pagination_page_")
+	_ = utils.DeleteCacheByPrefix("categories_products")
+	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,

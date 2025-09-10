@@ -5,8 +5,8 @@ import (
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"database/sql"
+	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -54,6 +54,8 @@ func CreatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("purchase_orders_")
+	utils.DeleteCacheByPrefix("purchase_orders_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -77,24 +79,33 @@ func ListPurchaseOrders(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if page < 1 {
-		page = 1
-	}
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	if size < 1 {
-		size = 10
-	}
-	orders, meta, err := models.ListPurchaseOrders(page, size)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeyPurchaseOrders := fmt.Sprintf("purchase_orders_%d_size_%d", page, size)
+	cacheKeyPagination := fmt.Sprintf("purchase_orders_pagination_%d_size_%d", page, size)
+	var orders []dtos.PurchaseOrderResponse
+	var cachedOrders []dtos.PurchaseOrderResponse
+	var meta *dtos.PaginationMeta
+	var cachedPagination *dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeyPurchaseOrders, &cachedOrders)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedOrders == nil {
+		var err error
+		orders, meta, err = models.ListPurchaseOrders(page, size)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusBadRequest,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache(cacheKeyPurchaseOrders, cachedOrders)
+		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
+	} else {
+		orders = cachedOrders
+		meta = cachedPagination
 	}
 	resp := dtos.PaginatedPurchaseOrdersResponse{Data: orders, Meta: *meta}
 
@@ -184,7 +195,8 @@ func UpdatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("purchase_orders_")
+	utils.DeleteCacheByPrefix("purchase_orders_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -226,7 +238,8 @@ func DeletePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("purchase_orders_")
+	utils.DeleteCacheByPrefix("purchase_orders_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -275,7 +288,8 @@ func AddPurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("purchase_orders_")
+	utils.DeleteCacheByPrefix("purchase_orders_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -317,7 +331,8 @@ func RemovePurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("purchase_orders_")
+	utils.DeleteCacheByPrefix("purchase_orders_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,

@@ -4,6 +4,7 @@ import (
 	"adenzo_backend/dtos"
 	"database/sql"
 	"errors"
+	"math"
 
 	"github.com/teris-io/shortid"
 )
@@ -48,13 +49,13 @@ func isWarehouseThere(id, from string) error {
 	}
 	return nil
 }
-func ListStockTransfers(page, size int) ([]dtos.StockTransferDTO, int, error) {
+func ListStockTransfers(page, size int) ([]dtos.StockTransferDTO, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * size
 	var total int
 
 	err := DB.QueryRow("SELECT COUNT(*) FROM stock_transfers").Scan(&total)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 
 	rows, err := DB.Query(`
@@ -63,7 +64,7 @@ func ListStockTransfers(page, size int) ([]dtos.StockTransferDTO, int, error) {
 		ORDER BY transfer_date DESC
 		LIMIT ? OFFSET ?`, size, offset)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
@@ -73,12 +74,20 @@ func ListStockTransfers(page, size int) ([]dtos.StockTransferDTO, int, error) {
 		if err := rows.Scan(
 			&st.TransferID, &st.ProductID, &st.VariantID, &st.FromWarehouseID, &st.ToWarehouseID, &st.Quantity, &st.TransferDate, &st.TransferDetails,
 		); err != nil {
-			return nil, 0, err
+			return nil, nil, err
 		}
 		transfers = append(transfers, st)
 	}
 
-	return transfers, total, nil
+	meta := dtos.PaginationMeta{
+		Page:       page,
+		Size:       size,
+		TotalItems: total,
+		TotalPages: int(math.Ceil(float64(total) / float64(size))),
+		HasPrev:    page > 1,
+		HasNext:    page < int(math.Ceil(float64(total)/float64(size))),
+	}
+	return transfers, &meta, nil
 }
 
 func GetStockTransferByID(id string) (*dtos.StockTransferDTO, error) {

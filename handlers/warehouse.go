@@ -4,8 +4,8 @@ import (
 	"adenzo_backend/dtos"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
+	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -50,7 +50,8 @@ func CreateWarehouse(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("warehouses_")
+	utils.DeleteCacheByPrefix("warehouses_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -78,25 +79,33 @@ func ListWarehouses(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	if page <= 0 {
-		page = 1
-	}
-	if size <= 0 {
-		size = 10
-	}
-
-	warehouses, meta, err := models.ListWarehouses(page, size)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeyWarehouses := fmt.Sprintf("warehouses_%d_size_%d", page, size)
+	cacheKeyPagination := fmt.Sprintf("warehouses_pagination_%d_size_%d", page, size)
+	var warehouses []dtos.Warehouse
+	var cachedWarehouses []dtos.Warehouse
+	var meta dtos.PaginationMeta
+	var cachedPagination dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeyWarehouses, &cachedWarehouses)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedWarehouses == nil {
+		var err error
+		warehouses, meta, err = models.ListWarehouses(page, size)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusNotFound,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache(cacheKeyWarehouses, cachedWarehouses)
+		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
+	} else {
+		warehouses = cachedWarehouses
+		meta = cachedPagination
 	}
 
 	resp := dtos.ListWarehousesResponse{
@@ -199,6 +208,8 @@ func UpdateWarehouse(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("warehouses_")
+	utils.DeleteCacheByPrefix("warehouses_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -238,6 +249,8 @@ func DeleteWarehouse(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("warehouses_")
+	utils.DeleteCacheByPrefix("warehouses_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,

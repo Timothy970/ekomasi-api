@@ -53,7 +53,10 @@ func UploadMediaToGCS(files []*multipart.FileHeader) (string, error) {
 func uploadMedia(mediaData []byte, mediaID, mimeType string) (string, error) {
 	log.Println("Starting upload to GCS")
 	// Google Cloud Storage bucket name
-	bucketName := "m_tickets"
+	bucketName := os.Getenv("BUCKET_NAME")
+	if bucketName == "" {
+		bucketName = "ecommerce-adenzo"
+	}
 	// Determine the file extension from the MIME type
 	extension := strings.Split(mimeType, "/")[1]
 	// Generate a unique object name using the media ID and a unique ID

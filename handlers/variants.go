@@ -50,6 +50,7 @@ func CreateVariant(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	_ = utils.DeleteCache("all_variants")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -174,16 +175,25 @@ func ListVariants(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	variants, err := models.ListVariants()
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
+	var variants []dtos.GroupedVariants
+	var cachedVariants []dtos.GroupedVariants
+	_ = utils.GetCache("all_variants", &cachedVariants)
+	if cachedVariants == nil {
+		var err error
+		variants, err = models.ListVariants()
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusBadRequest,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache("all_variants", &cachedVariants)
+	} else {
+		variants = cachedVariants
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
@@ -232,6 +242,7 @@ func UpdateVariant(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	_ = utils.DeleteCache("all_variants")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -269,6 +280,7 @@ func DeleteVariant(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	_ = utils.DeleteCache("all_variants")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -317,6 +329,9 @@ func AddProductVariant(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate cache
+	_ = utils.DeleteCacheByPrefix("products_page_")
+	_ = utils.DeleteCacheByPrefix("pagination_page_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,

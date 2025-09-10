@@ -6,6 +6,7 @@ import (
 	"adenzo_backend/notification"
 	"adenzo_backend/utils"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -95,7 +96,8 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("notifications_")
+	utils.DeleteCacheByPrefix("notifications_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -149,24 +151,35 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-
-	notifications, meta, err := models.ListNotifications(page, limit)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeyNotification := fmt.Sprintf("notifications_%d_size_%d", page, limit)
+	cacheKeyPagination := fmt.Sprintf("notifications_pagination_%d_size_%d", page, limit)
+	var notifications []dtos.Notification
+	var cachedNotifications []dtos.Notification
+	var pagination *dtos.PaginationMeta
+	var cachedPagination *dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeyNotification, &cachedNotifications)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedNotifications == nil {
+		var err error
+		notifications, pagination, err = models.ListNotifications(page, limit)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+	} else {
+		notifications = cachedNotifications
+		pagination = cachedPagination
 	}
-
 	resp := dtos.NotificationListResponse{
 		Notifications: notifications,
-		Meta:          *meta,
+		Meta:          *pagination,
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -215,6 +228,8 @@ func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("notifications_")
+	utils.DeleteCacheByPrefix("notifications_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -251,6 +266,8 @@ func DeleteNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("notifications_")
+	utils.DeleteCacheByPrefix("notifications_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,

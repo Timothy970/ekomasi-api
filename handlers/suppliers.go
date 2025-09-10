@@ -5,8 +5,8 @@ import (
 	"adenzo_backend/dtos"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
+	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -49,6 +49,8 @@ func CreateSupplier(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("suppliers_")
+	utils.DeleteCacheByPrefix("suppliers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -76,30 +78,37 @@ func ListSuppliers(w http.ResponseWriter, r *http.Request) {
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
 		return
 	}
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-	if page < 1 {
-		page = 1
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeySuppliers := fmt.Sprintf("suppliers_%d_size_%d", page, size)
+	cacheKeyPagination := fmt.Sprintf("suppliers_pagination_%d_size_%d", page, size)
+	var suppliers []dtos.Supplier
+	var cachedSupplier []dtos.Supplier
+	var meta dtos.PaginationMeta
+	var cachedPagination dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeySuppliers, &cachedSupplier)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedSupplier == nil {
+		var err error
+		suppliers, meta, err = models.ListSuppliers(page, size)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusNotFound,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache(cacheKeySuppliers, cachedSupplier)
+		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
+	} else {
+		suppliers = cachedSupplier
+		meta = cachedPagination
 	}
-	if size < 1 {
-		size = 10
-	}
-
-	suppliers, meta, err := models.ListSuppliers(page, size)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
-
 	resp := map[string]interface{}{
-		"data": suppliers,
-		"meta": meta,
+		"suppliers":  suppliers,
+		"pagination": meta,
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
@@ -200,7 +209,8 @@ func UpdateSupplier(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("suppliers_")
+	utils.DeleteCacheByPrefix("suppliers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,
@@ -242,7 +252,8 @@ func DeleteSupplier(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("suppliers_")
+	utils.DeleteCacheByPrefix("suppliers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   nil,

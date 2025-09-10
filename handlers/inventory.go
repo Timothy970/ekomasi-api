@@ -4,9 +4,8 @@ import (
 	"adenzo_backend/dtos"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
-	"math"
+	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -30,35 +29,39 @@ func ListInventory(w http.ResponseWriter, r *http.Request) {
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
 		return
 	}
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
-
-	inventories, totalItems, err := models.ListInventory(page, size)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
-
-	totalPages := int(math.Ceil(float64(totalItems) / float64(size)))
-	meta := dtos.PaginationMeta{
-		Page:       page,
-		Size:       size,
-		TotalItems: totalItems,
-		TotalPages: totalPages,
-		HasPrev:    page > 1,
-		HasNext:    page < totalPages,
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	cacheKeyInventories := fmt.Sprintf("inventories_%d_size_%d", page, size)
+	cacheKeyPagination := fmt.Sprintf("inventories_pagination_%d_size_%d", page, size)
+	var inventories []dtos.Inventory
+	var cachedInventories []dtos.Inventory
+	var pagination *dtos.PaginationMeta
+	var cachedPagination *dtos.PaginationMeta
+	_ = utils.GetCache(cacheKeyInventories, &cachedInventories)
+	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	if cachedInventories == nil {
+		var err error
+		inventories, pagination, err = models.ListInventory(page, size)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusBadRequest,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		_ = utils.SetCache(cacheKeyInventories, cachedInventories)
+		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
+	} else {
+		inventories = cachedInventories
+		pagination = cachedPagination
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusOK,
 		Payload: dtos.InventoryListResponse{
-			Meta:        meta,
+			Meta:        *pagination,
 			Inventories: inventories,
 		},
 		Message:   "Inventories",
@@ -106,6 +109,8 @@ func CreateInventory(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	utils.DeleteCacheByPrefix("inventories_")
+	utils.DeleteCacheByPrefix("inventories_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -215,7 +220,8 @@ func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("inventories_")
+	utils.DeleteCacheByPrefix("inventories_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,
@@ -257,7 +263,8 @@ func DeleteInventory(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	utils.DeleteCacheByPrefix("inventories_")
+	utils.DeleteCacheByPrefix("inventories_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   nil,

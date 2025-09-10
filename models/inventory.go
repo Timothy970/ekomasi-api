@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -13,20 +14,13 @@ import (
 
 var noinventory = "inventory not found"
 
-func ListInventory(page, size int) ([]dtos.Inventory, int, error) {
-	if page < 1 {
-		page = 1
-	}
-	if size <= 0 {
-		size = 10
-	}
-
+func ListInventory(page, size int) ([]dtos.Inventory, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * size
 
 	var totalItems int
 	err := DB.QueryRow(`SELECT COUNT(*) FROM inventory`).Scan(&totalItems)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 
 	rows, err := DB.Query(`
@@ -35,7 +29,7 @@ func ListInventory(page, size int) ([]dtos.Inventory, int, error) {
 		ORDER BY last_updated DESC
 		LIMIT ? OFFSET ?`, size, offset)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
@@ -43,12 +37,20 @@ func ListInventory(page, size int) ([]dtos.Inventory, int, error) {
 	for rows.Next() {
 		var inv dtos.Inventory
 		if err := rows.Scan(&inv.InventoryID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold, &inv.LastUpdated); err != nil {
-			return nil, 0, err
+			return nil, nil, err
 		}
 		inventories = append(inventories, inv)
 	}
-
-	return inventories, totalItems, nil
+	totalPages := int(math.Ceil(float64(totalItems) / float64(size)))
+	meta := dtos.PaginationMeta{
+		Page:       page,
+		Size:       size,
+		TotalItems: totalItems,
+		TotalPages: totalPages,
+		HasPrev:    page > 1,
+		HasNext:    page < totalPages,
+	}
+	return inventories, &meta, nil
 }
 
 func CreateInventory(inv dtos.CreateInventoryRequest) error {
