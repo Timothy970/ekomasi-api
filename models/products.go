@@ -485,10 +485,9 @@ func UpdateProductByID(productID string, input dtos.CreateProduct) (*dtos.Create
 	}
 	_, err = DB.Exec(`
 		UPDATE products
-		SET name = ?, description = ?, sku = ?, price = ?, category_id = ?, stock_quantity = ?, search_vector = ?, last_updated_at = CURRENT_TIMESTAMP
+		SET name = ?, description = ?, sku = ?, price = ?, stock_quantity = ?, search_vector = ?, last_updated_at = CURRENT_TIMESTAMP
 		WHERE product_id = ?`,
-		input.Name, input.Description, input.SKU, input.Price,
-		input.CategoryID, input.StockQuantity, input.SearchVector,
+		input.Name, input.Description, input.SKU, input.Price, input.StockQuantity, input.SearchVector,
 		productID,
 	)
 
