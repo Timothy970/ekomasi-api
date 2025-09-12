@@ -1,12 +1,15 @@
 package dtos
 
+// type CartItem struct {
+// 	ProductID   string  `json:"product_id"`
+// 	ProductName string  `json:"product_name"`
+// 	Quantity    int     `json:"quantity"`
+// 	Price       float64 `json:"price"`
+// }
 type CartItem struct {
-	ProductID   string  `json:"product_id"`
-	ProductName string  `json:"product_name"`
-	Quantity    int     `json:"quantity"`
-	Price       float64 `json:"price"`
+	Product  Product `json:"product"`
+	Quantity int     `json:"quantity"`
 }
-
 type AddToCartRequest struct {
 	ProductID string `json:"product_id" validate:"required"`
 	Quantity  int    `json:"quantity" validate:"required"`

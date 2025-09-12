@@ -145,10 +145,20 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	res, err := getCartItemsByCartID(req.CartID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   nil,
+		Payload:   res,
 		Message:   "Product added to cart successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -171,7 +181,7 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	cartID := mux.Vars(r)["cart_id"]
-	items, err := models.GetCartItems(cartID)
+	res, err := getCartItemsByCartID(cartID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -182,38 +192,6 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	discount := 0.0
-	total := 0.0
-	for _, item := range items {
-		//check if any product has a discount
-		productDiscount, err := models.GetProductPromotionData(item.ProductID)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
-		}
-		if productDiscount.Type != "" {
-			discountAmount, err := calculateDifferentDiscountTypes(&productDiscount, item)
-			if err != nil {
-				log.Printf("Error calculating discount: %v", err)
-			} else {
-				fmt.Printf("Discount for %s: %.2f\n", item.ProductID, discountAmount)
-				discount += discountAmount
-			}
-		}
-		total += float64(item.Quantity) * item.Price
-	}
-	res := dtos.ViewCartResponse{
-		CartItems: items,
-		Total:     total,
-		Final:     total,
-		Discount:  discount,
-	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   res,
@@ -223,17 +201,48 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
-
+func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
+	items, err := models.GetCartItems(cartID)
+	if err != nil {
+		return dtos.ViewCartResponse{}, err
+	}
+	discount := 0.0
+	total := 0.0
+	for _, item := range items {
+		//check if any product has a discount
+		productDiscount, err := models.GetProductPromotionData(item.Product.ID)
+		if err != nil {
+			return dtos.ViewCartResponse{}, err
+		}
+		if productDiscount.Type != "" {
+			discountAmount, err := calculateDifferentDiscountTypes(&productDiscount, item)
+			if err != nil {
+				log.Printf("Error calculating discount: %v", err)
+			} else {
+				fmt.Printf("Discount for %s: %.2f\n", item.Product.ID, discountAmount)
+				discount += discountAmount
+			}
+		}
+		total += float64(item.Quantity) * item.Product.Price
+	}
+	res := dtos.ViewCartResponse{
+		CartItems: items,
+		Total:     total,
+		Final:     total,
+		Discount:  discount,
+	}
+	return res, nil
+}
 func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartItem) (float64, error) {
 	switch promo.Type {
 	case "Percentage":
 		// Apply a percentage discount to total item price
-		return (promo.Value / 100) * float64(item.Quantity) * item.Price, nil
+		return (promo.Value / 100) * float64(item.Quantity) * item.Product.Price, nil
 
 	case "Fixed":
 		// Apply a fixed amount discount (flat rate)
 		// Split proportionally if needed; here we apply it fully if item subtotal > discount
-		subtotal := float64(item.Quantity) * item.Price
+		subtotal := float64(item.Quantity) * item.Product.Price
 		if subtotal > promo.Value {
 			return promo.Value, nil
 		}
@@ -244,7 +253,7 @@ func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartIt
 		// For every two items, one is free
 		if item.Quantity > 1 {
 			freeItems := item.Quantity / 2
-			return float64(freeItems) * item.Price, nil
+			return float64(freeItems) * item.Product.Price, nil
 		} else {
 			return 0, nil
 		}
@@ -257,9 +266,9 @@ func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartIt
 	case "Tiered":
 		// Example tiered logic based on quantity
 		if item.Quantity >= 10 {
-			return 0.20 * float64(item.Quantity) * item.Price, nil // 20% off
+			return 0.20 * float64(item.Quantity) * item.Product.Price, nil // 20% off
 		} else if item.Quantity >= 5 {
-			return 0.10 * float64(item.Quantity) * item.Price, nil // 10% off
+			return 0.10 * float64(item.Quantity) * item.Product.Price, nil // 10% off
 		}
 		return 0, nil
 
@@ -305,10 +314,20 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	res, err := getCartItemsByCartID(cartID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   nil,
+		Payload:   res,
 		Message:   "Cart item updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -349,9 +368,20 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	res, err := getCartItemsByCartID(cartID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   nil,
+		Payload:   res,
 		Message:   "Product removed from cart successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -419,7 +449,7 @@ func ApplyCouponHandler(w http.ResponseWriter, r *http.Request) {
 
 	total := 0.0
 	for _, item := range items {
-		total += float64(item.Quantity) * item.Price
+		total += float64(item.Quantity) * item.Product.Price
 	}
 	discount := couponData / 100 * total
 	final := total - discount

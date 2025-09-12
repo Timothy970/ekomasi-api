@@ -321,8 +321,56 @@ func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Pr
 		return category, nil, err
 	}
 	product.Images = images
-
+	variants, err := getProductVariants(product.ID)
+	if err != nil {
+		return category, nil, err
+	}
+	product.ProductVariants = variants
 	return category, &product, nil
+}
+
+// GetProductVariants fetches all variants for a given productID
+func getProductVariants(productID string) ([]dtos.ProductVariants, error) {
+	query := `
+		SELECT 
+			v.variant_id,
+			v.variant_type,
+			v.name,
+			v.hex_code,
+			pv.additional_price,
+			pv.stock_quantity
+		FROM product_variants pv
+		INNER JOIN variants v ON pv.variant_id = v.variant_id
+		WHERE pv.product_id = ?
+	`
+
+	rows, err := DB.Query(query, productID)
+	if err != nil {
+		return nil, fmt.Errorf("querying product variants: %w", err)
+	}
+	defer rows.Close()
+
+	var variants []dtos.ProductVariants
+	for rows.Next() {
+		var pv dtos.ProductVariants
+		if err := rows.Scan(
+			&pv.VariantID,
+			&pv.VariantType,
+			&pv.Name,
+			&pv.HexCode,
+			&pv.AdditionalPrice,
+			&pv.StockQuantity,
+		); err != nil {
+			return nil, fmt.Errorf("scanning product variant: %w", err)
+		}
+		variants = append(variants, pv)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating product variants: %w", err)
+	}
+
+	return variants, nil
 }
 
 // func buildCategoryHierarchy(categoryMap map[string]*dtos.CategoryWithProducts) []dtos.CategoryWithProducts {
@@ -362,7 +410,11 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 		return nil, err
 	}
 	p.Images = images
-
+	variants, err := getProductVariants(p.ID)
+	if err != nil {
+		return nil, err
+	}
+	p.ProductVariants = variants
 	return &p, nil
 }
 func AddNewProduct(input dtos.CreateProduct) (*dtos.CreateProduct, error) {
@@ -618,7 +670,11 @@ func scanProduct(rows *sql.Rows) (dtos.Product, error) {
 		return product, err
 	}
 	product.Images = images
-
+	variants, err := getProductVariants(product.ID)
+	if err != nil {
+		return product, err
+	}
+	product.ProductVariants = variants
 	return product, nil
 }
 
@@ -823,7 +879,11 @@ func scanBundleAndProduct(rows *sql.Rows) (dtos.GetBundleRequest, *dtos.Product,
 		return dtos.GetBundleRequest{}, nil, err
 	}
 	product.Images = images
-
+	variants, err := getProductVariants(product.ID)
+	if err != nil {
+		return dtos.GetBundleRequest{}, nil, err
+	}
+	product.ProductVariants = variants
 	return bundle, product, nil
 }
 
@@ -1115,7 +1175,11 @@ func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.Subca
 			return nil, nil, err
 		}
 		p.Images = images
-
+		variants, err := getProductVariants(p.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		p.ProductVariants = variants
 		products = append(products, p)
 	}
 	sub.Products = products
@@ -1335,6 +1399,11 @@ func getProductsForSubcategories(subIDs []string) ([]dtos.CategoryProduct, error
 			return nil, err
 		}
 		pr.Images = images
+		variants, err := getProductVariants(pr.ID)
+		if err != nil {
+			return nil, err
+		}
+		pr.ProductVariants = variants
 
 		products = append(products, pr)
 	}

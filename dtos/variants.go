@@ -43,3 +43,11 @@ type VariantWithProducts struct {
 	StockQuantity   int       `json:"stock_quantity"`
 	Products        []Product `json:"products"`
 }
+type ProductVariants struct {
+	VariantID       string  `json:"variant_id"`
+	VariantType     string  `json:"variant_type"`
+	Name            string  `json:"name"`
+	HexCode         *string `json:"hex_code,omitempty"`
+	AdditionalPrice float64 `json:"additional_price"`
+	StockQuantity   int     `json:"stock_quantity"`
+}

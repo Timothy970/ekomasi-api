@@ -37,6 +37,10 @@ func InsertCartItem(cartID string, productID string, quantity int) error {
 	if err != nil {
 		return err
 	}
+	// Check stock availability
+	if err := isStockAvailable(productID, quantity); err != nil {
+		return err
+	}
 	// Generate cart ID
 	ID, _ := shortid.Generate()
 
@@ -55,6 +59,28 @@ func InsertCartItem(cartID string, productID string, quantity int) error {
 	}
 	return nil
 }
+
+// isStockAvailable checks if enough stock is available for a given product and quantity
+func isStockAvailable(productID string, quantity int) error {
+	var available int
+	err := DB.QueryRow(`
+		SELECT stock_quantity
+		FROM products
+		WHERE product_id = ?
+	`, productID).Scan(&available)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("product not found")
+		}
+		return fmt.Errorf("error checking stock: %w", err)
+	}
+
+	if quantity > available {
+		return fmt.Errorf("requested quantity (%d) exceeds available stock (%d)", quantity, available)
+	}
+	return nil
+}
+
 func CreateCart(req dtos.CreateCartRequest) (string, error) {
 	// Generate cart ID
 	cartID, _ := shortid.Generate()
@@ -89,14 +115,15 @@ func GetUserCart(userID string) (string, error) {
 }
 
 func GetCartItems(cartID string) ([]dtos.CartItem, error) {
+	// Ensure the cart exists
 	err := isCartThere(cartID)
 	if err != nil {
 		return nil, err
 	}
+
 	rows, err := DB.Query(`
-		SELECT c.product_id, p.name, c.quantity, p.price
+		SELECT c.product_id, c.quantity
 		FROM cart_items c
-		JOIN products p ON c.product_id = p.product_id
 		WHERE c.cart_id = ?
 	`, cartID)
 	if err != nil {
@@ -106,12 +133,27 @@ func GetCartItems(cartID string) ([]dtos.CartItem, error) {
 
 	var items []dtos.CartItem
 	for rows.Next() {
-		var item dtos.CartItem
-		if err := rows.Scan(&item.ProductID, &item.ProductName, &item.Quantity, &item.Price); err != nil {
+		var productID string
+		var quantity int
+
+		if err := rows.Scan(&productID, &quantity); err != nil {
 			return nil, err
+		}
+
+		// Fetch full product details
+		product, err := GetProductByID(productID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Build CartItem DTO
+		item := dtos.CartItem{
+			Product:  *product, // full product details
+			Quantity: quantity,
 		}
 		items = append(items, item)
 	}
+
 	return items, nil
 }
 
