@@ -83,7 +83,6 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		Description: r.FormValue("description"),
 		ParentID:    utils.StringPtr(r.FormValue("parent_id")),
 	}
-
 	// Validate request
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
@@ -95,7 +94,7 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error adding new category: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusBadRequest,
-			Message:   fmt.Sprintf("Failed to add category: %v", err),
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,

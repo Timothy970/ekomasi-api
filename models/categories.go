@@ -104,6 +104,7 @@ func isCategoryThere(value string) error {
 
 // Helper model to insert new category to the DB
 func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
+
 	// Check if the category name already exists
 	var exists bool
 	err := DB.QueryRow(`
@@ -141,14 +142,17 @@ func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
 		}
 		_, err = DB.Exec(`
 		INSERT INTO categories (category_id, name, parent_category_id, description, image)
-		VALUES (?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?)`,
 			categoryID, input.Name, input.ParentID, input.Description, input.Image,
 		)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &dtos.Category{
 		ID:               categoryID,
 		Name:             input.Name,
-		ParentCategoryID: &categoryID,
+		ParentCategoryID: input.ParentID,
 		Description:      input.Description,
 		Image:            input.Image,
 	}, err
