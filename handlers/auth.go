@@ -248,7 +248,7 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				Code:      http.StatusUnauthorized,
-				Message:   "User not found",
+				Message:   noUserFound,
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
 				Request:   r,
@@ -311,7 +311,7 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
+	refreshToken, _ := generateToken(user, "refresh_token", 12*time.Hour)
 	// Update last login timestamp
 	models.UpdateLastLogin(user.ID)
 
@@ -319,8 +319,10 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusOK,
 		Payload: map[string]interface{}{
-			"token":      token,
-			"expires_in": 3600,
+			"token":                    token,
+			"token_expires_in":         3600,
+			"refresh_token":            refreshToken,
+			"refresh_token_expires_in": 3600 * 12,
 		},
 		Message:   "Verification successful",
 		TimeTaken: time.Since(start),
@@ -363,7 +365,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	user, err := fetchUser(req.Email, req.Phone)
 	if err != nil {
-		log.Printf("ERR:::::::::::%v", err)
+		log.Printf("%v", err)
 		handleFailedLogin(w, identifier, start, r, requestSummary)
 		return
 	}
@@ -400,6 +402,88 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary,
 	})
+}
+
+// LoginHandler handles user refresh Token
+// @Summary Refresh Token
+// @Description Refresh Token
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} dtos.RegisterResponse
+// @Failure 400 {object} dtos.ErrorResponse
+// @Failure 409 {object} dtos.ErrorResponse
+// @Router /api/auth/refresh-token [post]
+func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	req, err := decodeLoginRequest(r)
+	if err != nil {
+		respondBadRequest(w, "Invalid request", start, r, requestSummary)
+		return
+	}
+	if err := validateLoginRequest(req); err != nil {
+		respondBadRequest(w, err.Error(), start, r, requestSummary)
+		return
+	}
+
+	identifier := getIdentifier(req)
+	if jailed, _ := isUserJailed(identifier); jailed {
+		respondTooManyAttempts(w, start, r, requestSummary)
+		return
+	}
+
+	user, err := fetchUser(req.Email, req.Phone)
+	if err != nil {
+		log.Printf("ERR:::::::::::%v", err)
+		handleFailedLogin(w, identifier, start, r, requestSummary)
+		return
+	}
+	if user == nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusUnauthorized,
+			Message:   "User not found",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	// validate it a good refresh token
+	// Generate token
+	token, err := generateToken(user, "auth", time.Hour)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   "Token generation failed",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	refreshToken, _ := generateToken(user, "refresh_token", 12*time.Hour)
+	// Update last login timestamp
+	models.UpdateLastLogin(user.ID)
+
+	// Return success response
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code: http.StatusOK,
+		Payload: map[string]interface{}{
+			"token":                    token,
+			"token_expires_in":         3600,
+			"refresh_token":            refreshToken,
+			"refresh_token_expires_in": 3600 * 12,
+		},
+		Message:   "Token refreshed successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+
 }
 
 // LogoutHandler handles user logout

@@ -34,6 +34,10 @@ type LoginRequest struct {
 	Email string `json:"email,omitempty"`
 	Phone string `json:"phone_number"`
 }
+type RefreshToken struct {
+	Email string `json:"email"`
+	Phone string `json:"phone_number"`
+}
 
 // UpdateProfileRequest represents the request body for updating user profile.
 type UpdateProfileRequest struct {

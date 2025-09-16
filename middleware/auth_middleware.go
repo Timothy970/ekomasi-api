@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,12 +14,14 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+var bearer = "Bearer "
+
 func AuthenticateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		tokenString := ""
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+		if strings.HasPrefix(authHeader, bearer) {
+			tokenString = strings.TrimPrefix(authHeader, bearer)
 		}
 
 		if tokenString == "" {
@@ -50,6 +53,10 @@ func AuthenticateToken(next http.Handler) http.Handler {
 
 		// set user info in context (optional)
 		claims, ok := token.Claims.(*dtos.CustomClaims)
+		if !ok {
+			sendErrorResponse(w, http.StatusForbidden, "Invalid token claims")
+			return
+		}
 		if ok {
 			user := AuthenticatedUser{
 				ID:        claims.UserID,
@@ -63,6 +70,63 @@ func AuthenticateToken(next http.Handler) http.Handler {
 			r = r.WithContext(ctx)
 		}
 		log.Printf("next after auth")
+		next.ServeHTTP(w, r)
+	})
+}
+func AuthenticateRefreshToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		tokenString := ""
+		if strings.HasPrefix(authHeader, bearer) {
+			tokenString = strings.TrimPrefix(authHeader, bearer)
+		}
+
+		if tokenString == "" {
+			sendErrorResponse(w, http.StatusUnauthorized, "Token missing")
+			return
+		}
+
+		// Check if token is blacklisted
+		val, err := dtos.Redis.Get(r.Context(), "blacklist:"+tokenString).Result()
+		if err == nil && val == "1" {
+			sendErrorResponse(w, http.StatusForbidden, "Token has been invalidated")
+			return
+		}
+
+		// Parse and validate JWT
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			return []byte(os.Getenv("JWT_SECRET")), nil
+		})
+		if err != nil || !token.Valid {
+			sendErrorResponse(w, http.StatusForbidden, "Invalid or expired token")
+			return
+		}
+
+		// Extract claims
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			sendErrorResponse(w, http.StatusForbidden, "Invalid token claims")
+			return
+		}
+
+		// Ensure it's a refresh token
+		if tokenType, ok := claims["type"].(string); !ok || tokenType != "refresh_token" {
+			sendErrorResponse(w, http.StatusForbidden, "Invalid token type")
+			return
+		}
+
+		// (Optional) attach claims to context
+		user := AuthenticatedUser{
+			ID:        fmt.Sprintf("%v", claims["id"]),
+			Email:     fmt.Sprintf("%v", claims["email"]),
+			FirstName: fmt.Sprintf("%v", claims["first_name"]),
+			LastName:  fmt.Sprintf("%v", claims["last_name"]),
+			Role:      fmt.Sprintf("%v", claims["role"]),
+			Phone:     fmt.Sprintf("%v", claims["phone_number"]),
+		}
+		ctx := contextWithUser(r.Context(), user)
+		r = r.WithContext(ctx)
+
 		next.ServeHTTP(w, r)
 	})
 }

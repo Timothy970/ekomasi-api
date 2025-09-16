@@ -48,7 +48,7 @@ func InsertCartItem(cartID string, productID string, quantity int) error {
 	_, err = DB.Exec(`
         INSERT INTO cart_items(id, cart_id, product_id, quantity)
         VALUES (?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
+        ON DUPLICATE KEY UPDATE quantity = VALUES(quantity)
     `, ID, cartID, productID, quantity)
 	if err != nil {
 		return fmt.Errorf("failed to insert cart item: %w", err)

@@ -112,9 +112,9 @@ func ListPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 	var cachedPayemnts []dtos.Payment
 	var pagination *dtos.PaginationMeta
 	var cachedPagination *dtos.PaginationMeta
-	_ = utils.GetCache(cacheKeyPayments, &cacheKeyPayments)
+	_ = utils.GetCache(cacheKeyPayments, &cachedPayemnts)
 	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
-	if cachedPayemnts == nil {
+	if len(cachedPayemnts) == 0 {
 		var err error
 		payments, pagination, err = models.ListPayments(page, limit)
 		if err != nil {

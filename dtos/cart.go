@@ -12,7 +12,7 @@ type CartItem struct {
 }
 type AddToCartRequest struct {
 	ProductID string `json:"product_id" validate:"required"`
-	Quantity  int    `json:"quantity" validate:"required"`
+	Quantity  int    `json:"quantity" validate:"required,min=1"`
 	CartID    string `json:"cart_id" validate:"required"`
 }
 type CreateCartRequest struct {
@@ -31,8 +31,8 @@ type ViewCartResponse struct {
 }
 
 type UpdateCartItemRequest struct {
-	ProductID string `json:"product_id"`
-	Quantity  int    `json:"quantity"`
+	ProductID string `json:"product_id" validate:"required"`
+	Quantity  int    `json:"quantity" validate:"required,min=1"`
 }
 
 type UpdateCartItemResponse struct {
