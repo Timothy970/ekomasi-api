@@ -219,7 +219,7 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if orderID != "" {
-		order, err := models.GetOrder(orderID)
+		order, err := models.GetOrderByID(orderID)
 		if err != nil {
 			log.Printf("%s", err)
 			respondWithError(http.StatusInternalServerError, "Could not fetch order")
@@ -393,7 +393,7 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	order, err := models.GetOrderByID(orderID, user.ID)
+	order, err := models.GetOrderByUser(orderID, user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,

@@ -358,5 +358,5 @@ func SetupRoutes(router *mux.Router) {
 
 	reports.HandleFunc("/customer/segmentation", handlers.GetCustomerSegmentation).Methods("GET")
 	reports.HandleFunc("/sales/segmentation", handlers.GetSalesByRegion).Methods("GET")
-
+	api.HandleFunc("/updateimages", handlers.MigrateImageURLs).Methods("GET")
 }

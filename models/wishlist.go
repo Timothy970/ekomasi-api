@@ -297,3 +297,26 @@ func DeleteWishList(wishlistID, userID string) error {
 	_, err = DB.Exec("DELETE FROM wishlists WHERE wishlist_id = ? AND user_id = ?", wishlistID, userID)
 	return err
 }
+
+func UpdateImageURLs() (int64, error) {
+	query := `
+        UPDATE categories
+        SET image = REPLACE(
+            image,
+            'https://storage.googleapis.com/m_tickets',
+            'https://bucket.emalify.com'
+        )
+        WHERE image LIKE 'https://storage.googleapis.com/m_tickets%';`
+
+	res, err := DB.Exec(query)
+	if err != nil {
+		return 0, err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	return rowsAffected, nil
+}

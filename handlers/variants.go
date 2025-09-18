@@ -413,3 +413,49 @@ func ListProductVariants(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+
+// Endpoint to trigger migration
+func MigrateImageURLs(w http.ResponseWriter, r *http.Request) {
+
+	rows, err := MigrateImageURLsService()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	resp := map[string]interface{}{
+		"message":       "Image URLs updated successfully",
+		"rows_affected": rows,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func MigrateImageURLsService() (int64, error) {
+	return models.UpdateImageURLs()
+}

@@ -6,13 +6,49 @@ import (
 )
 
 type Order struct {
-	OrderID       string      `json:"order_id"`
-	TotalAmount   float64     `json:"total_amount"`
-	TotalDiscount float64     `json:"total_discount"`
-	DeliveryID    string      `json:"delivery_id"`
-	Status        string      `json:"status"`
-	CreatedAt     time.Time   `json:"created_at"`
-	Items         []OrderItem `json:"items"`
+	OrderID              string               `json:"order_id"`
+	TotalAmount          float64              `json:"total_amount"`
+	TotalDiscount        float64              `json:"total_discount"`
+	DeliveryID           string               `json:"delivery_id"`
+	OrderStatus          string               `json:"order_status"`
+	DeliveryStatus       string               `json:"delivery_status"`
+	PaymentMethod        string               `json:"payment_method"`
+	DeliveryCharge       string               `json:"delivery_charge"`
+	DeliveryAddress      string               `json:"delivery_address"`
+	GuestDeliveryAddress GuestDeliveryAddress `json:"guest_delivery_address"`
+	GuestPersonalDetails GuestPersonalDetails `json:"guest_personal_details"`
+	CreatedAt            time.Time            `json:"created_at"`
+	Items                []OrderProduct       `json:"items"`
+}
+
+type GuestPersonalDetails struct {
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"`
+	Phone     string `json:"phone"`
+}
+
+type GuestDeliveryAddress struct {
+	Apartment  string `json:"apartment"`
+	Street     string `json:"street"`
+	City       string `json:"city"`
+	State      string `json:"state"`
+	PostalCode string `json:"postal_code"`
+	Country    string `json:"country"`
+}
+
+type OrderProduct struct {
+	ID            string    `json:"product_id"`
+	Name          string    `json:"name"`
+	Description   string    `json:"description"`
+	SKU           string    `json:"sku"`
+	Price         float64   `json:"price"`
+	CategoryID    string    `json:"category_id"`
+	StockQuantity int       `json:"stock_quantity"`
+	SearchVector  string    `json:"search_vector"`
+	CreatedAt     time.Time `json:"created_at"`
+	LastUpdated   time.Time `json:"last_updated"`
+	Images        []Image   `json:"urls,omitempty"`
 }
 type UserOrder struct {
 	OrderID       string      `json:"order_id"`

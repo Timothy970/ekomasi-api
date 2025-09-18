@@ -101,7 +101,7 @@ func uploadMedia(mediaData []byte, mediaID, mimeType string) (string, error) {
 	}
 
 	// Generate the public URL
-	url := fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucketName, objectName)
+	url := fmt.Sprintf("https://bucket.emalify.com/%s", objectName)
 	log.Printf("File uploaded to GCS and made public: %s", objectName)
 	return url, nil
 }

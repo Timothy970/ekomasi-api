@@ -3,8 +3,8 @@ package models
 import (
 	"adenzo_backend/dtos"
 	"database/sql"
+	"encoding/json"
 	"errors"
-	"time"
 
 	"github.com/teris-io/shortid"
 )
@@ -56,73 +56,105 @@ func CreateDeliveries(orderID, deliveryID string, req dtos.OrderRequest) error {
 	return err
 }
 
-func GetOrderByID(orderID, userID string) (*dtos.Order, error) {
-	var order dtos.Order
-	err := DB.QueryRow(`
-		SELECT order_id, total_amount, total_discount, delivery_id, status, created_at 
-		FROM orders WHERE order_id = ? AND user_id = ?`, orderID, userID).Scan(
-		&order.OrderID, &order.TotalAmount, &order.TotalDiscount, &order.DeliveryID, &order.Status, &order.CreatedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
+// func GetOrder(orderID string) (*dtos.Order, error) {
+// 	var order dtos.Order
+// 	err := DB.QueryRow(`
+// 		SELECT order_id, total_amount, total_discount, delivery_id, status, created_at
+// 		FROM orders WHERE order_id = ?`, orderID).Scan(
+// 		&order.OrderID, &order.TotalAmount, &order.TotalDiscount, &order.DeliveryID, &order.Status, &order.CreatedAt,
+// 	)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	order.Items, err = getOrderItems(orderID)
-	if err != nil {
-		return nil, err
-	}
-	return &order, nil
-}
-func GetOrder(orderID string) (*dtos.Order, error) {
-	var order dtos.Order
-	err := DB.QueryRow(`
-		SELECT order_id, total_amount, total_discount, delivery_id, status, created_at 
-		FROM orders WHERE order_id = ?`, orderID).Scan(
-		&order.OrderID, &order.TotalAmount, &order.TotalDiscount, &order.DeliveryID, &order.Status, &order.CreatedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	order.Items, err = getOrderItems(orderID)
-	if err != nil {
-		return nil, err
-	}
-	return &order, nil
-}
+//		order.Items, err = getOrderItems(orderID)
+//		if err != nil {
+//			return nil, err
+//		}
+//		return &order, nil
+//	}
 func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
-	var order dtos.Order
 	query := `
-		SELECT order_id, total_amount, total_discount, delivery_id, status, created_at 
-		FROM orders WHERE order_id = ? AND user_id = ?`
+		SELECT 
+            o.order_id,
+            o.total_amount,
+            o.total_discount,
+            o.delivery_id,
+            o.status,
+            d.status AS delivery_status,
+            o.payment_method,
+            d.delivery_charge,
+            d.delivery_address,
+            o.guest_delivery_address,
+            o.guest_personal_details,
+            o.created_at
+        FROM orders o
+        LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
+        WHERE o.order_id = ? AND o.user_id = ?`
+	var ord dtos.Order
+	var guestAddrStr, guestDetailsStr string
+
 	err := DB.QueryRow(query, orderID, userID).Scan(
-		&order.OrderID, &order.TotalAmount, &order.TotalDiscount, &order.DeliveryID, &order.Status, &order.CreatedAt,
+		&ord.OrderID,
+		&ord.TotalAmount,
+		&ord.TotalDiscount,
+		&ord.DeliveryID,
+		&ord.OrderStatus,
+		&ord.DeliveryStatus,
+		&ord.PaymentMethod,
+		&ord.DeliveryCharge,
+		&ord.DeliveryAddress,
+		&guestAddrStr,
+		&guestDetailsStr,
+		&ord.CreatedAt,
 	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
-	order.Items, err = getOrderItems(order.OrderID)
+	// Parse guest JSON fields
+	if guestAddrStr != "" {
+		_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
+	}
+	if guestDetailsStr != "" {
+		_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
+	}
+
+	items, err := getOrderProducts(orderID)
 	if err != nil {
 		return nil, err
 	}
-	return &order, nil
+	ord.Items = items
+
+	return &ord, nil
 }
 
-func GetAllOrders(status *string) ([]*dtos.Order, error) {
+func GetAllOrders(status *string) ([]dtos.Order, error) {
 	var (
 		query string
 		rows  *sql.Rows
 		err   error
 	)
-
 	baseQuery := `
-		SELECT 
-			o.order_id, o.total_amount, o.total_discount, o.delivery_id, o.status, o.created_at,
-			oi.product_id, oi.quantity, oi.unit_price
-		FROM orders o
-		LEFT JOIN order_items oi ON o.order_id = oi.order_id`
-
+        SELECT 
+            o.order_id,
+            o.total_amount,
+            o.total_discount,
+            o.delivery_id,
+            o.status,
+            d.status AS delivery_status,
+            o.payment_method,
+            d.delivery_charge,
+            d.delivery_address,
+            o.guest_delivery_address,
+            o.guest_personal_details,
+            o.created_at,
+            o.user_id
+        FROM orders o
+        LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id`
 	if status != nil {
 		query = baseQuery + " WHERE o.status = ? ORDER BY o.order_id"
 		rows, err = DB.Query(query, *status)
@@ -130,75 +162,192 @@ func GetAllOrders(status *string) ([]*dtos.Order, error) {
 		query = baseQuery + " ORDER BY o.order_id"
 		rows, err = DB.Query(query)
 	}
-
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	return mapOrdersWithItems(rows)
-}
+	var orders []dtos.Order
 
+	for rows.Next() {
+		var ord dtos.Order
+		var guestAddrStr, guestDetailsStr string
+		var userID sql.NullString // since it may be NULL for guests
+
+		if err := rows.Scan(
+			&ord.OrderID,
+			&ord.TotalAmount,
+			&ord.TotalDiscount,
+			&ord.DeliveryID,
+			&ord.OrderStatus,
+			&ord.DeliveryStatus,
+			&ord.PaymentMethod,
+			&ord.DeliveryCharge,
+			&ord.DeliveryAddress,
+			&guestAddrStr,
+			&guestDetailsStr,
+			&ord.CreatedAt,
+			&userID,
+		); err != nil {
+			return nil, err
+		}
+
+		// // Attach user_id if present
+		// if userID.Valid {
+		// 	ord.UserID = userID.String
+		// }
+
+		// Parse guest JSON fields
+		if guestAddrStr != "" {
+			_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
+		}
+		if guestDetailsStr != "" {
+			_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
+		}
+
+		// Fetch items for this order
+		items, err := getOrderProducts(ord.OrderID)
+		if err != nil {
+			return nil, err
+		}
+		ord.Items = items
+
+		orders = append(orders, ord)
+	}
+
+	return orders, nil
+}
 func ListOrdersByUser(userID string) ([]dtos.Order, error) {
-	rows, err := DB.Query(`
-		SELECT 
-			o.order_id, o.total_amount, o.total_discount, o.delivery_id, o.status, o.created_at,
-			oi.product_id, oi.quantity, oi.unit_price
-		FROM orders o
-		LEFT JOIN order_items oi ON o.order_id = oi.order_id
-		WHERE o.user_id = ?
-		ORDER BY o.order_id
-	`, userID)
+	query := `
+        SELECT 
+            o.order_id,
+            o.total_amount,
+            o.total_discount,
+            o.delivery_id,
+            o.status,
+            d.status AS delivery_status,
+            o.payment_method,
+            d.delivery_charge,
+            d.delivery_address,
+            o.guest_delivery_address,
+            o.guest_personal_details,
+            o.created_at
+        FROM orders o
+        LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
+        WHERE o.user_id = ?
+        ORDER BY o.created_at DESC`
+
+	rows, err := DB.Query(query, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	orders, err := mapOrdersWithItems(rows)
-	if err != nil {
-		return nil, err
+	var orders []dtos.Order
+
+	for rows.Next() {
+		var ord dtos.Order
+		var guestAddrStr, guestDetailsStr string
+
+		if err := rows.Scan(
+			&ord.OrderID,
+			&ord.TotalAmount,
+			&ord.TotalDiscount,
+			&ord.DeliveryID,
+			&ord.OrderStatus,
+			&ord.DeliveryStatus,
+			&ord.PaymentMethod,
+			&ord.DeliveryCharge,
+			&ord.DeliveryAddress,
+			&guestAddrStr,
+			&guestDetailsStr,
+			&ord.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		// Parse guest JSON fields
+		if guestAddrStr != "" {
+			_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
+		}
+		if guestDetailsStr != "" {
+			_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
+		}
+
+		// Fetch items for this order
+		items, err := getOrderProducts(ord.OrderID)
+		if err != nil {
+			return nil, err
+		}
+		ord.Items = items
+
+		orders = append(orders, ord)
 	}
 
-	// Convert []*dtos.Order to []dtos.Order
-	result := make([]dtos.Order, len(orders))
-	for i, o := range orders {
-		result[i] = *o
-	}
-	return result, nil
+	return orders, nil
 }
-func ListGuestOrders(orderID, email, phone string) ([]dtos.Order, error) {
-	err := isOrderThere(orderID)
+
+func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
+	query := `
+        SELECT 
+            o.order_id,
+            o.total_amount,
+            o.total_discount,
+            o.delivery_id,
+            o.status,
+            d.status AS delivery_status,
+            o.payment_method,
+            d.delivery_charge,
+            d.delivery_address,
+            o.guest_delivery_address,
+            o.guest_personal_details,
+            o.created_at
+        FROM orders o
+        LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
+        WHERE o.order_id = ?
+          AND o.guest_personal_details LIKE ?
+          AND o.guest_personal_details LIKE ?`
+
+	var ord dtos.Order
+	var guestAddrStr, guestDetailsStr string
+
+	err := DB.QueryRow(query, orderID, "%"+email+"%", "%"+phone+"%").Scan(
+		&ord.OrderID,
+		&ord.TotalAmount,
+		&ord.TotalDiscount,
+		&ord.DeliveryID,
+		&ord.OrderStatus,
+		&ord.DeliveryStatus,
+		&ord.PaymentMethod,
+		&ord.DeliveryCharge,
+		&ord.DeliveryAddress,
+		&guestAddrStr,
+		&guestDetailsStr,
+		&ord.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	// Parse guest JSON fields
+	if guestAddrStr != "" {
+		_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
+	}
+	if guestDetailsStr != "" {
+		_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
+	}
+
+	// Fetch items for this order
+	items, err := getOrderProducts(orderID)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := DB.Query(`
-	SELECT 
-		o.order_id, o.total_amount, o.total_discount, o.delivery_id, o.status, o.created_at,
-		oi.product_id, oi.quantity, oi.unit_price
-	FROM orders o
-	LEFT JOIN order_items oi ON o.order_id = oi.order_id
-	WHERE o.order_id = ? 
-	  AND o.guest_personal_details LIKE ? 
-	  AND o.guest_personal_details LIKE ?
-	ORDER BY o.order_id
-`, orderID, "%"+email+"%", "%"+phone+"%")
+	ord.Items = items
 
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	orders, err := mapOrdersWithItems(rows)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert []*dtos.Order to []dtos.Order
-	result := make([]dtos.Order, len(orders))
-	for i, o := range orders {
-		result[i] = *o
-	}
-	return result, nil
+	return &ord, nil
 }
 
 func UpdateOrderStatus(orderID, status string) error {
@@ -234,58 +383,6 @@ func getOrderItems(orderID string) ([]dtos.OrderItem, error) {
 	return items, nil
 }
 
-func mapOrdersWithItems(rows *sql.Rows) ([]*dtos.Order, error) {
-	ordersMap := make(map[string]*dtos.Order)
-
-	for rows.Next() {
-		var (
-			orderID       string
-			totalAmount   float64
-			totalDiscount float64
-			deliveryID    string
-			status        string
-			createdAt     time.Time
-			productID     sql.NullString
-			quantity      sql.NullInt64
-			unitPrice     sql.NullFloat64
-		)
-
-		if err := rows.Scan(
-			&orderID, &totalAmount, &totalDiscount, &deliveryID, &status, &createdAt,
-			&productID, &quantity, &unitPrice,
-		); err != nil {
-			return nil, err
-		}
-
-		order, exists := ordersMap[orderID]
-		if !exists {
-			order = &dtos.Order{
-				OrderID:       orderID,
-				TotalAmount:   totalAmount,
-				TotalDiscount: totalDiscount,
-				DeliveryID:    deliveryID,
-				Status:        status,
-				CreatedAt:     createdAt,
-				Items:         []dtos.OrderItem{},
-			}
-			ordersMap[orderID] = order
-		}
-
-		if productID.Valid && quantity.Valid && unitPrice.Valid {
-			order.Items = append(order.Items, dtos.OrderItem{
-				ProductID: productID.String,
-				Quantity:  float64(quantity.Int64),
-				UnitPrice: unitPrice.Float64,
-			})
-		}
-	}
-
-	var orders []*dtos.Order
-	for _, o := range ordersMap {
-		orders = append(orders, o)
-	}
-	return orders, nil
-}
 func isOrderThere(id string) error {
 	exists, err := RecordExists("orders", "order_id = ?", id)
 	if err != nil {
@@ -295,4 +392,119 @@ func isOrderThere(id string) error {
 		return errors.New("order not found")
 	}
 	return nil
+}
+
+func GetOrderByID(orderID string) (*dtos.Order, error) {
+	query := `
+        SELECT 
+            o.order_id,
+            o.total_amount,
+            o.total_discount,
+            o.delivery_id,
+            o.status,
+            d.status AS delivery_status,
+            o.payment_method,
+            d.delivery_charge,
+            d.delivery_address,
+            o.guest_delivery_address,
+            o.guest_personal_details,
+            o.created_at
+        FROM orders o
+        LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
+        WHERE o.order_id = ?`
+
+	var ord dtos.Order
+	var guestAddrStr, guestDetailsStr string
+
+	err := DB.QueryRow(query, orderID).Scan(
+		&ord.OrderID,
+		&ord.TotalAmount,
+		&ord.TotalDiscount,
+		&ord.DeliveryID,
+		&ord.OrderStatus,
+		&ord.DeliveryStatus,
+		&ord.PaymentMethod,
+		&ord.DeliveryCharge,
+		&ord.DeliveryAddress,
+		&guestAddrStr,
+		&guestDetailsStr,
+		&ord.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	// Parse guest JSON fields
+	if guestAddrStr != "" {
+		_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
+	}
+	if guestDetailsStr != "" {
+		_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
+	}
+
+	// Fetch items for this order
+	items, err := getOrderProducts(orderID)
+	if err != nil {
+		return nil, err
+	}
+	ord.Items = items
+
+	return &ord, nil
+}
+
+func getOrderProducts(orderID string) ([]dtos.OrderProduct, error) {
+	itemsQuery := `
+        SELECT 
+            p.product_id,
+            p.name,
+            p.description,
+            p.sku,
+            oi.unit_price,
+            p.category_id,
+            p.stock_quantity,
+            p.search_vector,
+            p.created_at,
+            p.last_updated_at
+        FROM order_items oi
+        JOIN products p ON oi.product_id = p.product_id
+        WHERE oi.order_id = ?`
+
+	rows, err := DB.Query(itemsQuery, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []dtos.OrderProduct
+	for rows.Next() {
+		var item dtos.OrderProduct
+		if err := rows.Scan(
+			&item.ID,
+			&item.Name,
+			&item.Description,
+			&item.SKU,
+			&item.Price,
+			&item.CategoryID,
+			&item.StockQuantity,
+			&item.SearchVector,
+			&item.CreatedAt,
+			&item.LastUpdated,
+		); err != nil {
+			return nil, err
+		}
+
+		// Fetch product images
+		images, err := fetchProductImages(item.ID)
+		if err != nil {
+			return nil, err
+		}
+		item.Images = images
+
+		items = append(items, item)
+	}
+
+	return items, nil
 }

@@ -263,22 +263,22 @@ func UpdateLastLogin(userID string) error {
 	return err
 }
 
-func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) error {
+func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.User, error) {
 	log.Printf("user id***%s", userID)
 	// Check if user exists
 	err := isUserThere(userID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	//check if email and phone number exists for other users
 	if input.Email != "" {
 		if exists, _ := EmailExistsForOtherUser(userID, input.Email); exists {
-			return errors.New("email already exists for another user")
+			return nil, errors.New("email already exists for another user")
 		}
 	}
 	if input.Phonenumber != "" {
 		if exists, _ := PhoneExistsForOtherUser(userID, input.Phonenumber); exists {
-			return errors.New("phone number already exists for another user")
+			return nil, errors.New("phone number already exists for another user")
 		}
 	}
 	// Build SET clause dynamically
@@ -307,7 +307,7 @@ func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) error {
 	}
 
 	if len(setClauses) == 0 {
-		return fmt.Errorf("no fields to update")
+		return nil, fmt.Errorf("no fields to update")
 	}
 
 	// Add userID for WHERE clause
@@ -320,10 +320,13 @@ func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) error {
 
 	_, err = DB.Exec(query, values...)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	return nil
+	user, err := GetUserByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
 }
 func EmailExistsForOtherUser(userID, email string) (bool, error) {
 	var count int

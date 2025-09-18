@@ -223,7 +223,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	err := models.FindByIdAndUpdate(*input, authuser.ID)
+	user, err := models.FindByIdAndUpdate(*input, authuser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusNotFound,
@@ -237,7 +237,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   nil,
+		Payload:   user,
 		Message:   "User details updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -669,7 +669,7 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	err := models.FindByIdAndUpdate(*input, userID)
+	user, err := models.FindByIdAndUpdate(*input, userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusNotFound,
@@ -683,7 +683,7 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   nil,
+		Payload:   user,
 		Message:   "User details updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
