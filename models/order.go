@@ -130,6 +130,9 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 	ord.Items = items
 	address, err := GetUserAddresses(userID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	ord.UserAddress = &address

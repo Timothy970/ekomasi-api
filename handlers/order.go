@@ -219,7 +219,7 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if orderID != "" {
-		order, err := models.GetOrder(orderID)
+		order, err := models.GetOrderByID(orderID)
 		if err != nil {
 			log.Printf("%s", err)
 			respondWithError(http.StatusInternalServerError, "Could not fetch order")
