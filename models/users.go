@@ -78,20 +78,13 @@ func GetUserIdByToken(token string) (string, error) {
 
 // insert user addresses
 func CreateUserAddress(req dtos.UserAdress, userID string) error {
-	//check if address exists
-	exists, err := RecordExists("user_addresses", getAddress, userID, req.Address)
-	if err != nil {
-		return fmt.Errorf("failed : %w", err)
-	}
-	if exists {
-		return fmt.Errorf("address already exists")
-	}
+
 	addressID, _ := shortid.Generate()
 	//Safe to insert to DB
-	_, err = DB.Exec(`
-		INSERT INTO user_addresses (address_id, user_id, address)
-		VALUES (?, ?, ?)`,
-		addressID, userID, req.Address,
+	_, err := DB.Exec(`
+		INSERT INTO user_addresses (address_id, user_id, address, country, apartment,city,zip_code)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		addressID, userID, req.Address, req.Country, req.Apartment, req.City, req.ZipCode,
 	)
 	if err != nil {
 		return err
@@ -100,7 +93,7 @@ func CreateUserAddress(req dtos.UserAdress, userID string) error {
 }
 func GetUserAddresses(userID string) ([]dtos.UserAddress, error) {
 	rows, err := DB.Query(`
-		SELECT address_id, address
+		SELECT address_id, address, country,apartment,city,zip_code
 		FROM user_addresses
 		WHERE user_id = ?`, userID)
 	if err != nil {
@@ -112,7 +105,7 @@ func GetUserAddresses(userID string) ([]dtos.UserAddress, error) {
 
 	for rows.Next() {
 		var addr dtos.UserAddress
-		if err := rows.Scan(&addr.AddressID, &addr.Address); err != nil {
+		if err := rows.Scan(&addr.AddressID, &addr.Address, &addr.Country, &addr.Apartment, &addr.City, &addr.ZipCode); err != nil {
 			return nil, err
 		}
 		addresses = append(addresses, addr)
@@ -126,7 +119,7 @@ func GetUserAddresses(userID string) ([]dtos.UserAddress, error) {
 }
 
 // update user address
-func UpdateUserAddress(addressID, userID, address string) error {
+func UpdateUserAddress(addressID, userID string, req *dtos.UserAdress) error {
 	//check if address exists
 	exists, err := RecordExists("user_addresses", "user_id = ? AND address_id = ?", userID, addressID)
 	if err != nil {
@@ -135,7 +128,7 @@ func UpdateUserAddress(addressID, userID, address string) error {
 	if !exists {
 		return fmt.Errorf("address not found")
 	}
-	exists, err = RecordExists("user_addresses", "user_id = ? AND address = ?", userID, address)
+	exists, err = RecordExists("user_addresses", "user_id = ? AND address = ?", userID, req.Address)
 	if err != nil {
 		return fmt.Errorf("failed to existence: %w", err)
 	}
@@ -145,9 +138,9 @@ func UpdateUserAddress(addressID, userID, address string) error {
 	// Proceed with update
 	_, err = DB.Exec(`
 		UPDATE user_addresses
-		SET address = ?
+		SET address = ?, country = ? ,apartment = ?, city = ?, zip_code = ?
 		WHERE user_id = ? AND address_id = ?
-	`, address, userID, addressID)
+	`, req.Address, req.Country, req.Apartment, req.City, req.ZipCode, userID, addressID)
 
 	return err
 }
@@ -353,4 +346,31 @@ func GetProductsByCategories(categories []string, page, size int) ([]dtos.Produc
 	}
 
 	return products, meta, nil
+}
+func isSubscriberThere(email string) error {
+	exists, err := RecordExists("subscribers", "email = ?", email)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("email already subscribed")
+	}
+	return nil
+}
+func CreateSubscribers(email string) error {
+	err := isSubscriberThere(email)
+	if err != nil {
+		return err
+	}
+	subscriberID, _ := shortid.Generate()
+	//Safe to insert to DB
+	_, err = DB.Exec(`
+		INSERT INTO subscribers (subscriber_id, email)
+		VALUES (?, ?)`,
+		subscriberID, email,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
 }

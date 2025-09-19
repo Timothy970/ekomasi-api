@@ -563,7 +563,7 @@ func UpdateAddress(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start) {
 		return
 	}
-	err := models.UpdateUserAddress(addressID, authUser.ID, input.Address)
+	err := models.UpdateUserAddress(addressID, authUser.ID, input)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusNotFound,
@@ -767,6 +767,51 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 			"pagination": pagination,
 		},
 		Message:   "Recommended products fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// Add subcribers
+//
+// @Summary      Create a subscriber
+// @Description  Create a subscriber
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{} "subscriber created successfully"
+// @Failure      400  {object}  map[string]string      "Invalid request payload"
+// @Failure      404  {object}  map[string]string      ""
+// @Router       /api/admin/users [post]
+func AddSubscriber(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+
+	input, ok := DecodeRequestBody[dtos.Subscriber](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start) {
+		return
+	}
+	err := models.CreateSubscribers(input.Email)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//send email to the created user
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusCreated,
+		Payload:   nil,
+		Message:   "Subscriber added successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

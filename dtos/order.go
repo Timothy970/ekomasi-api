@@ -19,6 +19,7 @@ type Order struct {
 	GuestPersonalDetails GuestPersonalDetails `json:"guest_personal_details"`
 	CreatedAt            time.Time            `json:"created_at"`
 	Items                []OrderProduct       `json:"items"`
+	UserAddress          *[]UserAddress       `json:"user_address"`
 }
 
 type GuestPersonalDetails struct {

@@ -136,3 +136,14 @@ type CategoryProduct struct {
 	Images          []Image           `json:"urls"`
 	ProductVariants []ProductVariants `json:"products_variants"`
 }
+
+// SearchParams represents the search parameters
+type SearchParams struct {
+	CategoryName string
+	ProductName  string
+	VariantName  string // variant_type:name format
+	VariantValue string // the actual variant value
+	SortBy       string
+	Page         int
+	Limit        int
+}

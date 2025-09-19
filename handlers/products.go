@@ -41,19 +41,13 @@ func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 	categoryID := r.URL.Query().Get("category_id")
 
 	// Decide if we should use cache
-	useCache := categoryFilter == "" && productFilter == "" && categoryID == ""
 
 	var products []dtos.CategoryWithProducts
 	var pagination *dtos.PaginationMeta
 	var err error
 
-	if useCache {
-		log.Printf("using cache***")
-		products, pagination, err = getProductsFromCacheOrDB(page, limit, categoryFilter, productFilter, categoryID)
-	} else {
-		log.Printf("not using cache***")
-		products, pagination, err = models.GetAllProducts(categoryFilter, productFilter, categoryID, page, limit)
-	}
+	log.Printf("not using cache***")
+	products, pagination, err = models.GetAllProducts(categoryFilter, productFilter, categoryID, page, limit)
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -770,4 +764,96 @@ func GetCategoryProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
+}
+
+// Sort options constants
+const (
+	SortPriceHighToLow   = "price:high-to-low"
+	SortPriceLowToHigh   = "price:low-to-high"
+	SortDateOldToNew     = "date:old-to-new"
+	SortDateNewToOld     = "date:new-to-old"
+	SortFeatured         = "featured"
+	SortBestSellers      = "best_sellers"
+	SortAlphabeticallyAZ = "alphabetically:a-z"
+	SortAlphabeticallyZA = "alphabetically:z-a"
+)
+
+func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Parse query parameters
+	query := r.URL.Query()
+
+	searchParams := dtos.SearchParams{
+		CategoryName: query.Get("category_name"),
+		ProductName:  query.Get("product_name"),
+		VariantName:  query.Get("variant_name"),
+		VariantValue: query.Get("variant_value"),
+		SortBy:       query.Get("sort_by"),
+	}
+
+	// Parse pagination
+	page, limit := parsePagination(query.Get("page"), query.Get("limit"))
+	searchParams.Page = page
+	searchParams.Limit = limit
+
+	// Validate sort parameter
+	if searchParams.SortBy != "" {
+		validSorts := map[string]bool{
+			SortPriceHighToLow:   true,
+			SortPriceLowToHigh:   true,
+			SortDateOldToNew:     true,
+			SortDateNewToOld:     true,
+			SortFeatured:         true,
+			SortBestSellers:      true,
+			SortAlphabeticallyAZ: true,
+			SortAlphabeticallyZA: true,
+		}
+		if !validSorts[searchParams.SortBy] {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusBadRequest,
+				Message:   "Invalid sort parameter",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+	}
+
+	// Perform search
+	products, pagination, err := models.SearchProducts(searchParams)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   "Failed to search products: " + err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code: http.StatusOK,
+		Payload: map[string]interface{}{
+			"products":   products,
+			"pagination": pagination,
+			"filters": map[string]string{
+				"category_name": searchParams.CategoryName,
+				"product_name":  searchParams.ProductName,
+				"variant_name":  searchParams.VariantName,
+				"variant_value": searchParams.VariantValue,
+				"sort_by":       searchParams.SortBy,
+			},
+		},
+		Message:   "Products search results",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
 }

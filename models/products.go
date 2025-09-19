@@ -573,7 +573,7 @@ func GetRelatedProducts(categoryID, excludeProductID string, limit, page int) ([
 	// Process products
 	var relatedProducts []dtos.Product
 	for rows.Next() {
-		product, err := scanProduct(rows)
+		product, err := scanRelatedProduct(rows)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -630,7 +630,7 @@ func buildRelatedProductsCountQuery(categoryID, excludeProductID string) (string
 	return query, args
 }
 
-func scanProduct(rows *sql.Rows) (dtos.Product, error) {
+func scanRelatedProduct(rows *sql.Rows) (dtos.Product, error) {
 	var (
 		productID, name, desc, sku, categoryID, searchVector sql.NullString
 		price                                                sql.NullFloat64
@@ -1407,4 +1407,219 @@ func getProductsForSubcategories(subIDs []string) ([]dtos.CategoryProduct, error
 		products = append(products, pr)
 	}
 	return products, nil
+}
+
+// new fetch products
+func SearchProducts(params dtos.SearchParams) ([]dtos.Product, *dtos.PaginationMeta, error) {
+	// Build the main query
+	query, args := buildSearchQuery(params)
+	countQuery, countArgs := buildCountQuerySearch(params)
+
+	// Count total items
+	var totalItems int64
+	if err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
+		return nil, nil, err
+	}
+
+	// Fetch products
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var products []dtos.Product
+	for rows.Next() {
+		product, err := scanProduct(rows)
+		if err != nil {
+			return nil, nil, err
+		}
+		products = append(products, product)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	// Pagination
+	pagination := calculatePagination(params.Page, params.Limit, totalItems)
+
+	return products, &pagination, nil
+}
+func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
+	query := `
+		SELECT DISTINCT
+			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at,
+			c.name as category_name
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.category_id
+		WHERE 1=1
+	`
+	var args []interface{}
+
+	// Apply filters
+	if params.CategoryName != "" {
+		query += " AND LOWER(c.name) LIKE ?"
+		args = append(args, "%"+strings.ToLower(params.CategoryName)+"%")
+	}
+
+	if params.ProductName != "" {
+		query += " AND LOWER(p.name) LIKE ?"
+		args = append(args, "%"+strings.ToLower(params.ProductName)+"%")
+	}
+
+	if params.VariantName != "" && params.VariantValue != "" {
+		query += `
+			AND p.product_id IN (
+				SELECT pv.product_id 
+				FROM product_variants pv
+				JOIN variants v ON pv.variant_id = v.variant_id
+				WHERE LOWER(v.variant_type) = ? AND LOWER(v.name) = ?
+			)
+		`
+		args = append(args, strings.ToLower(params.VariantName), strings.ToLower(params.VariantValue))
+	}
+
+	// Apply sorting
+	query += " ORDER BY " + getSortClause(params.SortBy)
+
+	// Apply pagination
+	if params.Limit > 0 {
+		offset := (params.Page - 1) * params.Limit
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, params.Limit, offset)
+	}
+
+	return query, args
+}
+
+func buildCountQuerySearch(params dtos.SearchParams) (string, []interface{}) {
+	query := `
+		SELECT COUNT(DISTINCT p.product_id)
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.category_id
+		WHERE 1=1
+	`
+	var args []interface{}
+
+	if params.CategoryName != "" {
+		query += " AND LOWER(c.name) LIKE ?"
+		args = append(args, "%"+strings.ToLower(params.CategoryName)+"%")
+	}
+
+	if params.ProductName != "" {
+		query += " AND LOWER(p.name) LIKE ?"
+		args = append(args, "%"+strings.ToLower(params.ProductName)+"%")
+	}
+
+	if params.VariantName != "" && params.VariantValue != "" {
+		query += `
+			AND p.product_id IN (
+				SELECT pv.product_id 
+				FROM product_variants pv
+				JOIN variants v ON pv.variant_id = v.variant_id
+				WHERE LOWER(v.variant_type) = ? AND LOWER(v.name) = ?
+			)
+		`
+		args = append(args, strings.ToLower(params.VariantName), strings.ToLower(params.VariantValue))
+	}
+
+	return query, args
+}
+
+const (
+	SortPriceHighToLow   = "price:high-to-low"
+	SortPriceLowToHigh   = "price:low-to-high"
+	SortDateOldToNew     = "date:old-to-new"
+	SortDateNewToOld     = "date:new-to-old"
+	SortFeatured         = "featured"
+	SortBestSellers      = "best_sellers"
+	SortAlphabeticallyAZ = "alphabetically:a-z"
+	SortAlphabeticallyZA = "alphabetically:z-a"
+)
+
+func getSortClause(sortBy string) string {
+	switch sortBy {
+	case SortPriceHighToLow:
+		return "p.price DESC"
+	case SortPriceLowToHigh:
+		return "p.price ASC"
+	case SortDateOldToNew:
+		return "p.created_at ASC"
+	case SortDateNewToOld:
+		return "p.created_at DESC"
+	case SortFeatured:
+		return `
+			CASE WHEN p.product_id IN (SELECT product_id FROM featured_products) THEN 0 ELSE 1 END,
+			p.created_at DESC
+		`
+	case SortBestSellers:
+		return `
+			(SELECT COALESCE(SUM(oi.quantity), 0) 
+			 FROM order_items oi 
+			 WHERE oi.product_id = p.product_id) DESC,
+			p.created_at DESC
+		`
+	case SortAlphabeticallyAZ:
+		return "p.name ASC"
+	case SortAlphabeticallyZA:
+		return "p.name DESC"
+	default:
+		return "p.created_at DESC"
+	}
+}
+func scanProduct(rows *sql.Rows) (dtos.Product, error) {
+	var (
+		productID, name, desc, sku, categoryID, searchVector, categoryName sql.NullString
+		price                                                              sql.NullFloat64
+		stockQuantity                                                      sql.NullInt64
+		createdAt, updatedAt                                               sql.NullTime
+	)
+
+	if err := rows.Scan(
+		&productID, &name, &desc, &sku, &price, &categoryID,
+		&stockQuantity, &searchVector, &createdAt, &updatedAt, &categoryName,
+	); err != nil {
+		return dtos.Product{}, err
+	}
+
+	stock := 0
+	if stockQuantity.Valid {
+		stock = int(stockQuantity.Int64)
+	}
+
+	product := dtos.Product{
+		ID:            productID.String,
+		Name:          name.String,
+		Description:   desc.String,
+		SKU:           sku.String,
+		Price:         price.Float64,
+		CategoryID:    categoryID.String,
+		CategoryName:  categoryName.String,
+		StockQuantity: stock,
+		SearchVector:  searchVector.String,
+	}
+
+	if createdAt.Valid {
+		product.CreatedAt = createdAt.Time
+	}
+	if updatedAt.Valid {
+		product.LastUpdated = updatedAt.Time
+	}
+
+	// Fetch additional data
+	images, err := fetchProductImages(product.ID)
+	if err != nil {
+		return product, err
+	}
+	product.Images = images
+
+	variants, err := getProductVariants(product.ID)
+	if err != nil {
+		return product, err
+	}
+	product.ProductVariants = variants
+
+	return product, nil
 }

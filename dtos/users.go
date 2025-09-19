@@ -25,8 +25,15 @@ type RegisterRequest struct {
 	Phonenumber string `json:"phone_number"`
 	Role        string `json:"role"`
 }
+type Subscriber struct {
+	Email string `json:"email" validate:"required,email"`
+}
 type UserAdress struct {
-	Address string `json:"address" validate:"required"`
+	Address   string `json:"address" validate:"required"`
+	Country   string `json:"country" validate:"required"`
+	Apartment string `json:"apartment" validate:"required"`
+	City      string `json:"city" validate:"required"`
+	ZipCode   string `json:"zip_code" validate:"required"`
 }
 
 // LoginRequest represents the request body for user login.
@@ -63,4 +70,8 @@ type RegisterResponse struct {
 type UserAddress struct {
 	AddressID string `json:"address_id"`
 	Address   string `json:"address"`
+	Country   string `json:"country"`
+	Apartment string `json:"apartment"`
+	City      string `json:"city"`
+	ZipCode   string `json:"zip_code"`
 }

@@ -36,7 +36,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
-			Message:   "Failed to initialize MPESA client",
+			Message:   fmt.Sprintf("Failed to initialize MPESA client %s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,

@@ -128,7 +128,11 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 		return nil, err
 	}
 	ord.Items = items
-
+	address, err := GetUserAddresses(userID)
+	if err != nil {
+		return nil, err
+	}
+	ord.UserAddress = &address
 	return &ord, nil
 }
 
@@ -280,7 +284,11 @@ func ListOrdersByUser(userID string) ([]dtos.Order, error) {
 			return nil, err
 		}
 		ord.Items = items
-
+		address, err := GetUserAddresses(userID)
+		if err != nil {
+			return nil, err
+		}
+		ord.UserAddress = &address
 		orders = append(orders, ord)
 	}
 
