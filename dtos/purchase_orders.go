@@ -8,8 +8,9 @@ type CreatePurchaseOrderRequest struct {
 }
 
 type UpdatePurchaseOrderRequest struct {
-	Status    string  `json:"status" validate:"required,oneof=pending approved cancelled"`
-	TotalCost float64 `json:"total_cost" validate:"omitempty,gt=0"`
+	Status     string  `json:"status" validate:"required,oneof=pending approved cancelled"`
+	TotalCost  float64 `json:"total_cost" validate:"omitempty,gt=0"`
+	SupplierID string  `json:"supplier_id"`
 }
 
 type PurchaseOrderResponse struct {

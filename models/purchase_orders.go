@@ -148,6 +148,10 @@ func UpdatePurchaseOrder(req dtos.UpdatePurchaseOrderRequest, poID string) error
 		query += "total_cost = ?, "
 		args = append(args, req.TotalCost)
 	}
+	if req.SupplierID != "" {
+		query += "supplier_id = ?, "
+		args = append(args, req.SupplierID)
+	}
 	query = query[:len(query)-2] // remove trailing comma
 	query += " WHERE po_id = ?"
 	args = append(args, poID)

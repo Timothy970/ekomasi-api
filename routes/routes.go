@@ -246,8 +246,8 @@ func SetupRoutes(router *mux.Router) {
 	adminInventory.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteInventory))).Methods("DELETE")
 	//purchase orders end points
 	admin.Handle("/purchase-orders", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreatePurchaseOrder))).Methods("POST")
-	api.HandleFunc("/purchase-orders", handlers.ListPurchaseOrders).Methods("GET")
-	api.HandleFunc("/purchase-orders/{po_id}", handlers.GetPurchaseOrder).Methods("GET")
+	api.Handle("/purchase-orders", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListPurchaseOrders))).Methods("GET")
+	api.Handle("/purchase-orders/{po_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetPurchaseOrder))).Methods("GET")
 	poAdmin := admin.PathPrefix("/purchase-orders/{po_id}").Subrouter()
 	poAdmin.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePurchaseOrder))).Methods("PATCH")
 	poAdmin.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePurchaseOrder))).Methods("DELETE")

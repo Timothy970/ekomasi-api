@@ -79,6 +79,11 @@ func ListPurchaseOrders(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
+	//check if user is admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	if !ok {
+		return
+	}
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	cacheKeyPurchaseOrders := fmt.Sprintf("purchase_orders_%d_size_%d", page, size)
 	cacheKeyPagination := fmt.Sprintf("purchase_orders_pagination_%d_size_%d", page, size)
@@ -133,6 +138,11 @@ func GetPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
+	//check if user is admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	if !ok {
+		return
+	}
 	id := mux.Vars(r)["po_id"]
 	order, err := models.GetPurchaseOrderByID(id)
 	if err != nil {
