@@ -21,22 +21,34 @@ var RedisClient *redis.Client
 var ExpirationTime = 60 * time.Minute
 
 // SetCache stores any struct or value in Redis with expiration
-func SetCache(key string, value interface{}) error {
-	redisMinutesStr := os.Getenv("REDIS_TIME")
-	if redisMinutesStr != "" {
-		minutes, err := strconv.Atoi(redisMinutesStr)
-		if err != nil {
-			log.Printf("Warning: Invalid value for REDIS_TIME: '%s'. Using default of 60 minutes.", redisMinutesStr)
-		} else {
-			ExpirationTime = time.Duration(minutes) * time.Minute
+func SetCache(key string, value interface{}, customExpiration ...time.Duration) error {
+	// Determine expiration
+	exp := ExpirationTime
+
+	if len(customExpiration) > 0 {
+		// Use the passed expiration
+		exp = customExpiration[0]
+	} else {
+		// Otherwise check environment
+		redisMinutesStr := os.Getenv("REDIS_TIME")
+		if redisMinutesStr != "" {
+			minutes, err := strconv.Atoi(redisMinutesStr)
+			if err != nil {
+				log.Printf("Warning: Invalid value for REDIS_TIME: '%s'. Using default of %v.", redisMinutesStr, ExpirationTime)
+			} else {
+				exp = time.Duration(minutes) * time.Minute
+			}
 		}
 	}
+
+	// Marshal the value
 	data, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("failed to marshal value: %w", err)
 	}
 
-	return RedisClient.Set(ctx, key, data, ExpirationTime).Err()
+	// Store with expiration
+	return RedisClient.Set(ctx, key, data, exp).Err()
 }
 
 // GetCache retrieves a value from Redis and unmarshals into the provided destination

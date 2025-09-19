@@ -794,7 +794,7 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse pagination
-	page, limit := parsePagination(query.Get("page"), query.Get("limit"))
+	page, limit := parsePagination(query.Get("page"), query.Get("size"))
 	searchParams.Page = page
 	searchParams.Limit = limit
 
@@ -850,7 +850,7 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 				"sort_by":       searchParams.SortBy,
 			},
 		},
-		Message:   "Products search results",
+		Message:   "Products fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

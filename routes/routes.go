@@ -62,7 +62,7 @@ func SetupRoutes(router *mux.Router) {
 	product := api.PathPrefix("/product").Subrouter()
 	products := api.PathPrefix("/products").Subrouter()
 	//Get product all products with their categories
-	products.HandleFunc("", handlers.GetProductsHandler).Methods("GET")
+	// products.HandleFunc("", handlers.GetProductsHandler).Methods("GET")
 	products.HandleFunc("/search", handlers.SearchProductsHandler).Methods("GET")
 	products.HandleFunc("/subcategories/{subcategory_id}", handlers.GetProductsHandlerBySubCategoryID).Methods("GET")
 	products.HandleFunc("/related", handlers.GetRelatedProductsHandler).Methods("GET")
@@ -362,4 +362,6 @@ func SetupRoutes(router *mux.Router) {
 	api.HandleFunc("/updateimages", handlers.MigrateImageURLs).Methods("GET")
 	//add subscription
 	api.HandleFunc("/subscribe", handlers.AddSubscriber).Methods("POST")
+	//autocomplete
+	api.HandleFunc("/autocomplete", handlers.AutoCompleteHandler).Methods("GET")
 }
