@@ -1,1 +1,47 @@
-type: go-app
+type: go
+
+ingress: true
+
+env:
+  - name: APP_LOCALE
+    value: en
+  - name: APP_DEBUG
+    value: "true"
+  - name: APP_ENV
+    value: development
+  - name: BASE_URL
+    value: https://api.uat.adenzo.co.ke
+  - name: ENVIRONMENT
+    value: development
+  - name: PORT
+    value: 8009
+  - name: V2_URL
+    value: http://api-v2.communications.svc.cluster.local:8080
+  - name: MYSQL_HOST
+    value: 10.0.1.29
+  - name: MYSQL_USER
+    value: adenzo
+  - name: MYSQL_PORT
+    value: 3306
+  - name: DB_NAME
+    value: adenzo
+  - name: SHORTCODE
+    value: Emalify
+
+secrets:
+  - MYSQL_PASS
+  - MPESA_CONSUMER_KEY
+  - MPESA_CONSUMER_SECRET
+  - MPESA_SHORTCODE
+  - MPESA_PASSKEY
+  - MPESA_CALLBACK_URL
+  - MPESA_SEND_URL
+  - JWT_SECRET
+  - APIKEY
+  - PARTNERID
+  - SENDER_EMAIL
+  - SERVICE_ACCOUNT
+
+requires:
+  - mysql
+  - redis
