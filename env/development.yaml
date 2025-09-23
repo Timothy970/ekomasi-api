@@ -44,3 +44,4 @@ secrets:
 requires:
   - mysql
   - redis
+  
