@@ -492,7 +492,7 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-	err := models.AddNewVoucher(*req, authuser.ID)
+	_, err := models.AddNewVoucher(*req, authuser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -824,7 +824,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.Voucher](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.BuyVoucherData](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
@@ -832,7 +832,28 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-	err := models.AddNewVoucher(*req, authuser.ID)
+	// create voucher data
+	var voucher dtos.Voucher
+	voucher.Amount = req.Amount
+	active := true
+	voucher.IsActive = &active
+	// Add 90 days from the delivery date
+	ninetyDaysFromNow := req.DeliveryTime.AddDate(0, 0, 90)
+	voucher.ExpiryDate = ninetyDaysFromNow
+
+	voucherID, err := models.AddNewVoucher(voucher, authuser.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//add to voucher purchases
+	err = models.InsertIntoVoucherPurchases(*req, authuser.ID, voucherID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,

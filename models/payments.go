@@ -349,7 +349,7 @@ func GenerateVoucherCode() (string, error) {
 
 	return fmt.Sprintf("%s-%s", prefix, suffix), nil
 }
-func AddNewVoucher(v dtos.Voucher, userID string) error {
+func AddNewVoucher(v dtos.Voucher, userID string) (string, error) {
 
 	voucherID, _ := shortid.Generate()
 	isActive := true
@@ -363,6 +363,19 @@ func AddNewVoucher(v dtos.Voucher, userID string) error {
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
 	_, err := DB.Exec(query, voucherID, code, v.Amount, isActive, userID)
+	if err != nil {
+		return "", err
+	}
+	return voucherID, nil
+}
+func InsertIntoVoucherPurchases(v dtos.BuyVoucherData, userID, voucherID string) error {
+	purchaseID, _ := shortid.Generate()
+	// generate unique code
+	query := `
+		INSERT INTO vouchers (purchase_id, voucher_id, from_user_id, to_name, to_email,personalized_msg, delivery_time, status, from_name)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+	_, err := DB.Exec(query, purchaseID, voucherID, userID, v.ToName, v.ToEmail, v.Message, v.DeliveryTime, "PENDING", v.FromName)
 	if err != nil {
 		return err
 	}

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS voucher_purchases (
     from_name         VARCHAR(255) NOT NULL,
     to_name           VARCHAR(255) NOT NULL,
     to_email          VARCHAR(255) NOT NULL,
-    personalized_msg  TEXT,
+    personalized_msg  LONGTEXT,
     delivery_time     DATETIME,
     sent_at           DATETIME NULL,
     status            ENUM('PENDING', 'SENT', 'FAILED') DEFAULT 'PENDING',

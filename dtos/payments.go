@@ -46,7 +46,14 @@ type BuyVoucher struct {
 	CreatedAt  time.Time `json:"created_at"`
 	ExpiryDate time.Time `json:"expiry_date" validate:"required"`
 }
-
+type BuyVoucherData struct {
+	Amount       float64   `json:"amount" validate:"required"`
+	FromName     string    `json:"from_name" validate:"required"`
+	ToName       string    `json:"to_name" validate:"required"`
+	ToEmail      string    `json:"to_email" validate:"required"`
+	Message      string    `json:"message" validate:"required"`
+	DeliveryTime time.Time `json:"delivery_time" validate:"required"`
+}
 type VoucherData struct {
 	VoucherID  string    `json:"voucher_id"`
 	Code       string    `json:"code"`
