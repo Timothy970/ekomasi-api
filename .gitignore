@@ -1,6 +1,4 @@
 .env
-go.mod
-go.sum
 # Ignore only files named adenzo.* inside storage/logs/
 storage/logs/adenzo.*
 
