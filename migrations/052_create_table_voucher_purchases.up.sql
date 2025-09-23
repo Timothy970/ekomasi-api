@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS voucher_purchases (
-    purchase_id       VARCHAR(50) PRIMARY KEY,
-    voucher_id        VARCHAR(50) NOT NULL,
+    purchase_id       CHAR(36) PRIMARY KEY,
+    voucher_id        CHAR(36) NOT NULL,
     from_user_id      VARCHAR(50) NULL,
     from_name         VARCHAR(255) NOT NULL,
     to_name           VARCHAR(255) NOT NULL,

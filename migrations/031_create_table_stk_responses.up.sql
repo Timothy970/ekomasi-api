@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS  `stk_push_responses` (
    `checkout_request_id` varchar(100) DEFAULT NULL,
    `merchant_request_id` varchar(100) DEFAULT NULL,
    `status` varchar(50) DEFAULT NULL,
+   `type` varchar(50) DEFAULT NULL,
    `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
    PRIMARY KEY (`id`)
  );

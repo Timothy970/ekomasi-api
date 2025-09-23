@@ -231,28 +231,47 @@ func HandleMpesaCallback(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Log or store success transaction
-		log.Printf("✅ SUCCESSFUL PAYMENT:\n- Phone: %s\n- Amount: %.2f\n- Code: %s\n", phone, amount, mpesaCode)
-		deliveryID, orderID, err := models.UpdateStkResponse(callback, "SUCCESS")
+		log.Printf("SUCCESSFUL PAYMENT:\n- Phone: %s\n- Amount: %.2f\n- Code: %s\n", phone, amount, mpesaCode)
+		orderType, deliveryID, orderID, err := models.UpdateStkResponse(callback, "SUCCESS")
 		if err != nil {
 			log.Printf("%v", err)
 		}
-		//update delivery and order tables
-		err = models.UpdateDeliveryOrderTables(deliveryID, orderID)
-		if err != nil {
-			log.Printf("%v", err)
+		switch orderType {
+		case "VOUCHER":
+			//update delivery and order tables
+			err = models.UpdateVoucherOrderTables(orderID)
+			if err != nil {
+				log.Printf("%v", err)
+			}
+			utils.SendToUser(
+				"",
+				orderID,
+				"voucher_order",
+				map[string]interface{}{
+					"event":       "payment_success",
+					"message":     "Your payment was successful!",
+					"order_id":    orderID,
+					"delivery_id": nil,
+				},
+			)
+		default:
+			//update delivery and order tables
+			err = models.UpdateDeliveryOrderTables(deliveryID, orderID)
+			if err != nil {
+				log.Printf("%v", err)
+			}
+			utils.SendToUser(
+				"",
+				orderID,
+				deliveryID,
+				map[string]interface{}{
+					"event":       "payment_success",
+					"message":     "Your payment was successful!",
+					"order_id":    orderID,
+					"delivery_id": deliveryID,
+				},
+			)
 		}
-		utils.SendToUser(
-			"",
-			orderID,
-			deliveryID,
-			map[string]interface{}{
-				"event":       "payment_success",
-				"message":     "Your payment was successful!",
-				"order_id":    orderID,
-				"delivery_id": deliveryID,
-			},
-		)
-
 		// Respond OK
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Accepted"}`))

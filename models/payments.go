@@ -21,43 +21,58 @@ func StoreStkResponse(response map[string]interface{}, req dtos.MpesaRequest) er
 	// Extract values safely from the response map
 	checkoutRequestID, _ := response["CheckoutRequestID"].(string)
 	merchantRequestID, _ := response["MerchantRequestID"].(string)
+	var err error
+	if req.Type == "voucher" {
+		_, err = DB.Exec(`
+		INSERT INTO stk_push_responses (
+			order_id, amount, checkout_request_id,
+			merchant_request_id, status, type
+		)
+		VALUES (?, ?, ?, ?, ?, 'PROCESSING', "VOUCHER")
+	`, req.OrderID, req.Amount, checkoutRequestID, merchantRequestID)
 
-	_, err := DB.Exec(`
+		if err != nil {
+			return err
+		}
+		return nil
+	} else {
+		_, err = DB.Exec(`
 		INSERT INTO stk_push_responses (
 			order_id, delivery_id, amount, checkout_request_id,
-			merchant_request_id, status
+			merchant_request_id, status, type
 		)
-		VALUES (?, ?, ?, ?, ?, 'PROCESSING')
+		VALUES (?, ?, ?, ?, ?, 'PROCESSING', "PRODUCT")
 	`, req.OrderID, req.DeliveryID, req.Amount, checkoutRequestID, merchantRequestID)
 
-	if err != nil {
-		return fmt.Errorf("failed to insert stk_push_response: %w", err)
-	}
+		if err != nil {
+			return err
+		}
 
-	return nil
+		return nil
+	}
 }
-func UpdateStkResponse(stk dtos.STKCallbackRequest, status string) (string, string, error) {
+func UpdateStkResponse(stk dtos.STKCallbackRequest, status string) (string, string, string, error) {
 	// 1. Update status
 	_, err := DB.Exec(`
 		UPDATE stk_push_responses SET status = ?
 		WHERE checkout_request_id = ? AND merchant_request_id = ?
 	`, status, stk.Body.StkCallback.CheckoutRequestID, stk.Body.StkCallback.MerchantRequestID)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to update status: %w", err)
+		return "", "", "", fmt.Errorf("failed to update status: %w", err)
 	}
 
 	// 2. Select delivery_id and order_id
-	var deliveryID, orderID string
+	var deliveryID, orderID, orderType string
 	err = DB.QueryRow(`
-		SELECT delivery_id, order_id
+		SELECT delivery_id, order_id, type
 		FROM stk_push_responses
 		WHERE checkout_request_id = ? AND merchant_request_id = ? LIMIT 1
-	`, stk.Body.StkCallback.CheckoutRequestID, stk.Body.StkCallback.MerchantRequestID).Scan(&deliveryID, &orderID)
+	`, stk.Body.StkCallback.CheckoutRequestID, stk.Body.StkCallback.MerchantRequestID).Scan(&deliveryID, &orderID, &orderType)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to fetch delivery/order ids: %w", err)
+		return "", "", "", fmt.Errorf("failed to fetch delivery/order ids: %w", err)
 	}
 
-	return deliveryID, orderID, nil
+	return deliveryID, orderID, orderType, nil
 }
 func UpdateDeliveryOrderTables(deliveryID, orderId string) error {
 	// Update order status
@@ -81,6 +96,31 @@ func UpdateDeliveryOrderTables(deliveryID, orderId string) error {
 	return nil
 }
 
+func UpdateVoucherOrderTables(orderId string) error {
+	// Update order status
+	_, err := DB.Exec(`
+		UPDATE voucher_orders SET status = 'PAID'
+		WHERE order_id = ?
+	`, orderId)
+	if err != nil {
+		return fmt.Errorf("failed to update orders table: %w", err)
+	}
+	//get vourcher id
+	var voucherID string
+	err = DB.QueryRow(`
+	SELECT voucher_id FROM voucher_orders WHERE voucher_order_id = ?
+`, orderId).Scan(&voucherID)
+	// Update voucher status
+	_, err = DB.Exec(`
+		UPDATE vouchers SET is_active = ?
+		WHERE voucher_id = ?
+	`, true, voucherID)
+	if err != nil {
+		return fmt.Errorf("failed to update deliveries table: %w", err)
+	}
+
+	return nil
+}
 func SetVoucherAsRedeemed(code string) error {
 	_, err := DB.Exec(`
 	UPDATE vouchers SET is_redeemed = true WHERE code = ?`, code)
@@ -293,6 +333,7 @@ func ListRefunds(page, size int) ([]dtos.Refund, *dtos.PaginationMeta, error) {
 
 	return refunds, meta, nil
 }
+
 func GetRefundByID(id int) (*dtos.Refund, error) {
 	var refund dtos.Refund
 	err := DB.QueryRow(`
@@ -348,6 +389,19 @@ func GenerateVoucherCode() (string, error) {
 	suffix := hex.EncodeToString(bytes)
 
 	return fmt.Sprintf("%s-%s", prefix, suffix), nil
+}
+func CreateVoucherOrder(amount float64, voucherID string) (string, error) {
+	voucherOrderID, _ := shortid.Generate()
+	// generate unique code
+	query := `
+		INSERT INTO voucher_orders (voucher_order_id, voucher_id, amount, status, payment_method)
+		VALUES (?, ?, ?, ?,?)
+	`
+	_, err := DB.Exec(query, voucherOrderID, voucherID, amount, "PENDING", "MPESA")
+	if err != nil {
+		return "", err
+	}
+	return voucherOrderID, nil
 }
 func AddNewVoucher(v dtos.Voucher, userID string) (string, error) {
 

@@ -835,7 +835,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	// create voucher data
 	var voucher dtos.Voucher
 	voucher.Amount = req.Amount
-	active := true
+	active := false
 	voucher.IsActive = &active
 	// Add 90 days from the delivery date
 	ninetyDaysFromNow := req.DeliveryTime.AddDate(0, 0, 90)
@@ -864,11 +864,16 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	//create voucher order
+	voucherOrderID, err := models.CreateVoucherOrder(req.Amount, voucherID)
+
 	utils.DeleteCacheByPrefix("vouchers_")
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
-		Payload:   nil,
+		Code: http.StatusCreated,
+		Payload: map[string]interface{}{
+			"voucher_order_id": voucherOrderID,
+		},
 		Message:   "Voucher created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),

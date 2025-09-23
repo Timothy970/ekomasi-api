@@ -3,12 +3,13 @@ package dtos
 import "time"
 
 type MpesaRequest struct {
-	Phone       string `json:"phone_number"`
-	Amount      int    `json:"amount"`
+	Phone       string `json:"phone_number" validate:"required"`
+	Amount      int    `json:"amount" validate:"required, min=1"`
 	Reference   string `json:"reference"`
 	Description string `json:"description"`
 	OrderID     string `json:"order_id"`
 	DeliveryID  string `json:"delivery_id"`
+	Type        string `json:"type"`
 }
 type STKCallbackRequest struct {
 	Body struct {
