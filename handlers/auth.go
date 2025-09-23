@@ -595,7 +595,7 @@ func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Println("Phone as int:", phoneInt)
 		}
-		notification.SendWhatsappMessages(phoneInt, otp, "Otp")
+		// notification.SendWhatsappMessages(phoneInt, otp, "Otp")
 	}
 	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -779,11 +779,11 @@ func dispatchOTP(user *dtos.User, otp string) {
 	}
 	if user.Phone != "" {
 		notification.SendSmsMessages(user.Phone, message)
-		if phoneInt, err := strconv.Atoi(user.Phone); err == nil {
-			notification.SendWhatsappMessages(phoneInt, otp, "Otp")
-		} else {
-			log.Println("Invalid phone number:", err)
-		}
+		// if phoneInt, err := strconv.Atoi(user.Phone); err == nil {
+		// 	// notification.SendWhatsappMessages(phoneInt, otp, "Otp")
+		// } else {
+		// 	log.Println("Invalid phone number:", err)
+		// }
 	}
 }
 

@@ -489,3 +489,21 @@ func (r *AnalyticsRepository) GetAbandonedCarts(page, size int) (*AbandonedCarts
 		Meta:  meta,
 	}, nil
 }
+
+func GetEstimatedTax() (float64, error) {
+	var tax float64
+	err := DB.QueryRow(`
+		SELECT charge_value
+		FROM charges
+		WHERE charge_name = "tax"
+	`).Scan(&tax)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			//default to 16
+			return 16.0, nil
+		}
+		return 0, err
+	}
+
+	return tax, nil
+}

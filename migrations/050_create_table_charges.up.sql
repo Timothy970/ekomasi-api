@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS charges (
+    charge_id       char(36) PRIMARY KEY,
+    charge_name     VARCHAR(100) DEFAULT NULL,
+    charge_value    DECIMAL(10,2) NOT NULL DEFAULT 0.0,     
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);

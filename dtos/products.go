@@ -147,3 +147,12 @@ type SearchParams struct {
 	Page         int
 	Limit        int
 }
+
+type ProductFeature struct {
+	ID            string `json:"feature_id"`
+	ProductID     string `json:"product_id"`
+	Header        string `json:"header" validate:"required"`
+	Image         string `json:"image" validate:"required"`
+	Description   string `json:"description" validate:"required"`
+	ImagePosition string `json:"image-position" validate:"required"`
+}

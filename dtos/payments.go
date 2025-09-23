@@ -35,15 +35,33 @@ type VoucherRequest struct {
 	DeliveryID  string `json:"delivery_id"`
 }
 type Voucher struct {
-	VoucherID        string     `json:"voucher_id"`
-	Code             string     `json:"code" validate:"required"`
-	VerificationHash string     `json:"verification_hash"`
-	Amount           float64    `json:"amount" validate:"required"`
-	IsRedeemed       bool       `json:"is_redeemed"`
-	CreatedAt        time.Time  `json:"created_at"`
-	RedeemedAt       *time.Time `json:"redeemed_at"`
+	Amount     float64   `json:"amount" validate:"required"`
+	IsActive   *bool     `json:"is_active"`
+	CreatedAt  time.Time `json:"created_at"`
+	ExpiryDate time.Time `json:"expiry_date" validate:"required"`
+}
+type BuyVoucher struct {
+	Amount     float64   `json:"amount" validate:"required"`
+	IsActive   *bool     `json:"is_active"`
+	CreatedAt  time.Time `json:"created_at"`
+	ExpiryDate time.Time `json:"expiry_date" validate:"required"`
 }
 
+type VoucherData struct {
+	VoucherID  string    `json:"voucher_id"`
+	Code       string    `json:"code"`
+	Amount     float64   `json:"amount"`
+	Balance    float64   `json:"balance"`
+	IsActive   bool      `json:"is_active"`
+	CreatedAt  time.Time `json:"created_at"`
+	ExpiryDate time.Time `json:"expiry_date"`
+}
+type VoucherDataUpdate struct {
+	Code       string    `json:"code" validate:"required"`
+	Amount     float64   `json:"amount" validate:"required"`
+	IsActive   *bool     `json:"is_active"`
+	ExpiryDate time.Time `json:"expiry_date" validate:"required"`
+}
 type Payment struct {
 	PaymentID     string  `json:"payment_id"`
 	OrderID       string  `json:"order_id" validate:"required"`

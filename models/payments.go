@@ -2,16 +2,15 @@ package models
 
 import (
 	"adenzo_backend/dtos"
-	"crypto/sha256"
+	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 
 	"github.com/teris-io/shortid"
-
-	"time"
 )
 
 var nopayment = "payment not found"
@@ -80,32 +79,6 @@ func UpdateDeliveryOrderTables(deliveryID, orderId string) error {
 	}
 
 	return nil
-}
-func GetVoucherByCode(code string) (*dtos.Voucher, error) {
-	var (
-		verificationHash string
-		amount           float64
-		isRedeemed       bool
-		createdAt        time.Time
-	)
-
-	err := DB.QueryRow(`
-		SELECT code, verification_hash, amount, is_redeemed, created_at
-		FROM vouchers
-		WHERE code = ?`, code).Scan(&code, &verificationHash, &amount, &isRedeemed, &createdAt)
-	if err != nil {
-		return nil, err
-	}
-
-	voucher := &dtos.Voucher{
-		Code:             code,
-		VerificationHash: verificationHash,
-		Amount:           amount,
-		IsRedeemed:       isRedeemed,
-		CreatedAt:        createdAt,
-	}
-
-	return voucher, nil
 }
 
 func SetVoucherAsRedeemed(code string) error {
@@ -334,31 +307,68 @@ func GetRefundByID(id int) (*dtos.Refund, error) {
 	}
 	return &refund, nil
 }
-func AddNewVoucher(v dtos.Voucher) error {
-	exists, err := RecordExists("vouchers", "code = ?", v.Code)
+func isVoucherThere(voucherID string) error {
+	exists, err := RecordExists("vouchers", "voucher_id = ?", voucherID)
 	if err != nil {
 		return err
 	}
-	if exists {
-		return errors.New("voucher with a similar code already exists")
+	if !exists {
+		return errors.New("voucher not found")
 	}
-	hasher := sha256.New()
-	hasher.Write([]byte(v.Code))
-	hashSum := hasher.Sum(nil)
+	return nil
+}
+
+func secureRandomString(length int) (string, error) {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	result := make([]byte, length)
+
+	for i := 0; i < length; i++ {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			return "", err
+		}
+		result[i] = charset[n.Int64()]
+	}
+	return string(result), nil
+}
+
+// GenerateVoucherCode creates a secure voucher code like "AbCD-1a2b3c4d5e"
+func GenerateVoucherCode() (string, error) {
+	// generate 4 random letters
+	prefix, err := secureRandomString(4)
+	if err != nil {
+		return "", err
+	}
+
+	// generate 6 random bytes (12 hex chars)
+	bytes := make([]byte, 6)
+	if _, err := rand.Read(bytes); err != nil { // ✅ crypto/rand.Read
+		return "", err
+	}
+	suffix := hex.EncodeToString(bytes)
+
+	return fmt.Sprintf("%s-%s", prefix, suffix), nil
+}
+func AddNewVoucher(v dtos.Voucher, userID string) error {
 
 	voucherID, _ := shortid.Generate()
-
+	isActive := true
+	if v.IsActive != nil {
+		isActive = *v.IsActive
+	}
+	// generate unique code
+	code, _ := GenerateVoucherCode()
 	query := `
-		INSERT INTO vouchers (voucher_id, code, verification_hash, amount, is_redeemed)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO vouchers (voucher_id, code, original_value, is_active,user_id)
+		VALUES (?, ?, ?, ?, ?, ?)
 	`
-	_, err = DB.Exec(query, voucherID, v.Code, hex.EncodeToString(hashSum), v.Amount, false)
+	_, err := DB.Exec(query, voucherID, code, v.Amount, isActive, userID)
 	if err != nil {
 		return err
 	}
 	return nil
 }
-func ListVouchers(page, size int) ([]dtos.Voucher, *dtos.PaginationMeta, error) {
+func ListVouchers(page, size int) ([]dtos.VoucherData, *dtos.PaginationMeta, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -374,7 +384,7 @@ func ListVouchers(page, size int) ([]dtos.Voucher, *dtos.PaginationMeta, error) 
 	}
 
 	rows, err := DB.Query(`
-		SELECT voucher_id, code, verification_hash, amount, is_redeemed, created_at, redeemed_at
+		SELECT voucher_id, code, balance, original_value, is_active, created_at, expires_at
 		FROM vouchers
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?`, size, offset)
@@ -384,16 +394,10 @@ func ListVouchers(page, size int) ([]dtos.Voucher, *dtos.PaginationMeta, error) 
 	}
 	defer rows.Close()
 
-	var vouchers []dtos.Voucher
+	var vouchers []dtos.VoucherData
 	for rows.Next() {
-		var v dtos.Voucher
-		var redeemedAt sql.NullTime
-		err := rows.Scan(&v.VoucherID, &v.Code, &v.VerificationHash, &v.Amount, &v.IsRedeemed, &v.CreatedAt, &redeemedAt)
-		if redeemedAt.Valid {
-			v.RedeemedAt = &redeemedAt.Time
-		} else {
-			v.RedeemedAt = nil
-		}
+		var v dtos.VoucherData
+		err := rows.Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.IsActive, &v.CreatedAt, &v.ExpiryDate)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -411,25 +415,48 @@ func ListVouchers(page, size int) ([]dtos.Voucher, *dtos.PaginationMeta, error) 
 	return vouchers, &meta, nil
 
 }
-func GetVoucherByID(voucherID string) (dtos.Voucher, error) {
-	var v dtos.Voucher
-	query := `SELECT voucher_id, code, verification_hash, amount, is_redeemed, created_at, redeemed_at FROM vouchers WHERE voucher_id = ?`
+func GetVoucherByID(voucherID string) (dtos.VoucherData, error) {
+	err := isVoucherThere(voucherID)
+	if err != nil {
+		return dtos.VoucherData{}, err
+	}
+	var v dtos.VoucherData
+	query := `SELECT voucher_id, code, balance, original_value, is_active, created_at, expires_at FROM vouchers WHERE voucher_id = ?`
 
-	err := DB.QueryRow(query, voucherID).Scan(&v.VoucherID, &v.Code, &v.VerificationHash, &v.Amount, &v.IsRedeemed, &v.CreatedAt, &v.RedeemedAt)
-	if err == sql.ErrNoRows {
-		return dtos.Voucher{}, errors.New(novoucher)
-	} else if err != nil {
-		return dtos.Voucher{}, err
+	err = DB.QueryRow(query, voucherID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.IsActive, &v.CreatedAt, &v.ExpiryDate)
+	if err != nil {
+		return dtos.VoucherData{}, err
+	}
+	return v, nil
+}
+func GetUserVoucherByID(voucherID, userID string) (dtos.VoucherData, error) {
+	err := isVoucherThere(voucherID)
+	if err != nil {
+		return dtos.VoucherData{}, err
+	}
+	var v dtos.VoucherData
+	query := `SELECT voucher_id, code, balance, original_value, is_active, created_at, expires_at FROM vouchers WHERE voucher_id = ? AND user_id = ?`
+
+	err = DB.QueryRow(query, voucherID, userID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.IsActive, &v.CreatedAt, &v.ExpiryDate)
+	if err != nil {
+		return dtos.VoucherData{}, err
+	}
+	return v, nil
+}
+func GetUserVouchers(userID string) (dtos.VoucherData, error) {
+	var v dtos.VoucherData
+	query := `SELECT voucher_id, code, balance, original_value, is_active, created_at, expires_at FROM vouchers WHERE user_id = ?`
+
+	err := DB.QueryRow(query, userID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.IsActive, &v.CreatedAt, &v.ExpiryDate)
+	if err != nil {
+		return dtos.VoucherData{}, err
 	}
 	return v, nil
 }
 func DeleteVoucher(voucherID string) error {
-	exists, err := RecordExists("vouchers", "voucher_id = ?", voucherID)
+	err := isVoucherThere(voucherID)
 	if err != nil {
 		return err
-	}
-	if !exists {
-		return errors.New(novoucher)
 	}
 	_, err = DB.Exec(`DELETE FROM vouchers WHERE voucher_id = ?`, voucherID)
 	if err != nil {
@@ -438,20 +465,17 @@ func DeleteVoucher(voucherID string) error {
 	return nil
 }
 
-func VoucherUpdate(input dtos.Voucher, voucherID string) error {
-	exists, err := RecordExists("vouchers", "voucher_id = ?", voucherID)
+func VoucherUpdate(input dtos.VoucherDataUpdate, voucherID string) error {
+	err := isVoucherThere(voucherID)
 	if err != nil {
 		return err
 	}
-	if !exists {
-		return errors.New(novoucher)
-	}
 	query := `
 		UPDATE vouchers
-		SET code = ?, verification_hash = ?, amount = ?, is_redeemed = ?
+		SET code = ?, original_value = ?, expires_at = ?, is_active = ?
 		WHERE voucher_id = ?
 	`
-	_, err = DB.Exec(query, input.Code, input.VerificationHash, input.Amount, input.IsRedeemed, voucherID)
+	_, err = DB.Exec(query, input.Code, input.Amount, input.ExpiryDate, input.IsActive, voucherID)
 	return err
 }
 func isTransactionIDUnique(id string) error {

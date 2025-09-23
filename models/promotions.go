@@ -2,10 +2,13 @@ package models
 
 import (
 	"adenzo_backend/dtos"
+	"database/sql"
 	"errors"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/teris-io/shortid"
 )
 
 func isPromotionThere(id string) error {
@@ -208,4 +211,119 @@ func GetComparison(promotionID string, baselineStart, baselineEnd time.Time) (*d
 		BaselineSales:  baseQty,
 		BaselineRev:    baseRev,
 	}, nil
+}
+
+func AddPromoCode(input dtos.PromoCodeRequest) (*dtos.PromoCodeRequest, error) {
+	id, _ := shortid.Generate()
+
+	_, err := DB.Exec(`
+		INSERT INTO promocodes (promo_code_id, code, description, discount_type, discount_value, expires_at, is_active)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		id, input.Code, input.Description, input.DiscountType, input.DiscountValue, input.ExpiresAt, input.IsActive,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	input.ID = id
+	return &input, nil
+}
+func isPromoThere(id string) error {
+	exists, err := RecordExists("promo_codes", "promo_code_id = ?", id)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("promo code not found")
+	}
+	return nil
+}
+func UpdatePromoCode(id string, input dtos.PromoCodeRequest) (*dtos.PromoCodeRequest, error) {
+	err := isPromoThere(id)
+	if err != nil {
+		return nil, err
+	}
+	_, err = DB.Exec(`
+		UPDATE promocodes
+		SET code = ?, description = ?, discount_type = ?, discount_value = ?, expires_at = ?, is_active = ?
+		WHERE promo_code_id = ?`,
+		input.Code, input.Description, input.DiscountType, input.DiscountValue, input.ExpiresAt, input.IsActive, id,
+	)
+	if err != nil {
+		return nil, err
+	}
+	input.ID = id
+	return &input, nil
+}
+
+func GetPromoCodeByID(id string) (*dtos.PromoCodeRequest, error) {
+	err := isPromoThere(id)
+	if err != nil {
+		return nil, err
+	}
+	row := DB.QueryRow(`
+		SELECT id, code, description, discount_type, discount_value, expires_at, is_active
+		FROM promocodes WHERE id = ?`, id,
+	)
+
+	var pc dtos.PromoCodeRequest
+	if err := row.Scan(&pc.ID, &pc.Code, &pc.Description, &pc.DiscountType, &pc.DiscountValue, &pc.ExpiresAt, &pc.IsActive); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &pc, nil
+}
+
+func GetAllPromoCodes() ([]dtos.PromoCodeRequest, error) {
+	rows, err := DB.Query(`
+		SELECT id, code, description, discount_type, discount_value, expires_at, is_active FROM promocodes`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var promos []dtos.PromoCodeRequest
+	for rows.Next() {
+		var pc dtos.PromoCodeRequest
+		if err := rows.Scan(&pc.ID, &pc.Code, &pc.Description, &pc.DiscountType, &pc.DiscountValue, &pc.ExpiresAt, &pc.IsActive); err != nil {
+			return nil, err
+		}
+		promos = append(promos, pc)
+	}
+	return promos, nil
+}
+
+func DeletePromoCode(id string) error {
+	err := isPromoThere(id)
+	if err != nil {
+		return err
+	}
+	_, err = DB.Exec(`DELETE FROM promocodes WHERE id = ?`, id)
+	return err
+}
+
+func GetActivePromoByCode(code string, now time.Time) (*dtos.PromoCodeRequest, error) {
+	row := DB.QueryRow(`
+		SELECT id, code, description, discount_type, discount_value, expires_at, is_active
+		FROM promocodes WHERE code = ? AND is_active = 1 AND expires_at > ?`, code, now,
+	)
+
+	var pc dtos.PromoCodeRequest
+	if err := row.Scan(&pc.ID, &pc.Code, &pc.Description, &pc.DiscountType, &pc.DiscountValue, &pc.ExpiresAt, &pc.IsActive); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &pc, nil
+}
+func SetPromoCodeActiveStatus(id string, isActive bool) error {
+	_, err := DB.Exec(`
+		UPDATE promocodes
+		SET is_active = ?
+		WHERE id = ?`, isActive, id,
+	)
+	return err
 }

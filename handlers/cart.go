@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -225,11 +226,15 @@ func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
 		}
 		total += float64(item.Quantity) * item.Product.Price
 	}
+	//get estimated tax
+	estimatedTax, err := models.GetEstimatedTax()
+	estimatedTaxValue := (estimatedTax * total) / 100
 	res := dtos.ViewCartResponse{
-		CartItems: items,
-		Total:     total,
-		Final:     total,
-		Discount:  discount,
+		CartItems:    items,
+		Total:        total - discount,
+		Final:        total,
+		Discount:     discount,
+		EstimatedTax: estimatedTaxValue,
 	}
 	return res, nil
 }
@@ -409,22 +414,15 @@ func ApplyCouponHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	user, ok := middleware.UserFromContext(r.Context())
-	if !ok {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
-			Message:   notAuthenticated,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-	//validate coupon
-	couponData, err := models.ValidateCoupon(req.CouponCode)
+	//validate coupon/promc code/voucher
+	items, err := validateCodeVoucher(*req)
 	if err != nil {
+		log.Printf("Error fetching cart items: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			Code:      http.StatusInternalServerError,
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -433,39 +431,92 @@ func ApplyCouponHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//get user cart
-	items, err := models.GetCartItems(user.ID)
-	if err != nil {
-		log.Printf("Error fetching cart items: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Failed to fetch cart items",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
-
-	total := 0.0
-	for _, item := range items {
-		total += float64(item.Quantity) * item.Product.Price
-	}
-	discount := couponData / 100 * total
-	final := total - discount
-	res := dtos.ViewCartResponse{
-		CartItems: items,
-		Total:     total,
-		Discount:  discount,
-		Final:     final,
-	}
-
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   res,
+		Payload:   items,
 		Message:   "Coupon applied successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
+}
+
+func validateCodeVoucher(req dtos.CouponRequest) (dtos.ViewCartResponse, error) {
+	cartData, err := getCartItemsByCartID(req.CartID)
+	if err != nil {
+		return dtos.ViewCartResponse{}, err
+	}
+
+	switch req.Type {
+	case "coupon":
+		return applyCoupon(cartData, req.Code)
+	case "voucher":
+		return applyVoucher(cartData, req.Code)
+	case "promo_code":
+		return applyPromoCode(cartData, req.Code)
+	default:
+		return dtos.ViewCartResponse{}, errors.New("invalid promo type")
+	}
+}
+func applyCoupon(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse, error) {
+	discount, err := models.ValidateCoupon(code)
+	if err != nil {
+		return dtos.ViewCartResponse{}, err
+	}
+
+	if discount > cart.Final {
+		discount = cart.Final
+	}
+	cart.Discount += discount
+	cart.Final -= discount
+	return cart, nil
+}
+
+func applyVoucher(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse, error) {
+	voucherBalance, err := models.ValidateVoucher(code)
+	if err != nil {
+		return dtos.ViewCartResponse{}, err
+	}
+
+	var discount float64
+	if voucherBalance >= cart.Final {
+		discount = cart.Final
+		cart.Final = 0
+	} else {
+		discount = voucherBalance
+		cart.Final -= voucherBalance
+	}
+	cart.Discount += discount
+
+	if err := models.UpdateVoucherBalance(code, voucherBalance-discount); err != nil {
+		return dtos.ViewCartResponse{}, err
+	}
+	return cart, nil
+}
+
+func applyPromoCode(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse, error) {
+	promoData, err := models.ValidatePromoCode(code)
+	if err != nil {
+		return dtos.ViewCartResponse{}, err
+	}
+
+	var discount float64
+	switch promoData.DiscountType {
+	case "FIXED":
+		discount = promoData.DiscountValue
+		if discount > cart.Final {
+			discount = cart.Final
+		}
+	case "PERCENTAGE":
+		discount = (cart.Final * promoData.DiscountValue) / 100
+		if discount > cart.Final {
+			discount = cart.Final
+		}
+	default:
+		return dtos.ViewCartResponse{}, fmt.Errorf("unsupported discount type")
+	}
+
+	cart.Discount += discount
+	cart.Final -= discount
+	return cart, nil
 }

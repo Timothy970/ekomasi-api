@@ -9,3 +9,7 @@ type PromoCode struct {
 	DiscountPercentage int    `json:"discount_percentage"`
 	ExpiryDate         string `json:"expiry_date"`
 }
+type PromoCodeData struct {
+	DiscountType  string  `json:"discount_type"`
+	DiscountValue float64 `json:"discount_value"`
+}

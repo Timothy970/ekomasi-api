@@ -857,3 +857,221 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary,
 	})
 }
+
+// add product features
+// @Summary Add product features
+// @Description Add product an features
+// @Tags Products
+// @Accept multipart/form-data
+// @Produce json
+// @Param product_id formData string true "Product ID"
+// @Param image formData file true "Product Image"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /api/product/image [post]
+func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
+
+	productID := r.FormValue("product_id")
+
+	// Parse multipart form (20 MB max)
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Failed to parse form: " + err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+
+	// Get image file
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Image is required",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	defer file.Close()
+
+	// Upload image to GCS
+	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   "Failed to upload image: " + err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+
+	// Build DTO
+	req := dtos.ProductFeature{
+		Image:         url,
+		Header:        r.FormValue("header"),
+		Description:   r.FormValue("description"),
+		ImagePosition: r.FormValue("image_position"),
+	}
+	// Validate request
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
+	//insert into db
+	feature, err := models.AddProductFeature(req, productID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   feature,
+		Message:   "Product feature added successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// Update Product feature
+func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
+
+	featureID := r.FormValue("feature_id")
+	// Parse multipart form in case image is sent
+	_ = r.ParseMultipartForm(20 << 20)
+
+	var imageURL string
+	file, header, err := r.FormFile("image")
+	if err == nil {
+		defer file.Close()
+		imageURL, err = utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   "Failed to upload image: " + err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+			})
+			return
+		}
+	}
+
+	req := dtos.ProductFeature{
+		Header:        r.FormValue("header"),
+		Description:   r.FormValue("description"),
+		ImagePosition: r.FormValue("image_position"),
+		Image:         imageURL, // empty if not uploaded
+	}
+
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
+
+	feature, err := models.UpdateProductFeature(req, featureID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   feature,
+		Message:   "Product feature updated successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+func GetFeaturesByProductHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	productID := r.URL.Query().Get("product_id")
+	features, err := models.GetProductFeaturesByProductID(productID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   features,
+		Message:   "Product features fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
+
+	featureID := r.URL.Query().Get("feature_id")
+
+	err := models.DeleteProductFeature(featureID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   "Failed to delete feature: " + err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   nil,
+		Message:   "Product feature deleted successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}

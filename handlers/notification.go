@@ -120,8 +120,8 @@ func sendNotification(req dtos.Notification) error {
 		notification.SendSmsMessages(user.Phone, req.Content)
 	case "whatsapp":
 		//to include template name
-		phoneInt, _ := strconv.Atoi(user.Phone)
-		notification.SendWhatsappMessages(phoneInt, req.Content, "Notification")
+		// phoneInt, _ := strconv.Atoi(user.Phone)
+		// notification.SendWhatsappMessages(phoneInt, req.Content, "Notification")
 	case "email":
 		notification.SendEmail(user.Email, "Notification", req.Content)
 	case "push":

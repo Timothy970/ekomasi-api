@@ -24,10 +24,11 @@ type AddToCartResponse struct {
 }
 
 type ViewCartResponse struct {
-	CartItems []CartItem `json:"cart_items"`
-	Total     float64    `json:"total"`
-	Discount  float64    `json:"discount"`
-	Final     float64    `json:"final"`
+	CartItems    []CartItem `json:"cart_items"`
+	Total        float64    `json:"total"`
+	Discount     float64    `json:"discount"`
+	Final        float64    `json:"final"`
+	EstimatedTax float64    `json:"estimated_tax"`
 }
 
 type UpdateCartItemRequest struct {
@@ -48,7 +49,9 @@ type RemoveFromCartResponse struct {
 }
 
 type CouponRequest struct {
-	CouponCode string `json:"coupon_code"`
+	Type   string `json:"type" validate:"required"`
+	Code   string `json:"code" validate:"required"`
+	CartID string `json:"cart_id" validate:"required"`
 }
 type PromotionData struct {
 	Type  string

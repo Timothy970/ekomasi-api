@@ -62,3 +62,189 @@ func ValidateCoupon(couponCode string) (float64, error) {
 
 	return discount, nil
 }
+
+func ValidateVoucher(voucherCode string) (float64, error) {
+	var balance float64
+	var expiry time.Time
+	var isActive bool
+
+	err := DB.QueryRow(`
+		SELECT balance, expires_at, is_active
+		FROM vouchers 
+		WHERE code = ?
+	`, voucherCode).Scan(&balance, &expiry, &isActive)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, fmt.Errorf("invalid voucher code")
+		}
+		return 0, err
+	}
+
+	// Check if expired
+	if time.Now().After(expiry) {
+		return 0, fmt.Errorf("voucher has expired")
+	}
+
+	// Check if active
+	if !isActive {
+		return 0, fmt.Errorf("voucher is inactive")
+	}
+
+	if balance <= 0 {
+		return 0, fmt.Errorf("voucher has no remaining balance")
+	}
+
+	return balance, nil
+}
+
+func ValidatePromoCode(voucherCode string) (dtos.PromoCodeData, error) {
+	var promoCode dtos.PromoCodeData
+	var expiry time.Time
+	var isActive bool
+
+	err := DB.QueryRow(`
+		SELECT discount_type, expires_at, is_active, discount_value
+		FROM vouchers 
+		WHERE code = ?
+	`, voucherCode).Scan(&promoCode.DiscountType, &expiry, &isActive, promoCode.DiscountValue)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return dtos.PromoCodeData{}, fmt.Errorf("invalid promo code")
+		}
+		return dtos.PromoCodeData{}, err
+	}
+
+	// Check if expired
+	if time.Now().After(expiry) {
+		return dtos.PromoCodeData{}, fmt.Errorf("promo code has expired")
+	}
+
+	// Check if active
+	if !isActive {
+		return dtos.PromoCodeData{}, fmt.Errorf("promo code is inactive")
+	}
+
+	return promoCode, nil
+}
+func UpdateVoucherBalance(code string, newBalance float64) error {
+	_, err := DB.Exec(`UPDATE vouchers SET balance = ? WHERE code = ?`, newBalance, code)
+	return err
+}
+
+func AddProductFeature(input dtos.ProductFeature, productID string) (*dtos.ProductFeature, error) {
+	err := isProductThere(productID)
+	if err != nil {
+		return nil, err
+	}
+	featureID, _ := shortid.Generate()
+	_, err = DB.Exec(`
+		INSERT INTO product_features (feature_id, product_id, header, description, image, image_position)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		featureID, productID, input.Header, input.Description, input.Image, input.ImagePosition,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dtos.ProductFeature{
+		ID:            featureID,
+		ProductID:     productID,
+		Header:        input.Header,
+		ImagePosition: input.ImagePosition,
+		Description:   input.Description,
+		Image:         input.Image,
+	}, err
+}
+func isFeatureThere(id string) error {
+	exists, err := RecordExists("product_features", "feature_id = ?", id)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("feature not found")
+	}
+	return nil
+}
+func UpdateProductFeature(input dtos.ProductFeature, featureID string) (*dtos.ProductFeature, error) {
+	err := isFeatureThere(featureID)
+	if err != nil {
+		return nil, err
+	}
+	query := `
+		UPDATE product_features
+		SET header = ?, description = ?, image_position = ?
+		WHERE feature_id = ?
+	`
+
+	args := []interface{}{input.Header, input.Description, input.ImagePosition, featureID}
+
+	// If image was provided, update it too
+	if input.Image != "" {
+		query = `
+			UPDATE product_features
+			SET header = ?, description = ?, image_position = ?, image = ?
+			WHERE feature_id = ?
+		`
+		args = []interface{}{input.Header, input.Description, input.ImagePosition, input.Image, featureID}
+	}
+
+	_, err = DB.Exec(query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return updated feature
+	return GetProductFeatureByID(featureID)
+}
+func GetProductFeaturesByProductID(productID string) ([]dtos.ProductFeature, error) {
+	err := isProductThere(productID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := DB.Query(`
+		SELECT feature_id, product_id, header, description, image, image_position
+		FROM product_features
+		WHERE product_id = ?
+	`, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var features []dtos.ProductFeature
+	for rows.Next() {
+		var f dtos.ProductFeature
+		if err := rows.Scan(&f.ID, &f.ProductID, &f.Header, &f.Description, &f.Image, &f.ImagePosition); err != nil {
+			return nil, err
+		}
+		features = append(features, f)
+	}
+	return features, nil
+}
+func GetProductFeatureByID(featureID string) (*dtos.ProductFeature, error) {
+	err := isFeatureThere(featureID)
+	if err != nil {
+		return nil, err
+	}
+	var f dtos.ProductFeature
+	err = DB.QueryRow(`
+		SELECT feature_id, product_id, header, description, image, image_position
+		FROM product_features
+		WHERE feature_id = ?
+	`, featureID).Scan(&f.ID, &f.ProductID, &f.Header, &f.Description, &f.Image, &f.ImagePosition)
+
+	if err != nil {
+		return nil, err
+	}
+	return &f, nil
+}
+func DeleteProductFeature(featureID string) error {
+	err := isFeatureThere(featureID)
+	if err != nil {
+		return err
+	}
+	_, err = DB.Exec(`DELETE FROM product_features WHERE feature_id = ?`, featureID)
+	return err
+}

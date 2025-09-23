@@ -205,8 +205,11 @@ func SetupRoutes(router *mux.Router) {
 	//handle vouchers
 	vouchers := api.PathPrefix("/vouchers").Subrouter()
 	admin.Handle("/vouchers", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateVoucherHandler))).Methods("POST")
-	vouchers.HandleFunc("", handlers.ListVouchersHandler).Methods("GET")
-	vouchers.HandleFunc("/{voucher_id}", handlers.GetVoucherHandler).Methods("GET")
+	vouchers.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListVouchersHandler))).Methods("GET")
+	vouchers.Handle("/{voucher_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetVoucherHandler))).Methods("GET")
+	//user vouchers
+	vouchers.Handle("/me/{voucher_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserVoucherHandler))).Methods("GET")
+	vouchers.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListUserVoucherHandler))).Methods("GET")
 	adminvoucher := admin.PathPrefix("/vouchers/{voucher_id}").Subrouter()
 	adminvoucher.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateVoucherHandler))).Methods("PATCH")
 	adminvoucher.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteVoucherHandler))).Methods("DELETE")

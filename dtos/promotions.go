@@ -26,3 +26,13 @@ type PromotionSummary struct {
 	TotalSold     int64     `json:"total_sold"`
 	Revenue       float64   `json:"revenue"`
 }
+
+type PromoCodeRequest struct {
+	ID            string    `json:"id"`
+	Code          string    `json:"code" validate:"required"`
+	Description   string    `json:"description"`
+	DiscountType  string    `json:"discount_type" validate:"required,oneof=PERCENTAGE FIXED"`
+	DiscountValue float64   `json:"discount_value" validate:"required"`
+	ExpiresAt     time.Time `json:"expires_at" validate:"required"`
+	IsActive      bool      `json:"is_active"`
+}
