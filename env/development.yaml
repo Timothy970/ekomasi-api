@@ -29,7 +29,6 @@ env:
     value: Emalify
 
 secrets:
-  - MYSQL_PASS
   - MPESA_CONSUMER_KEY
   - MPESA_CONSUMER_SECRET
   - MPESA_SHORTCODE
