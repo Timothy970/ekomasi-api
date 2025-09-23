@@ -107,8 +107,8 @@ func main() {
 	// Run migrations only if --migrate is passed
 	if *migrateOnly {
 		db, err := initDBConnection(
-			os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"),
-			os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_NAME"),
+			os.Getenv("MYSQL_USER"), os.Getenv("MYSQL_PASS"),
+			os.Getenv("MYSQL_HOST"), os.Getenv("MYSQL_PORT"), os.Getenv("DB_NAME"),
 		)
 		if err != nil {
 			log.Fatalf("Failed to connect to database: %v", err)
