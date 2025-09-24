@@ -785,14 +785,29 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
 	query := r.URL.Query()
 
-	searchParams := dtos.SearchParams{
-		CategoryName: query.Get("category_name"),
-		ProductName:  query.Get("product_name"),
-		VariantName:  query.Get("variant_name"),
-		VariantValue: query.Get("variant_value"),
-		SortBy:       query.Get("sort_by"),
+	// Parse variants (multiple variant parameters)
+	var variants []dtos.VariantFilter
+	variantParams := query["variant"] // This gets all values for "variant" parameter
+
+	for _, variantParam := range variantParams {
+		if variantParam != "" {
+			parts := strings.Split(variantParam, "---")
+			if len(parts) == 2 {
+				variants = append(variants, dtos.VariantFilter{
+					Type:  parts[0],
+					Value: parts[1],
+				})
+			}
+		}
 	}
 
+	searchParams := dtos.SearchParams{
+		Q:            query.Get("q"), // New search query parameter
+		CategoryName: query.Get("category_name"),
+		ProductName:  query.Get("product_name"),
+		Variants:     variants, // Now supports multiple variants
+		SortBy:       query.Get("sort_by"),
+	}
 	// Parse pagination
 	page, limit := parsePagination(query.Get("page"), query.Get("size"))
 	searchParams.Page = page
@@ -842,11 +857,11 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Payload: map[string]interface{}{
 			"products":   products,
 			"pagination": pagination,
-			"filters": map[string]string{
+			"filters": map[string]interface{}{
+				"q":             searchParams.Q,
 				"category_name": searchParams.CategoryName,
 				"product_name":  searchParams.ProductName,
-				"variant_name":  searchParams.VariantName,
-				"variant_value": searchParams.VariantValue,
+				"variants":      searchParams.Variants, // Now shows all variants
 				"sort_by":       searchParams.SortBy,
 			},
 		},
@@ -861,7 +876,7 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 // add product features
 // @Summary Add product features
 // @Description Add product an features
-// @Tags Products
+// @Tags Admin
 // @Accept multipart/form-data
 // @Produce json
 // @Param product_id formData string true "Product ID"
@@ -878,8 +893,7 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
 		return
 	}
-
-	productID := r.FormValue("product_id")
+	productID := mux.Vars(r)["product_id"]
 
 	// Parse multipart form (20 MB max)
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
@@ -962,7 +976,7 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	featureID := r.FormValue("feature_id")
+	featureID := mux.Vars(r)["feature_id"]
 	// Parse multipart form in case image is sent
 	_ = r.ParseMultipartForm(20 << 20)
 
@@ -983,7 +997,7 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	req := dtos.ProductFeature{
+	req := dtos.UpdateProductFeature{
 		Header:        r.FormValue("header"),
 		Description:   r.FormValue("description"),
 		ImagePosition: r.FormValue("image_position"),
@@ -1020,11 +1034,11 @@ func GetFeaturesByProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 
-	productID := r.URL.Query().Get("product_id")
+	productID := mux.Vars(r)["product_id"]
 	features, err := models.GetProductFeaturesByProductID(productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			Code:      http.StatusNotFound,
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1051,7 +1065,7 @@ func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	featureID := r.URL.Query().Get("feature_id")
+	featureID := mux.Vars(r)["feature_id"]
 
 	err := models.DeleteProductFeature(featureID)
 	if err != nil {

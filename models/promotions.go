@@ -215,11 +215,19 @@ func GetComparison(promotionID string, baselineStart, baselineEnd time.Time) (*d
 
 func AddPromoCode(input dtos.PromoCodeRequest) (*dtos.PromoCodeRequest, error) {
 	id, _ := shortid.Generate()
+	code, err := secureRandomString(8)
+	if err != nil {
+		return nil, err
+	}
 
-	_, err := DB.Exec(`
+	isActive := true
+	if input.IsActive != nil {
+		isActive = *input.IsActive
+	}
+	_, err = DB.Exec(`
 		INSERT INTO promocodes (promo_code_id, code, description, discount_type, discount_value, expires_at, is_active)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		id, input.Code, input.Description, input.DiscountType, input.DiscountValue, input.ExpiresAt, input.IsActive,
+		id, code, input.Description, input.DiscountType, input.DiscountValue, input.ExpiresAt, isActive,
 	)
 	if err != nil {
 		return nil, err
@@ -229,7 +237,7 @@ func AddPromoCode(input dtos.PromoCodeRequest) (*dtos.PromoCodeRequest, error) {
 	return &input, nil
 }
 func isPromoThere(id string) error {
-	exists, err := RecordExists("promo_codes", "promo_code_id = ?", id)
+	exists, err := RecordExists("promocodes", "promo_code_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -243,11 +251,15 @@ func UpdatePromoCode(id string, input dtos.PromoCodeRequest) (*dtos.PromoCodeReq
 	if err != nil {
 		return nil, err
 	}
+	isActive := true
+	if input.IsActive != nil {
+		isActive = *input.IsActive
+	}
 	_, err = DB.Exec(`
 		UPDATE promocodes
-		SET code = ?, description = ?, discount_type = ?, discount_value = ?, expires_at = ?, is_active = ?
+		SET description = ?, discount_type = ?, discount_value = ?, expires_at = ?, is_active = ?
 		WHERE promo_code_id = ?`,
-		input.Code, input.Description, input.DiscountType, input.DiscountValue, input.ExpiresAt, input.IsActive, id,
+		input.Description, input.DiscountType, input.DiscountValue, input.ExpiresAt, isActive, id,
 	)
 	if err != nil {
 		return nil, err
@@ -256,17 +268,17 @@ func UpdatePromoCode(id string, input dtos.PromoCodeRequest) (*dtos.PromoCodeReq
 	return &input, nil
 }
 
-func GetPromoCodeByID(id string) (*dtos.PromoCodeRequest, error) {
+func GetPromoCodeByID(id string) (*dtos.PromoCodeResponse, error) {
 	err := isPromoThere(id)
 	if err != nil {
 		return nil, err
 	}
 	row := DB.QueryRow(`
-		SELECT id, code, description, discount_type, discount_value, expires_at, is_active
-		FROM promocodes WHERE id = ?`, id,
+		SELECT promo_code_id, code, description, discount_type, discount_value, expires_at, is_active
+		FROM promocodes WHERE promo_code_id = ?`, id,
 	)
 
-	var pc dtos.PromoCodeRequest
+	var pc dtos.PromoCodeResponse
 	if err := row.Scan(&pc.ID, &pc.Code, &pc.Description, &pc.DiscountType, &pc.DiscountValue, &pc.ExpiresAt, &pc.IsActive); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -276,17 +288,17 @@ func GetPromoCodeByID(id string) (*dtos.PromoCodeRequest, error) {
 	return &pc, nil
 }
 
-func GetAllPromoCodes() ([]dtos.PromoCodeRequest, error) {
+func GetAllPromoCodes() ([]dtos.PromoCodeResponse, error) {
 	rows, err := DB.Query(`
-		SELECT id, code, description, discount_type, discount_value, expires_at, is_active FROM promocodes`)
+		SELECT promo_code_id, code, description, discount_type, discount_value, expires_at, is_active FROM promocodes`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var promos []dtos.PromoCodeRequest
+	var promos []dtos.PromoCodeResponse
 	for rows.Next() {
-		var pc dtos.PromoCodeRequest
+		var pc dtos.PromoCodeResponse
 		if err := rows.Scan(&pc.ID, &pc.Code, &pc.Description, &pc.DiscountType, &pc.DiscountValue, &pc.ExpiresAt, &pc.IsActive); err != nil {
 			return nil, err
 		}
@@ -300,17 +312,17 @@ func DeletePromoCode(id string) error {
 	if err != nil {
 		return err
 	}
-	_, err = DB.Exec(`DELETE FROM promocodes WHERE id = ?`, id)
+	_, err = DB.Exec(`DELETE FROM promocodes WHERE promo_code_id = ?`, id)
 	return err
 }
 
-func GetActivePromoByCode(code string, now time.Time) (*dtos.PromoCodeRequest, error) {
+func GetActivePromoByCode(code string, now time.Time) (*dtos.PromoCodeResponse, error) {
 	row := DB.QueryRow(`
-		SELECT id, code, description, discount_type, discount_value, expires_at, is_active
+		SELECT promo_code_id, code, description, discount_type, discount_value, expires_at, is_active
 		FROM promocodes WHERE code = ? AND is_active = 1 AND expires_at > ?`, code, now,
 	)
 
-	var pc dtos.PromoCodeRequest
+	var pc dtos.PromoCodeResponse
 	if err := row.Scan(&pc.ID, &pc.Code, &pc.Description, &pc.DiscountType, &pc.DiscountValue, &pc.ExpiresAt, &pc.IsActive); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -323,7 +335,7 @@ func SetPromoCodeActiveStatus(id string, isActive bool) error {
 	_, err := DB.Exec(`
 		UPDATE promocodes
 		SET is_active = ?
-		WHERE id = ?`, isActive, id,
+		WHERE promo_code_id = ?`, isActive, id,
 	)
 	return err
 }

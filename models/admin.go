@@ -134,6 +134,7 @@ func UpdateVoucherBalance(code string, newBalance float64) error {
 }
 
 func AddProductFeature(input dtos.ProductFeature, productID string) (*dtos.ProductFeature, error) {
+	log.Println("Adding feature to product:", productID)
 	err := isProductThere(productID)
 	if err != nil {
 		return nil, err
@@ -167,7 +168,7 @@ func isFeatureThere(id string) error {
 	}
 	return nil
 }
-func UpdateProductFeature(input dtos.ProductFeature, featureID string) (*dtos.ProductFeature, error) {
+func UpdateProductFeature(input dtos.UpdateProductFeature, featureID string) (*dtos.ProductFeature, error) {
 	err := isFeatureThere(featureID)
 	if err != nil {
 		return nil, err

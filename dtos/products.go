@@ -139,13 +139,18 @@ type CategoryProduct struct {
 
 // SearchParams represents the search parameters
 type SearchParams struct {
+	Q            string // Search query for category name OR product name
 	CategoryName string
 	ProductName  string
-	VariantName  string // variant_type:name format
-	VariantValue string // the actual variant value
+	Variants     []VariantFilter // Changed from single variant to slice
 	SortBy       string
 	Page         int
 	Limit        int
+}
+
+type VariantFilter struct {
+	Type  string
+	Value string
 }
 
 type ProductFeature struct {
@@ -153,6 +158,14 @@ type ProductFeature struct {
 	ProductID     string `json:"product_id"`
 	Header        string `json:"header" validate:"required"`
 	Image         string `json:"image" validate:"required"`
+	Description   string `json:"description" validate:"required"`
+	ImagePosition string `json:"image-position" validate:"required"`
+}
+type UpdateProductFeature struct {
+	ID            string `json:"feature_id"`
+	ProductID     string `json:"product_id"`
+	Header        string `json:"header" validate:"required"`
+	Image         string `json:"image"`
 	Description   string `json:"description" validate:"required"`
 	ImagePosition string `json:"image-position" validate:"required"`
 }

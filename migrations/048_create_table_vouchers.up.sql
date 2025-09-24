@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS vouchers (
     voucher_id      char(36) PRIMARY KEY,
-    user_id         char(36) DEFAULT NULL
+    user_id         char(36) DEFAULT NULL,
     code            VARCHAR(50) UNIQUE NOT NULL,
     balance         DECIMAL(10,2) DEFAULT 0.0, 
     original_value  DECIMAL(10,2) NOT NULL DEFAULT 0.0,     

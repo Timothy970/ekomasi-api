@@ -390,3 +390,42 @@ func WishlistReminderSMS(customerName, wishlistLink string) string {
 		customerName, wishlistLink,
 	)
 }
+
+// SendVoucherEmail sends an e-voucher email with HTML and plain-text fallback
+func SendVoucherEmail(data dtos.VoucherEmailInfo) (string, string) {
+	t, err := time.Parse(time.RFC3339, data.ExpiryDate)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	formatted := t.Format("2006 January 02 15:04")
+	subject := fmt.Sprintf("🎁 You’ve received a KES %v e-voucher!", data.Amount)
+
+	// HTML body (simplified placeholder replacement)
+	htmlBody := fmt.Sprintf(`
+	<!doctype html>
+	<html>
+	<body style="font-family:sans-serif; background:#f4f4f6; padding:20px;">
+	  <div style="max-width:600px; margin:auto; background:#6b3aa6; color:#fff; padding:20px; border-radius:12px;">
+	    <h2 style="margin:0;">E-Voucher</h2>
+	    <p>Hello %s,</p>
+	    <p>You have received an e-voucher worth KES <strong style="font-size:20px;">%v</strong> from %s.</p>
+
+	    <div style="background:#fff; color:#6b3aa6; padding:10px; margin:20px 0; border-radius:8px; text-align:center; font-weight:bold;">
+	      %s
+	    </div>
+
+	    <p style="margin:0;">Expires: <strong>%s</strong></p>
+	    <p style="margin:0;">Message: %s</p>
+
+	    <p style="margin:20px 0;">
+	      <a href="%s" style="display:inline-block; background:#9b59b6; color:#fff; padding:12px 20px; text-decoration:none; border-radius:6px;">
+	        Redeem Your Voucher
+	      </a>
+	    </p>
+	  </div>
+	</body>
+	</html>
+	`, data.ToName, data.Amount, data.FromName, data.Code, formatted, data.PersonalizedMsg, "https://uat.app.adenzo.co.ke")
+	return subject, htmlBody
+}

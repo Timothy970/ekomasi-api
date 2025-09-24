@@ -14,14 +14,14 @@ func isChargeThere(id string) error {
 		return err
 	}
 	if !exists {
-		return errors.New("product not found")
+		return errors.New("charge not found")
 	}
 	return nil
 }
 func AddCharge(input dtos.Charge) (*dtos.Charge, error) {
 	chargeID, _ := shortid.Generate()
 	_, err := DB.Exec(`
-		INSERT INTO charges (charge_id, charge_type, charge_value)
+		INSERT INTO charges (charge_id, charge_name, charge_value)
 		VALUES (?, ?, ?)`,
 		chargeID, input.Type, input.Value,
 	)
@@ -42,7 +42,7 @@ func UpdateCharge(id string, input dtos.Charge) (*dtos.Charge, error) {
 	}
 	_, err = DB.Exec(`
 		UPDATE charges
-		SET charge_type = ?, charge_value = ?
+		SET charge_name = ?, charge_value = ?
 		WHERE charge_id = ?`,
 		input.Type, input.Value, id,
 	)
@@ -61,7 +61,7 @@ func GetChargeByID(id string) (*dtos.Charge, error) {
 	if err != nil {
 		return nil, err
 	}
-	row := DB.QueryRow(`SELECT charge_id, charge_type, charge_value FROM charges WHERE charge_id = ?`, id)
+	row := DB.QueryRow(`SELECT charge_id, charge_name, charge_value FROM charges WHERE charge_id = ?`, id)
 
 	var c dtos.Charge
 	if err := row.Scan(&c.ID, &c.Type, &c.Value); err != nil {
@@ -74,7 +74,7 @@ func GetChargeByID(id string) (*dtos.Charge, error) {
 }
 
 func GetAllCharges() ([]dtos.Charge, error) {
-	rows, err := DB.Query(`SELECT charge_id, charge_type, charge_value FROM charges`)
+	rows, err := DB.Query(`SELECT charge_id, charge_name, charge_value FROM charges`)
 	if err != nil {
 		return nil, err
 	}

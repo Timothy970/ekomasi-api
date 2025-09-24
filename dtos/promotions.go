@@ -29,8 +29,17 @@ type PromotionSummary struct {
 
 type PromoCodeRequest struct {
 	ID            string    `json:"id"`
+	Description   *string   `json:"description"`
+	DiscountType  string    `json:"discount_type" validate:"required,oneof=PERCENTAGE FIXED"`
+	DiscountValue float64   `json:"discount_value" validate:"required"`
+	ExpiresAt     time.Time `json:"expires_at" validate:"required"`
+	IsActive      *bool     `json:"is_active"`
+}
+
+type PromoCodeResponse struct {
+	ID            string    `json:"promo_code_id"`
 	Code          string    `json:"code" validate:"required"`
-	Description   string    `json:"description"`
+	Description   *string   `json:"description"`
 	DiscountType  string    `json:"discount_type" validate:"required,oneof=PERCENTAGE FIXED"`
 	DiscountValue float64   `json:"discount_value" validate:"required"`
 	ExpiresAt     time.Time `json:"expires_at" validate:"required"`

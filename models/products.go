@@ -15,6 +15,8 @@ import (
 var nobundle = "bundle not found"
 var fetchbundle = "bundle_id = ?"
 var limtOffset = " LIMIT ? OFFSET ?"
+var lowerCname = " AND LOWER(c.name) LIKE ?"
+var lowerPname = " AND LOWER(p.name) LIKE ?"
 
 func GetAllProducts(categoryFilter, productFilter, categoryID string, page, limit int) ([]dtos.CategoryWithProducts, *dtos.PaginationMeta, error) {
 	// Build queries
@@ -162,11 +164,11 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
 	var args []interface{}
 
 	if categoryFilter != "" {
-		query += " AND LOWER(c.name) LIKE ?"
+		query += lowerCname
 		args = append(args, "%"+strings.ToLower(categoryFilter)+"%")
 	}
 	if productFilter != "" {
-		query += " AND LOWER(p.name) LIKE ?"
+		query += lowerPname
 		args = append(args, "%"+strings.ToLower(productFilter)+"%")
 	}
 	if categoryID != "" {
@@ -217,11 +219,11 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 	var args []interface{}
 
 	if categoryFilter != "" {
-		query += " AND LOWER(c.name) LIKE ?"
+		query += lowerCname
 		args = append(args, "%"+strings.ToLower(categoryFilter)+"%")
 	}
 	if productFilter != "" {
-		query += " AND LOWER(p.name) LIKE ?"
+		query += lowerPname
 		args = append(args, "%"+strings.ToLower(productFilter)+"%")
 	}
 	if categoryID != "" {
@@ -236,7 +238,7 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 
 	if limit > 0 {
 		offset := (page - 1) * limit
-		query += " LIMIT ? OFFSET ?"
+		query += limtOffset
 		args = append(args, limit, offset)
 	}
 
@@ -1457,28 +1459,48 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 		WHERE 1=1
 	`
 	var args []interface{}
-
+	// Apply search query (q parameter) - searches both category name and product name
+	if params.Q != "" {
+		query += " AND (LOWER(p.name) LIKE ? OR LOWER(c.name) LIKE ?)"
+		searchTerm := "%" + strings.ToLower(params.Q) + "%"
+		args = append(args, searchTerm, searchTerm)
+	}
 	// Apply filters
 	if params.CategoryName != "" {
-		query += " AND LOWER(c.name) LIKE ?"
+		query += lowerCname
 		args = append(args, "%"+strings.ToLower(params.CategoryName)+"%")
 	}
 
 	if params.ProductName != "" {
-		query += " AND LOWER(p.name) LIKE ?"
+		query += lowerPname
 		args = append(args, "%"+strings.ToLower(params.ProductName)+"%")
 	}
 
-	if params.VariantName != "" && params.VariantValue != "" {
-		query += `
-			AND p.product_id IN (
-				SELECT pv.product_id 
-				FROM product_variants pv
-				JOIN variants v ON pv.variant_id = v.variant_id
-				WHERE LOWER(v.variant_type) = ? AND LOWER(v.name) = ?
-			)
-		`
-		args = append(args, strings.ToLower(params.VariantName), strings.ToLower(params.VariantValue))
+	// Apply multiple variant filters
+	if len(params.Variants) > 0 {
+		variantSubquery := `
+        AND p.product_id IN (
+            SELECT pv.product_id 
+            FROM product_variants pv
+            JOIN variants v ON pv.variant_id = v.variant_id
+            WHERE `
+
+		variantConditions := []string{}
+		for _, variant := range params.Variants {
+			if strings.ToLower(variant.Value) == "all" {
+				// Only match by type if "all"
+				variantConditions = append(variantConditions, "(LOWER(v.variant_type) = ?)")
+				args = append(args, strings.ToLower(variant.Type))
+			} else {
+				// Match by both type and value
+				variantConditions = append(variantConditions, "(LOWER(v.variant_type) = ? AND LOWER(v.name) = ?)")
+				args = append(args, strings.ToLower(variant.Type), strings.ToLower(variant.Value))
+			}
+		}
+
+		variantSubquery += strings.Join(variantConditions, " OR ")
+		variantSubquery += ")"
+		query += variantSubquery
 	}
 
 	// Apply sorting
@@ -1487,7 +1509,7 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 	// Apply pagination
 	if params.Limit > 0 {
 		offset := (params.Page - 1) * params.Limit
-		query += " LIMIT ? OFFSET ?"
+		query += limtOffset
 		args = append(args, params.Limit, offset)
 	}
 
@@ -1502,27 +1524,48 @@ func buildCountQuerySearch(params dtos.SearchParams) (string, []interface{}) {
 		WHERE 1=1
 	`
 	var args []interface{}
-
+	// Apply search query
+	if params.Q != "" {
+		query += " AND (LOWER(p.name) LIKE ? OR LOWER(c.name) LIKE ?)"
+		searchTerm := "%" + strings.ToLower(params.Q) + "%"
+		args = append(args, searchTerm, searchTerm)
+	}
 	if params.CategoryName != "" {
-		query += " AND LOWER(c.name) LIKE ?"
+		query += lowerCname
 		args = append(args, "%"+strings.ToLower(params.CategoryName)+"%")
 	}
 
 	if params.ProductName != "" {
-		query += " AND LOWER(p.name) LIKE ?"
+		query += lowerPname
 		args = append(args, "%"+strings.ToLower(params.ProductName)+"%")
 	}
 
-	if params.VariantName != "" && params.VariantValue != "" {
-		query += `
-			AND p.product_id IN (
-				SELECT pv.product_id 
-				FROM product_variants pv
-				JOIN variants v ON pv.variant_id = v.variant_id
-				WHERE LOWER(v.variant_type) = ? AND LOWER(v.name) = ?
-			)
-		`
-		args = append(args, strings.ToLower(params.VariantName), strings.ToLower(params.VariantValue))
+	// Apply multiple variant filters
+	// Apply multiple variant filters
+	if len(params.Variants) > 0 {
+		variantSubquery := `
+        AND p.product_id IN (
+            SELECT pv.product_id 
+            FROM product_variants pv
+            JOIN variants v ON pv.variant_id = v.variant_id
+            WHERE `
+
+		variantConditions := []string{}
+		for _, variant := range params.Variants {
+			if strings.ToLower(variant.Value) == "all" {
+				// Only match by type if "all"
+				variantConditions = append(variantConditions, "(LOWER(v.variant_type) = ?)")
+				args = append(args, strings.ToLower(variant.Type))
+			} else {
+				// Match by both type and value
+				variantConditions = append(variantConditions, "(LOWER(v.variant_type) = ? AND LOWER(v.name) = ?)")
+				args = append(args, strings.ToLower(variant.Type), strings.ToLower(variant.Value))
+			}
+		}
+
+		variantSubquery += strings.Join(variantConditions, " OR ")
+		variantSubquery += ")"
+		query += variantSubquery
 	}
 
 	return query, args

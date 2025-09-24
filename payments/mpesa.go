@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -232,12 +233,13 @@ func HandleMpesaCallback(w http.ResponseWriter, r *http.Request) {
 
 		// Log or store success transaction
 		log.Printf("SUCCESSFUL PAYMENT:\n- Phone: %s\n- Amount: %.2f\n- Code: %s\n", phone, amount, mpesaCode)
-		orderType, deliveryID, orderID, err := models.UpdateStkResponse(callback, "SUCCESS")
+		deliveryID, orderID, orderType, err := models.UpdateStkResponse(callback, "SUCCESS")
+		log.Printf("orderType: %s, deliveryID: %s, orderID: %s, err: %v", orderType, deliveryID, orderID, err)
 		if err != nil {
 			log.Printf("%v", err)
 		}
-		switch orderType {
-		case "VOUCHER":
+		switch strings.ToLower(orderType) {
+		case "voucher":
 			//update delivery and order tables
 			err = models.UpdateVoucherOrderTables(orderID)
 			if err != nil {

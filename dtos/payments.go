@@ -65,8 +65,8 @@ type VoucherData struct {
 	ExpiryDate time.Time `json:"expiry_date"`
 }
 type VoucherDataUpdate struct {
-	Code       string    `json:"code" validate:"required"`
 	Amount     float64   `json:"amount" validate:"required"`
+	Balance    *float64  `json:"balance"`
 	IsActive   *bool     `json:"is_active"`
 	ExpiryDate time.Time `json:"expiry_date" validate:"required"`
 }
@@ -114,4 +114,22 @@ type CreateVoucherRequest struct {
 	IsRedeemed       bool       `json:"is_redeemed"`
 	CreatedAt        time.Time  `json:"created_at"`
 	RedeemedAt       *time.Time `json:"redeemed_at,omitempty"`
+}
+
+type RedeemVoucherRequest struct {
+	Code string `json:"code" validate:"required"`
+}
+
+type VoucherEmailInfo struct {
+	VoucherID       string  `json:"voucher_id"`
+	PersonalizedMsg string  `json:"personalized_msg"`
+	DeliveryTime    string  `json:"delivery_time"`
+	VoucherCode     string  `json:"voucher_code"`
+	Amount          float64 `json:"amount"`
+	ToName          string  `json:"to_name"`
+	ToEmail         string  `json:"to_email"`
+	FromName        string  `json:"from_name"`
+	Message         string  `json:"message"`
+	ExpiryDate      string  `json:"expiry_date"`
+	Code            string  `json:"code"`
 }

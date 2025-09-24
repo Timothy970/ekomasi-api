@@ -205,14 +205,19 @@ func SetupRoutes(router *mux.Router) {
 	//handle vouchers
 	vouchers := api.PathPrefix("/vouchers").Subrouter()
 	admin.Handle("/vouchers", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateVoucherHandler))).Methods("POST")
-	vouchers.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListVouchersHandler))).Methods("GET")
-	vouchers.Handle("/{voucher_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetVoucherHandler))).Methods("GET")
+	admin.Handle("/vouchers", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListVouchersHandler))).Methods("GET")
+	admin.Handle("/vouchers/{voucher_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetVoucherHandler))).Methods("GET")
 	//user vouchers
 	vouchers.Handle("/me/{voucher_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserVoucherHandler))).Methods("GET")
 	vouchers.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListUserVoucherHandler))).Methods("GET")
 	adminvoucher := admin.PathPrefix("/vouchers/{voucher_id}").Subrouter()
 	adminvoucher.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateVoucherHandler))).Methods("PATCH")
 	adminvoucher.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteVoucherHandler))).Methods("DELETE")
+	// endpoint for users to buy a voucher
+	vouchers.Handle("/buy-voucher", middleware.AuthenticateToken(http.HandlerFunc(handlers.BuyVoucherHandler))).Methods("POST")
+	// adminvoucher.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetVoucherHandler))).Methods("GET")
+	//endpoint for users to redeem a voucher
+	vouchers.Handle("/redeem", middleware.AuthenticateToken(http.HandlerFunc(handlers.RedeemVoucherHandler))).Methods("POST")
 	//location rates
 	admin.Handle("/locations", middleware.AuthenticateToken(http.HandlerFunc(handlers.StoreShippingRates))).Methods("POST")
 	api.HandleFunc("/locations", handlers.ListLocations).Methods("GET")
@@ -367,4 +372,27 @@ func SetupRoutes(router *mux.Router) {
 	api.HandleFunc("/subscribe", handlers.AddSubscriber).Methods("POST")
 	//autocomplete
 	api.HandleFunc("/autocomplete", handlers.AutoCompleteHandler).Methods("GET")
+	//product features endpoints
+	admin.Handle("/features/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductFeatures))).Methods("POST")
+	product.HandleFunc("/features/{product_id}", handlers.GetFeaturesByProductHandler).Methods("GET")
+	admin.Handle("/features/{feature_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateProductFeatureHandler))).Methods("PATCH")
+	admin.Handle("/features/{feature_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteProductFeatureHandler))).Methods("DELETE")
+	//charges endpoints
+	charges := api.PathPrefix("/admin/charges").Subrouter()
+	var chargeID = "/{charge_id}"
+	charges.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddChargeHandler))).Methods("POST")
+	charges.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllChargesHandler))).Methods("GET")
+	charges.Handle(chargeID, middleware.AuthenticateToken(http.HandlerFunc(handlers.GetChargeByIDHandler))).Methods("GET")
+	charges.Handle(chargeID, middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateChargeHandler))).Methods("PATCH")
+	charges.Handle(chargeID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteChargeHandler))).Methods("DELETE")
+	// promo codes endpoints
+	promocodes := api.PathPrefix("/admin/promo-codes").Subrouter()
+	promocodeID := "/{promo_id}"
+	promocodes.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddPromoCodeHandler))).Methods("POST")
+	promocodes.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllPromoCodesHandler))).Methods("GET")
+	promocodes.Handle(promocodeID, middleware.AuthenticateToken(http.HandlerFunc(handlers.GetPromoCodeByIDHandler))).Methods("GET")
+	promocodes.Handle(promocodeID, middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePromoCodeHandler))).Methods("PATCH")
+	// promocodes.Handle("ativate/{promo_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePromoCodeHandler))).Methods("PATCH")
+	promocodes.Handle(promocodeID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePromoCodeHandler))).Methods("DELETE")
+
 }

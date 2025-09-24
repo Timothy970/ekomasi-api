@@ -4,6 +4,7 @@ import (
 	"adenzo_backend/dtos"
 	"database/sql"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 
@@ -48,21 +49,26 @@ func ListVariants() ([]dtos.GroupedVariants, error) {
 	defer rows.Close()
 
 	groupMap := make(map[string][]dtos.VariantResponse)
+	order := []string{} // preserve insertion order
 
 	for rows.Next() {
 		var v dtos.VariantResponse
 		if err := rows.Scan(&v.VariantID, &v.VariantType, &v.Name, &v.HexCode); err != nil {
 			return nil, err
 		}
+		// first time we see this type → track it
+		if _, exists := groupMap[v.VariantType]; !exists {
+			order = append(order, v.VariantType)
+		}
 		groupMap[v.VariantType] = append(groupMap[v.VariantType], v)
 	}
 
-	// convert map → slice
+	// build grouped slice in deterministic order
 	var grouped []dtos.GroupedVariants
-	for t, vs := range groupMap {
+	for _, t := range order {
 		grouped = append(grouped, dtos.GroupedVariants{
 			VariantType: t,
-			Variants:    vs,
+			Variants:    groupMap[t],
 		})
 	}
 
@@ -178,29 +184,80 @@ func GetVariantsWithProductsPaginated(variants []dtos.Variant, page, limit int) 
 		return nil, nil, errors.New("no variants provided")
 	}
 
-	// Build variant filters
-	var variantIDs []string
-	var variantNames []string
-	var variantIDMap = make(map[string]bool)
-	var variantNameMap = make(map[string]bool)
+	// Extract unique filters from variants
+	variantIDs, variantNames := extractVariantFilters(variants)
+
+	// Build and execute base query
+	variantResults, variantMap, err := executeVariantQuery(variantIDs, variantNames)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(variantResults) == 0 {
+		return nil, nil, nil
+	}
+
+	// Get pagination info
+	resultVariantIDs := extractVariantIDs(variantResults)
+	total, err := countTotalProducts(resultVariantIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Fetch paginated products
+	products, productVariantMap, err := fetchProductsByVariantsPaginated(resultVariantIDs, limit, (page-1)*limit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Associate products with variants
+	associateProductsWithVariants(variantMap, products, productVariantMap)
+
+	// Handle "All" variants
+	if err := handleAllVariants(variants, variantMap); err != nil {
+		return nil, nil, err
+	}
+
+	pagination := createPaginationMeta(page, limit, total)
+	return variantResults, pagination, nil
+}
+
+// Helper functions
+func extractVariantFilters(variants []dtos.Variant) ([]string, []string) {
+	variantIDMap := make(map[string]bool)
+	variantNameMap := make(map[string]bool)
+	var variantIDs, variantNames []string
 
 	for _, variant := range variants {
-		if variant.VariantID != "" {
-			if !variantIDMap[variant.VariantID] {
-				variantIDs = append(variantIDs, variant.VariantID)
-				variantIDMap[variant.VariantID] = true
-			}
+		if variant.VariantID != "" && !variantIDMap[variant.VariantID] {
+			variantIDs = append(variantIDs, variant.VariantID)
+			variantIDMap[variant.VariantID] = true
 		}
-		if variant.Name != "" && variant.Name != "All" {
-			if !variantNameMap[variant.Name] {
-				variantNames = append(variantNames, variant.Name)
-				variantNameMap[variant.Name] = true
-			}
+		if isVariantNameValid(variant.Name) && !variantNameMap[variant.Name] {
+			variantNames = append(variantNames, variant.Name)
+			variantNameMap[variant.Name] = true
 		}
 	}
 
-	// Build base query
-	var args []interface{}
+	return variantIDs, variantNames
+}
+
+func isVariantNameValid(name string) bool {
+	return name != "" && name != "All"
+}
+
+func executeVariantQuery(variantIDs, variantNames []string) ([]*dtos.VariantWithProducts, map[string]*dtos.VariantWithProducts, error) {
+	query, args := buildVariantQuery(variantIDs, variantNames)
+
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	return scanVariantRows(rows)
+}
+
+func buildVariantQuery(variantIDs, variantNames []string) (string, []interface{}) {
 	query := `
         SELECT v.variant_id, v.variant_type, v.name, v.hex_code,
                pv.additional_price, pv.stock_quantity
@@ -208,28 +265,38 @@ func GetVariantsWithProductsPaginated(variants []dtos.Variant, page, limit int) 
         INNER JOIN product_variants pv ON v.variant_id = pv.variant_id
         WHERE 1=1
     `
+	var args []interface{}
 
-	if len(variantIDs) > 0 {
-		query += " AND v.variant_id IN (?" + strings.Repeat(",?", len(variantIDs)-1) + ")"
-		for _, id := range variantIDs {
-			args = append(args, id)
-		}
+	query, args = addInClause(query, args, "v.variant_id", variantIDs)
+	query, args = addInClause(query, args, "LOWER(v.name)", transformToLower(variantNames))
+
+	return query, args
+}
+
+func addInClause(query string, args []interface{}, field string, values []string) (string, []interface{}) {
+	if len(values) == 0 {
+		return query, args
 	}
 
-	if len(variantNames) > 0 {
-		query += " AND LOWER(v.name) IN (?" + strings.Repeat(",?", len(variantNames)-1) + ")"
-		for _, name := range variantNames {
-			args = append(args, strings.ToLower(name))
-		}
+	placeholders := "?" + strings.Repeat(",?", len(values)-1)
+	query += fmt.Sprintf(" AND %s IN (%s)", field, placeholders)
+
+	for _, value := range values {
+		args = append(args, value)
 	}
 
-	// Get all matching variants
-	rows, err := DB.Query(query, args...)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer rows.Close()
+	return query, args
+}
 
+func transformToLower(names []string) []string {
+	result := make([]string, len(names))
+	for i, name := range names {
+		result[i] = strings.ToLower(name)
+	}
+	return result
+}
+
+func scanVariantRows(rows *sql.Rows) ([]*dtos.VariantWithProducts, map[string]*dtos.VariantWithProducts, error) {
 	var variantResults []*dtos.VariantWithProducts
 	variantMap := make(map[string]*dtos.VariantWithProducts)
 
@@ -244,74 +311,79 @@ func GetVariantsWithProductsPaginated(variants []dtos.Variant, page, limit int) 
 		variantResults = append(variantResults, &variant)
 	}
 
-	if len(variantResults) == 0 {
-		return nil, nil, nil
+	return variantResults, variantMap, nil
+}
+
+func extractVariantIDs(variants []*dtos.VariantWithProducts) []string {
+	ids := make([]string, len(variants))
+	for i, v := range variants {
+		ids[i] = v.VariantID
+	}
+	return ids
+}
+
+func countTotalProducts(variantIDs []string) (int, error) {
+	if len(variantIDs) == 0 {
+		return 0, nil
 	}
 
-	// Get variant IDs for product counting
-	var resultVariantIDs []string
-	for _, v := range variantResults {
-		resultVariantIDs = append(resultVariantIDs, v.VariantID)
-	}
+	query := "SELECT COUNT(DISTINCT p.product_id) FROM products p " +
+		"INNER JOIN product_variants pv ON p.product_id = pv.product_id " +
+		"WHERE pv.variant_id IN (?" + strings.Repeat(",?", len(variantIDs)-1) + ")"
 
-	// Count total products across all variants for pagination
-	countQuery := `
-        SELECT COUNT(DISTINCT p.product_id)
-        FROM products p
-        INNER JOIN product_variants pv ON p.product_id = pv.product_id
-        WHERE pv.variant_id IN (?
-    ` + strings.Repeat(",?", len(resultVariantIDs)-1) + ")"
-
-	countArgs := make([]interface{}, len(resultVariantIDs))
-	for i, id := range resultVariantIDs {
-		countArgs[i] = id
-	}
+	args := makeInterfaceSlice(variantIDs)
 
 	var total int
-	err = DB.QueryRow(countQuery, countArgs...).Scan(&total)
-	if err != nil {
-		return nil, nil, err
-	}
+	err := DB.QueryRow(query, args...).Scan(&total)
+	return total, err
+}
 
-	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-	offset := (page - 1) * limit
+func associateProductsWithVariants(variantMap map[string]*dtos.VariantWithProducts, products []dtos.Product, productVariantMap map[string][]string) {
+	productMap := createProductMap(products)
 
-	// Fetch paginated products for all variants
-	products, productVariantMap, err := fetchProductsByVariantsPaginated(resultVariantIDs, limit, offset)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Distribute products to their respective variants using the join table mapping
 	for variantID, productIDs := range productVariantMap {
 		if variant, exists := variantMap[variantID]; exists {
-			for _, product := range products {
-				for _, productID := range productIDs {
-					if product.ID == productID {
-						variant.Products = append(variant.Products, product)
-						break
-					}
-				}
-			}
+			variant.Products = findProductsByIDs(productMap, productIDs)
 		}
 	}
+}
 
-	// Handle "All" variant names - return all products for those variant IDs
+func createProductMap(products []dtos.Product) map[string]dtos.Product {
+	productMap := make(map[string]dtos.Product)
+	for _, product := range products {
+		productMap[product.ID] = product
+	}
+	return productMap
+}
+
+func findProductsByIDs(productMap map[string]dtos.Product, productIDs []string) []dtos.Product {
+	var result []dtos.Product
+	for _, productID := range productIDs {
+		if product, exists := productMap[productID]; exists {
+			result = append(result, product)
+		}
+	}
+	return result
+}
+
+func handleAllVariants(variants []dtos.Variant, variantMap map[string]*dtos.VariantWithProducts) error {
 	for _, variant := range variants {
 		if variant.Name == "All" && variant.VariantID != "" {
 			if existingVariant, exists := variantMap[variant.VariantID]; exists {
-				// This variant should include all products, not just paginated ones
 				allProducts, err := fetchAllProductsByVariant(variant.VariantID)
 				if err != nil {
-					return nil, nil, err
+					return err
 				}
 				existingVariant.Products = allProducts
 			}
 		}
 	}
+	return nil
+}
 
-	// Pagination meta
-	pagination := &dtos.PaginationMeta{
+func createPaginationMeta(page, limit, total int) *dtos.PaginationMeta {
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	return &dtos.PaginationMeta{
 		Page:       page,
 		Size:       limit,
 		TotalItems: total,
@@ -319,42 +391,68 @@ func GetVariantsWithProductsPaginated(variants []dtos.Variant, page, limit int) 
 		HasPrev:    page > 1,
 		HasNext:    page < totalPages,
 	}
-
-	return variantResults, pagination, nil
 }
 
+func makeInterfaceSlice(strings []string) []interface{} {
+	args := make([]interface{}, len(strings))
+	for i, s := range strings {
+		args[i] = s
+	}
+	return args
+}
+
+// Refactored fetchProductsByVariantsPaginated function
 func fetchProductsByVariantsPaginated(variantIDs []string, limit, offset int) ([]dtos.Product, map[string][]string, error) {
 	if len(variantIDs) == 0 {
 		return nil, nil, errors.New("no variant IDs provided")
 	}
 
-	// First, get the product IDs and their variant mappings
-	mappingQuery := `
-        SELECT pv.variant_id, pv.product_id
-        FROM product_variants pv
-        WHERE pv.variant_id IN (?
-    ` + strings.Repeat(",?", len(variantIDs)-1) + `)
-    ORDER BY pv.product_id`
-
-	mappingArgs := make([]interface{}, len(variantIDs))
-	for i, id := range variantIDs {
-		mappingArgs[i] = id
-	}
-
-	mappingRows, err := DB.Query(mappingQuery, mappingArgs...)
+	productVariantMap, productIDs, err := fetchProductVariantMappings(variantIDs)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer mappingRows.Close()
 
-	productVariantMap := make(map[string][]string) // variantID -> []productIDs
+	if len(productIDs) == 0 {
+		return nil, productVariantMap, nil
+	}
+
+	products, err := fetchPaginatedProducts(productIDs, limit, offset)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return products, productVariantMap, nil
+}
+
+func fetchProductVariantMappings(variantIDs []string) (map[string][]string, []string, error) {
+	query := buildMappingQuery(variantIDs)
+	args := makeInterfaceSlice(variantIDs)
+
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	return scanProductVariantMappings(rows)
+}
+
+func buildMappingQuery(variantIDs []string) string {
+	return `
+        SELECT pv.variant_id, pv.product_id
+        FROM product_variants pv
+        WHERE pv.variant_id IN (?` + strings.Repeat(",?", len(variantIDs)-1) + `)
+        ORDER BY pv.product_id`
+}
+
+func scanProductVariantMappings(rows *sql.Rows) (map[string][]string, []string, error) {
+	productVariantMap := make(map[string][]string)
 	allProductIDs := make(map[string]bool)
 	var productIDs []string
 
-	for mappingRows.Next() {
+	for rows.Next() {
 		var variantID, productID string
-		err := mappingRows.Scan(&variantID, &productID)
-		if err != nil {
+		if err := rows.Scan(&variantID, &productID); err != nil {
 			return nil, nil, err
 		}
 
@@ -365,57 +463,63 @@ func fetchProductsByVariantsPaginated(variantIDs []string, limit, offset int) ([
 		}
 	}
 
-	if len(productIDs) == 0 {
-		return nil, productVariantMap, nil
+	return productVariantMap, productIDs, nil
+}
+
+func fetchPaginatedProducts(productIDs []string, limit, offset int) ([]dtos.Product, error) {
+	query := buildProductQueryVariants(productIDs)
+	args := makeInterfaceSlice(productIDs)
+	args = append(args, limit, offset)
+
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products, err := scanProducts(rows)
+	if err != nil {
+		return nil, err
 	}
 
-	// Now fetch the actual product data with pagination
-	productQuery := `
+	return fetchProductImagesBatch(products)
+}
+
+func buildProductQueryVariants(productIDs []string) string {
+	return `
         SELECT p.product_id, p.name, p.description, p.price, p.category_id,
                p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
         FROM products p
-        WHERE p.product_id IN (?
-    ` + strings.Repeat(",?", len(productIDs)-1) + `)
-    ORDER BY p.product_id
-    LIMIT ? OFFSET ?`
+        WHERE p.product_id IN (?` + strings.Repeat(",?", len(productIDs)-1) + `)
+        ORDER BY p.product_id
+        LIMIT ? OFFSET ?`
+}
 
-	productArgs := make([]interface{}, len(productIDs)+2)
-	for i, id := range productIDs {
-		productArgs[i] = id
-	}
-	productArgs[len(productIDs)] = limit
-	productArgs[len(productIDs)+1] = offset
-
-	productRows, err := DB.Query(productQuery, productArgs...)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer productRows.Close()
-
+func scanProducts(rows *sql.Rows) ([]dtos.Product, error) {
 	var products []dtos.Product
-	productMap := make(map[string]dtos.Product)
 
-	for productRows.Next() {
+	for rows.Next() {
 		var p dtos.Product
-		err := productRows.Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.CategoryID,
+		err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.CategoryID,
 			&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		productMap[p.ID] = p
 		products = append(products, p)
 	}
 
-	// Fetch images for all products
+	return products, nil
+}
+
+func fetchProductImagesBatch(products []dtos.Product) ([]dtos.Product, error) {
 	for i := range products {
 		images, err := fetchProductImages(products[i].ID)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		products[i].Images = images
 	}
-
-	return products, productVariantMap, nil
+	return products, nil
 }
 
 func fetchAllProductsByVariant(variantID string) ([]dtos.Product, error) {
