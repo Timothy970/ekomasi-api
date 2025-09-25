@@ -25,7 +25,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"github.com/uptrace/uptrace-go/uptrace"
@@ -54,13 +53,6 @@ const migrationDir = "migrations"
 
 // Load environment variables
 func init() {
-	// Load .env file if it exists
-	if os.Getenv("ENVIRONMENT") != "production" {
-		err := godotenv.Load()
-		if err != nil {
-			log.Printf("Error loading .env file: %v", err)
-		}
-	}
 	// Initialize database connection or other configurations here.
 	fmt.Println("Initializing server...")
 }
@@ -122,13 +114,6 @@ func main() {
 		fmt.Println("Migration completed successfully.")
 		return
 	}
-	// Open or create the log file
-	logFile, err := os.OpenFile("storage/logs/adenzo.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
-	}
-	defer logFile.Close() // Ensures the log file is closed when the program exits
-	log.SetOutput(logFile)
 	// Initialize Redis client
 	redisClient = redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379", // Redis server address
@@ -140,7 +125,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err = redisClient.Ping(ctx).Result()
+	_, err := redisClient.Ping(ctx).Result()
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
