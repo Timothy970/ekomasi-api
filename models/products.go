@@ -392,9 +392,10 @@ func getProductVariants(productID string) ([]dtos.ProductVariants, error) {
 func GetProductByID(productID string) (*dtos.Product, error) {
 	query := `
 		SELECT 
-			product_id, name, description, sku, price, category_id,
-			stock_quantity, search_vector, created_at, last_updated_at
-		FROM products
+			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.category_id
 		WHERE product_id = ?
 	`
 
@@ -402,6 +403,7 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 	err := DB.QueryRow(query, productID).Scan(
 		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
 		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
+		&p.CategoryName,
 	)
 	if err != nil {
 		return nil, err
