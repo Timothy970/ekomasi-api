@@ -19,12 +19,6 @@ env:
     value: 8009
   - name: V2_URL
     value: http://api-v2.communications.svc.cluster.local:8080
-  - name: MYSQL_HOST
-    value: 10.0.1.29
-  - name: MYSQL_USER
-    value: adenzo
-  - name: MYSQL_PORT
-    value: 3306
   - name: DB_NAME
     value: adenzo
   - name: SHORTCODE
