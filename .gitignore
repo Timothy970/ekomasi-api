@@ -8,3 +8,4 @@ storage/logs/adenzo.*
 
 service.json
 /.idea
+docker

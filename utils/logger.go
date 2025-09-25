@@ -120,13 +120,6 @@ func LogWithSpan(ctx context.Context, spanName string, fn func(context.Context))
 
 // SetupFileLogging sets up file logging alongside OpenTelemetry
 func SetupFileLogging() {
-	// Open or create the log file
-	_, err := os.OpenFile("storage/logs/adenzo.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		Logger.Error("Failed to open log file", "error", err)
-		return
-	}
-
 	// Set up a multi-writer logger (both console and file)
 	multiLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
