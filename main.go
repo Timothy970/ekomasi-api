@@ -207,7 +207,8 @@ func initDBConnection(user, password, host, port, dbName string) (*sql.DB, error
 		DBName: dbName,
 		Params: map[string]string{
 			"parseTime":            "true",
-			"loc":                  "Africa/Nairobi",
+			// This was causing the connection to fail when using a DB in Belgium
+			// "loc":                  "Africa/Nairobi",
 			"allowNativePasswords": "true",
 		},
 	}
