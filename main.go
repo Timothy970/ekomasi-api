@@ -205,6 +205,7 @@ func initDBConnection(user, password, host, port, dbName string) (*sql.DB, error
 		Net:    "tcp",
 		Addr:   fmt.Sprintf("%s:%s", host, port),
 		DBName: dbName,
+		TLSConfig: "skip-verify",
 		Params: map[string]string{
 			"parseTime":            "true",
 			// This was causing the connection to fail when using a DB in Belgium
