@@ -41,7 +41,7 @@ func ValidateStruct(data any) map[string]string {
 }
 
 // ValidateStructAndRespond validates, responds with 400 if errors, returns (isValid)
-func ValidateStructAndRespond(
+var ValidateStructAndRespond = func(
 	data any,
 	w http.ResponseWriter,
 	r *http.Request,
@@ -66,7 +66,7 @@ func ValidateStructAndRespond(
 	return true
 }
 
-func RequireAdmin(
+var RequireAdmin = func(
 	r *http.Request,
 	w http.ResponseWriter,
 	start time.Time,

@@ -25,7 +25,7 @@ func isChartAccountCodeThere(code string) error {
 }
 
 // Chart of Accounts
-func CreateAccount(req dtos.CreateAccountRequest) (string, error) {
+var CreateAccount = func(req dtos.CreateAccountRequest) (string, error) {
 	err := isChartAccountCodeThere(req.AccountCode)
 	if err != nil {
 		return "", err
@@ -40,7 +40,7 @@ func CreateAccount(req dtos.CreateAccountRequest) (string, error) {
 	return id, err
 }
 
-func ListAccounts(page, size int) ([]dtos.ChartOfAccount, dtos.PaginationMeta, error) {
+var ListAccounts = func(page, size int) ([]dtos.ChartOfAccount, dtos.PaginationMeta, error) {
 	var total int
 	err := DB.QueryRow(`SELECT COUNT(*) FROM chart_of_accounts`).Scan(&total)
 	if err != nil {
@@ -79,7 +79,7 @@ func ListAccounts(page, size int) ([]dtos.ChartOfAccount, dtos.PaginationMeta, e
 	return accounts, meta, nil
 }
 
-func GetAccount(id string) (dtos.ChartOfAccount, error) {
+var GetAccount = func(id string) (dtos.ChartOfAccount, error) {
 	exists, err := RecordExists("chart_of_accounts", whereAccountID, id)
 	if err != nil {
 		return dtos.ChartOfAccount{}, err
@@ -95,7 +95,7 @@ func GetAccount(id string) (dtos.ChartOfAccount, error) {
 	return acc, err
 }
 
-func UpdateAccount(id string, req dtos.UpdateAccountRequest) error {
+var UpdateAccount = func(id string, req dtos.UpdateAccountRequest) error {
 	exists, err := RecordExists("chart_of_accounts", whereAccountID, id)
 	if err != nil {
 		return err
@@ -110,7 +110,7 @@ func UpdateAccount(id string, req dtos.UpdateAccountRequest) error {
 	return err
 }
 
-func DeleteAccount(id string) error {
+var DeleteAccount = func(id string) error {
 	exists, err := RecordExists("chart_of_accounts", whereAccountID, id)
 	if err != nil {
 		return err
@@ -124,7 +124,7 @@ func DeleteAccount(id string) error {
 
 // ===== Journal Entries =====
 
-func CreateEntry(req dtos.CreateJournalEntryRequest) (string, error) {
+var CreateEntry = func(req dtos.CreateJournalEntryRequest) (string, error) {
 	exists, err := RecordExists("chart_of_accounts", whereAccountID, req.AccountID)
 	if err != nil {
 		return "", err
@@ -160,7 +160,7 @@ func CreateEntry(req dtos.CreateJournalEntryRequest) (string, error) {
 	return id, err
 }
 
-func ListEntries(page, size int) ([]dtos.JournalEntry, dtos.PaginationMeta, error) {
+var ListEntries = func(page, size int) ([]dtos.JournalEntry, dtos.PaginationMeta, error) {
 	var total int
 	err := DB.QueryRow(`SELECT COUNT(*) FROM journal_entries`).Scan(&total)
 	if err != nil {
@@ -200,7 +200,7 @@ func ListEntries(page, size int) ([]dtos.JournalEntry, dtos.PaginationMeta, erro
 	return entries, meta, nil
 }
 
-func GetEntry(id string) (dtos.JournalEntry, error) {
+var GetEntry = func(id string) (dtos.JournalEntry, error) {
 	exists, err := RecordExists("journal_entries", whereEntryID, id)
 	if err != nil {
 		return dtos.JournalEntry{}, err
@@ -216,7 +216,7 @@ func GetEntry(id string) (dtos.JournalEntry, error) {
 	return e, err
 }
 
-func UpdateEntry(id string, req dtos.UpdateJournalEntryRequest) error {
+var UpdateEntry = func(id string, req dtos.UpdateJournalEntryRequest) error {
 	exists, err := RecordExists("journal_entries", whereEntryID, id)
 	if err != nil {
 		return err
@@ -231,7 +231,7 @@ func UpdateEntry(id string, req dtos.UpdateJournalEntryRequest) error {
 	return err
 }
 
-func DeleteEntry(id string) error {
+var DeleteEntry = func(id string) error {
 	exists, err := RecordExists("journal_entries", whereEntryID, id)
 	if err != nil {
 		return err

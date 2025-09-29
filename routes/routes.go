@@ -314,6 +314,8 @@ func SetupRoutes(router *mux.Router) {
 	order := api.PathPrefix("/order").Subrouter()
 	order.HandleFunc("/create", handlers.CreateOrderHandler).Methods("POST")
 	order.Handle("/view", middleware.AuthenticateToken(http.HandlerFunc(handlers.ViewOrder))).Methods("GET")
+	// pos view order
+	order.HandleFunc("/pos/view", handlers.ViewOrderPOS).Methods("GET")
 	order.Handle("/list-orders", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListOrders))).Methods("GET")
 	order.HandleFunc("/guest-orders/{order_id}/{email}/{phone_number}", handlers.ListGuestOrders).Methods("GET")
 	//reports

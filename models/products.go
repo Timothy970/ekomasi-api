@@ -1252,18 +1252,12 @@ func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID 
 	}
 	offset := (page - 1) * size
 
-	// Count top-level categories
-	totalItems, err := getTotalCategoriesCount(filterCategoryID)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	// Get top-level categories
 	categories, err := getMainCategories(filterCategoryID, size, offset)
 	if err != nil {
 		return nil, nil, err
 	}
-
+	var paginationMeta *dtos.PaginationMeta
 	// For each category, attach subcategories & products
 	for i := range categories {
 		subs, subIDs, err := getSubcategoriesProducts(categories[i].ID)
@@ -1272,25 +1266,15 @@ func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID 
 		}
 		categories[i].Subcategories = subs
 
-		if len(subIDs) > 0 {
-			products, err := getProductsForSubcategories(subIDs)
-			if err != nil {
-				return nil, nil, err
-			}
-			categories[i].Products = products
+		products, meta, err := getProductsForSubcategories(subIDs, page, size)
+		if err != nil {
+			return nil, nil, err
 		}
+		categories[i].Products = products
+		paginationMeta = meta
 	}
 
-	meta := &dtos.PaginationMeta{
-		Page:       page,
-		Size:       size,
-		TotalItems: totalItems,
-		TotalPages: (totalItems + size - 1) / size,
-		HasPrev:    page > 1,
-		HasNext:    page*size < totalItems,
-	}
-
-	return categories, meta, nil
+	return categories, paginationMeta, nil
 }
 func getTotalCategoriesCount(filterCategoryID string) (int, error) {
 	query := `SELECT COUNT(*) FROM categories WHERE parent_category_id IS NULL`
@@ -1360,24 +1344,52 @@ func getSubcategoriesProducts(parentID string) ([]dtos.SubcategoryResponse, []st
 	return subs, ids, nil
 }
 
-func getProductsForSubcategories(subIDs []string) ([]dtos.CategoryProduct, error) {
-	placeholders := strings.Repeat(",?", len(subIDs)-1)
-	query := fmt.Sprintf(`
-		SELECT p.product_id, p.name, p.description, p.sku, p.price,
-		       p.category_id, c.parent_category_id, p.stock_quantity, p.search_vector,
-		       p.created_at, p.last_updated_at
-		FROM products p
-		JOIN categories c ON p.category_id = c.category_id
-		WHERE p.category_id IN (?%s)`, placeholders)
+func getProductsForSubcategories(subIDs []string, page, size int) ([]dtos.CategoryProduct, *dtos.PaginationMeta, error) {
+	if len(subIDs) == 0 {
+		return nil, nil, nil
+	}
 
-	args := make([]interface{}, len(subIDs))
+	// Build placeholders for IN clause
+	placeholders := strings.Repeat(",?", len(subIDs)-1)
+	// Count total products for pagination
+	countQuery := fmt.Sprintf(`
+        SELECT COUNT(*)
+        FROM products
+        WHERE category_id IN (?%s)
+    `, placeholders)
+	countArgs := make([]interface{}, len(subIDs))
+	for i, id := range subIDs {
+		countArgs[i] = id
+	}
+	var totalItems int
+	if err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
+		return nil, nil, err
+	}
+
+	// Pagination
+	offset := (page - 1) * size
+
+	// Fetch products with pagination
+	query := fmt.Sprintf(`
+        SELECT p.product_id, p.name, p.description, p.sku, p.price,
+               p.category_id, c.parent_category_id, p.stock_quantity, p.search_vector,
+               p.created_at, p.last_updated_at
+        FROM products p
+        JOIN categories c ON p.category_id = c.category_id
+        WHERE p.category_id IN (?%s)
+        ORDER BY p.created_at DESC
+        LIMIT ? OFFSET ?
+    `, placeholders)
+	args := make([]interface{}, len(subIDs)+2)
 	for i, id := range subIDs {
 		args[i] = id
 	}
+	args[len(subIDs)] = size
+	args[len(subIDs)+1] = offset
 
 	rows, err := DB.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
@@ -1391,7 +1403,7 @@ func getProductsForSubcategories(subIDs []string) ([]dtos.CategoryProduct, error
 			&subcategoryID, &parentCategoryID, &pr.StockQuantity,
 			&pr.SearchVector, &pr.CreatedAt, &pr.LastUpdated,
 		); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		pr.CategoryID = parentCategoryID // top-level / parent category
@@ -1399,18 +1411,29 @@ func getProductsForSubcategories(subIDs []string) ([]dtos.CategoryProduct, error
 
 		images, err := fetchProductImages(pr.ID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		pr.Images = images
 		variants, err := getProductVariants(pr.ID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		pr.ProductVariants = variants
 
 		products = append(products, pr)
 	}
-	return products, nil
+
+	totalPages := int(math.Ceil(float64(totalItems) / float64(size)))
+	meta := &dtos.PaginationMeta{
+		Page:       page,
+		Size:       size,
+		TotalItems: totalItems,
+		TotalPages: totalPages,
+		HasPrev:    page > 1,
+		HasNext:    page < totalPages,
+	}
+
+	return products, meta, nil
 }
 
 // new fetch products
@@ -1477,7 +1500,10 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 		query += lowerPname
 		args = append(args, "%"+strings.ToLower(params.ProductName)+"%")
 	}
-
+	if params.SKU != "" {
+		query += " AND LOWER(p.sku) = ?"
+		args = append(args, strings.ToLower(params.SKU))
+	}
 	// Apply multiple variant filters
 	if len(params.Variants) > 0 {
 		variantSubquery := `
@@ -1541,7 +1567,10 @@ func buildCountQuerySearch(params dtos.SearchParams) (string, []interface{}) {
 		query += lowerPname
 		args = append(args, "%"+strings.ToLower(params.ProductName)+"%")
 	}
-
+	if params.SKU != "" {
+		query += " AND LOWER(p.sku) = ?"
+		args = append(args, strings.ToLower(params.SKU))
+	}
 	// Apply multiple variant filters
 	// Apply multiple variant filters
 	if len(params.Variants) > 0 {

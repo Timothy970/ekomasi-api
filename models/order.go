@@ -362,16 +362,13 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 }
 
 func UpdateOrderStatus(orderID, status string) error {
-	res, err := DB.Exec(`UPDATE orders SET status = ? WHERE order_id = ?`, status, orderID)
+	err := isOrderThere(orderID)
 	if err != nil {
 		return err
 	}
-	affected, err := res.RowsAffected()
+	_, err = DB.Exec(`UPDATE orders SET status = ? WHERE order_id = ?`, status, orderID)
 	if err != nil {
 		return err
-	}
-	if affected == 0 {
-		return errors.New("order not found")
 	}
 	return nil
 }

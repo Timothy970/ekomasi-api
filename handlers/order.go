@@ -225,10 +225,6 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 			respondWithError(http.StatusInternalServerError, "Could not fetch order")
 			return
 		}
-		if order == nil {
-			respondWithError(http.StatusNotFound, "Order not found")
-			return
-		}
 		respondWithSuccess(order)
 		return
 	}
@@ -282,15 +278,10 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := models.UpdateOrderStatus(orderID, req.Status); err != nil {
 		log.Printf("%s", err)
-		msg := ""
-		if err.Error() == "order not found" {
-			msg = "order not found"
-		} else {
-			msg = "Failed to update order status"
-		}
+
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
-			Message:   msg,
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -394,6 +385,52 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	order, err := models.GetOrderByUser(orderID, user.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	if order == nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   "Order not found",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   order,
+		Message:   "Orders",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+func ViewOrderPOS(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	orderID := r.URL.Query().Get("order_id")
+	if orderID == "" {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   InvalidOrderID,
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	order, err := models.GetOrderByID(orderID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,

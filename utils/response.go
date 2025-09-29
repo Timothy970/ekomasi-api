@@ -32,7 +32,7 @@ type ErrorJSONResponseOptions struct {
 	RawBody   string
 }
 
-func RespondWithError(w http.ResponseWriter, erropts ErrorJSONResponseOptions) {
+var RespondWithError = func(w http.ResponseWriter, erropts ErrorJSONResponseOptions) {
 
 	RespondWithJSON(w, SuccessJSONResponseOptions{
 		Code:      erropts.Code,
@@ -46,7 +46,7 @@ func RespondWithError(w http.ResponseWriter, erropts ErrorJSONResponseOptions) {
 
 }
 
-func RespondWithJSON(w http.ResponseWriter, opts SuccessJSONResponseOptions) {
+var RespondWithJSON = func(w http.ResponseWriter, opts SuccessJSONResponseOptions) {
 	ctx := opts.Request.Context()
 
 	userID := "unknown"
@@ -126,7 +126,7 @@ func levelFromStatus(code int) logger.LogLevel {
 }
 
 // GetRequestSummary returns a formatted string with method, path, address, and body
-func GetRequestSummary(r *http.Request) string {
+var GetRequestSummary = func(r *http.Request) string {
 	contentType := r.Header.Get("Content-Type")
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {

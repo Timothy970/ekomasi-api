@@ -146,6 +146,7 @@ type SearchParams struct {
 	SortBy       string
 	Page         int
 	Limit        int
+	SKU          string
 }
 
 type VariantFilter struct {
