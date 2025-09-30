@@ -1275,20 +1275,6 @@ func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID 
 
 	return categories, paginationMeta, nil
 }
-func getTotalCategoriesCount(filterCategoryID string) (int, error) {
-	query := `SELECT COUNT(*) FROM categories WHERE parent_category_id IS NULL`
-	args := []interface{}{}
-	if filterCategoryID != "" {
-		query += " AND category_id = ?"
-		args = append(args, filterCategoryID)
-	}
-
-	var count int
-	if err := DB.QueryRow(query, args...).Scan(&count); err != nil {
-		return 0, err
-	}
-	return count, nil
-}
 
 func getMainCategories(filterCategoryID string) ([]dtos.CategoryResponse, error) {
 	query := `
@@ -1300,8 +1286,6 @@ func getMainCategories(filterCategoryID string) ([]dtos.CategoryResponse, error)
 		query += " AND category_id = ?"
 		args = append(args, filterCategoryID)
 	}
-	// query += " ORDER BY category_id DESC LIMIT ? OFFSET ?"
-	// args = append(args, size, offset)
 
 	rows, err := DB.Query(query, args...)
 	if err != nil {
