@@ -361,34 +361,32 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 	return &ord, nil
 }
 
-func UpdateOrderStatus(orderID, status string) error {
-	err := isOrderThere(orderID)
-	if err != nil {
+func UpdateOrderStatus(orderID string, req dtos.UpdateOrderStatusRequest) error {
+	// Check if order exists
+	if err := isOrderThere(orderID); err != nil {
 		return err
 	}
-	_, err = DB.Exec(`UPDATE orders SET status = ? WHERE order_id = ?`, status, orderID)
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
-func getOrderItems(orderID string) ([]dtos.OrderItem, error) {
-	rows, err := DB.Query(`SELECT product_id, quantity, unit_price FROM order_items WHERE order_id = ?`, orderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var items []dtos.OrderItem
-	for rows.Next() {
-		var item dtos.OrderItem
-		if err := rows.Scan(&item.ProductID, &item.Quantity, &item.UnitPrice); err != nil {
-			return nil, err
+	// Update with or without payment method
+	if req.PaymentMethod != nil {
+		_, err := DB.Exec(
+			`UPDATE orders SET status = ?, payment_method = ? WHERE order_id = ?`,
+			req.Status, *req.PaymentMethod, orderID,
+		)
+		if err != nil {
+			return err
 		}
-		items = append(items, item)
+	} else {
+		_, err := DB.Exec(
+			`UPDATE orders SET status = ? WHERE order_id = ?`,
+			req.Status, orderID,
+		)
+		if err != nil {
+			return err
+		}
 	}
-	return items, nil
+
+	return nil
 }
 
 func isOrderThere(id string) error {

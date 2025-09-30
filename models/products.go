@@ -19,70 +19,63 @@ var lowerCname = " AND LOWER(c.name) LIKE ?"
 var lowerPname = " AND LOWER(p.name) LIKE ?"
 
 func GetAllProducts(categoryFilter, productFilter, categoryID string, page, limit int) ([]dtos.CategoryWithProducts, *dtos.PaginationMeta, error) {
-	// Build queries
 	if categoryID != "" {
-		err := CategoryExists(categoryID)
-		if err != nil {
+		if err := CategoryExists(categoryID); err != nil {
 			return nil, nil, err
 		}
 	}
 	query, args := buildProductQuery(categoryFilter, productFilter, categoryID, page, limit)
 	countQuery, countArgs := buildCountQuery(categoryFilter, productFilter, categoryID)
 
-	// Fetch products and categories
 	rows, err := DB.Query(query, args...)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
 
-	// Count total items
 	var totalItems int64
 	if err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
 		return nil, nil, err
 	}
 
-	// Map of categories
-	categoryMap := make(map[string]*dtos.CategoryWithProducts)
+	categoryMap, err := processProductRows(rows)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	// Process rows
+	result := buildResultFromCategoryMap(categoryMap, categoryID)
+
+	pagination := calculatePagination(page, limit, totalItems)
+	return result, &pagination, nil
+}
+
+// Helper to process product rows and build category map
+func processProductRows(rows *sql.Rows) (map[string]*dtos.CategoryWithProducts, error) {
+	categoryMap := make(map[string]*dtos.CategoryWithProducts)
 	for rows.Next() {
 		cat, prod, err := scanCategoryAndProduct(rows)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-
-		// Ensure category is initialized in the map
 		if _, exists := categoryMap[cat.CategoryID]; !exists {
 			categoryMap[cat.CategoryID] = &cat
 		}
-
-		// Append product if exists
 		if prod != nil {
 			categoryMap[cat.CategoryID].Products = append(categoryMap[cat.CategoryID].Products, *prod)
 		}
 	}
+	return categoryMap, nil
+}
 
-	var result []dtos.CategoryWithProducts
+// Helper to build result from category map
+func buildResultFromCategoryMap(categoryMap map[string]*dtos.CategoryWithProducts, categoryID string) []dtos.CategoryWithProducts {
 	if categoryID != "" {
-		// Find the specific category and build its complete hierarchy including parents
 		if targetCat, exists := categoryMap[categoryID]; exists {
-			// Build the complete hierarchy from root to the target category
-			completeHierarchy := buildCompleteHierarchyWithParents(categoryMap, targetCat)
-			result = completeHierarchy
-		} else {
-			// Category not found, return empty result
-			result = []dtos.CategoryWithProducts{}
+			return buildCompleteHierarchyWithParents(categoryMap, targetCat)
 		}
-	} else {
-		// No categoryID specified, return full hierarchy
-		result = buildCategoryHierarchy(categoryMap)
+		return []dtos.CategoryWithProducts{}
 	}
-
-	// Pagination
-	pagination := calculatePagination(page, limit, totalItems)
-
-	return result, &pagination, nil
+	return buildCategoryHierarchy(categoryMap)
 }
 
 // Helper function to build complete hierarchy including parents for a specific category

@@ -152,21 +152,22 @@ func isVariantThere(id string) error {
 	}
 	return nil
 }
-func GetUserByUserID(id string) (*dtos.User, error) {
+func GetUserByUserID(id string) (*dtos.Users, error) {
 	err := isUserThere(id)
 	if err != nil {
 		return nil, err
 	}
 
-	row := DB.QueryRow("SELECT user_id, first_name, last_name, email, role, phone_number FROM users WHERE user_id = ?", id)
+	row := DB.QueryRow("SELECT user_id, first_name, last_name, email, role, phone_number, last_login, created_at, status FROM users WHERE user_id = ?", id)
 
-	var user dtos.User
+	var user dtos.Users
 	var phone sql.NullString
 	var firstName sql.NullString
 	var lastName sql.NullString
 	var userEmail sql.NullString
+	var dateJoined, lastLogin sql.NullTime
 
-	err = row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &phone)
+	err = row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &phone, &lastLogin, &dateJoined, &user.Status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -191,6 +192,13 @@ func GetUserByUserID(id string) (*dtos.User, error) {
 	if phone.Valid {
 		user.Phone = phone.String
 	}
+	if dateJoined.Valid {
+		user.DateJoined = dateJoined.Time.Format("2006-01-02 15:04:05")
+	}
+	if lastLogin.Valid {
+		user.LastLogin = lastLogin.Time.Format("2006-01-02 15:04:05")
+	}
+	user.UserAddress, _ = GetUserAddresses(user.ID)
 
 	return &user, nil
 }
@@ -263,7 +271,7 @@ func UpdateLastLogin(userID string) error {
 	return err
 }
 
-func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.User, error) {
+func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, error) {
 	log.Printf("user id***%s", userID)
 	// Check if user exists
 	err := isUserThere(userID)

@@ -72,7 +72,8 @@ type CreateOrderRequest struct {
 }
 
 type UpdateOrderStatusRequest struct {
-	Status string `json:"status"`
+	Status        string  `json:"status" validate:"required"`
+	PaymentMethod *string `json:"payment_method"`
 }
 type OrderResponse struct {
 	ID          int     `json:"id"`

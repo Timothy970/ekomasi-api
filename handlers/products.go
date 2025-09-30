@@ -93,35 +93,6 @@ func parsePagination(pageStr, sizeStr string) (int, int) {
 	return page, limit
 }
 
-// getProductsFromCacheOrDB returns products from cache if available, otherwise from DB and updates cache.
-func getProductsFromCacheOrDB(page, limit int, categoryFilter, productFilter, categoryID string) ([]dtos.CategoryWithProducts, *dtos.PaginationMeta, error) {
-	var cachedProducts []dtos.CategoryWithProducts
-	var cachedPagination *dtos.PaginationMeta
-
-	cacheKeyProducts := fmt.Sprintf("products_page_%d_size_%d", page, limit)
-	cacheKeyPagination := fmt.Sprintf("pagination_page_%d_size_%d", page, limit)
-
-	_ = utils.GetCache(cacheKeyProducts, &cachedProducts)
-	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
-
-	// Cache hit
-	if cachedProducts != nil {
-		return cachedProducts, cachedPagination, nil
-	}
-
-	// Cache miss → fetch from DB
-	products, pagination, err := models.GetAllProducts(categoryFilter, productFilter, categoryID, page, limit)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Update cache (optional: add TTL)
-	_ = utils.SetCache(cacheKeyProducts, products)
-	_ = utils.SetCache(cacheKeyPagination, pagination)
-
-	return products, pagination, nil
-}
-
 // @Summary Product By ID Data
 // @Description Get product product by id.
 // @Tags Products

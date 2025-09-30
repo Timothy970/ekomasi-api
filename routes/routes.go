@@ -11,6 +11,8 @@ import (
 	"adenzo_backend/utils"
 )
 
+const vouchersPath = "/vouchers"
+
 func SetupRoutes(router *mux.Router) {
 	// Authentication routes
 	//handles userDecodeTokenHandler
@@ -62,7 +64,7 @@ func SetupRoutes(router *mux.Router) {
 	product := api.PathPrefix("/product").Subrouter()
 	products := api.PathPrefix("/products").Subrouter()
 	//Get product all products with their categories
-	// products.HandleFunc("", handlers.GetProductsHandler).Methods("GET")
+	products.HandleFunc("", handlers.GetProductsHandler).Methods("GET")
 	products.HandleFunc("/search", handlers.SearchProductsHandler).Methods("GET")
 	products.HandleFunc("/subcategories/{subcategory_id}", handlers.GetProductsHandlerBySubCategoryID).Methods("GET")
 	products.HandleFunc("/related", handlers.GetRelatedProductsHandler).Methods("GET")
@@ -201,16 +203,15 @@ func SetupRoutes(router *mux.Router) {
 	admin.Handle("/process-refund/{refund_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.ProcessRefund))).Methods("PATCH")
 	api.HandleFunc("/refunds", handlers.ListRefundsHandler).Methods("GET")
 	api.HandleFunc("/refunds/{refund_id}", handlers.GetRefundByIDHandler).Methods("GET")
-	api.Handle("user/refunds/{user_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetRefundByUserIDHandler))).Methods("GET")
-	//handle vouchers
-	vouchers := api.PathPrefix("/vouchers").Subrouter()
-	admin.Handle("/vouchers", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateVoucherHandler))).Methods("POST")
-	admin.Handle("/vouchers", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListVouchersHandler))).Methods("GET")
-	admin.Handle("/vouchers/{voucher_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetVoucherHandler))).Methods("GET")
+	vouchers := api.PathPrefix(vouchersPath).Subrouter()
+	admin.Handle(vouchersPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateVoucherHandler))).Methods("POST")
+	admin.Handle(vouchersPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.ListVouchersHandler))).Methods("GET")
+	admin.Handle(vouchersPath+"/{voucher_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetVoucherHandler))).Methods("GET")
 	//user vouchers
 	vouchers.Handle("/me/{voucher_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserVoucherHandler))).Methods("GET")
 	vouchers.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListUserVoucherHandler))).Methods("GET")
-	adminvoucher := admin.PathPrefix("/vouchers/{voucher_id}").Subrouter()
+	adminvoucher := admin.PathPrefix(vouchersPath + "/{voucher_id}").Subrouter()
+	vouchers.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListUserVoucherHandler))).Methods("GET")
 	adminvoucher.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateVoucherHandler))).Methods("PATCH")
 	adminvoucher.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteVoucherHandler))).Methods("DELETE")
 	// endpoint for users to buy a voucher
@@ -396,5 +397,7 @@ func SetupRoutes(router *mux.Router) {
 	promocodes.Handle(promocodeID, middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePromoCodeHandler))).Methods("PATCH")
 	// promocodes.Handle("ativate/{promo_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePromoCodeHandler))).Methods("PATCH")
 	promocodes.Handle(promocodeID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePromoCodeHandler))).Methods("DELETE")
-
+	//get user logs
+	admin.Handle("/logs/{user_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserLogsByUserID))).Methods("GET")
+	admin.Handle("/logs", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserLogs))).Methods("GET")
 }

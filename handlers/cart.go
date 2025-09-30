@@ -17,8 +17,6 @@ import (
 
 var notAuthenticated = "User not authenticated"
 
-const cartCacheDuration = 5 * time.Minute
-
 // Create a cart handler
 // @Summary Create Cart
 // @Description Create a user's cart

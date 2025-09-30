@@ -157,9 +157,15 @@ func VerifyWhatsAppHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
+	var User dtos.User
+	User.ID = user.ID
+	User.FirstName = user.FirstName
+	User.LastName = user.LastName
+	User.Email = user.Email
+	User.Role = user.Role
+	User.Phone = user.Phone
 	// Generate authentication token
-	authToken, err := generateToken(user, "auth", time.Hour)
+	authToken, err := generateToken(&User, "auth", time.Hour)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,

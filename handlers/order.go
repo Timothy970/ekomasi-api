@@ -276,7 +276,7 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := models.UpdateOrderStatus(orderID, req.Status); err != nil {
+	if err := models.UpdateOrderStatus(orderID, *req); err != nil {
 		log.Printf("%s", err)
 
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

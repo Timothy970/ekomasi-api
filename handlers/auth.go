@@ -299,7 +299,7 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate token
-	token, err := generateToken(user, "auth", time.Hour)
+	token, err := generateToken(user, "auth", 5*time.Hour)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
