@@ -779,7 +779,9 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Variants:     variants, // Now supports multiple variants
 		SortBy:       query.Get("sort_by"),
 		SKU:          query.Get("sku"),
+		Tag:          query.Get("tag"),
 	}
+	log.Printf("search params: %+v", searchParams)
 	// Parse pagination
 	page, limit := parsePagination(query.Get("page"), query.Get("size"))
 	searchParams.Page = page

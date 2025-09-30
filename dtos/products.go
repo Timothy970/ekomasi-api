@@ -11,6 +11,7 @@ type CreateProduct struct {
 	CategoryID    string  `json:"category_id" validate:"required"`
 	StockQuantity int     `json:"stock_quantity" validate:"required,gte=0"`
 	SearchVector  string  `json:"search_vector" validate:"required"`
+	Tag           *string `json:"tag,omitempty"`
 }
 
 // AddToCartWithVariantsRequest represents the request to add item with specific variants to cart
@@ -133,6 +134,7 @@ type CategoryProduct struct {
 	SearchVector    string            `json:"search_vector"`
 	CreatedAt       time.Time         `json:"created_at"`
 	LastUpdated     time.Time         `json:"last_updated"`
+	Tag             *string           `json:"tag"`
 	Images          []Image           `json:"urls"`
 	ProductVariants []ProductVariants `json:"products_variants"`
 }
@@ -147,6 +149,7 @@ type SearchParams struct {
 	Page         int
 	Limit        int
 	SKU          string
+	Tag          string
 }
 
 type VariantFilter struct {

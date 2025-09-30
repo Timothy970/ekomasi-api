@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS `products` (
    `category_id` char(36) NOT NULL,
    `stock_quantity` int NOT NULL DEFAULT '0',
    `search_vector` text,
+   `tag` varchar(100) DEFAULT NULL,
    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
    `last_updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
    PRIMARY KEY (`product_id`),

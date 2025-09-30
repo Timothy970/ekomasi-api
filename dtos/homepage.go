@@ -155,6 +155,7 @@ type Product struct {
 	Name            string            `json:"name"`
 	Description     string            `json:"description"`
 	SKU             string            `json:"sku"`
+	Tag             *string           `json:"tag"`
 	Price           float64           `json:"price"`
 	CategoryID      string            `json:"category_id"`
 	CategoryName    string            `json:"category_name"`

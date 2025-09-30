@@ -205,7 +205,7 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 		SELECT 
 			c.category_id, c.name, c.parent_category_id, c.description,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, p.tag
 		FROM categories c
 		LEFT JOIN products p ON c.category_id = p.category_id
 		WHERE 1=1`
@@ -259,9 +259,9 @@ func calculatePagination(page, limit int, totalItems int64) dtos.PaginationMeta 
 
 func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Product, error) {
 	var (
-		catID, catName, catDesc string
-		parentCatID             *string
-
+		catID, catName, catDesc                              string
+		parentCatID                                          *string
+		tag                                                  sql.NullString
 		productID, name, desc, sku, categoryID, searchVector sql.NullString
 		price                                                sql.NullFloat64
 		stockQuantity                                        sql.NullInt64
@@ -271,7 +271,7 @@ func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Pr
 	if err := rows.Scan(
 		&catID, &catName, &parentCatID, &catDesc,
 		&productID, &name, &desc, &sku, &price, &categoryID,
-		&stockQuantity, &searchVector, &createdAt, &updatedAt,
+		&stockQuantity, &searchVector, &createdAt, &updatedAt, &tag,
 	); err != nil {
 		return dtos.CategoryWithProducts{}, nil, err
 	}
@@ -292,7 +292,10 @@ func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Pr
 	if stockQuantity.Valid {
 		stock = int(stockQuantity.Int64)
 	}
-
+	tagPtr := ""
+	if tag.Valid {
+		tagPtr = tag.String
+	}
 	product := dtos.Product{
 		ID:            productID.String,
 		Name:          name.String,
@@ -302,6 +305,7 @@ func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Pr
 		CategoryID:    categoryID.String,
 		StockQuantity: stock,
 		SearchVector:  searchVector.String,
+		Tag:           &tagPtr,
 	}
 
 	if createdAt.Valid {
@@ -386,7 +390,7 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 	query := `
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
 		WHERE product_id = ?
@@ -396,7 +400,7 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 	err := DB.QueryRow(query, productID).Scan(
 		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
 		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
-		&p.CategoryName,
+		&p.CategoryName, &p.Tag,
 	)
 	if err != nil {
 		return nil, err
@@ -440,9 +444,9 @@ func AddNewProduct(input dtos.CreateProduct) (*dtos.CreateProduct, error) {
 	productID, _ := shortid.Generate()
 
 	_, err = DB.Exec(`
-		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector,
+		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag,
 	)
 	if err != nil {
 		return nil, err
@@ -482,9 +486,9 @@ func UpdateProductByID(productID string, input dtos.CreateProduct) (*dtos.Create
 	}
 	_, err = DB.Exec(`
 		UPDATE products
-		SET name = ?, description = ?, sku = ?, price = ?, stock_quantity = ?, search_vector = ?, last_updated_at = CURRENT_TIMESTAMP
+		SET name = ?, description = ?, sku = ?, price = ?, stock_quantity = ?, search_vector = ?, last_updated_at = CURRENT_TIMESTAMP, tag = ?
 		WHERE product_id = ?`,
-		input.Name, input.Description, input.SKU, input.Price, input.StockQuantity, input.SearchVector,
+		input.Name, input.Description, input.SKU, input.Price, input.StockQuantity, input.SearchVector, input.Tag,
 		productID,
 	)
 
@@ -589,7 +593,7 @@ func buildRelatedProductsQuery(categoryID, excludeProductID string, limit, page 
 	query := `
         SELECT 
             p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-            p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+            p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, p.tag
         FROM products p
         WHERE p.category_id = ?
     `
@@ -629,19 +633,22 @@ func buildRelatedProductsCountQuery(categoryID, excludeProductID string) (string
 
 func scanRelatedProduct(rows *sql.Rows) (dtos.Product, error) {
 	var (
-		productID, name, desc, sku, categoryID, searchVector sql.NullString
-		price                                                sql.NullFloat64
-		stockQuantity                                        sql.NullInt64
-		createdAt, updatedAt                                 sql.NullTime
+		productID, name, desc, sku, categoryID, searchVector, tag sql.NullString
+		price                                                     sql.NullFloat64
+		stockQuantity                                             sql.NullInt64
+		createdAt, updatedAt                                      sql.NullTime
 	)
 
 	if err := rows.Scan(
 		&productID, &name, &desc, &sku, &price, &categoryID,
-		&stockQuantity, &searchVector, &createdAt, &updatedAt,
+		&stockQuantity, &searchVector, &createdAt, &updatedAt, &tag,
 	); err != nil {
 		return dtos.Product{}, err
 	}
-
+	tagPtr := ""
+	if tag.Valid {
+		tagPtr = tag.String
+	}
 	product := dtos.Product{
 		ID:            productID.String,
 		Name:          name.String,
@@ -651,6 +658,7 @@ func scanRelatedProduct(rows *sql.Rows) (dtos.Product, error) {
 		CategoryID:    categoryID.String,
 		StockQuantity: int(stockQuantity.Int64),
 		SearchVector:  searchVector.String,
+		Tag:           &tagPtr,
 	}
 
 	if createdAt.Valid {
@@ -1144,7 +1152,7 @@ func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.Subca
 	rows, err := DB.Query(`
 		SELECT 
 			product_id, name, description, sku, price, category_id, 
-			stock_quantity, search_vector, created_at, last_updated_at
+			stock_quantity, search_vector, created_at, last_updated_at, tag
 		FROM products
 		WHERE category_id = ?
 		ORDER BY created_at DESC
@@ -1160,7 +1168,7 @@ func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.Subca
 		if err := rows.Scan(
 			&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price,
 			&p.CategoryID, &p.StockQuantity, &p.SearchVector,
-			&p.CreatedAt, &p.LastUpdated,
+			&p.CreatedAt, &p.LastUpdated, &p.Tag,
 		); err != nil {
 			return nil, nil, err
 		}
@@ -1349,7 +1357,7 @@ func getProductsForSubcategories(subIDs []string, page, size int) ([]dtos.Catego
 	query := fmt.Sprintf(`
         SELECT p.product_id, p.name, p.description, p.sku, p.price,
                p.category_id, c.parent_category_id, p.stock_quantity, p.search_vector,
-               p.created_at, p.last_updated_at
+               p.created_at, p.last_updated_at, p.tag
         FROM products p
         JOIN categories c ON p.category_id = c.category_id
         WHERE p.category_id IN (?%s)
@@ -1377,7 +1385,7 @@ func getProductsForSubcategories(subIDs []string, page, size int) ([]dtos.Catego
 		if err := rows.Scan(
 			&pr.ID, &pr.Name, &pr.Description, &pr.SKU, &pr.Price,
 			&subcategoryID, &parentCategoryID, &pr.StockQuantity,
-			&pr.SearchVector, &pr.CreatedAt, &pr.LastUpdated,
+			&pr.SearchVector, &pr.CreatedAt, &pr.LastUpdated, &pr.Tag,
 		); err != nil {
 			return nil, nil, err
 		}
@@ -1454,7 +1462,7 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 		SELECT DISTINCT
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at,
-			c.name as category_name
+			c.name as category_name, p.tag
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
 		WHERE 1=1
@@ -1479,6 +1487,10 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 	if params.SKU != "" {
 		query += " AND LOWER(p.sku) = ?"
 		args = append(args, strings.ToLower(params.SKU))
+	}
+	if params.Tag != "" {
+		query += " AND LOWER(p.tag) = ?"
+		args = append(args, strings.ToLower(params.Tag))
 	}
 	// Apply multiple variant filters
 	if len(params.Variants) > 0 {
@@ -1546,6 +1558,10 @@ func buildCountQuerySearch(params dtos.SearchParams) (string, []interface{}) {
 	if params.SKU != "" {
 		query += " AND LOWER(p.sku) = ?"
 		args = append(args, strings.ToLower(params.SKU))
+	}
+	if params.Tag != "" {
+		query += " AND LOWER(p.tag) = ?"
+		args = append(args, strings.ToLower(params.Tag))
 	}
 	// Apply multiple variant filters
 	// Apply multiple variant filters
@@ -1621,15 +1637,15 @@ func getSortClause(sortBy string) string {
 }
 func scanProduct(rows *sql.Rows) (dtos.Product, error) {
 	var (
-		productID, name, desc, sku, categoryID, searchVector, categoryName sql.NullString
-		price                                                              sql.NullFloat64
-		stockQuantity                                                      sql.NullInt64
-		createdAt, updatedAt                                               sql.NullTime
+		productID, name, desc, sku, categoryID, searchVector, categoryName, tag sql.NullString
+		price                                                                   sql.NullFloat64
+		stockQuantity                                                           sql.NullInt64
+		createdAt, updatedAt                                                    sql.NullTime
 	)
 
 	if err := rows.Scan(
 		&productID, &name, &desc, &sku, &price, &categoryID,
-		&stockQuantity, &searchVector, &createdAt, &updatedAt, &categoryName,
+		&stockQuantity, &searchVector, &createdAt, &updatedAt, &categoryName, &tag,
 	); err != nil {
 		return dtos.Product{}, err
 	}
@@ -1638,7 +1654,10 @@ func scanProduct(rows *sql.Rows) (dtos.Product, error) {
 	if stockQuantity.Valid {
 		stock = int(stockQuantity.Int64)
 	}
-
+	tagStr := ""
+	if tag.Valid {
+		tagStr = strings.TrimSpace(tag.String)
+	}
 	product := dtos.Product{
 		ID:            productID.String,
 		Name:          name.String,
@@ -1649,6 +1668,7 @@ func scanProduct(rows *sql.Rows) (dtos.Product, error) {
 		CategoryName:  categoryName.String,
 		StockQuantity: stock,
 		SearchVector:  searchVector.String,
+		Tag:           &tagStr,
 	}
 
 	if createdAt.Valid {
