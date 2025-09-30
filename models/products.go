@@ -1250,10 +1250,9 @@ func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID 
 			return nil, nil, fmt.Errorf("cannot use a subcategory ID, must be a main category")
 		}
 	}
-	offset := (page - 1) * size
 
 	// Get top-level categories
-	categories, err := getMainCategories(filterCategoryID, size, offset)
+	categories, err := getMainCategories(filterCategoryID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1291,7 +1290,7 @@ func getTotalCategoriesCount(filterCategoryID string) (int, error) {
 	return count, nil
 }
 
-func getMainCategories(filterCategoryID string, size, offset int) ([]dtos.CategoryResponse, error) {
+func getMainCategories(filterCategoryID string) ([]dtos.CategoryResponse, error) {
 	query := `
 		SELECT category_id, name, parent_category_id, image, description
 		FROM categories
@@ -1301,8 +1300,8 @@ func getMainCategories(filterCategoryID string, size, offset int) ([]dtos.Catego
 		query += " AND category_id = ?"
 		args = append(args, filterCategoryID)
 	}
-	query += " ORDER BY category_id DESC LIMIT ? OFFSET ?"
-	args = append(args, size, offset)
+	// query += " ORDER BY category_id DESC LIMIT ? OFFSET ?"
+	// args = append(args, size, offset)
 
 	rows, err := DB.Query(query, args...)
 	if err != nil {
