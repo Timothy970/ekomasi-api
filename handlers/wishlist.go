@@ -79,7 +79,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		Code:      http.StatusOK,
 		Payload:   nil,
 		Message:   "Product added successfully to the wishlist",
 		TimeTaken: time.Since(start),

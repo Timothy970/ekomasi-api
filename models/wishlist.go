@@ -179,21 +179,28 @@ func CreateNewWishList(Name, userID string) (string, error) {
 }
 func CreateWishListItem(wishlistID, productID, userID string) error {
 	//check if product exists
-	exists, err := RecordExists("products", "product_id = ?", productID)
+	err := isProductThere(productID)
 	if err != nil {
 		return err
 	}
-	if !exists {
-		return fmt.Errorf("product not found")
-	}
+
 	//check is wishlist exists
-	exists, err = RecordExists("wishlists", fetchwishlist, wishlistID)
+	exists, err := RecordExists("wishlists", fetchwishlist, wishlistID)
 	if err != nil {
 		return err
 	}
 	if !exists {
 		return fmt.Errorf("%s", nowishlist)
 	}
+	//check if item already in wishlist
+	exists, err = RecordExists("wishlist_items", "wishlist_id = ? AND product_id = ?", wishlistID, productID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("product already in wishlist")
+	}
+
 	itemID, _ := shortid.Generate()
 
 	query := `INSERT INTO wishlist_items (wishlist_item_id, wishlist_id, product_id) VALUES (?, ?, ?)`

@@ -109,3 +109,39 @@ func GetCategoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// Admin Handler to get categries with pagination
+// To return name, type,items,subactegories,description
+func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+
+	categories, pagination, err := models.GetAdminCategories(page, limit)
+	if err != nil {
+		log.Printf("Failed to get categories: %v", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   map[string]any{"categories": categories, "pagination": pagination},
+		Message:   "Category fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
