@@ -893,11 +893,26 @@ func scanBundleAndProduct(rows *sql.Rows) (dtos.GetBundleRequest, *dtos.Product,
 
 // create bundle
 func CreateBundle(req dtos.Bundle) error {
+	err := isCategoryThere(req.CategoryID)
+	if err != nil {
+		return err
+	}
+	var parentID *string
+	err = DB.QueryRow("SELECT parent_category_id FROM categories WHERE category_id = ?", req.CategoryID).Scan(&parentID)
+	if err != nil {
+		return err
+	}
+
+	// 3. Prevent adding product to parent category
+	if parentID == nil {
+		return fmt.Errorf("cannot create bundle in a parent category, choose a subcategory instead")
+	}
+
 	bundleID, _ := shortid.Generate()
-	_, err := DB.Exec(`
-		INSERT INTO product_bundles (bundle_id, name, description, bundle_price)
-		VALUES (?,?,?,?)
-	`, bundleID, req.Name, req.Description, req.Price)
+	_, err = DB.Exec(`
+		INSERT INTO product_bundles (bundle_id, name, description, bundle_price, bundle_image, category_id)
+		VALUES (?,?,?,?,?,?)
+	`, bundleID, req.Name, req.Description, req.Price, req.Image, req.CategoryID)
 	if err != nil {
 		return err
 	}

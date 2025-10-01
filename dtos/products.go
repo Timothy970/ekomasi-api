@@ -55,9 +55,11 @@ type GetBundleRequest struct {
 	Products          []Product `json:"products"`
 }
 type Bundle struct {
-	Name        string  `json:"bundle_name"`
-	Description string  `json:"bundle_description"`
-	Price       float64 `json:"bundle_price"`
+	Name        string  `json:"bundle_name" validate:"required"`
+	Description string  `json:"bundle_description" validate:"required"`
+	Price       float64 `json:"bundle_price" validate:"required,min=0"`
+	Image       string  `json:"bundle_image" validate:"required"`
+	CategoryID  string  `json:"category_id" validate:"required"`
 }
 type UpdateBundle struct {
 	ID          string  `json:"bundle_id" validate:"required"`
