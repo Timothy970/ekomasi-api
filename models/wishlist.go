@@ -229,13 +229,20 @@ func RemoveWishlistItem(wishlistID, productID, userID string) error {
 	if !exists {
 		return fmt.Errorf("%s", nowishlist)
 	}
+	//check if item already in wishlist
+	exists, err = RecordExists("wishlist_items", "wishlist_id = ? AND product_id = ?", wishlistID, productID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("product not in wishlist")
+	}
 	query := `DELETE FROM wishlist_items WHERE product_id = ?`
 	_, err = DB.Exec(query, productID)
 	if err != nil {
 		return err
 	}
 	return nil
-	// return GetAllUserWishList(userID)
 }
 func GetWishlistByID(wishlistID string) ([]dtos.AllWishlist, error) {
 	// Step 1: Get all wishlists for the user
@@ -326,4 +333,33 @@ func UpdateImageURLs() (int64, error) {
 	}
 
 	return rowsAffected, nil
+}
+func GetMyWishlistItems(userID string) (dtos.AllWishlist, error) {
+	var wishlistID string
+	var Name string
+	var IsPublic bool
+	//a user has one wishlist
+	query := `SELECT wishlist_id, name, is_public FROM wishlists WHERE user_id = ? LIMIT 1`
+	err := DB.QueryRow(query, userID).Scan(&wishlistID, &Name, &IsPublic)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return dtos.AllWishlist{}, fmt.Errorf("no wishlist found for user")
+		}
+		return dtos.AllWishlist{}, err
+	}
+
+	products, err := fetchProductsForWishlist(wishlistID)
+	if err != nil {
+		return dtos.AllWishlist{}, err
+	}
+
+	wishlist := dtos.AllWishlist{
+		WishlistID: wishlistID,
+		Name:       Name,
+		IsPublic:   IsPublic,
+		Products:   products,
+	}
+	return wishlist, nil
+
 }

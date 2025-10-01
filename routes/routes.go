@@ -12,6 +12,7 @@ import (
 )
 
 const vouchersPath = "/vouchers"
+const wishlistProductPath = "/product"
 
 func SetupRoutes(router *mux.Router) {
 	// Authentication routes
@@ -52,11 +53,11 @@ func SetupRoutes(router *mux.Router) {
 	wishlist := api.PathPrefix("/wishlist").Subrouter()
 
 	wishlist.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllUserWishList))).Methods("GET")
+	wishlist.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetMyWishList))).Methods("GET")
 	// wishlist.Handle("/{wishlist_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllUserWishList))).Methods("GET")
-	wishlist.Handle("/{wishlist_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteWishList))).Methods("DELETE")
-	// wishlist.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateWishList))).Methods("POST")
-	wishlist.Handle("/product", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddToWishList))).Methods("POST")
-	wishlist.Handle("/product/{wishlist_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveFromWishList))).Methods("DELETE")
+	wishlist.Handle("delete/{wishlist_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteWishList))).Methods("DELETE")
+	wishlist.Handle(wishlistProductPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.AddToWishList))).Methods("POST")
+	wishlist.Handle("/product/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveFromWishList))).Methods("DELETE")
 	wishlist.Handle("/share", middleware.AuthenticateToken(http.HandlerFunc(handlers.SendWishlistToShare))).Methods("POST")
 	wishlist.Handle("/share/{wishlist_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.ReceiceWishlistShared))).Methods("GET")
 
