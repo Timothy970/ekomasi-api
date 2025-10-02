@@ -335,7 +335,7 @@ func scanCategoryProductRow(rows *sql.Rows) (string, string, string, *string, dt
 
 func fetchProductImages(productID string) ([]dtos.Image, error) {
 	rows, err := DB.Query(`
-		SELECT image_id, url, is_primary 
+		SELECT image_id, url, is_primary, type
 		FROM product_images 
 		WHERE product_id = ?`, productID,
 	)
@@ -347,7 +347,7 @@ func fetchProductImages(productID string) ([]dtos.Image, error) {
 	var images []dtos.Image
 	for rows.Next() {
 		var img dtos.Image
-		if err := rows.Scan(&img.ImageID, &img.URL, &img.IsPrimary); err != nil {
+		if err := rows.Scan(&img.ImageID, &img.URL, &img.IsPrimary, &img.Type); err != nil {
 			return nil, err
 		}
 		images = append(images, img)

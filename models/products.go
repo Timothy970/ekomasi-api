@@ -553,8 +553,8 @@ func DeleteProductByID(productID string) error {
 
 func InsertProductImage(productID, imageURL, fileType string, isPrimary bool) error {
 	imageID, _ := shortid.Generate()
-	query := `INSERT INTO product_images (image_id, product_id, url, is_primary) VALUES (?, ?, ?, ?)`
-	_, err := DB.Exec(query, imageID, productID, imageURL, isPrimary)
+	query := `INSERT INTO product_images (image_id, product_id, url, is_primary, type) VALUES (?, ?, ?, ?, ?)`
+	_, err := DB.Exec(query, imageID, productID, imageURL, isPrimary, fileType)
 	return err
 }
 func GetRelatedProducts(categoryID, excludeProductID string, limit, page int) ([]dtos.Product, *dtos.PaginationMeta, error) {
@@ -777,9 +777,9 @@ func addPagination(baseQuery string, args []interface{}, limit, page int) (*dtos
 func buildSelectQuery(baseQuery string) string {
 	return `
 		SELECT 
-			pb.bundle_id, pb.name, pb.description, pb.bundle_price,
+			pb.bundle_id, pb.name, pb.description, pb.bundle_price, pb.bundle_image, pb.category_id, pb.compare_at_price, pb.keep_selling_when_out_of_stock,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+			pb.quantity, p.search_vector, p.created_at, p.last_updated_at
 	` + baseQuery
 }
 
@@ -923,9 +923,10 @@ func CreateBundle(req dtos.Bundle) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("already addedd bundle")
 	//add products to bundle
-	if len(req.ProductIDs) > 0 {
-		err = AddProductsToBundle(dtos.AddProductsToBundle{ProductIDs: req.ProductIDs}, bundleID)
+	if len(req.Products) > 0 {
+		err = AddProductsToBundle(req.Products, bundleID)
 		if err != nil {
 			return err
 		}
@@ -991,7 +992,8 @@ func DeleteBundle(bundleID string) error {
 	return nil
 }
 
-func AddProductsToBundle(req dtos.AddProductsToBundle, bundleID string) error {
+func AddProductsToBundle(req []dtos.BundleProducts, bundleID string) error {
+	// check if bundle exists
 	exists, err := RecordExists("product_bundles", fetchbundle, bundleID)
 	if err != nil {
 		return err
@@ -999,30 +1001,33 @@ func AddProductsToBundle(req dtos.AddProductsToBundle, bundleID string) error {
 	if !exists {
 		return fmt.Errorf("%s", nobundle)
 	}
-	if len(req.ProductIDs) == 0 {
-		return fmt.Errorf("no products provided")
-	}
-	checkQuery := `SELECT COUNT(1) FROM bundle_products WHERE bundle_id = ? AND product_id = ?`
-	insertQuery := `INSERT INTO bundle_products (bundle_product_id, bundle_id, product_id) VALUES (?, ?, ?)`
 
-	for _, productID := range req.ProductIDs {
-		bundleProductID, _ := shortid.Generate()
+	checkQuery := `SELECT COUNT(1) FROM bundle_products WHERE bundle_id = ? AND product_id = ?`
+	insertQuery := `INSERT INTO bundle_products (bundle_product_id, bundle_id, product_id, quantity) VALUES (?, ?, ?, ?)`
+
+	for _, product := range req {
+		// Check if this product already exists in the bundle
 		var count int
-		err := DB.QueryRow(checkQuery, bundleID, productID).Scan(&count)
-		if err != nil {
-			return fmt.Errorf("failed to check existence for product %s: %v", productID, err)
+		if err := DB.QueryRow(checkQuery, bundleID, product.ProductID).Scan(&count); err != nil {
+			return err
 		}
 
 		if count > 0 {
 			continue // skip if already exists
 		}
 
-		if _, err := DB.Exec(insertQuery, bundleProductID, bundleID, productID); err != nil {
-			return fmt.Errorf("failed to insert product to a bundle %s: %v", productID, err)
+		// Generate bundle_product_id
+		bundleProductID, _ := shortid.Generate()
+
+		// Insert product into bundle
+		if _, err := DB.Exec(insertQuery, bundleProductID, bundleID, product.ProductID, product.Quantity); err != nil {
+			return err
 		}
 	}
+
 	return nil
 }
+
 func RemoveProductsFromBundle(req dtos.AddProductsToBundle, bundleID string) error {
 	exists, err := RecordExists("product_bundles", fetchbundle, bundleID)
 	if err != nil {

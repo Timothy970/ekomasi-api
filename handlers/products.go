@@ -466,7 +466,19 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		Price:       func() float64 { p, _ := strconv.ParseFloat(r.FormValue("bundle_price"), 64); return p }(),
 		Image:       url,
 		CategoryID:  r.FormValue("category_id"),
-		ProductIDs:  strings.Split(r.FormValue("product_ids"), ","),
+		Products: func() []dtos.BundleProducts {
+			productsStr := r.FormValue("products")
+			if productsStr == "" {
+				return []dtos.BundleProducts{}
+			}
+
+			var products []dtos.BundleProducts
+			if err := json.Unmarshal([]byte(productsStr), &products); err != nil {
+				// you may want to handle error properly instead of swallowing it
+				return []dtos.BundleProducts{}
+			}
+			return products
+		}(),
 		KeepSelling: func() *bool {
 			ks := strings.ToLower(r.FormValue("keep_selling"))
 			switch ks {
@@ -601,14 +613,14 @@ func AddProductsToBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.AddProductsToBundle](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[[]dtos.BundleProducts](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-	err := models.AddProductsToBundle(*req, req.ID)
+	err := models.AddProductsToBundle(*req, mux.Vars(r)["bundle_id"])
 	if err != nil {
 		log.Printf("dd product to bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

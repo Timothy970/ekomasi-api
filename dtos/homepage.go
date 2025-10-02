@@ -181,6 +181,7 @@ type Image struct {
 	ImageID   string `json:"image_id"`
 	URL       string `json:"url"`
 	IsPrimary bool   `json:"is_primary"`
+	Type      string `json:"type"`
 }
 type DeliveryFeedback struct {
 	FeedbackID string `json:"feedback_id"`
