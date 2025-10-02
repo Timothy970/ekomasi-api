@@ -339,3 +339,34 @@ func SetPromoCodeActiveStatus(id string, isActive bool) error {
 	)
 	return err
 }
+
+func AddPromotionToProduct(req dtos.AddPromotionToProductRequest) error {
+	// Check if product exists
+	err := isProductThere(req.ProductID)
+	if err != nil {
+		return err
+	}
+	// Check if promotion type exists
+	exist, err := RecordExists("promotions_types", "id = ?", req.PromotionTypeID)
+	if err != nil {
+		return err
+	}
+
+	if !exist {
+		return errors.New("promotion type does not exist")
+	}
+	// Check if the association already exists
+	exists, err := RecordExists("product_discounts", "product_id = ? AND promotion_id = ?", req.ProductID, req.PromotionTypeID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("promotion already exists for this product")
+	}
+	// Insert the new association
+	_, err = DB.Exec(`
+		INSERT INTO product_discounts (product_id, promotion_id)
+		VALUES (?, ?)`, req.ProductID, req.PromotionTypeID,
+	)
+	return err
+}

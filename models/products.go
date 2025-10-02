@@ -493,9 +493,9 @@ func UpdateProductByID(productID string, input dtos.CreateProduct) (*dtos.Create
 	}
 	_, err = DB.Exec(`
 		UPDATE products
-		SET name = ?, description = ?, sku = ?, price = ?, stock_quantity = ?, search_vector = ?, last_updated_at = CURRENT_TIMESTAMP, tag = ?
+		SET name = ?, description = ?, sku = ?, price = ?, stock_quantity = ?, search_vector = ?, last_updated_at = CURRENT_TIMESTAMP, tag = ?, low_stock_quantity_warning = ?, sell_when_out_of_stock = ?, show_stock_quantity = ?
 		WHERE product_id = ?`,
-		input.Name, input.Description, input.SKU, input.Price, input.StockQuantity, input.SearchVector, input.Tag,
+		input.Name, input.Description, input.SKU, input.Price, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, input.SellWhenOOS, input.ShowStock,
 		productID,
 	)
 
@@ -691,7 +691,6 @@ func scanRelatedProduct(rows *sql.Rows) (dtos.Product, error) {
 
 // Get bundles
 func GetBundleProducts(bundleID, bundleName string, limit, page int) ([]dtos.GetBundleRequest, *dtos.PaginationMeta, error) {
-	isPaginated := bundleID == "" && bundleName == ""
 	log.Printf("bundle))))id  %s", bundleID)
 	if bundleID != "" {
 		err := isBundleThere(bundleID)
@@ -703,13 +702,11 @@ func GetBundleProducts(bundleID, bundleName string, limit, page int) ([]dtos.Get
 	log.Printf("args1111%s", args)
 
 	var pagination *dtos.PaginationMeta
-	if isPaginated {
-		var err error
-		pagination, args, baseQuery, err = addPagination(baseQuery, args, limit, page)
-		if err != nil {
-			log.Printf("000000000000000 %s", err)
-			return nil, nil, err
-		}
+	var err error
+	pagination, args, baseQuery, err = addPagination(baseQuery, args, limit, page)
+	if err != nil {
+		log.Printf("000000000000000 %s", err)
+		return nil, nil, err
 	}
 	query := buildSelectQuery(baseQuery)
 	log.Printf("query.....%s", query)
@@ -736,7 +733,7 @@ func buildBaseQuery(bundleID, bundleName string) (string, []interface{}) {
 		FROM product_bundles pb
 		LEFT JOIN bundle_products bp ON pb.bundle_id = bp.bundle_id
 		LEFT JOIN products p ON bp.product_id = p.product_id
-		WHERE 1=1
+		WHERE 1=1 ORDER BY pb.created_at DESC
 	`
 	var args []interface{}
 
@@ -774,15 +771,6 @@ func addPagination(baseQuery string, args []interface{}, limit, page int) (*dtos
 	return pagination, args, baseQuery, nil
 }
 
-func buildSelectQuery(baseQuery string) string {
-	return `
-		SELECT 
-			pb.bundle_id, pb.name, pb.description, pb.bundle_price, pb.bundle_image, pb.category_id, pb.compare_at_price, pb.keep_selling_when_out_of_stock,
-			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			pb.quantity, p.search_vector, p.created_at, p.last_updated_at
-	` + baseQuery
-}
-
 func mapBundlesWithProducts(rows *sql.Rows) ([]dtos.GetBundleRequest, error) {
 	bundleMap := make(map[string]*dtos.GetBundleRequest)
 
@@ -813,44 +801,28 @@ func mapBundlesWithProducts(rows *sql.Rows) ([]dtos.GetBundleRequest, error) {
 	return bundles, nil
 }
 
-// func buildBundleQuery(bundleID, bundleName string) (string, []interface{}) {
-// 	var args []interface{}
-// 	query := `
-// 		SELECT
-// 			pb.bundle_id, pb.name, pb.description, pb.bundle_price,
-// 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-// 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
-// 		FROM product_bundles pb
-// 		LEFT JOIN bundle_products bp ON pb.bundle_id = bp.bundle_id
-// 		LEFT JOIN products p ON bp.product_id = p.product_id
-// 		WHERE 1=1
-// 	`
-// 	if bundleID != "" {
-// 		query += " AND pb.bundle_id = ?"
-// 		args = append(args, bundleID)
-// 	}
-// 	if bundleName != "" {
-// 		query += " AND LOWER(pb.name) LIKE ?"
-// 		args = append(args, "%"+strings.ToLower(bundleName)+"%")
-// 	}
-// 	query += " ORDER BY pb.bundle_id"
-// 	return query, args
-// }
+func buildSelectQuery(baseQuery string) string {
+	return `
+		SELECT 
+			pb.bundle_id, pb.name, pb.description, pb.bundle_price, pb.bundle_image, pb.category_id, pb.compare_at_price, pb.keep_selling_when_out_of_stock,
+			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
+			bp.quantity, p.search_vector, p.created_at, p.last_updated_at
+	` + baseQuery
+}
 
 func scanBundleAndProduct(rows *sql.Rows) (dtos.GetBundleRequest, *dtos.Product, error) {
 	var (
-		bundleID, bundleName, bundleDesc                     sql.NullString
-		bundlePrice                                          sql.NullFloat64
-		productID, name, desc, sku, categoryID, searchVector sql.NullString
-		price                                                sql.NullFloat64
-		stockQuantity                                        sql.NullInt64
-		createdAt, updatedAt                                 sql.NullTime
+		bundleID, bundleName, bundleDesc, bundleImage, bundleCategoryID, productID, name, desc, sku, productCategoryID, searchVector sql.NullString
+		bundlePrice, compareAtPrice, price                                                                                           sql.NullFloat64
+		keepSellingWhenOutOfStock                                                                                                    sql.NullBool
+		bundleQuantity                                                                                                               sql.NullInt64
+		createdAt, updatedAt                                                                                                         sql.NullTime
 	)
 
 	if err := rows.Scan(
-		&bundleID, &bundleName, &bundleDesc, &bundlePrice,
-		&productID, &name, &desc, &sku, &price, &categoryID,
-		&stockQuantity, &searchVector, &createdAt, &updatedAt,
+		&bundleID, &bundleName, &bundleDesc, &bundlePrice, &bundleImage, &bundleCategoryID, &compareAtPrice, &keepSellingWhenOutOfStock,
+		&productID, &name, &desc, &sku, &price, &productCategoryID,
+		&bundleQuantity, &searchVector, &createdAt, &updatedAt,
 	); err != nil {
 		return dtos.GetBundleRequest{}, nil, err
 	}
@@ -860,6 +832,10 @@ func scanBundleAndProduct(rows *sql.Rows) (dtos.GetBundleRequest, *dtos.Product,
 		BundleName:        bundleName.String,
 		BundleDescription: bundleDesc.String,
 		BundlePrice:       bundlePrice.Float64,
+		BundleImage:       bundleImage.String,
+		CategoryID:        bundleCategoryID.String,
+		CompareAtPrice:    nullFloat64ToPtr(compareAtPrice),
+		KeepSelling:       &keepSellingWhenOutOfStock.Bool,
 	}
 
 	// if product_id is NULL, return the bundle with no product
@@ -873,8 +849,8 @@ func scanBundleAndProduct(rows *sql.Rows) (dtos.GetBundleRequest, *dtos.Product,
 		Description:   desc.String,
 		SKU:           sku.String,
 		Price:         price.Float64,
-		CategoryID:    categoryID.String,
-		StockQuantity: int(stockQuantity.Int64),
+		CategoryID:    productCategoryID.String,
+		StockQuantity: int(bundleQuantity.Int64), // now uses bp.quantity
 		SearchVector:  searchVector.String,
 	}
 
@@ -890,11 +866,13 @@ func scanBundleAndProduct(rows *sql.Rows) (dtos.GetBundleRequest, *dtos.Product,
 		return dtos.GetBundleRequest{}, nil, err
 	}
 	product.Images = images
+
 	variants, err := getProductVariants(product.ID)
 	if err != nil {
 		return dtos.GetBundleRequest{}, nil, err
 	}
 	product.ProductVariants = variants
+
 	return bundle, product, nil
 }
 
@@ -959,7 +937,26 @@ func UpdateBundle(req dtos.UpdateBundle, bundleID string) error {
 		updates = append(updates, "bundle_price = ?")
 		args = append(args, req.Price)
 	}
-
+	if req.Image != nil {
+		updates = append(updates, "bundle_image = ?")
+		args = append(args, req.Image)
+	}
+	if req.CategoryID != "" {
+		err = isCategoryThere(req.CategoryID)
+		if err != nil {
+			return err
+		}
+		updates = append(updates, "category_id = ?")
+		args = append(args, req.CategoryID)
+	}
+	if req.KeepSelling != nil {
+		updates = append(updates, "keep_selling_when_out_of_stock = ?")
+		args = append(args, *req.KeepSelling)
+	}
+	if req.CompareAtPrice != nil {
+		updates = append(updates, "compare_at_price = ?")
+		args = append(args, *req.CompareAtPrice)
+	}
 	if len(updates) == 0 {
 		return nil // Nothing to update
 	}
@@ -1669,6 +1666,15 @@ func getSortClause(sortBy string) string {
 		return "p.created_at DESC"
 	}
 }
+
+// Helper to convert sql.NullFloat64 to *float64
+func nullFloat64ToPtr(n sql.NullFloat64) *float64 {
+	if n.Valid {
+		return &n.Float64
+	}
+	return nil
+}
+
 func scanProduct(rows *sql.Rows) (dtos.Product, error) {
 	var (
 		productID, name, desc, sku, categoryID, searchVector, categoryName, tag sql.NullString

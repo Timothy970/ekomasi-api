@@ -12,7 +12,7 @@ import (
 )
 
 const vouchersPath = "/vouchers"
-const wishlistProductPath = "/product"
+const productPath = "/product"
 
 func SetupRoutes(router *mux.Router) {
 	// Authentication routes
@@ -56,7 +56,7 @@ func SetupRoutes(router *mux.Router) {
 	wishlist.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetMyWishList))).Methods("GET")
 	// wishlist.Handle("/{wishlist_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllUserWishList))).Methods("GET")
 	wishlist.Handle("delete/{wishlist_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteWishList))).Methods("DELETE")
-	wishlist.Handle(wishlistProductPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.AddToWishList))).Methods("POST")
+	wishlist.Handle(productPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.AddToWishList))).Methods("POST")
 	wishlist.Handle("/product/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveFromWishList))).Methods("DELETE")
 	wishlist.Handle("/share", middleware.AuthenticateToken(http.HandlerFunc(handlers.SendWishlistToShare))).Methods("POST")
 	wishlist.Handle("/share/{wishlist_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.ReceiceWishlistShared))).Methods("GET")
@@ -402,4 +402,12 @@ func SetupRoutes(router *mux.Router) {
 	//get user logs
 	admin.Handle("/logs/{user_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserLogsByUserID))).Methods("GET")
 	admin.Handle("/logs", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserLogs))).Methods("GET")
+
+	//warranty endpoints
+	warranty := api.PathPrefix("/admin/warranties").Subrouter()
+	warranty.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateWarrantType))).Methods("POST")
+	warranty.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllWarrantyTypes))).Methods("GET")
+	warranty.Handle("/{warranty_type_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateWarrantType))).Methods("PATCH")
+	warranty.Handle("/{warranty_type_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteWarrantType))).Methods("DELETE")
+	warranty.Handle(productPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductWarranties))).Methods("POST")
 }

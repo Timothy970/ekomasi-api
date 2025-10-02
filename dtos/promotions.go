@@ -45,3 +45,8 @@ type PromoCodeResponse struct {
 	ExpiresAt     time.Time `json:"expires_at" validate:"required"`
 	IsActive      bool      `json:"is_active"`
 }
+
+type AddPromotionToProductRequest struct {
+	ProductID       string `json:"product_id" validate:"required"`
+	PromotionTypeID string `json:"promotion_type_id" validate:"required"`
+}

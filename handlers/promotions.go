@@ -187,3 +187,34 @@ func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// Add a product to a promotion type
+func AddPromotionToProductHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
+
+	req, ok := DecodeRequestBody[dtos.AddPromotionToProductRequest](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
+	if err := models.AddPromotionToProduct(*req); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{Code: http.StatusInternalServerError, Message: err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{Code: http.StatusOK, Message: "Promotion added to product successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}

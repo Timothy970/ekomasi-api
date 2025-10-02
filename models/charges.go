@@ -99,3 +99,22 @@ func DeleteCharge(id string) error {
 	_, err = DB.Exec(`DELETE FROM charges WHERE charge_id = ?`, id)
 	return err
 }
+
+func AddChargeToProduct(input dtos.AddChargeToProductRequest) error {
+	//check if product exists
+	err := isProductThere(input.ProductID)
+	if err != nil {
+		return err
+	}
+	//check if charge exists
+	err = isChargeThere(input.ChargeID)
+	if err != nil {
+		return err
+	}
+	_, err = DB.Exec(`
+		INSERT INTO product_charges (product_id, charge_id)
+		VALUES (?, ?)`,
+		input.ProductID, input.ChargeID,
+	)
+	return err
+}

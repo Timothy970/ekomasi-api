@@ -8,3 +8,7 @@ type Charge struct {
 type PromoCodeStatusRequest struct {
 	IsActive bool `json:"is_active" validate:"required"`
 }
+type AddChargeToProductRequest struct {
+	ProductID string `json:"product_id" validate:"required"`
+	ChargeID  string `json:"charge_id" validate:"required"`
+}

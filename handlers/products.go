@@ -428,7 +428,7 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusBadRequest,
-			Message:   "Failed to parse form: " + err.Error(),
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -537,10 +537,63 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.UpdateBundle](r, w, requestSummary, start)
-	if !ok {
+	// Parse multipart form (20 MB max)
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Failed to parse form: " + err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
 		return
 	}
+
+	// Handle optional image upload
+	var imageURL string
+	if file, header, err := r.FormFile("image"); err == nil {
+		defer file.Close()
+		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+			})
+			return
+		}
+		imageURL = url
+	}
+
+	req := &dtos.UpdateBundle{
+		Name:        r.FormValue("bundle_name"),
+		Description: r.FormValue("bundle_description"),
+		Price:       func() float64 { p, _ := strconv.ParseFloat(r.FormValue("bundle_price"), 64); return p }(),
+		Image:       &imageURL,
+		CategoryID:  r.FormValue("category_id"),
+		KeepSelling: func() *bool {
+			ks := strings.ToLower(r.FormValue("keep_selling"))
+			switch ks {
+			case "true":
+				b := true
+				return &b
+			case "false":
+				b := false
+				return &b
+			}
+			return nil
+		}(),
+		CompareAtPrice: func() *float64 {
+			cp, _ := strconv.ParseFloat(r.FormValue("compare_at_price"), 64)
+			if cp == 0 {
+				return nil
+			}
+			return &cp
+		}(),
+	}
+
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
