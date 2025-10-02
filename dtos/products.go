@@ -12,6 +12,9 @@ type CreateProduct struct {
 	StockQuantity int     `json:"stock_quantity" validate:"required,gte=0"`
 	SearchVector  string  `json:"search_vector" validate:"required"`
 	Tag           *string `json:"tag,omitempty"`
+	LowStockAlert int     `json:"low_stock_quantity_warning" validate:"gte=0"`
+	SellWhenOOS   *bool   `json:"sell_when_out_of_stock"`
+	ShowStock     *bool   `json:"show_stock_quantity"`
 }
 
 // AddToCartWithVariantsRequest represents the request to add item with specific variants to cart
@@ -55,11 +58,14 @@ type GetBundleRequest struct {
 	Products          []Product `json:"products"`
 }
 type Bundle struct {
-	Name        string  `json:"bundle_name" validate:"required"`
-	Description string  `json:"bundle_description" validate:"required"`
-	Price       float64 `json:"bundle_price" validate:"required,min=0"`
-	Image       string  `json:"bundle_image" validate:"required"`
-	CategoryID  string  `json:"category_id" validate:"required"`
+	Name           string   `json:"bundle_name" validate:"required"`
+	Description    string   `json:"bundle_description" validate:"required"`
+	Price          float64  `json:"bundle_price" validate:"required,min=0"`
+	Image          string   `json:"bundle_image" validate:"required"`
+	CategoryID     string   `json:"category_id" validate:"required"`
+	ProductIDs     []string `json:"product_ids" validate:"required"`
+	KeepSelling    *bool    `json:"keep_selling"`
+	CompareAtPrice *float64 `json:"compare_at_price"`
 }
 type UpdateBundle struct {
 	ID          string  `json:"bundle_id" validate:"required"`

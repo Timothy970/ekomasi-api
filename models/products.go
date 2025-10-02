@@ -442,11 +442,18 @@ func AddNewProduct(input dtos.CreateProduct) (*dtos.CreateProduct, error) {
 		return nil, fmt.Errorf("cannot add product to a parent category, choose a subcategory instead")
 	}
 	productID, _ := shortid.Generate()
-
+	sellWhenOOs := false
+	showStock := false
+	if input.SellWhenOOS != nil {
+		sellWhenOOs = *input.SellWhenOOS
+	}
+	if input.ShowStock != nil {
+		showStock = *input.ShowStock
+	}
 	_, err = DB.Exec(`
-		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag,
+		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, sellWhenOOs, showStock,
 	)
 	if err != nil {
 		return nil, err
@@ -544,7 +551,7 @@ func DeleteProductByID(productID string) error {
 	return err
 }
 
-func InsertProductImage(productID, imageURL string, isPrimary bool) error {
+func InsertProductImage(productID, imageURL, fileType string, isPrimary bool) error {
 	imageID, _ := shortid.Generate()
 	query := `INSERT INTO product_images (image_id, product_id, url, is_primary) VALUES (?, ?, ?, ?)`
 	_, err := DB.Exec(query, imageID, productID, imageURL, isPrimary)
@@ -910,11 +917,18 @@ func CreateBundle(req dtos.Bundle) error {
 
 	bundleID, _ := shortid.Generate()
 	_, err = DB.Exec(`
-		INSERT INTO product_bundles (bundle_id, name, description, bundle_price, bundle_image, category_id)
-		VALUES (?,?,?,?,?,?)
-	`, bundleID, req.Name, req.Description, req.Price, req.Image, req.CategoryID)
+		INSERT INTO product_bundles (bundle_id, name, description, bundle_price, bundle_image, category_id, compare_at_price, keep_selling_when_out_of_stock)
+		VALUES (?,?,?,?,?,?,?,?)
+	`, bundleID, req.Name, req.Description, req.Price, req.Image, req.CategoryID, req.CompareAtPrice, req.KeepSelling)
 	if err != nil {
 		return err
+	}
+	//add products to bundle
+	if len(req.ProductIDs) > 0 {
+		err = AddProductsToBundle(dtos.AddProductsToBundle{ProductIDs: req.ProductIDs}, bundleID)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

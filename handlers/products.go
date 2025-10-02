@@ -149,8 +149,8 @@ func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Router /api/product/image [post]
 func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
+
 	productID := r.FormValue("product_id")
 	if productID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -178,8 +178,51 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	formFiles := r.MultipartForm.File["file"]
-	if len(formFiles) == 0 {
+	// The possible types the frontend can send
+	fileTypes := []string{"gallery", "thumbnail", "video"}
+
+	uploadedResults := []map[string]string{}
+
+	for _, fileType := range fileTypes {
+		formFiles := r.MultipartForm.File[fileType]
+		if len(formFiles) == 0 {
+			continue
+		}
+
+		for _, fileHeader := range formFiles {
+			url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fileHeader})
+			if err != nil {
+				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+					Code:      http.StatusInternalServerError,
+					Message:   "Failed to upload " + fileType + ": " + err.Error(),
+					TimeTaken: time.Since(start),
+					Function:  utils.GetCurrentFuncName(),
+					Request:   r,
+					RawBody:   ""})
+				return
+			}
+
+			// Now save with type
+			err = models.InsertProductImage(productID, url, fileType, isPrimary)
+			if err != nil {
+				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+					Code:      http.StatusInternalServerError,
+					Message:   "Failed to insert " + fileType + " into DB: " + err.Error(),
+					TimeTaken: time.Since(start),
+					Function:  utils.GetCurrentFuncName(),
+					Request:   r,
+					RawBody:   requestSummary})
+				return
+			}
+
+			uploadedResults = append(uploadedResults, map[string]string{
+				"type": fileType,
+				"url":  url,
+			})
+		}
+	}
+
+	if len(uploadedResults) == 0 {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusBadRequest,
 			Message:   "No files uploaded",
@@ -190,43 +233,16 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uploadedURLs := []string{}
-
-	for _, fileHeader := range formFiles {
-		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fileHeader})
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
-				Message:   "Failed to upload file: " + err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   ""})
-			return
-		}
-
-		err = models.InsertProductImage(productID, url, isPrimary)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
-				Message:   "Failed to insert image into DB: " + err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
-		}
-
-		uploadedURLs = append(uploadedURLs, url)
-	}
+	// clear cache
 	_ = utils.DeleteCacheByPrefix("products_page_")
 	_ = utils.DeleteCacheByPrefix("pagination_page_")
 	_ = utils.DeleteCacheByPrefix("categories_products")
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
+
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   uploadedURLs,
-		Message:   "Product image(s) uploaded successfully",
+		Payload:   uploadedResults,
+		Message:   "Product media uploaded successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -450,6 +466,26 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		Price:       func() float64 { p, _ := strconv.ParseFloat(r.FormValue("bundle_price"), 64); return p }(),
 		Image:       url,
 		CategoryID:  r.FormValue("category_id"),
+		ProductIDs:  strings.Split(r.FormValue("product_ids"), ","),
+		KeepSelling: func() *bool {
+			ks := strings.ToLower(r.FormValue("keep_selling"))
+			switch ks {
+			case "true":
+				b := true
+				return &b
+			case "false":
+				b := false
+				return &b
+			}
+			return nil
+		}(),
+		CompareAtPrice: func() *float64 {
+			cp, _ := strconv.ParseFloat(r.FormValue("compare_at_price"), 64)
+			if cp == 0 {
+				return nil
+			}
+			return &cp
+		}(),
 	}
 
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
