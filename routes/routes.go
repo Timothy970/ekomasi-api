@@ -250,7 +250,7 @@ func SetupRoutes(router *mux.Router) {
 	restockNotifications.Handle("/trigger", middleware.AuthenticateToken(http.HandlerFunc(handlers.TriggerRestockNotifications))).Methods("POST")
 	//inventory ebdpoints
 	api.Handle("/inventory", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListInventory))).Methods("GET")
-	admin.Handle("/inventory", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateInventory))).Methods("POST")
+	admin.Handle("/inventory", middleware.AuthenticateToken(http.HandlerFunc(handlers.StockEntry))).Methods("POST")
 	api.Handle("/inventory/{inventory_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetInventory))).Methods("GET")
 	adminInventory := admin.PathPrefix("/inventory/{inventory_id}").Subrouter()
 	adminInventory.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateInventory))).Methods("PATCH")
@@ -321,6 +321,12 @@ func SetupRoutes(router *mux.Router) {
 	order.HandleFunc("/pos/view", handlers.ViewOrderPOS).Methods("GET")
 	order.Handle("/list-orders", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListOrders))).Methods("GET")
 	order.HandleFunc("/guest-orders/{order_id}/{email}/{phone_number}", handlers.ListGuestOrders).Methods("GET")
+	//admin get all orders
+	admin.Handle("/all-orders", middleware.AuthenticateToken(http.HandlerFunc(handlers.AdminListOrders))).Methods("GET")
+	//csv export
+	admin.Handle("/all-orders/csv", middleware.AuthenticateToken(http.HandlerFunc(handlers.StreamOrdersCSV))).Methods("GET")
+	//order count
+	admin.Handle("/all-orders/count", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetOrderCountsByStatus))).Methods("GET")
 	//reports
 	// reportsRepo := &repositories.ReportsRepository{DB: db}
 	// reportsHandler := &handlers.ReportsHandler{Repo: reportsRepo}

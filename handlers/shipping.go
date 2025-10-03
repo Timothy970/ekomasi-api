@@ -251,10 +251,25 @@ func GetUserDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 }
 func DecodeRequestBody[T any](r *http.Request, w http.ResponseWriter, requestSummary string, start time.Time) (*T, bool) {
 	var req T
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields() // helps catch unexpected fields
+
+	if err := decoder.Decode(&req); err != nil {
+		var msg string
+		log.Printf("Error decoding request body: %v", err)
+		switch e := err.(type) {
+		case *json.SyntaxError:
+			msg = fmt.Sprintf("Request body contains badly-formed data (at position %d)", e.Offset)
+		case *json.UnmarshalTypeError:
+			msg = fmt.Sprintf("Request body has invalid type for field %q at position %d. Expected %v",
+				e.Field, e.Offset, e.Type)
+		default:
+			msg = "Invalid request body: " + err.Error()
+		}
+
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusBadRequest,
-			Message:   "Invalid request body",
+			Message:   msg,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -262,6 +277,7 @@ func DecodeRequestBody[T any](r *http.Request, w http.ResponseWriter, requestSum
 		})
 		return nil, false
 	}
+
 	return &req, true
 }
 

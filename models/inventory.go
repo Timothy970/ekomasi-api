@@ -14,20 +14,52 @@ import (
 
 var noinventory = "inventory not found"
 
-func ListInventory(page, size int) ([]dtos.Inventory, *dtos.PaginationMeta, error) {
+func ListInventory(page, size int, categoryID, stock, storeID string) ([]dtos.Inventory, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * size
+	countQuery := `SELECT COUNT(*) FROM inventory inv JOIN products prd ON inv.product_id = prd.product_id`
+	var filters []string
+	var args []interface{}
 
+	if categoryID != "" {
+		filters = append(filters, "prd.category_id = ?")
+		args = append(args, categoryID)
+	}
+	if stock != "" {
+		switch strings.ToLower(stock) {
+		case "in":
+			filters = append(filters, "inv.quantity > 0")
+		case "out":
+			filters = append(filters, "inv.quantity = 0")
+		case "low":
+			filters = append(filters, "inv.quantity <= inv.low_stock_threshold")
+		}
+	}
+	if storeID != "" {
+		filters = append(filters, "inv.warehouse_id = ?")
+		args = append(args, storeID)
+	}
+
+	// Only add WHERE if there are filters
+	countSQL := countQuery
+	if len(filters) > 0 {
+		countSQL += " WHERE " + strings.Join(filters, " AND ")
+	}
 	var totalItems int
-	err := DB.QueryRow(`SELECT COUNT(*) FROM inventory`).Scan(&totalItems)
+	err := DB.QueryRow(countSQL, args...).Scan(&totalItems)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	rows, err := DB.Query(`
-		SELECT inventory_id, product_id, variant_id, quantity, low_stock_threshold, last_updated
-		FROM inventory
-		ORDER BY last_updated DESC
-		LIMIT ? OFFSET ?`, size, offset)
+	query := `SELECT inv.inventory_id, prd.product_id, inv.variant_id, inv.quantity, inv.low_stock_threshold, prd.name, prd.description, prd.sku, prd.tag, prd.price, prd.category_id, cat.name, prd.stock_quantity, prd.search_vector
+        FROM inventory inv
+        JOIN products prd ON inv.product_id = prd.product_id
+        JOIN categories cat ON prd.category_id = cat.category_id`
+	if len(filters) > 0 {
+		query += " WHERE " + strings.Join(filters, " AND ")
+	}
+	query += " ORDER BY inv.last_updated DESC LIMIT ? OFFSET ?"
+
+	rows, err := DB.Query(query, append(args, size, offset)...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -36,9 +68,10 @@ func ListInventory(page, size int) ([]dtos.Inventory, *dtos.PaginationMeta, erro
 	var inventories []dtos.Inventory
 	for rows.Next() {
 		var inv dtos.Inventory
-		if err := rows.Scan(&inv.InventoryID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold, &inv.LastUpdated); err != nil {
+		if err := rows.Scan(&inv.InventoryID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold, &inv.Name, &inv.Description, &inv.SKU, &inv.Tag, &inv.Price, &inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector); err != nil {
 			return nil, nil, err
 		}
+		inv.Images, _ = fetchProductImages(inv.ProductID)
 		inventories = append(inventories, inv)
 	}
 	totalPages := int(math.Ceil(float64(totalItems) / float64(size)))
@@ -70,28 +103,49 @@ func CreateInventory(inv dtos.CreateInventoryRequest) error {
 		inventoryID, inv.ProductID, inv.VariantID, inv.Quantity, inv.LowStockThreshold)
 	return err
 }
-
 func GetInventory(inventoryID string) (*dtos.Inventory, error) {
-	var inv dtos.Inventory
-	err := DB.QueryRow(`
-		SELECT inventory_id, product_id, variant_id, quantity, low_stock_threshold, last_updated
-		FROM inventory
-		WHERE inventory_id = ?`, inventoryID).
-		Scan(&inv.InventoryID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold, &inv.LastUpdated)
-
-	if err == sql.ErrNoRows {
-		return nil, errors.New(noinventory)
+	err := isInventoryThere(inventoryID)
+	if err != nil {
+		return nil, err
 	}
-	return &inv, err
+	query := `
+		SELECT 
+			inv.inventory_id, prd.product_id, inv.variant_id, inv.quantity, inv.low_stock_threshold,
+			prd.name, prd.description, prd.sku, prd.tag, prd.price,
+			prd.category_id, cat.name, prd.stock_quantity, prd.search_vector
+		FROM inventory inv
+		JOIN products prd ON inv.product_id = prd.product_id
+		JOIN categories cat ON prd.category_id = cat.category_id
+		WHERE inv.inventory_id = ?
+		ORDER BY inv.last_updated DESC
+	`
+
+	row := DB.QueryRow(query, inventoryID)
+
+	var inv dtos.Inventory
+	if err := row.Scan(
+		&inv.InventoryID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold,
+		&inv.Name, &inv.Description, &inv.SKU, &inv.Tag, &inv.Price,
+		&inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New(noinventory)
+		}
+		return nil, err
+	}
+
+	// Fetch images for the product
+	if imgs, err := fetchProductImages(inv.ProductID); err == nil {
+		inv.Images = imgs
+	}
+
+	return &inv, nil
 }
 
 func UpdateInventory(inventoryID string, quantity, threshold *int) error {
-	exists, err := RecordExists("inventory", "inventory_id = ?", inventoryID)
+	err := isInventoryThere(inventoryID)
 	if err != nil {
 		return err
-	}
-	if !exists {
-		return errors.New(noinventory)
 	}
 	query := "UPDATE inventory SET "
 	args := []interface{}{}
@@ -241,4 +295,99 @@ func GetInventoryTurnoverByProduct(productID string, start, end time.Time, group
 		results = append(results, item)
 	}
 	return results, nil
+}
+
+func StoreBatchDetails(req dtos.Batch) (string, error) {
+	err := isInventoryThere(req.InventoryID)
+	if err != nil {
+		return "", err
+	}
+	batchID, _ := shortid.Generate()
+	_, err = DB.Exec(`
+		INSERT INTO inventory_batches (batch_id, inventory_id, batch_number, images, expiry_date, manufacturing_date)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		batchID, req.InventoryID, req.BatchNumber, strings.Join(req.Images, ","), req.ExpiryDate, req.ManufacturingDate)
+	return batchID, err
+}
+
+func isInventoryThere(inventoryID string) error {
+	exists, err := RecordExists("inventory", "inventory_id = ?", inventoryID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("inventory not found")
+	}
+	return nil
+}
+func isBatchThere(batchID string) error {
+	exists, err := RecordExists("inventory_batches", "batch_id = ?", batchID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("batch not found")
+	}
+	return nil
+}
+func StoreInspectionDetails(req dtos.Inspection) error {
+	err := isBatchThere(req.BatchID)
+	if err != nil {
+		return err
+	}
+	err = isUserThere(req.InspectorID)
+	if err != nil {
+		if err.Error() == "user not found" {
+			return fmt.Errorf("inspector not found")
+		}
+		return err
+	}
+	inspectionID, _ := shortid.Generate()
+	_, err = DB.Exec(`
+		INSERT INTO batch_inspections (inspection_id, batch_id, inspection_date, inspector_id, inspection_notes, images)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		inspectionID, req.BatchID, req.InspectionDate, req.InspectorID, req.InspectionNotes, strings.Join(req.Images, ","))
+	return err
+}
+func isConditionThere(conditionID string) error {
+	exists, err := RecordExists("batch_conditions", "condition_id = ?", conditionID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("condition not found")
+	}
+	return nil
+}
+
+func StoreHandlingNotes(req dtos.InventoryCondition) error {
+	err := isBatchThere(req.BatchID)
+	if err != nil {
+		return err
+	}
+	err = isConditionThere(req.ConditionID)
+	if err != nil {
+		return err
+	}
+	_, err = DB.Exec(`
+		INSERT INTO inventory_handling_notes (batch_id, handling_notes, condition_id)
+		VALUES (?, ?, ?)`,
+		req.BatchID, req.HandlingNotes, req.ConditionID)
+	return err
+}
+
+func StoreInventoryTracking(req dtos.InventoryTracking) (string, error) {
+	err := isProductThere(req.ProductID)
+	if err != nil {
+		return "", err
+	}
+	inventoryID, _ := shortid.Generate()
+	_, err = DB.Exec(`
+		INSERT INTO inventory (inventory_id, product_id, quantity, low_stock_threshold, warehouse_id)
+		VALUES (?, ?, ?, ?, ?)`,
+		inventoryID, req.ProductID, req.Quantity, req.LowStockThreshold, req.StoreID)
+	if err != nil {
+		return "", err
+	}
+	return inventoryID, nil
 }

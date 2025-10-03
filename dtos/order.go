@@ -21,7 +21,23 @@ type Order struct {
 	Items                []OrderProduct       `json:"items"`
 	UserAddress          *[]UserAddress       `json:"user_address"`
 }
-
+type AdminOrder struct {
+	OrderID              string               `json:"order_id"`
+	TotalAmount          float64              `json:"total_amount"`
+	TotalDiscount        float64              `json:"total_discount"`
+	DeliveryID           string               `json:"delivery_id"`
+	OrderStatus          string               `json:"order_status"`
+	DeliveryStatus       *string              `json:"delivery_status"`
+	PaymentMethod        string               `json:"payment_method"`
+	DeliveryCharge       *string              `json:"delivery_charge"`
+	DeliveryAddress      *string              `json:"delivery_address"`
+	GuestDeliveryAddress GuestDeliveryAddress `json:"guest_delivery_address"`
+	GuestPersonalDetails GuestPersonalDetails `json:"guest_personal_details"`
+	CreatedAt            time.Time            `json:"created_at"`
+	ItemsCount           int                  `json:"items_count"`
+	Items                []OrderProduct       `json:"items"`
+	User                 *Users               `json:"user"`
+}
 type GuestPersonalDetails struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
@@ -157,4 +173,10 @@ type OrderRequest struct {
 	OrderItems           []OrderItemRequest `json:"order_items" validate:"required,dive"`
 	DeliveryCharge       float64            `json:"delivery_charge" validate:"required"`
 	DeliveryAddress      string             `json:"delivery_address" validate:"required"`
+}
+
+type OrderStatusCount struct {
+	Status      string  `json:"status"`
+	Count       int     `json:"count"`
+	TotalAmount float64 `json:"total_amount"`
 }

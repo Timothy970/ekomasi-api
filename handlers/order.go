@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"encoding/csv"
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"adenzo_backend/dtos"
@@ -323,8 +325,8 @@ func ListOrders(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
-	orders, err := models.ListOrdersByUser(user.ID)
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	orders, pagination, err := models.ListOrdersByUser(user.ID, page, limit)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -339,7 +341,7 @@ func ListOrders(w http.ResponseWriter, r *http.Request) {
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   orders,
+		Payload:   map[string]any{"orders": orders, "pagination": pagination},
 		Message:   "List Orders",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -496,6 +498,206 @@ func ListGuestOrders(w http.ResponseWriter, r *http.Request) {
 		Code:      http.StatusOK,
 		Payload:   orders,
 		Message:   "List Orders",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// List all orders for admin
+func AdminListOrders(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure the user is an admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	if !ok {
+		return
+	}
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	status := r.URL.Query().Get("status")
+	timeRange := r.URL.Query().Get("time_range")
+	orderID := r.URL.Query().Get("order_id")
+	user := r.URL.Query().Get("user")
+	orders, pagination, err := models.ListOrdersByAdmin(status, timeRange, orderID, user, page, limit)
+	if err != nil {
+		log.Printf("%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   map[string]any{"orders": orders, "pagination": pagination},
+		Message:   "All Orders",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// StreamOrdersCSV handles CSV export with streaming for large datasets
+func StreamOrdersCSV(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=orders_export.csv")
+
+	writer := csv.NewWriter(w)
+	defer writer.Flush()
+
+	if err := writeCSVHeader(writer); err != nil {
+		writeCSVError(w, "Failed to write CSV header: "+err.Error())
+		return
+	}
+
+	query := r.URL.Query()
+	status := query.Get("status")
+	timeRange := query.Get("time_range")
+	orderID := query.Get("order_id")
+	user := query.Get("user")
+
+	page := 1
+	limit := 1000
+
+	for {
+		orders, meta, err := models.ListOrdersByAdmin(status, timeRange, orderID, user, page, limit)
+		if err != nil {
+			writeCSVError(w, "Failed to fetch orders: "+err.Error())
+			return
+		}
+
+		if err := writeOrdersBatch(writer, orders); err != nil {
+			writeCSVError(w, "Failed to write CSV record: "+err.Error())
+			return
+		}
+
+		writer.Flush()
+		if err := writer.Error(); err != nil {
+			writeCSVError(w, "Failed to flush CSV data: "+err.Error())
+			return
+		}
+
+		if meta == nil || page >= meta.TotalPages {
+			break
+		}
+		page++
+	}
+}
+
+func writeCSVHeader(writer *csv.Writer) error {
+	header := []string{
+		"Order ID", "Total Amount", "Total Discount", "Delivery ID", "Order Status",
+		"Delivery Status", "Payment Method", "Delivery Charge", "Delivery Address",
+		"Customer Name", "Customer Email", "Customer Phone", "Items Count", "Created At", "Items",
+	}
+	return writer.Write(header)
+}
+
+func writeCSVError(w http.ResponseWriter, msg string) {
+	http.Error(w, msg, http.StatusInternalServerError)
+}
+
+func writeOrdersBatch(writer *csv.Writer, orders []dtos.AdminOrder) error {
+	for _, order := range orders {
+		customerName, customerEmail, customerPhone := formatCustomerDetails(order)
+		deliveryAddress := formatDeliveryAddress(order)
+		deliveryStatus := ""
+		if order.DeliveryStatus != nil {
+			deliveryStatus = *order.DeliveryStatus
+		}
+		deliveryCharge := ""
+		if order.DeliveryCharge != nil {
+			deliveryCharge = *order.DeliveryCharge
+		}
+		itemsStr := formatOrderItems(order.Items)
+
+		record := []string{
+			order.OrderID,
+			fmt.Sprintf("%.2f", order.TotalAmount),
+			fmt.Sprintf("%.2f", order.TotalDiscount),
+			order.DeliveryID,
+			order.OrderStatus,
+			deliveryStatus,
+			order.PaymentMethod,
+			deliveryCharge,
+			deliveryAddress,
+			customerName,
+			customerEmail,
+			customerPhone,
+			fmt.Sprintf("%d", order.ItemsCount),
+			order.CreatedAt.Format(time.RFC3339),
+			itemsStr,
+		}
+
+		if err := writer.Write(record); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func formatCustomerDetails(order dtos.AdminOrder) (name, email, phone string) {
+	if order.User != nil {
+		name = order.User.FirstName + " " + order.User.LastName
+		email = order.User.Email
+		phone = order.User.Phone
+	} else {
+		name = order.GuestPersonalDetails.FirstName + " " + order.GuestPersonalDetails.LastName
+		email = order.GuestPersonalDetails.Email
+		phone = order.GuestPersonalDetails.Phone
+	}
+	return
+}
+
+func formatDeliveryAddress(order dtos.AdminOrder) string {
+	if order.DeliveryAddress != nil {
+		return *order.DeliveryAddress
+	}
+	return fmt.Sprintf("Apartment %s, Street %s, City %s, State %s, Postal Code %s, Country %s",
+		order.GuestDeliveryAddress.Apartment, order.GuestDeliveryAddress.Street,
+		order.GuestDeliveryAddress.City, order.GuestDeliveryAddress.State,
+		order.GuestDeliveryAddress.PostalCode, order.GuestDeliveryAddress.Country)
+}
+
+func formatOrderItems(items []dtos.OrderProduct) string {
+	var formatted []string
+	for _, item := range items {
+		formatted = append(formatted, fmt.Sprintf("%s (Qty: %d)", item.Name, item.StockQuantity))
+	}
+	return strings.Join(formatted, "; ")
+}
+
+// Get order counts grouped by status
+func GetOrderCountsByStatus(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure the user is an admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	if !ok {
+		return
+	}
+	counts, err := models.GetOrderCountsByStatus()
+	if err != nil {
+		log.Printf("%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   counts,
+		Message:   "Orders count by status",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
