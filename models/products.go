@@ -733,7 +733,7 @@ func buildBaseQuery(bundleID, bundleName string) (string, []interface{}) {
 		FROM product_bundles pb
 		LEFT JOIN bundle_products bp ON pb.bundle_id = bp.bundle_id
 		LEFT JOIN products p ON bp.product_id = p.product_id
-		WHERE 1=1 ORDER BY pb.created_at DESC
+		WHERE 1=1
 	`
 	var args []interface{}
 
@@ -767,7 +767,7 @@ func addPagination(baseQuery string, args []interface{}, limit, page int) (*dtos
 	}
 
 	args = append(args, limit, offset)
-	baseQuery += " ORDER BY pb.bundle_id LIMIT ? OFFSET ?"
+	baseQuery += " ORDER BY pb.created_at DESC LIMIT ? OFFSET ?"
 	return pagination, args, baseQuery, nil
 }
 
