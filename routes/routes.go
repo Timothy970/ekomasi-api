@@ -392,8 +392,8 @@ func SetupRoutes(router *mux.Router) {
 	charges := api.PathPrefix("/admin/charges").Subrouter()
 	var chargeID = "/{charge_id}"
 	charges.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddChargeHandler))).Methods("POST")
-	charges.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllChargesHandler))).Methods("GET")
-	charges.Handle(chargeID, middleware.AuthenticateToken(http.HandlerFunc(handlers.GetChargeByIDHandler))).Methods("GET")
+	charges.HandleFunc("", handlers.GetAllChargesHandler).Methods("GET")
+	charges.HandleFunc(chargeID, handlers.GetChargeByIDHandler).Methods("GET")
 	charges.Handle(chargeID, middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateChargeHandler))).Methods("PATCH")
 	charges.Handle(chargeID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteChargeHandler))).Methods("DELETE")
 	// promo codes endpoints

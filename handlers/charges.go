@@ -88,9 +88,9 @@ func UpdateChargeHandler(w http.ResponseWriter, r *http.Request) {
 func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
-		return
-	}
+	// if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	// 	return
+	// }
 
 	id := mux.Vars(r)["charge_id"]
 	charge, err := models.GetChargeByID(id)
@@ -114,9 +114,9 @@ func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 func GetAllChargesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
-		return
-	}
+	// if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	// 	return
+	// }
 
 	charges, err := models.GetAllCharges()
 	if err != nil {
