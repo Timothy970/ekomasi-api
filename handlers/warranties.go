@@ -55,10 +55,10 @@ func GetAllWarrantyTypes(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
-	if !ok {
-		return
-	}
+	// _, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	// if !ok {
+	// 	return
+	// }
 
 	warrantyTypes, err := models.GetAllWarrantTypes()
 	if err != nil {

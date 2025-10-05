@@ -412,7 +412,7 @@ func SetupRoutes(router *mux.Router) {
 	//warranty endpoints
 	warranty := api.PathPrefix("/admin/warranties").Subrouter()
 	warranty.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateWarrantType))).Methods("POST")
-	warranty.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllWarrantyTypes))).Methods("GET")
+	warranty.HandleFunc("", handlers.GetAllWarrantyTypes).Methods("GET")
 	warranty.Handle("/{warranty_type_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateWarrantType))).Methods("PATCH")
 	warranty.Handle("/{warranty_type_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteWarrantType))).Methods("DELETE")
 	warranty.Handle(productPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductWarranties))).Methods("POST")
