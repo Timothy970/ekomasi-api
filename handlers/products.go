@@ -553,12 +553,13 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return &cp
 		}(),
+		ID: r.FormValue("bundle_id"),
 	}
 
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-	err := models.UpdateBundle(*req, req.ID)
+	err := models.UpdateBundle(*req)
 	if err != nil {
 		log.Printf("update bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

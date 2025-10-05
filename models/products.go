@@ -845,8 +845,8 @@ func CreateBundle(req dtos.Bundle) error {
 }
 
 // update bundle
-func UpdateBundle(req dtos.UpdateBundle, bundleID string) error {
-	exists, err := RecordExists("product_bundles", fetchbundle, bundleID)
+func UpdateBundle(req dtos.UpdateBundle) error {
+	exists, err := RecordExists("product_bundles", fetchbundle, req.ID)
 	if err != nil {
 		return err
 	}
@@ -894,7 +894,7 @@ func UpdateBundle(req dtos.UpdateBundle, bundleID string) error {
 	}
 
 	query += " " + strings.Join(updates, ", ") + " WHERE bundle_id = ?"
-	args = append(args, bundleID)
+	args = append(args, req.ID)
 
 	if _, err := DB.Exec(query, args...); err != nil {
 		return fmt.Errorf("failed to update bundle: %v", err)
