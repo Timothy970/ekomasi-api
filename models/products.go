@@ -418,7 +418,7 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 	p.ProductVariants = variants
 	return &p, nil
 }
-func AddNewProduct(input dtos.CreateProduct) (*dtos.CreateProduct, error) {
+func AddNewProduct(input dtos.CreateProduct, userID string) (*dtos.CreateProduct, error) {
 	skuExists, err := RecordExists("products", "sku = ?", input.SKU)
 	if err != nil {
 		return nil, err
@@ -451,9 +451,9 @@ func AddNewProduct(input dtos.CreateProduct) (*dtos.CreateProduct, error) {
 		showStock = *input.ShowStock
 	}
 	_, err = DB.Exec(`
-		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, sellWhenOOs, showStock,
+		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, created_by_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, sellWhenOOs, showStock, userID,
 	)
 	if err != nil {
 		return nil, err
@@ -690,73 +690,31 @@ func scanRelatedProduct(rows *sql.Rows) (dtos.Product, error) {
 }
 
 // Get bundles
-func GetBundleProducts(bundleID, bundleName string, limit, page int) ([]dtos.GetBundleRequest, *dtos.PaginationMeta, error) {
-	log.Printf("bundle))))id  %s", bundleID)
+func GetBundleProducts(bundleID string, limit, page int) ([]dtos.GetBundleRequest, *dtos.PaginationMeta, error) {
+	// Validate optional bundle ID
 	if bundleID != "" {
-		err := isBundleThere(bundleID)
-		if err != nil {
+		if err := isBundleThere(bundleID); err != nil {
 			return nil, nil, err
 		}
 	}
-	baseQuery, args := buildBaseQuery(bundleID, bundleName)
-	log.Printf("args1111%s", args)
 
-	var pagination *dtos.PaginationMeta
-	var err error
-	pagination, args, baseQuery, err = addPagination(baseQuery, args, limit, page)
-	if err != nil {
-		log.Printf("000000000000000 %s", err)
-		return nil, nil, err
-	}
-	query := buildSelectQuery(baseQuery)
-	log.Printf("query.....%s", query)
-	log.Printf("args.....%s", args)
-	rows, err := DB.Query(query, args...)
-	if err != nil {
-		log.Printf("111111111111111111111%s", err)
-		return nil, nil, err
-	}
-	defer rows.Close()
-
-	bundles, err := mapBundlesWithProducts(rows)
-	if err != nil {
-		log.Printf("2222222222222222%s", err)
-		return nil, nil, err
-	}
-	log.Printf("333333333333333333")
-
-	return bundles, pagination, nil
-}
-
-func buildBaseQuery(bundleID, bundleName string) (string, []interface{}) {
-	query := `
-		FROM product_bundles pb
-		LEFT JOIN bundle_products bp ON pb.bundle_id = bp.bundle_id
-		LEFT JOIN products p ON bp.product_id = p.product_id
-		WHERE 1=1
-	`
+	// Count total bundles for pagination
+	countQuery := "SELECT COUNT(*) FROM product_bundles"
 	var args []interface{}
 
 	if bundleID != "" {
-		query += " AND pb.bundle_id = ?"
+		countQuery += " WHERE bundle_id = ?"
 		args = append(args, bundleID)
 	}
-	if bundleName != "" {
-		query += " AND LOWER(pb.name) LIKE ?"
-		args = append(args, "%"+strings.ToLower(bundleName)+"%")
-	}
-	return query, args
-}
 
-func addPagination(baseQuery string, args []interface{}, limit, page int) (*dtos.PaginationMeta, []interface{}, string, error) {
 	var total int
-	countQuery := "SELECT COUNT(DISTINCT pb.bundle_id) " + baseQuery
 	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
-		return nil, args, "", err
+		return nil, nil, err
 	}
 
 	offset := (page - 1) * limit
 	totalPages := (total + limit - 1) / limit
+
 	pagination := &dtos.PaginationMeta{
 		Page:       page,
 		Size:       limit,
@@ -766,114 +724,88 @@ func addPagination(baseQuery string, args []interface{}, limit, page int) (*dtos
 		HasNext:    page < totalPages,
 	}
 
-	args = append(args, limit, offset)
-	baseQuery += " ORDER BY pb.created_at DESC LIMIT ? OFFSET ?"
-	return pagination, args, baseQuery, nil
-}
+	// Fetch paginated bundles
+	query := `
+		SELECT 
+			bundle_id, name, description, bundle_price, bundle_image, 
+			category_id, compare_at_price, keep_selling_when_out_of_stock
+		FROM product_bundles
+	`
+	if bundleID != "" {
+		query += " WHERE bundle_id = ?"
+	}
+	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
 
-func mapBundlesWithProducts(rows *sql.Rows) ([]dtos.GetBundleRequest, error) {
-	bundleMap := make(map[string]*dtos.GetBundleRequest)
+	args = append(args, limit, offset)
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	var bundles []dtos.GetBundleRequest
+	for rows.Next() {
+		var b dtos.GetBundleRequest
+		var compareAtPrice sql.NullFloat64
+		var keepSelling sql.NullBool
+
+		if err := rows.Scan(
+			&b.BundleID, &b.BundleName, &b.BundleDescription, &b.BundlePrice,
+			&b.BundleImage, &b.CategoryID, &compareAtPrice, &keepSelling,
+		); err != nil {
+			return nil, nil, err
+		}
+
+		b.CompareAtPrice = nullFloat64ToPtr(compareAtPrice)
+		b.KeepSelling = &keepSelling.Bool
+
+		//Fetch products belonging to this bundle
+		products, err := getProductsForBundle(b.BundleID)
+		if err != nil {
+			return nil, nil, err
+		}
+		b.Products = products
+
+		bundles = append(bundles, b)
+	}
+	log.Printf("count of bundles************************** %v", len(bundles))
+
+	return bundles, pagination, nil
+}
+func getProductsForBundle(bundleID string) ([]dtos.Product, error) {
+	query := `
+		SELECT product_id, quantity
+		FROM bundle_products
+		WHERE bundle_id = ?
+	`
+	rows, err := DB.Query(query, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []dtos.Product
 
 	for rows.Next() {
-		bundle, product, err := scanBundleAndProduct(rows)
-		if err != nil {
+		var productID string
+		var quantity int
+		if err := rows.Scan(&productID, &quantity); err != nil {
 			return nil, err
 		}
 
-		if existing, ok := bundleMap[bundle.BundleID]; ok {
-			if product != nil {
-				existing.Products = append(existing.Products, *product)
-			}
-		} else {
-			if product != nil {
-				bundle.Products = []dtos.Product{*product}
-			} else {
-				bundle.Products = []dtos.Product{}
-			}
-			bundleMap[bundle.BundleID] = &bundle
+		// Reuse your existing reusable product function
+		product, err := GetProductByID(productID)
+		if err != nil {
+			// Skip missing products instead of failing the entire bundle
+			log.Printf("warning: failed to fetch product %s for bundle %s: %v", productID, bundleID, err)
+			continue
 		}
+
+		// Override product quantity with bundle_products.quantity
+		product.StockQuantity = quantity
+		products = append(products, *product)
 	}
 
-	var bundles []dtos.GetBundleRequest
-	for _, b := range bundleMap {
-		bundles = append(bundles, *b)
-	}
-	return bundles, nil
-}
-
-func buildSelectQuery(baseQuery string) string {
-	return `
-		SELECT 
-			pb.bundle_id, pb.name, pb.description, pb.bundle_price, pb.bundle_image, pb.category_id, pb.compare_at_price, pb.keep_selling_when_out_of_stock,
-			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			bp.quantity, p.search_vector, p.created_at, p.last_updated_at
-	` + baseQuery
-}
-
-func scanBundleAndProduct(rows *sql.Rows) (dtos.GetBundleRequest, *dtos.Product, error) {
-	var (
-		bundleID, bundleName, bundleDesc, bundleImage, bundleCategoryID, productID, name, desc, sku, productCategoryID, searchVector sql.NullString
-		bundlePrice, compareAtPrice, price                                                                                           sql.NullFloat64
-		keepSellingWhenOutOfStock                                                                                                    sql.NullBool
-		bundleQuantity                                                                                                               sql.NullInt64
-		createdAt, updatedAt                                                                                                         sql.NullTime
-	)
-
-	if err := rows.Scan(
-		&bundleID, &bundleName, &bundleDesc, &bundlePrice, &bundleImage, &bundleCategoryID, &compareAtPrice, &keepSellingWhenOutOfStock,
-		&productID, &name, &desc, &sku, &price, &productCategoryID,
-		&bundleQuantity, &searchVector, &createdAt, &updatedAt,
-	); err != nil {
-		return dtos.GetBundleRequest{}, nil, err
-	}
-
-	bundle := dtos.GetBundleRequest{
-		BundleID:          bundleID.String,
-		BundleName:        bundleName.String,
-		BundleDescription: bundleDesc.String,
-		BundlePrice:       bundlePrice.Float64,
-		BundleImage:       bundleImage.String,
-		CategoryID:        bundleCategoryID.String,
-		CompareAtPrice:    nullFloat64ToPtr(compareAtPrice),
-		KeepSelling:       &keepSellingWhenOutOfStock.Bool,
-	}
-
-	// if product_id is NULL, return the bundle with no product
-	if !productID.Valid {
-		return bundle, nil, nil
-	}
-
-	product := &dtos.Product{
-		ID:            productID.String,
-		Name:          name.String,
-		Description:   desc.String,
-		SKU:           sku.String,
-		Price:         price.Float64,
-		CategoryID:    productCategoryID.String,
-		StockQuantity: int(bundleQuantity.Int64), // now uses bp.quantity
-		SearchVector:  searchVector.String,
-	}
-
-	if createdAt.Valid {
-		product.CreatedAt = createdAt.Time
-	}
-	if updatedAt.Valid {
-		product.LastUpdated = updatedAt.Time
-	}
-
-	images, err := fetchProductImages(product.ID)
-	if err != nil {
-		return dtos.GetBundleRequest{}, nil, err
-	}
-	product.Images = images
-
-	variants, err := getProductVariants(product.ID)
-	if err != nil {
-		return dtos.GetBundleRequest{}, nil, err
-	}
-	product.ProductVariants = variants
-
-	return bundle, product, nil
+	return products, nil
 }
 
 // create bundle
@@ -1452,7 +1384,7 @@ func getProductsForSubcategories(subIDs []string, page, size int) ([]dtos.Catego
 }
 
 // new fetch products
-func SearchProducts(params dtos.SearchParams) ([]dtos.Product, *dtos.PaginationMeta, error) {
+func SearchProducts(params dtos.SearchParams, isAdmin bool) ([]dtos.Product, *dtos.PaginationMeta, error) {
 	// Build the main query
 	query, args := buildSearchQuery(params)
 	countQuery, countArgs := buildCountQuerySearch(params)
@@ -1472,7 +1404,7 @@ func SearchProducts(params dtos.SearchParams) ([]dtos.Product, *dtos.PaginationM
 
 	var products []dtos.Product
 	for rows.Next() {
-		product, err := scanProduct(rows)
+		product, err := scanProduct(rows, isAdmin)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1675,7 +1607,7 @@ func nullFloat64ToPtr(n sql.NullFloat64) *float64 {
 	return nil
 }
 
-func scanProduct(rows *sql.Rows) (dtos.Product, error) {
+func scanProduct(rows *sql.Rows, isAdmin bool) (dtos.Product, error) {
 	var (
 		productID, name, desc, sku, categoryID, searchVector, categoryName, tag sql.NullString
 		price                                                                   sql.NullFloat64
@@ -1730,6 +1662,108 @@ func scanProduct(rows *sql.Rows) (dtos.Product, error) {
 		return product, err
 	}
 	product.ProductVariants = variants
-
+	//if is admin check who created the product
+	if isAdmin {
+		product.CreatedBy, err = getProductCreator(product.ID)
+		if err != nil {
+			return product, err
+		}
+		product.IsInTodaysDeals, err = isProductInTodaysDeal(product.ID)
+		if err != nil {
+			return product, err
+		}
+		product.MaxStockQuantity, err = getMaxQuantity(product.ID)
+		if product.MaxStockQuantity < product.StockQuantity {
+			product.MaxStockQuantity = product.StockQuantity
+		}
+		if err != nil {
+			return product, err
+		}
+	}
 	return product, nil
+}
+func getProductCreator(productID string) (string, error) {
+	var createdByID sql.NullString
+	query := `SELECT created_by_id FROM products WHERE product_id = ?`
+
+	err := DB.QueryRow(query, productID).Scan(&createdByID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil // product not found → treat as no creator
+		}
+		return "", fmt.Errorf("failed to get product creator ID: %v", err)
+	}
+
+	// If created_by_id is NULL → return empty string
+	if !createdByID.Valid || createdByID.String == "" {
+		return "", nil
+	}
+
+	// Fetch user info
+	var firstName, lastName sql.NullString
+	userQuery := `SELECT first_name, last_name FROM users WHERE user_id = ?`
+	err = DB.QueryRow(userQuery, createdByID.String).Scan(&firstName, &lastName)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil // user not found → return empty
+		}
+		return "", fmt.Errorf("failed to get user details: %v", err)
+	}
+
+	// Handle possible NULLs
+	fn := ""
+	ln := ""
+	if firstName.Valid {
+		fn = firstName.String
+	}
+	if lastName.Valid {
+		ln = lastName.String
+	}
+
+	fullName := strings.TrimSpace(fn + " " + ln)
+	return fullName, nil
+}
+func isProductInTodaysDeal(productID string) (bool, error) {
+	var dealID string
+
+	// Get deal_id for a deal whose name matches 'today'
+	dealQuery := `SELECT deal_id FROM deals WHERE name REGEXP '(?i)today' LIMIT 1`
+	err := DB.QueryRow(dealQuery).Scan(&dealID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil // No "today" deal exists
+		}
+		return false, fmt.Errorf("failed to get today's deal: %v", err)
+	}
+
+	// 2Check if this product is linked to that deal
+	var exists bool
+	checkQuery := `SELECT EXISTS(
+		SELECT 1 FROM deal_products WHERE product_id = ? AND deal_id = ?
+	)`
+	err = DB.QueryRow(checkQuery, productID, dealID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check product-deal link: %v", err)
+	}
+
+	return exists, nil
+}
+func getMaxQuantity(productID string) (int, error) {
+	var totalQuantity sql.NullInt64
+
+	query := `
+		SELECT SUM(quantity)
+		FROM inventory
+		WHERE product_id = ?
+	`
+	err := DB.QueryRow(query, productID).Scan(&totalQuantity)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get quantity for product %s: %v", productID, err)
+	}
+
+	if !totalQuantity.Valid {
+		return 0, nil // no entries found for this product
+	}
+
+	return int(totalQuantity.Int64), nil
 }

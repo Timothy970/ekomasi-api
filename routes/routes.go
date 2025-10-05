@@ -112,6 +112,7 @@ func SetupRoutes(router *mux.Router) {
 
 	//admin routes
 	admin := api.PathPrefix("/admin").Subrouter()
+	admin.HandleFunc("/products/search", handlers.AdminSearchProductsHandler).Methods("GET")
 	//create a new product
 	admin.Handle("/products", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateProductHandler))).Methods("POST")
 	//Get product variants
@@ -149,7 +150,6 @@ func SetupRoutes(router *mux.Router) {
 	// adminbundles := admin.PathPrefix("/products/bundles/{bundle_id}").Subrouter()
 	admin.Handle("/products/bundles", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateBundleHandler))).Methods("POST")
 	api.HandleFunc("/products/bundles", handlers.GetBundleProductsHandler).Methods("GET")
-	// adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetBundleProductsHandler))).Methods("GET")
 	// adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateBundleHandler))).Methods("PATCH")
 	// adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBundleHandler))).Methods("DELETE")
 	//add products to a bundle

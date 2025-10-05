@@ -151,20 +151,23 @@ type Category struct {
 }
 
 type Product struct {
-	ID              string            `json:"product_id"`
-	Name            string            `json:"name"`
-	Description     string            `json:"description"`
-	SKU             string            `json:"sku"`
-	Tag             *string           `json:"tag"`
-	Price           float64           `json:"price"`
-	CategoryID      string            `json:"category_id"`
-	CategoryName    string            `json:"category_name"`
-	StockQuantity   int               `json:"stock_quantity"`
-	SearchVector    string            `json:"search_vector"`
-	CreatedAt       time.Time         `json:"created_at"`
-	LastUpdated     time.Time         `json:"last_updated"`
-	Images          []Image           `json:"urls,omitempty"`
-	ProductVariants []ProductVariants `json:"product_variants"`
+	ID               string            `json:"product_id"`
+	Name             string            `json:"name"`
+	Description      string            `json:"description"`
+	SKU              string            `json:"sku"`
+	Tag              *string           `json:"tag"`
+	Price            float64           `json:"price"`
+	CategoryID       string            `json:"category_id"`
+	CategoryName     string            `json:"category_name"`
+	StockQuantity    int               `json:"stock_quantity"`
+	MaxStockQuantity int               `json:"max_stock_quantiy"`
+	SearchVector     string            `json:"search_vector"`
+	IsInTodaysDeals  bool              `json:"in_today_deal"`
+	CreatedBy        string            `json:"created_by"`
+	CreatedAt        time.Time         `json:"created_at"`
+	LastUpdated      time.Time         `json:"last_updated"`
+	Images           []Image           `json:"urls,omitempty"`
+	ProductVariants  []ProductVariants `json:"product_variants"`
 }
 type FeaturedProduct struct {
 	ID        int64     `json:"id"`

@@ -55,7 +55,7 @@ type GetBundleRequest struct {
 	BundleName        string    `json:"bundle_name"`
 	BundleDescription string    `json:"bundle_description"`
 	BundlePrice       float64   `json:"bundle_price"`
-	BundleImage       string    `json:"bundle_image"`
+	BundleImage       *string   `json:"bundle_image"`
 	CategoryID        string    `json:"category_id"`
 	CompareAtPrice    *float64  `json:"compare_at_price"`
 	KeepSelling       *bool     `json:"keep_selling_when_out_of_stock"`

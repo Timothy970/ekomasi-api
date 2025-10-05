@@ -349,65 +349,26 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	bundleName := r.URL.Query().Get("bundle_name")
+	// bundleName := r.URL.Query().Get("bundle_name")
 	bundleID := r.URL.Query().Get("bundle_id")
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	useCache := bundleID == "" && bundleName == ""
-	var bundles []dtos.GetBundleRequest
-	var cachedBundles []dtos.GetBundleRequest
-	var pagination *dtos.PaginationMeta
-	var cachedPagination *dtos.PaginationMeta
-	cacheKeyBundles := fmt.Sprintf("products_bundles_page_%d_size_%d", page, limit)
-	cacheKeyPagination := fmt.Sprintf("bundles_pagination_page_%d_size_%d", page, limit)
 
-	if useCache {
-		_ = utils.GetCache(cacheKeyBundles, &cachedBundles)
-		_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
-		if cachedBundles == nil {
-			var err error
-			bundles, pagination, err = models.GetBundleProducts(bundleID, bundleName, limit, page)
-			if err != nil {
-				log.Printf("bundles get error::%s", err)
-				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-					Code:      http.StatusNotFound,
-					Message:   err.Error(),
-					TimeTaken: time.Since(start),
-					Function:  utils.GetCurrentFuncName(),
-					Request:   r,
-					RawBody:   requestSummary})
-				return
-			}
-			_ = utils.SetCache(cacheKeyBundles, bundles)
-			_ = utils.SetCache(cacheKeyPagination, pagination)
-		} else {
-			bundles = cachedBundles
-			pagination = cachedPagination
-		}
-	} else {
-		var err error
-		bundles, pagination, err = models.GetBundleProducts(bundleID, bundleName, limit, page)
-		if err != nil {
-			log.Printf("bundles get error::%s", err)
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
-		}
-	}
-	response := map[string]interface{}{
-		"bundles": bundles,
-	}
-	if pagination != nil {
-		response["pagination"] = pagination
+	bundles, pagination, err := models.GetBundleProducts(bundleID, limit, page)
+	if err != nil {
+		log.Printf("bundles get error::%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   response,
+		Payload:   map[string]any{"bundles": bundles, "pagination": pagination},
 		Message:   "Bundles fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -953,7 +914,7 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Perform search
-	products, pagination, err := models.SearchProducts(searchParams)
+	products, pagination, err := models.SearchProducts(searchParams, false)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,

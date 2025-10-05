@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"adenzo_backend/dtos"
+	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"fmt"
@@ -295,6 +296,17 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	authuser, ok := middleware.UserFromContext(r.Context())
+	if !ok {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   "User not validated",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 	req, ok := DecodeRequestBody[dtos.CreateProduct](r, w, requestSummary, start)
 	if !ok {
 		return
@@ -302,7 +314,7 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-	product, err := models.AddNewProduct(*req)
+	product, err := models.AddNewProduct(*req, authuser.ID)
 	if err != nil {
 		log.Printf("Error for adding new product %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
