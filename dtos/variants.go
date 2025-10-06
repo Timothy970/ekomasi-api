@@ -49,5 +49,5 @@ type ProductVariants struct {
 	Name            string  `json:"name"`
 	HexCode         *string `json:"hex_code,omitempty"`
 	AdditionalPrice float64 `json:"additional_price"`
-	StockQuantity   int     `json:"stock_quantity"`
+	StockQuantity   *int    `json:"stock_quantity"`
 }
