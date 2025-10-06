@@ -668,6 +668,7 @@ func buildAdminOrderQuery(conds OrderConditions, limit, offset int) (string, []i
 			o.total_discount,
 			o.delivery_id,
 			o.status,
+			o.payment_status,
 			d.status AS delivery_status,
 			o.payment_method,
 			d.delivery_charge,
@@ -716,6 +717,7 @@ func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
 			&ord.TotalDiscount,
 			&ord.DeliveryID,
 			&ord.OrderStatus,
+			&ord.PaymentStatus,
 			&ord.DeliveryStatus,
 			&ord.PaymentMethod,
 			&ord.DeliveryCharge,
@@ -733,6 +735,7 @@ func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
 			_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
 		}
 		items, err := getOrderProducts(ord.OrderID)
+		ord.ItemsCount = len(items)
 		if err != nil {
 			return nil, err
 		}

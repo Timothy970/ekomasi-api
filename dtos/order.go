@@ -27,6 +27,7 @@ type AdminOrder struct {
 	TotalDiscount        float64              `json:"total_discount"`
 	DeliveryID           string               `json:"delivery_id"`
 	OrderStatus          string               `json:"order_status"`
+	PaymentStatus        string               `json:"payment_status"`
 	DeliveryStatus       *string              `json:"delivery_status"`
 	PaymentMethod        string               `json:"payment_method"`
 	DeliveryCharge       *string              `json:"delivery_charge"`

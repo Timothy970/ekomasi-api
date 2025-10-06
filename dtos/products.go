@@ -193,3 +193,21 @@ type UpdateProductFeature struct {
 	Description   string `json:"description" validate:"required"`
 	ImagePosition string `json:"image-position" validate:"required"`
 }
+type ProductSpecification struct {
+	Age              []string `json:"age"`   //ids of the age variants
+	Brand            string   `json:"brand"` //brand id for the variant brand
+	CategoryID       string   `json:"category_id"`
+	Color            []string `json:"color"` //color variants ids
+	Dimensions       []string `json:"dimensions"`
+	DiscountType     string   `json:"discount_type"` // type id
+	ExpiryDate       string   `json:"expiry_date"`
+	ManufacturerDate string   `json:"manufacture_date"`
+	Manufacturer     string   `json:"manufacturer"`
+	Material         []string `json:"material"` //material variant ids
+	Size             []string `json:"size"`     //size variant ids
+	Tax              string   `json:"tax"`      //charge id
+	WarrantyType     string   `json:"warranty_type"`
+	WarrantyPeriod   int      `json:"warranty_period"` //in months
+	Weight           int      `json:"weight"`
+	WeightLimit      int      `json:"weight_limit"`
+}
