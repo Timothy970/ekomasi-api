@@ -194,11 +194,12 @@ type UpdateProductFeature struct {
 	ImagePosition string `json:"image-position" validate:"required"`
 }
 type ProductSpecification struct {
+	ProductID        string   `json:"product_id" validate:"required"`
 	Age              []string `json:"age"`   //ids of the age variants
 	Brand            string   `json:"brand"` //brand id for the variant brand
 	CategoryID       string   `json:"category_id"`
 	Color            []string `json:"color"` //color variants ids
-	Dimensions       []string `json:"dimensions"`
+	Dimensions       string   `json:"dimensions"`
 	DiscountType     string   `json:"discount_type"` // type id
 	ExpiryDate       string   `json:"expiry_date"`
 	ManufacturerDate string   `json:"manufacture_date"`
@@ -210,4 +211,11 @@ type ProductSpecification struct {
 	WarrantyPeriod   int      `json:"warranty_period"` //in months
 	Weight           int      `json:"weight"`
 	WeightLimit      int      `json:"weight_limit"`
+}
+type ProductSpecs struct {
+	ProductID    string `json:"product_id"`
+	Weight       int    `json:"weight"`
+	WeightLimit  int    `json:"weight_limit"`
+	Dimensions   string `json:"dimensions"`
+	Manufacturer string `json:"manufacturer"`
 }

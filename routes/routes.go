@@ -115,6 +115,8 @@ func SetupRoutes(router *mux.Router) {
 	admin.HandleFunc("/products/search", handlers.AdminSearchProductsHandler).Methods("GET")
 	//create a new product
 	admin.Handle("/products", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateProductHandler))).Methods("POST")
+	//add product specifications
+	admin.Handle("/products/specifications", middleware.AuthenticateToken(http.HandlerFunc(handlers.HandleProductSpecifications))).Methods("POST")
 	//Get product variants
 	products.HandleFunc("/variants-products", handlers.GetVariantProductsHandler).Methods("GET")
 	//Get variants by ID

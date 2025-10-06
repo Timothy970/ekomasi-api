@@ -1767,3 +1767,21 @@ func getMaxQuantity(productID string) (int, error) {
 
 	return int(totalQuantity.Int64), nil
 }
+
+func InsertProductSpecs(req dtos.ProductSpecs) error {
+	err := isProductThere(req.ProductID)
+	if err != nil {
+		return err
+	}
+	insertQuery := `INSERT INTO product_specifications (specifications_id, product_id, weight, weight_limit, dimensions, manufacturer) VALUES (?, ?, ?, ?,?,?)`
+
+	// Generate bundle_product_id
+	specificationsID, _ := shortid.Generate()
+
+	// Insert product into bundle
+	if _, err := DB.Exec(insertQuery, specificationsID, req.ProductID, req.Weight, req.WeightLimit, req.Dimensions, req.Manufacturer); err != nil {
+		return err
+	}
+
+	return nil
+}

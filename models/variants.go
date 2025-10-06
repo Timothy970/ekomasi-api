@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"strings"
 
@@ -111,24 +112,80 @@ func DeleteVariantByID(id string) error {
 // Product Variants
 func AddProductVariant(id string, req dtos.ProductVariantRequest) error {
 	pvID, _ := shortid.Generate()
-	err := variantexists(id)
+
+	// Validate variant and product existence
+	if err := variantexists(id); err != nil {
+		return err
+	}
+	if err := isProductThere(req.ProductID); err != nil {
+		return err
+	}
+
+	// Check if the product already has the variant
+	exists, err := isProductWithVariant(id, req.ProductID)
+	log.Printf("is product with variant %s %s", exists, err)
 	if err != nil {
 		return err
 	}
-	err = isProductThere(req.ProductID)
-	if err != nil {
-		return err
-	}
-	additonalPrice := 0.0
+
+	additionalPrice := 0.0
 	if req.AdditionalPrice != nil {
-		additonalPrice = *req.AdditionalPrice
+		additionalPrice = *req.AdditionalPrice
 	}
-	_, err = DB.Exec(`
-        INSERT INTO product_variants (product_variants_id, variant_id, product_id, additional_price, stock_quantity)
-        VALUES (?, ?, ?, ?, ?)`,
-		pvID, id, req.ProductID, additonalPrice, req.StockQuantity,
-	)
+
+	if exists {
+		log.Printf("is product ****** %s %s", req.StockQuantity, additionalPrice)
+		// Update only if at least one field is provided
+		if req.StockQuantity == nil && additionalPrice == 0.0 {
+			// Nothing to update
+			return nil
+		}
+
+		query := `UPDATE product_variants SET `
+		args := []interface{}{}
+
+		if req.StockQuantity != nil {
+			query += "stock_quantity = ?, "
+			args = append(args, *req.StockQuantity)
+		}
+		if req.AdditionalPrice != nil {
+			query += "additional_price = ?, "
+			args = append(args, *req.AdditionalPrice)
+		}
+
+		// remove trailing comma and add WHERE clause
+		query = strings.TrimSuffix(query, ", ")
+		query += " WHERE variant_id = ? AND product_id = ?"
+		args = append(args, id, req.ProductID)
+
+		_, err = DB.Exec(query, args...)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		// Insert new record
+		_, err = DB.Exec(`
+			INSERT INTO product_variants (product_variants_id, variant_id, product_id, additional_price, stock_quantity)
+			VALUES (?, ?, ?, ?, ?)`,
+			pvID, id, req.ProductID, additionalPrice, req.StockQuantity, req.AdditionalPrice,
+		)
+	}
+
 	return err
+}
+
+func isProductWithVariant(variantID, productID string) (bool, error) {
+	exists, err := RecordExists("product_variants", "variant_id = ? and product_id = ?", variantID, productID)
+	if err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, nil
+	} else {
+		return true, nil
+	}
+
 }
 
 func RemoveProductVariant(productID, variantID string) error {

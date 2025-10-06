@@ -36,9 +36,9 @@ func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
-		return
-	}
+	// if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	// 	return
+	// }
 
 	cartID, err := models.CreateCart(*req)
 	if err != nil {

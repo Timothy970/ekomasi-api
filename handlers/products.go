@@ -1165,3 +1165,163 @@ func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary,
 	})
 }
+
+func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure the user is an admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	if !ok {
+		return
+	}
+
+	req, ok := DecodeRequestBody[dtos.ProductSpecification](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	//handle products specifications
+	err := handleProductSpecs(*req)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//handle products variants
+	err = handleProductsVariants(*req)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//handle product warranty
+	err = handleProductsWarranty(*req)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//add tax to a product
+	err = attachProductTax(*req)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	// add discount to a product
+	err = attachProductDiscount(*req)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   nil,
+		Message:   "Product specifications added successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+func handleProductSpecs(req dtos.ProductSpecification) error {
+	data := dtos.ProductSpecs{
+		ProductID:    req.ProductID,
+		Weight:       req.Weight,
+		WeightLimit:  req.WeightLimit,
+		Dimensions:   req.Dimensions,
+		Manufacturer: req.Manufacturer,
+	}
+	err := models.InsertProductSpecs(data)
+	return err
+}
+func handleProductsVariants(req dtos.ProductSpecification) error {
+	// variants availble are age, brand, material,color,size
+	data := dtos.ProductVariantRequest{
+		ProductID: req.ProductID,
+	}
+	for _, age := range req.Age {
+		err := models.AddProductVariant(age, data)
+		if err != nil {
+			return err
+		}
+	}
+	err := models.AddProductVariant(req.Brand, data)
+	if err != nil {
+		return err
+	}
+	for _, material := range req.Material {
+		err := models.AddProductVariant(material, data)
+		if err != nil {
+			return err
+		}
+	}
+	for _, color := range req.Color {
+		err := models.AddProductVariant(color, data)
+		if err != nil {
+			return err
+		}
+	}
+	for _, size := range req.Size {
+		err := models.AddProductVariant(size, data)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func handleProductsWarranty(req dtos.ProductSpecification) error {
+	data := dtos.AddProductWarrantiesRequest{
+		ProductID:         req.ProductID,
+		WarrantyTypeID:    req.WarrantyType,
+		WarrantyPeriod:    req.WarrantyPeriod,
+		ManufacturingDate: req.ManufacturerDate,
+		ExpiryDate:        req.ExpiryDate,
+	}
+	err := models.AddProductWarranties(data)
+	return err
+}
+
+func attachProductTax(req dtos.ProductSpecification) error {
+	data := dtos.AddChargeToProductRequest{
+		ProductID: req.ProductID,
+		ChargeID:  req.Tax,
+	}
+	err := models.AddChargeToProduct(data)
+	return err
+}
+func attachProductDiscount(req dtos.ProductSpecification) error {
+	data := dtos.AddPromotionToProductRequest{
+		ProductID:       req.ProductID,
+		PromotionTypeID: req.DiscountType,
+	}
+	err := models.AddPromotionToProduct(data)
+	return err
+}

@@ -347,7 +347,7 @@ func AddPromotionToProduct(req dtos.AddPromotionToProductRequest) error {
 		return err
 	}
 	// Check if promotion type exists
-	exist, err := RecordExists("promotions_types", "id = ?", req.PromotionTypeID)
+	exist, err := RecordExists("promotion_types", "id = ?", req.PromotionTypeID)
 	if err != nil {
 		return err
 	}
@@ -356,17 +356,18 @@ func AddPromotionToProduct(req dtos.AddPromotionToProductRequest) error {
 		return errors.New("promotion type does not exist")
 	}
 	// Check if the association already exists
-	exists, err := RecordExists("product_discounts", "product_id = ? AND promotion_id = ?", req.ProductID, req.PromotionTypeID)
+	exists, err := RecordExists("product_discounts", "product_id = ? AND promotion_type_id = ?", req.ProductID, req.PromotionTypeID)
 	if err != nil {
 		return err
 	}
 	if exists {
 		return errors.New("promotion already exists for this product")
 	}
+	productDiscountID, _ := shortid.Generate()
 	// Insert the new association
 	_, err = DB.Exec(`
-		INSERT INTO product_discounts (product_id, promotion_id)
-		VALUES (?, ?)`, req.ProductID, req.PromotionTypeID,
+		INSERT INTO product_discounts (product_discount_id, product_id, promotion_type_id)
+		VALUES (?, ?,?)`, productDiscountID, req.ProductID, req.PromotionTypeID,
 	)
 	return err
 }

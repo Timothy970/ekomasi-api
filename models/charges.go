@@ -106,15 +106,37 @@ func AddChargeToProduct(input dtos.AddChargeToProductRequest) error {
 	if err != nil {
 		return err
 	}
+	productChargeID, _ := shortid.Generate()
 	//check if charge exists
 	err = isChargeThere(input.ChargeID)
 	if err != nil {
 		return err
 	}
-	_, err = DB.Exec(`
-		INSERT INTO product_charges (product_id, charge_id)
-		VALUES (?, ?)`,
-		input.ProductID, input.ChargeID,
-	)
-	return err
+	exists, err := isProductCharge(input.ChargeID, input.ProductID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	} else {
+		_, err = DB.Exec(`
+		INSERT INTO product_charges (product_charge_id,product_id, charge_id)
+		VALUES (?, ?,?)`,
+			productChargeID, input.ProductID, input.ChargeID,
+		)
+		return err
+	}
+}
+
+func isProductCharge(chargeID, productID string) (bool, error) {
+	exists, err := RecordExists("product_charges", "charge_id = ? and product_id = ?", chargeID, productID)
+	if err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, nil
+	} else {
+		return true, nil
+	}
+
 }
