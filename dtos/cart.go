@@ -16,7 +16,8 @@ type AddToCartRequest struct {
 	CartID    string `json:"cart_id" validate:"required"`
 }
 type CreateCartRequest struct {
-	UserID *string `json:"user_id" validate:"omitempty"`
+	UserID    *string `json:"user_id" validate:"omitempty"`
+	ProductID string  `json:"product_id"`
 }
 
 type AddToCartResponse struct {
