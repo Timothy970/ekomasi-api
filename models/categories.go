@@ -128,7 +128,7 @@ func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
 		_, err := DB.Exec(`
 		INSERT INTO categories (category_id, name, description, image)
 		VALUES (?, ?, ?, ?)`,
-			categoryID, input.Name, categoryID, input.Image,
+			categoryID, input.Name, input.Description, input.Image,
 		)
 		if err != nil {
 			return nil, err
