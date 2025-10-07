@@ -1196,6 +1196,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	}
 	//handle products specifications
 	err := handleProductSpecs(*req)
+	log.Printf("handleProductSpecs ***** %s", err)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -1208,6 +1209,8 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	}
 	//handle products variants
 	err = handleProductsVariants(*req)
+	log.Printf("handleProductsVariants ***** %s", err)
+
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -1220,6 +1223,8 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	}
 	//handle product warranty
 	err = handleProductsWarranty(*req)
+	log.Printf("handleProductsWarranty ***** %s", err)
+
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -1232,6 +1237,8 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	}
 	//add tax to a product
 	err = attachProductTax(*req)
+	log.Printf("attachProductTax ***** %s", err)
+
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -1244,6 +1251,8 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	}
 	// add discount to a product
 	err = attachProductDiscount(*req)
+	log.Printf("attachProductDiscount ***** %s", err)
+
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -1281,31 +1290,47 @@ func handleProductsVariants(req dtos.ProductSpecification) error {
 	data := dtos.ProductVariantRequest{
 		ProductID: req.ProductID,
 	}
+	var noVariant = "variant not found"
 	for _, age := range req.Age {
 		err := models.AddProductVariant(age, data)
 		if err != nil {
+			if err.Error() == noVariant {
+				return fmt.Errorf("age variant with variant_id %s not found", age)
+			}
 			return err
 		}
 	}
 	err := models.AddProductVariant(req.Brand, data)
 	if err != nil {
+		if err.Error() == noVariant {
+			return fmt.Errorf("brand variant with variant_id %s not found", req.Brand)
+		}
 		return err
 	}
 	for _, material := range req.Material {
 		err := models.AddProductVariant(material, data)
 		if err != nil {
+			if err.Error() == noVariant {
+				return fmt.Errorf("material variant with variant_id %s not found", material)
+			}
 			return err
 		}
 	}
 	for _, color := range req.Color {
 		err := models.AddProductVariant(color, data)
 		if err != nil {
+			if err.Error() == noVariant {
+				return fmt.Errorf("color variant with variant_id %s not found", color)
+			}
 			return err
 		}
 	}
 	for _, size := range req.Size {
 		err := models.AddProductVariant(size, data)
 		if err != nil {
+			if err.Error() == noVariant {
+				return fmt.Errorf("size variant with variant_id %s not found", size)
+			}
 			return err
 		}
 	}

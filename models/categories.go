@@ -295,7 +295,7 @@ func CategoryExists(id string) error {
 }
 
 // Retrieves admin categories with pagination
-func GetAdminCategories(page, limit int) ([]dtos.AdminCategoryData, *dtos.PaginationMeta, error) {
+func GetAdminCategories(page, limit int, categoryName string) ([]dtos.AdminCategoryData, *dtos.PaginationMeta, error) {
 	//get total count
 	var total int
 	err := DB.QueryRow("SELECT COUNT(*) FROM categories").Scan(&total)

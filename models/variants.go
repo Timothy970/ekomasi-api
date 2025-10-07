@@ -110,11 +110,11 @@ func DeleteVariantByID(id string) error {
 }
 
 // Product Variants
-func AddProductVariant(id string, req dtos.ProductVariantRequest) error {
+func AddProductVariant(variantID string, req dtos.ProductVariantRequest) error {
 	pvID, _ := shortid.Generate()
 
 	// Validate variant and product existence
-	if err := variantexists(id); err != nil {
+	if err := variantexists(variantID); err != nil {
 		return err
 	}
 	if err := isProductThere(req.ProductID); err != nil {
@@ -122,7 +122,7 @@ func AddProductVariant(id string, req dtos.ProductVariantRequest) error {
 	}
 
 	// Check if the product already has the variant
-	exists, err := isProductWithVariant(id, req.ProductID)
+	exists, err := isProductWithVariant(variantID, req.ProductID)
 	log.Printf("is product with variant %s %s", exists, err)
 	if err != nil {
 		return err
@@ -156,7 +156,7 @@ func AddProductVariant(id string, req dtos.ProductVariantRequest) error {
 		// remove trailing comma and add WHERE clause
 		query = strings.TrimSuffix(query, ", ")
 		query += " WHERE variant_id = ? AND product_id = ?"
-		args = append(args, id, req.ProductID)
+		args = append(args, variantID, req.ProductID)
 
 		_, err = DB.Exec(query, args...)
 		if err != nil {
@@ -168,7 +168,7 @@ func AddProductVariant(id string, req dtos.ProductVariantRequest) error {
 		_, err = DB.Exec(`
 			INSERT INTO product_variants (product_variants_id, variant_id, product_id, additional_price, stock_quantity)
 			VALUES (?, ?, ?, ?, ?)`,
-			pvID, id, req.ProductID, additionalPrice, req.StockQuantity, req.AdditionalPrice,
+			pvID, variantID, req.ProductID, additionalPrice, req.StockQuantity,
 		)
 	}
 
