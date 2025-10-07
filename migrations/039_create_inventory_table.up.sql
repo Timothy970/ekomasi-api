@@ -1,9 +1,9 @@
 CREATE TABLE IF NOT EXISTS inventory (
    `inventory_id` char(36) NOT NULL,
    `product_id` char(36) NOT NULL,
-   `variant_id` char(36) NOT NULL,
-   `quantity` int NOT NULL DEFAULT '0',
-   `low_stock_threshold` int NOT NULL DEFAULT '0',
+   `variant_id` char(36) DEFAULT NULL,
+   `quantity` int DEFAULT '0',
+   `low_stock_threshold` int DEFAULT '0',
    `warehouse_id` char(36) DEFAULT NULL,
    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
    `last_updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

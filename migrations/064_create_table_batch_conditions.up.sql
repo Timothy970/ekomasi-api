@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS batch_conditions (
+    condition_id int AUTO_INCREMENT PRIMARY KEY,
+    condition_name VARCHAR(100) NOT NULL,
+    condition_description TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);

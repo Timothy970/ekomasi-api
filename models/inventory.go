@@ -3,8 +3,10 @@ package models
 import (
 	"adenzo_backend/dtos"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"strings"
 	"time"
@@ -303,10 +305,23 @@ func StoreBatchDetails(req dtos.Batch) (string, error) {
 		return "", err
 	}
 	batchID, _ := shortid.Generate()
+	var imagesData []byte
+
+	if req.Images != nil {
+		imagesData, err = json.Marshal(req.Images)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return "", err
+		}
+	}
+
 	_, err = DB.Exec(`
 		INSERT INTO inventory_batches (batch_id, inventory_id, batch_number, images, expiry_date, manufacturing_date)
 		VALUES (?, ?, ?, ?, ?, ?)`,
-		batchID, req.InventoryID, req.BatchNumber, strings.Join(req.Images, ","), req.ExpiryDate, req.ManufacturingDate)
+		batchID, req.InventoryID, req.BatchNumber, imagesData, req.ExpiryDate, req.ManufacturingDate)
+	if err != nil {
+		log.Printf("Error inserting batch details: %v", err)
+	}
 	return batchID, err
 }
 
@@ -342,11 +357,20 @@ func StoreInspectionDetails(req dtos.Inspection) error {
 		}
 		return err
 	}
+	var imagesData []byte
+
+	if req.Images != nil {
+		imagesData, err = json.Marshal(req.Images)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return err
+		}
+	}
 	inspectionID, _ := shortid.Generate()
 	_, err = DB.Exec(`
 		INSERT INTO batch_inspections (inspection_id, batch_id, inspection_date, inspector_id, inspection_notes, images)
 		VALUES (?, ?, ?, ?, ?, ?)`,
-		inspectionID, req.BatchID, req.InspectionDate, req.InspectorID, req.InspectionNotes, strings.Join(req.Images, ","))
+		inspectionID, req.BatchID, req.InspectionDate, req.InspectorID, req.InspectionNotes, imagesData)
 	return err
 }
 func isConditionThere(conditionID string) error {
@@ -369,10 +393,11 @@ func StoreHandlingNotes(req dtos.InventoryCondition) error {
 	if err != nil {
 		return err
 	}
+	notesID, _ := shortid.Generate()
 	_, err = DB.Exec(`
-		INSERT INTO inventory_handling_notes (batch_id, handling_notes, condition_id)
-		VALUES (?, ?, ?)`,
-		req.BatchID, req.HandlingNotes, req.ConditionID)
+		INSERT INTO inventory_handling_notes (handling_note_id, batch_id, handling_notes, condition_id)
+		VALUES (?, ?, ?, ?)`,
+		notesID, req.BatchID, req.HandlingNotes, req.ConditionID)
 	return err
 }
 
