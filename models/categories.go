@@ -130,6 +130,7 @@ func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
 		VALUES (?, ?, ?, ?)`,
 			categoryID, input.Name, input.Description, input.Image,
 		)
+
 		if err != nil {
 			return nil, err
 		}
