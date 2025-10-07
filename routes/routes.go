@@ -35,7 +35,7 @@ func SetupRoutes(router *mux.Router) {
 	home.HandleFunc("/data", handlers.HomePageData).Methods("GET")
 	home.HandleFunc("/sliders", handlers.GetSliderData).Methods("GET")
 	home.HandleFunc("/banners", handlers.GetHomeBannersData).Methods("GET")
-	// home.HandleFunc("/categories", handlers.GetCategories).Methods("GET")
+	api.HandleFunc("/admin/categories-subcategories", handlers.GetCategoriesWithSubCategoriesHandler).Methods("GET")
 	home.HandleFunc("/promotions", handlers.GetPromotionsHandler).Methods("GET")
 	home.HandleFunc("/promotions/types", handlers.GetPromotionsTypesHandler).Methods("GET")
 

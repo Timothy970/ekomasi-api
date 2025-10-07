@@ -201,7 +201,7 @@ func main() {
 	}
 	// CORS middleware
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},                                     // Allow all origins
+		AllowedOrigins:   []string{"localhost:3000", "localhost:3001", "*"}, // Allow all origins
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH"}, // Allow specific HTTP methods
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},         // Allow specific headers
 		AllowCredentials: true,

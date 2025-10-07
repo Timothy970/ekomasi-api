@@ -48,3 +48,14 @@ type AdminCategoryData struct {
 	Subcategories int    `json:"subcategories"`
 	Description   string `json:"description"`
 }
+
+type CategoryWithSubCategories struct {
+	Category    string        `json:"name"`
+	CategoryID  string        `json:"category_id"`
+	SubCategory []SubCategory `json:"subcategories"`
+}
+
+type SubCategory struct {
+	Category   string `json:"name"`
+	CategoryID string `json:"category_id"`
+}

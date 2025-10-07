@@ -165,6 +165,20 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 
 	isPrimaryStr := r.FormValue("is_primary")
 	isPrimary := strings.ToLower(isPrimaryStr) == "true"
+	videoLink := r.FormValue("video_link")
+	if videoLink != "" {
+		err := models.InsertProductImage(productID, videoLink, "video", isPrimary)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+	}
 
 	err := r.ParseMultipartForm(20 << 20) // 20 MB
 	if err != nil {
@@ -1322,6 +1336,11 @@ func attachProductDiscount(req dtos.ProductSpecification) error {
 		ProductID:       req.ProductID,
 		PromotionTypeID: req.DiscountType,
 	}
-	err := models.AddPromotionToProduct(data)
-	return err
+	if data.PromotionTypeID != "" {
+		err := models.AddPromotionToProduct(data)
+		if err != nil {
+			return nil
+		}
+	}
+	return nil
 }
