@@ -5,7 +5,8 @@ CREATE TABLE IF NOT EXISTS vouchers (
     balance         DECIMAL(10,2) DEFAULT 0.0, 
     original_value  DECIMAL(10,2) NOT NULL DEFAULT 0.0,     
     expiry_date     DATETIME NOT NULL,
-    is_active       BOOLEAN DEFAULT TRUE,
+    is_redeemed       BOOLEAN DEFAULT FALSE,
+    status VARCHAR(20) DEFAULT "inactive",
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT v_user FOREIGN KEY (user_id) REFERENCES users(user_id)

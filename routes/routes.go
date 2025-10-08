@@ -59,7 +59,7 @@ func SetupRoutes(router *mux.Router) {
 	wishlist.Handle(productPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.AddToWishList))).Methods("POST")
 	wishlist.Handle("/product/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveFromWishList))).Methods("DELETE")
 	wishlist.Handle("/share", middleware.AuthenticateToken(http.HandlerFunc(handlers.SendWishlistToShare))).Methods("POST")
-	wishlist.Handle("/share/{wishlist_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.ReceiceWishlistShared))).Methods("GET")
+	wishlist.HandleFunc("/share/{wishlist_id}", handlers.ReceiceWishlistShared).Methods("GET")
 
 	//products api
 	product := api.PathPrefix("/product").Subrouter()

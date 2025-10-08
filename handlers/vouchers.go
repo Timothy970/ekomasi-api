@@ -42,6 +42,35 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	err := r.ParseMultipartForm(20 << 20) // 20 MB
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// var imageURL string
+	// if file, header, err := r.FormFile("image"); err == nil {
+	// 	defer file.Close()
+	// 	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+	// 	if err != nil {
+	// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	// 			Code:      http.StatusInternalServerError,
+	// 			Message:   "Failed to upload image: " + err.Error(),
+	// 			TimeTaken: time.Since(start),
+	// 			Function:  utils.GetCurrentFuncName(),
+	// 			Request:   r,
+	// 		})
+	// 		return
+	// 	}
+	// 	imageURL = url
+	// }
+
 	req, ok := DecodeRequestBody[dtos.Voucher](r, w, requestSummary, start)
 	if !ok {
 		return
@@ -50,7 +79,7 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-	_, err := models.AddNewVoucher(*req, authuser.ID)
+	_, err = models.AddNewVoucher(*req, authuser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -90,34 +119,22 @@ func ListVouchersHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	isRedeemed := r.URL.Query().Get("is_redeemed")
+	status := r.URL.Query().Get("status")
+	r.URL.Query().Get("page")
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	cacheKeyVouchers := fmt.Sprintf("vouchers_%d_size_%d", page, size)
-	cacheKeyPagination := fmt.Sprintf("vouchers_pagination_%d_size_%d", page, size)
-	var vouchers []dtos.VoucherData
-	var cachedVouchers []dtos.VoucherData
-	var pagination *dtos.PaginationMeta
-	var cachedPagination *dtos.PaginationMeta
-	_ = utils.GetCache(cacheKeyVouchers, &cachedVouchers)
-	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
-	if cachedVouchers == nil {
-		var err error
-		vouchers, pagination, err = models.ListVouchers(page, size)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
-		}
-		_ = utils.SetCache(cacheKeyVouchers, cachedVouchers)
-		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
-	} else {
-		vouchers = cachedVouchers
-		pagination = cachedPagination
+	vouchers, pagination, err := models.ListVouchers(page, size, isRedeemed, status)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
 	}
+
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusOK,
 		Payload: map[string]interface{}{
@@ -394,11 +411,11 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	// create voucher data
 	var voucher dtos.Voucher
 	voucher.Amount = req.Amount
-	active := false
-	voucher.IsActive = &active
+	active := "inactive"
+	voucher.Status = &active
 	// Add 90 days from the delivery date
-	ninetyDaysFromNow := req.DeliveryTime.AddDate(0, 0, 90)
-	voucher.ExpiryDate = ninetyDaysFromNow
+	// ninetyDaysFromNow := req.DeliveryTime.AddDate(0, 0, 90)
+	// voucher.ExpiryDate = ninetyDaysFromNow
 
 	voucherID, err := models.AddNewVoucher(voucher, authuser.ID)
 	if err != nil {

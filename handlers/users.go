@@ -395,7 +395,7 @@ func GetUserDetails(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	user, err := models.GetUserByEmail(authUser.Email)
+	user, err := models.GetUserByUserID(authUser.ID)
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -409,14 +409,8 @@ func GetUserDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
-		Payload: map[string]interface{}{
-			"user_id":    user.ID,
-			"first_name": user.FirstName,
-			"last_name":  user.LastName,
-			"email":      user.Email,
-			"role":       user.Role,
-		},
+		Code:      http.StatusOK,
+		Payload:   user,
 		Message:   "User details",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),

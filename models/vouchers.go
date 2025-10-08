@@ -3,6 +3,7 @@ package models
 import (
 	"adenzo_backend/dtos"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -72,17 +73,17 @@ func CreateVoucherOrder(amount float64, voucherID string) (string, error) {
 func AddNewVoucher(v dtos.Voucher, userID string) (string, error) {
 
 	voucherID, _ := shortid.Generate()
-	isActive := true
-	if v.IsActive != nil {
-		isActive = *v.IsActive
+	status := "inactive"
+	if v.Status != nil {
+		status = *v.Status
 	}
 	// generate unique code
 	code, _ := GenerateVoucherCode()
 	query := `
-		INSERT INTO vouchers (voucher_id, code, original_value, is_active,user_id, expiry_date, balance)
+		INSERT INTO vouchers (voucher_id, code, original_value, status,user_id, expiry_date, balance)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
-	_, err := DB.Exec(query, voucherID, code, v.Amount, isActive, userID, v.ExpiryDate, v.Amount)
+	_, err := DB.Exec(query, voucherID, code, v.Amount, status, userID, v.ExpiryDate, v.Amount)
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +102,7 @@ func InsertIntoVoucherPurchases(v dtos.BuyVoucherData, userID, voucherID string)
 	}
 	return nil
 }
-func ListVouchers(page, size int) ([]dtos.VoucherData, *dtos.PaginationMeta, error) {
+func ListVouchers(page, size int, isRedeemed, status string) ([]dtos.VoucherData, *dtos.PaginationMeta, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -110,30 +111,65 @@ func ListVouchers(page, size int) ([]dtos.VoucherData, *dtos.PaginationMeta, err
 	}
 	offset := (page - 1) * size
 
-	var total int
-	err := DB.QueryRow("SELECT COUNT(*) FROM vouchers").Scan(&total)
-	if err != nil {
-		return nil, nil, err
+	// Build base query and args dynamically
+	baseQuery := `
+		FROM vouchers
+		WHERE 1=1
+	`
+	args := []interface{}{}
+
+	// Optional filters
+	if isRedeemed != "" {
+		baseQuery += " AND is_redeemed = ?"
+		redeemed := isRedeemed == "true"
+		args = append(args, redeemed)
 	}
 
-	rows, err := DB.Query(`
-		SELECT voucher_id, code, balance, original_value, is_active, created_at, expiry_date
-		FROM vouchers
-		ORDER BY created_at DESC
-		LIMIT ? OFFSET ?`, size, offset)
+	if status != "" {
+		baseQuery += " AND status = ?"
+		args = append(args, status)
+	}
 
+	// Count total
+	countQuery := "SELECT COUNT(*) " + baseQuery
+	var total int
+	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		return nil, nil, fmt.Errorf("failed to count vouchers: %w", err)
+	}
+
+	// Fetch vouchers with pagination
+	selectQuery := `
+		SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date, user_id, is_redeemed
+	` + baseQuery + `
+		ORDER BY created_at DESC
+		LIMIT ? OFFSET ?
+	`
+	args = append(args, size, offset)
+
+	rows, err := DB.Query(selectQuery, args...)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to query vouchers: %w", err)
 	}
 	defer rows.Close()
 
 	var vouchers []dtos.VoucherData
 	for rows.Next() {
 		var v dtos.VoucherData
-		err := rows.Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.IsActive, &v.CreatedAt, &v.ExpiryDate)
-		if err != nil {
-			return nil, nil, err
+		var userID string
+
+		if err := rows.Scan(
+			&v.VoucherID, &v.Code, &v.Balance, &v.Amount,
+			&v.Status, &v.CreatedAt, &v.ExpiryDate, &userID, &v.IsReedemed,
+		); err != nil {
+			return nil, nil, fmt.Errorf("failed to scan voucher: %w", err)
 		}
+
+		// Get participants
+		v.To, v.From, err = getVoucherParticipants(v.VoucherID, userID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get voucher participants: %w", err)
+		}
+
 		vouchers = append(vouchers, v)
 	}
 
@@ -145,18 +181,61 @@ func ListVouchers(page, size int) ([]dtos.VoucherData, *dtos.PaginationMeta, err
 		HasPrev:    page > 1,
 		HasNext:    page*size < total,
 	}
-	return vouchers, &meta, nil
 
+	return vouchers, &meta, nil
 }
+
+func getVoucherParticipants(voucherID, userID string) (*string, *string, error) {
+	log.Printf("getting voucher participants****")
+	var phone, email, toEmail sql.NullString
+
+	// Fetch sender details and recipient email
+	err := DB.QueryRow(`
+		SELECT u.phone_number, u.email, v.to_email
+		FROM voucher_purchases v
+		LEFT JOIN users u ON v.from_user_id = u.user_id
+		WHERE v.voucher_id = ?
+	`, voucherID).Scan(&phone, &email, &toEmail)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Fallback: get phone/email for provided userID if no voucher record found
+			var fallbackPhone, fallbackEmail sql.NullString
+			fallbackErr := DB.QueryRow(`
+				SELECT phone_number, email FROM users WHERE user_id = ?
+			`, userID).Scan(&fallbackPhone, &fallbackEmail)
+
+			if fallbackErr != nil {
+				return nil, nil, fallbackErr
+			}
+
+			if fallbackEmail.Valid {
+				return &fallbackEmail.String, &fallbackEmail.String, nil
+			}
+			if fallbackPhone.Valid {
+				return &fallbackPhone.String, &fallbackPhone.String, nil
+			}
+			return nil, nil, fmt.Errorf("no contact info found for user %s", userID)
+		}
+		return nil, nil, fmt.Errorf("failed to fetch voucher participants: %w", err)
+	}
+
+	// Prefer email if available; otherwise, use phone
+	if email.Valid {
+		return &email.String, &toEmail.String, nil
+	}
+	return &phone.String, &toEmail.String, nil
+}
+
 func GetVoucherByID(voucherID string) (dtos.VoucherData, error) {
 	err := isVoucherThere(voucherID)
 	if err != nil {
 		return dtos.VoucherData{}, err
 	}
 	var v dtos.VoucherData
-	query := `SELECT voucher_id, code, balance, original_value, is_active, created_at, expiry_date FROM vouchers WHERE voucher_id = ?`
+	query := `SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date FROM vouchers WHERE voucher_id = ?`
 
-	err = DB.QueryRow(query, voucherID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.IsActive, &v.CreatedAt, &v.ExpiryDate)
+	err = DB.QueryRow(query, voucherID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.Status, &v.CreatedAt, &v.ExpiryDate)
 	if err != nil {
 		return dtos.VoucherData{}, err
 	}
@@ -168,9 +247,9 @@ func GetUserVoucherByID(voucherID, userID string) (dtos.VoucherData, error) {
 		return dtos.VoucherData{}, err
 	}
 	var v dtos.VoucherData
-	query := `SELECT voucher_id, code, balance, original_value, is_active, created_at, expiry_date FROM vouchers WHERE voucher_id = ? AND user_id = ?`
+	query := `SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date FROM vouchers WHERE voucher_id = ? AND user_id = ?`
 
-	err = DB.QueryRow(query, voucherID, userID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.IsActive, &v.CreatedAt, &v.ExpiryDate)
+	err = DB.QueryRow(query, voucherID, userID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.Status, &v.CreatedAt, &v.ExpiryDate)
 	if err != nil {
 		return dtos.VoucherData{}, err
 	}
@@ -189,7 +268,7 @@ func GetUserVouchers(userID string, page, limit int) ([]dtos.VoucherData, *Pagin
 
 	// Fetch vouchers with pagination
 	query := `
-		SELECT voucher_id, code, balance, original_value, is_active, created_at, expiry_date
+		SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date
 		FROM vouchers
 		WHERE user_id = ?
 		ORDER BY created_at DESC
@@ -204,7 +283,7 @@ func GetUserVouchers(userID string, page, limit int) ([]dtos.VoucherData, *Pagin
 	var vouchers []dtos.VoucherData
 	for rows.Next() {
 		var v dtos.VoucherData
-		if err := rows.Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.IsActive, &v.CreatedAt, &v.ExpiryDate); err != nil {
+		if err := rows.Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.Status, &v.CreatedAt, &v.ExpiryDate); err != nil {
 			return nil, nil, err
 		}
 		vouchers = append(vouchers, v)
@@ -241,9 +320,9 @@ func VoucherUpdate(input dtos.VoucherDataUpdate, voucherID string) error {
 	if err != nil {
 		return err
 	}
-	isActive := true
-	if input.IsActive != nil {
-		isActive = *input.IsActive
+	status := "active"
+	if input.Status != nil {
+		status = *input.Status
 	}
 	balance := input.Amount
 	if input.Balance != nil {
@@ -251,10 +330,10 @@ func VoucherUpdate(input dtos.VoucherDataUpdate, voucherID string) error {
 	}
 	query := `
 		UPDATE vouchers
-		SET original_value = ?, expiry_date = ?, is_active = ?, balance = ?
+		SET original_value = ?, expiry_date = ?, status = ?, balance = ?
 		WHERE voucher_id = ?
 	`
-	_, err = DB.Exec(query, input.Amount, input.ExpiryDate, isActive, balance, voucherID)
+	_, err = DB.Exec(query, input.Amount, input.ExpiryDate, status, balance, voucherID)
 	return err
 }
 func isTransactionIDUnique(id string) error {
@@ -286,7 +365,7 @@ func RedeemVoucher(code, userID string) (*dtos.VoucherData, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !voucher.IsActive {
+	if voucher.Status != "active" {
 		return nil, fmt.Errorf("voucher is not active")
 	}
 	if voucher.ExpiryDate.Before(time.Now()) {
@@ -299,9 +378,9 @@ func RedeemVoucher(code, userID string) (*dtos.VoucherData, error) {
 
 func GetVoucherByCode(code string) (dtos.VoucherData, error) {
 	var v dtos.VoucherData
-	query := `SELECT voucher_id, code, balance, original_value, is_active, created_at, expiry_date FROM vouchers WHERE code = ?`
+	query := `SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date FROM vouchers WHERE code = ?`
 
-	err := DB.QueryRow(query, code).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.IsActive, &v.CreatedAt, &v.ExpiryDate)
+	err := DB.QueryRow(query, code).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.Status, &v.CreatedAt, &v.ExpiryDate)
 	if err != nil {
 		return dtos.VoucherData{}, err
 	}

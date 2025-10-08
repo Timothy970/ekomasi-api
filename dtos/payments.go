@@ -36,14 +36,23 @@ type VoucherRequest struct {
 	DeliveryID  string `json:"delivery_id"`
 }
 type Voucher struct {
-	Amount     float64   `json:"amount" validate:"required"`
-	IsActive   *bool     `json:"is_active"`
-	CreatedAt  time.Time `json:"created_at"`
-	ExpiryDate time.Time `json:"expiry_date" validate:"required"`
+	BackImage     *string   `json:"back_image"`
+	FrontImage    *string   `json:"front_image"`
+	VoucherType   string    `json:"voucher_type" validate:"required, oneof=fixed percentage free_shipping price_discount"`
+	Amount        float64   `json:"amount" validate:"required"`
+	ToName        string    `json:"to_name" validate:"required"`
+	ToEmail       string    `json:"to_email" validate:"required"`
+	FromName      string    `json:"from_name" validate:"required"`
+	DeliveryTime  time.Time `json:"delivery_time" validate:"required"`
+	Message       string    `json:"message" validate:"required"`
+	Status        *string   `json:"status"`
+	InternalNotes string    `json:"internal_notes"`
+	CreatedAt     time.Time `json:"created_at"`
+	ExpiryDate    string    `json:"expiry_date" validate:"required"`
 }
 type BuyVoucher struct {
 	Amount     float64   `json:"amount" validate:"required"`
-	IsActive   *bool     `json:"is_active"`
+	Status     string    `json:"status"`
 	CreatedAt  time.Time `json:"created_at"`
 	ExpiryDate time.Time `json:"expiry_date" validate:"required"`
 }
@@ -60,14 +69,17 @@ type VoucherData struct {
 	Code       string    `json:"code"`
 	Amount     float64   `json:"amount"`
 	Balance    float64   `json:"balance"`
-	IsActive   bool      `json:"is_active"`
+	Status     string    `json:"status"`
 	CreatedAt  time.Time `json:"created_at"`
 	ExpiryDate time.Time `json:"expiry_date"`
+	From       *string   `json:"from"`
+	To         *string   `json:"to"`
+	IsReedemed *bool     `json:"is_reedemed"`
 }
 type VoucherDataUpdate struct {
 	Amount     float64   `json:"amount" validate:"required"`
 	Balance    *float64  `json:"balance"`
-	IsActive   *bool     `json:"is_active"`
+	Status     *string   `json:"status"`
 	ExpiryDate time.Time `json:"expiry_date" validate:"required"`
 }
 type Payment struct {
