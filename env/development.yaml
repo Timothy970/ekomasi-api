@@ -36,6 +36,7 @@ secrets:
   - PARTNERID
   - SENDER_EMAIL
   - SERVICE_ACCOUNT
+  
 
 requires:
   - mysql
