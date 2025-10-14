@@ -103,8 +103,9 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	// support query by user name,phone,email
 	q := r.URL.Query().Get("q")
+	role := r.URL.Query().Get("role")
 	offset := (page - 1) * limit
-	users, meta, err := models.GetAllUsersWithPagination(limit, offset, q)
+	users, meta, err := models.GetAllUsersWithPagination(limit, offset, q, role)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,

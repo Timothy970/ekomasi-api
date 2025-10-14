@@ -15,6 +15,23 @@ import (
 	"github.com/teris-io/shortid"
 )
 
+func StringToTime(str string) time.Time {
+	formats := []string{
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	}
+
+	for _, layout := range formats {
+		t, err := time.Parse(layout, str)
+		if err == nil {
+			return t
+		}
+	}
+
+	fmt.Println("Error parsing time:", str)
+	return time.Time{}
+}
+
 func isVoucherThere(voucherID string) error {
 	exists, err := RecordExists("vouchers", "voucher_id = ?", voucherID)
 	if err != nil {
@@ -81,7 +98,7 @@ func AddNewVoucher(v dtos.Voucher, userID string) (string, error) {
 	code, _ := GenerateVoucherCode()
 	query := `
 		INSERT INTO vouchers (voucher_id, code, original_value, status,user_id, expiry_date, balance)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	_, err := DB.Exec(query, voucherID, code, v.Amount, status, userID, v.ExpiryDate, v.Amount)
 	if err != nil {
@@ -94,7 +111,7 @@ func InsertIntoVoucherPurchases(v dtos.BuyVoucherData, userID, voucherID string)
 	// generate unique code
 	query := `
 		INSERT INTO voucher_purchases (purchase_id, voucher_id, from_user_id, to_name, to_email,personalized_msg, delivery_time, status, from_name)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	_, err := DB.Exec(query, purchaseID, voucherID, userID, v.ToName, v.ToEmail, v.Message, v.DeliveryTime, "PENDING", v.FromName)
 	if err != nil {
@@ -227,31 +244,50 @@ func getVoucherParticipants(voucherID, userID string) (*string, *string, error) 
 	return &phone.String, &toEmail.String, nil
 }
 
-func GetVoucherByID(voucherID string) (dtos.VoucherData, error) {
+func GetVoucherByID(voucherID string) (dtos.SingleVoucherData, error) {
 	err := isVoucherThere(voucherID)
 	if err != nil {
-		return dtos.VoucherData{}, err
+		return dtos.SingleVoucherData{}, err
 	}
-	var v dtos.VoucherData
-	query := `SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date FROM vouchers WHERE voucher_id = ?`
+	var v dtos.SingleVoucherData
+	var userID string
+	query := `SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date, is_redeemed, user_id FROM vouchers WHERE voucher_id = ?`
 
-	err = DB.QueryRow(query, voucherID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.Status, &v.CreatedAt, &v.ExpiryDate)
+	err = DB.QueryRow(query, voucherID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.Status, &v.CreatedAt, &v.ExpiryDate, &v.IsReedemed, &userID)
 	if err != nil {
-		return dtos.VoucherData{}, err
+		return dtos.SingleVoucherData{}, err
+	}
+	v.To, v.From, err = getVoucherParticipants(v.VoucherID, userID)
+	if err != nil {
+		return dtos.SingleVoucherData{}, err
+	}
+	//get voucher history
+	v.VoucherHistory, err = GetVoucherHistoryByVoucherID(voucherID)
+	if err != nil {
+		return dtos.SingleVoucherData{}, err
 	}
 	return v, nil
 }
-func GetUserVoucherByID(voucherID, userID string) (dtos.VoucherData, error) {
+func GetUserVoucherByID(voucherID, userID string) (dtos.SingleVoucherData, error) {
 	err := isVoucherThere(voucherID)
 	if err != nil {
-		return dtos.VoucherData{}, err
+		return dtos.SingleVoucherData{}, err
 	}
-	var v dtos.VoucherData
-	query := `SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date FROM vouchers WHERE voucher_id = ? AND user_id = ?`
+	var v dtos.SingleVoucherData
+	query := `SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date, is_redeemed FROM vouchers WHERE voucher_id = ? AND user_id = ?`
 
-	err = DB.QueryRow(query, voucherID, userID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.Status, &v.CreatedAt, &v.ExpiryDate)
+	err = DB.QueryRow(query, voucherID, userID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.Status, &v.CreatedAt, &v.ExpiryDate, &v.IsReedemed)
 	if err != nil {
-		return dtos.VoucherData{}, err
+		return dtos.SingleVoucherData{}, err
+	}
+	v.To, v.From, err = getVoucherParticipants(v.VoucherID, userID)
+	if err != nil {
+		return dtos.SingleVoucherData{}, err
+	}
+	//get voucher history
+	v.VoucherHistory, err = GetVoucherHistoryByVoucherID(voucherID)
+	if err != nil {
+		return dtos.SingleVoucherData{}, err
 	}
 	return v, nil
 }
@@ -324,17 +360,27 @@ func VoucherUpdate(input dtos.VoucherDataUpdate, voucherID string) error {
 	if input.Status != nil {
 		status = *input.Status
 	}
-	balance := input.Amount
-	if input.Balance != nil {
-		balance = *input.Balance
-	}
+
 	query := `
 		UPDATE vouchers
-		SET original_value = ?, expiry_date = ?, status = ?, balance = ?
+		SET original_value = ?, expiry_date = ?, status = ?
 		WHERE voucher_id = ?
 	`
-	_, err = DB.Exec(query, input.Amount, input.ExpiryDate, status, balance, voucherID)
-	return err
+	_, err = DB.Exec(query, input.Amount, StringToTime(input.ExpiryDate), status, voucherID)
+	if err != nil {
+		return err
+	}
+	secondQuery := `
+		UPDATE voucher_purchases
+		SET to_name = ?, to_email = ?, personalized_msg = ?, delivery_time = ?, from_name = ?, notes = ?
+		WHERE voucher_id = ?
+	`
+	_, err = DB.Exec(secondQuery, input.ToName, input.ToEmail, input.Message, StringToTime(input.ExpiryDate), input.FromName, input.InternalNotes, voucherID)
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
 func isTransactionIDUnique(id string) error {
 	exists, err := RecordExists("payments", "transaction_id = ?", id)
@@ -417,4 +463,126 @@ func GetUsersWithUnsentVoucherEmails() ([]dtos.VoucherEmailInfo, error) {
 func MarkVoucherEmailAsSent(voucherID string) error {
 	_, err := DB.Exec(`UPDATE voucher_purchases SET status = 'SENT' WHERE voucher_id = ?`, voucherID)
 	return err
+}
+
+func CreateVoucherDesign(url string) (string, error) {
+	designID, _ := shortid.Generate()
+	// generate unique code
+	query := `
+		INSERT INTO voucher_designs (design_id, url)
+		VALUES (?, ?)
+	`
+	_, err := DB.Exec(query, designID, url)
+	if err != nil {
+		return "", err
+	}
+	return designID, nil
+}
+
+func GetVoucherDesign(designID string) (string, error) {
+	var url string
+	query := `SELECT url FROM voucher_designs WHERE design_id = ? LIMIT 1`
+	err := DB.QueryRow(query, designID).Scan(&url)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("design not found")
+		}
+		return "", err
+	}
+	return url, nil
+}
+func EditVoucherDesign(designID, newURL string) error {
+	query := `UPDATE voucher_designs SET url = ? WHERE design_id = ?`
+	res, err := DB.Exec(query, newURL, designID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("no design found with ID %s", designID)
+	}
+	return nil
+}
+func DeleteVoucherDesign(designID string) error {
+	query := `DELETE FROM voucher_designs WHERE design_id = ?`
+	res, err := DB.Exec(query, designID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("no design found with ID %s", designID)
+	}
+	return nil
+}
+
+type VoucherDesign struct {
+	DesignID string `json:"design_id"`
+	URL      string `json:"url"`
+}
+
+func GetAllVoucherDesigns() ([]VoucherDesign, error) {
+	query := `SELECT design_id, url FROM voucher_designs`
+	rows, err := DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var designs []VoucherDesign
+	for rows.Next() {
+		var d VoucherDesign
+		if err := rows.Scan(&d.DesignID, &d.URL); err != nil {
+			return nil, err
+		}
+		designs = append(designs, d)
+	}
+	return designs, nil
+}
+
+func GetVoucherHistoryByVoucherID(voucherID string) ([]map[string]any, error) {
+	query := `
+		SELECT history_id, redeemed_date, amount_redeemed, items_log
+		FROM vouchers_history
+		WHERE voucher_id = ?
+		ORDER BY redeemed_date DESC
+	`
+
+	rows, err := DB.Query(query, voucherID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var histories []map[string]any
+
+	for rows.Next() {
+		var (
+			historyID      string
+			redeemedDate   time.Time
+			amountRedeemed float64
+			itemsLog       string
+		)
+
+		if err := rows.Scan(&historyID, &redeemedDate, &amountRedeemed, &itemsLog); err != nil {
+			return nil, err
+		}
+
+		history := map[string]any{
+			"history_id":      historyID,
+			"redeemed_date":   redeemedDate,
+			"amount_redeemed": amountRedeemed,
+			"items_log":       itemsLog,
+		}
+
+		histories = append(histories, history)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return histories, nil
 }

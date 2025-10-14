@@ -3,6 +3,7 @@ package models
 import (
 	"adenzo_backend/dtos"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -358,4 +359,27 @@ func GetRefundByID(id int) (*dtos.Refund, error) {
 		return nil, err
 	}
 	return &refund, nil
+}
+func AddVoucherHistory(code string, amount float64, itemsLog []dtos.CartItem) error {
+	historyID, _ := shortid.Generate()
+	jsonData, err := json.Marshal(itemsLog)
+	if err != nil {
+		return err
+	}
+	err = isVoucherThereByCode(code)
+	if err != nil {
+		return err
+	}
+	voucher, err := GetVoucherByCode(code)
+	query := `
+		INSERT INTO vouchers_history (history_id, voucher_id, amount_redeemed, items_log)
+		VALUES (?, ?, ?, ?)
+	`
+
+	_, err = DB.Exec(query, historyID, voucher.VoucherID, amount, jsonData)
+	if err != nil {
+		return fmt.Errorf("failed to insert voucher history: %v", err)
+	}
+
+	return nil
 }

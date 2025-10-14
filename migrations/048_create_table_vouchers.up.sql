@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS vouchers (
     expiry_date     DATETIME NOT NULL,
     is_redeemed       BOOLEAN DEFAULT FALSE,
     status VARCHAR(20) DEFAULT "inactive",
+    design_id char(36) DEFAULT NULL,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT v_user FOREIGN KEY (user_id) REFERENCES users(user_id)

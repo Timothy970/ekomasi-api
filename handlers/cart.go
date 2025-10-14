@@ -489,6 +489,10 @@ func applyVoucher(cart dtos.ViewCartResponse, code string) (dtos.ViewCartRespons
 	if err := models.UpdateVoucherBalance(code, voucherBalance-discount); err != nil {
 		return dtos.ViewCartResponse{}, err
 	}
+	//add cart history
+	if err := models.AddVoucherHistory(code, discount, cart.CartItems); err != nil {
+		return dtos.ViewCartResponse{}, err
+	}
 	return cart, nil
 }
 

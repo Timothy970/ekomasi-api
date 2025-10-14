@@ -164,19 +164,19 @@ func DeleteUserAddress(addressID, userID string) error {
 }
 
 // GetAllUsersWithPagination fetches users with pagination and optional search query
-func GetAllUsersWithPagination(limit, offset int, q string) ([]dtos.Users, *dtos.PaginationMeta, error) {
+func GetAllUsersWithPagination(limit, offset int, q, role string) ([]dtos.Users, *dtos.PaginationMeta, error) {
 	if limit <= 0 {
 		limit = 10
 	}
 
 	// Step 1: count total users
-	totalItems, err := countUsers(q)
+	totalItems, err := countUsers(q, role)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Step 2: fetch paginated users
-	users, err := fetchUsers(limit, offset, q)
+	users, err := fetchUsers(limit, offset, q, role)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -189,14 +189,27 @@ func GetAllUsersWithPagination(limit, offset int, q string) ([]dtos.Users, *dtos
 
 // --- Helpers ---
 
-func countUsers(q string) (int, error) {
+func countUsers(q, role string) (int, error) {
 	query := "SELECT COUNT(*) FROM users"
 	var args []interface{}
+	var conditions []string
 
+	// Handle search filter
 	if q != "" {
 		q = "%" + strings.ToLower(q) + "%"
-		query += " WHERE LOWER(first_name) LIKE ? OR LOWER(last_name) LIKE ? OR LOWER(email) LIKE ? OR phone_number LIKE ?"
-		args = []interface{}{q, q, q, q}
+		conditions = append(conditions, `(LOWER(first_name) LIKE ? OR LOWER(last_name) LIKE ? OR LOWER(email) LIKE ? OR phone_number LIKE ? )`)
+		args = append(args, q, q, q, q)
+	}
+
+	// Handle role filter
+	if role != "" {
+		conditions = append(conditions, `LOWER(role) = ?`)
+		args = append(args, strings.ToLower(role))
+	}
+
+	// Combine filters with WHERE if any
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
 
 	var total int
@@ -206,23 +219,36 @@ func countUsers(q string) (int, error) {
 	return total, nil
 }
 
-func fetchUsers(limit, offset int, q string) ([]dtos.Users, error) {
+func fetchUsers(limit, offset int, q, role string) ([]dtos.Users, error) {
 	query := `
 		SELECT user_id, first_name, last_name, email, role, phone_number, last_login, created_at, status
 		FROM users
 	`
+
 	var args []interface{}
+	var conditions []string
+
+	// Search filter
 	if q != "" {
 		q = "%" + strings.ToLower(q) + "%"
-		query += `
-			WHERE LOWER(first_name) LIKE ? OR LOWER(last_name) LIKE ? OR LOWER(email) LIKE ? OR phone_number LIKE ?
-		`
-		args = []interface{}{q, q, q, q, limit, offset}
-	} else {
-		args = []interface{}{limit, offset}
+		conditions = append(conditions, `(LOWER(first_name) LIKE ? OR LOWER(last_name) LIKE ? OR LOWER(email) LIKE ? OR phone_number LIKE ? )`)
+		args = append(args, q, q, q, q)
 	}
 
+	// Role filter
+	if role != "" {
+		conditions = append(conditions, `LOWER(role) = ?`)
+		args = append(args, strings.ToLower(role))
+	}
+
+	// Combine conditions if present
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Add sorting and pagination
 	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
 
 	rows, err := DB.Query(query, args...)
 	if err != nil {
@@ -238,6 +264,7 @@ func fetchUsers(limit, offset int, q string) ([]dtos.Users, error) {
 		}
 		users = append(users, user)
 	}
+
 	return users, nil
 }
 

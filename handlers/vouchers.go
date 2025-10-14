@@ -8,11 +8,87 @@ import (
 	"adenzo_backend/utils"
 	"fmt"
 	"log"
+	"mime/multipart"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
 )
+
+func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
+
+	// Parse multipart form (20 MB max)
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Failed to parse form: " + err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+
+	// Get image file
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Image is required",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	defer file.Close()
+
+	// Upload image to GCS
+	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	// Insert category into DB
+	_, err = models.CreateVoucherDesign(url)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Respond success
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusCreated,
+		Payload:   url,
+		Message:   "Voucher design added successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
 
 // @Summary Create Voucher
 // @Description Create Voucher details
@@ -54,32 +130,46 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// var imageURL string
-	// if file, header, err := r.FormFile("image"); err == nil {
-	// 	defer file.Close()
-	// 	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
-	// 	if err != nil {
-	// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-	// 			Code:      http.StatusInternalServerError,
-	// 			Message:   "Failed to upload image: " + err.Error(),
-	// 			TimeTaken: time.Since(start),
-	// 			Function:  utils.GetCurrentFuncName(),
-	// 			Request:   r,
-	// 		})
-	// 		return
-	// 	}
-	// 	imageURL = url
-	// }
-
-	req, ok := DecodeRequestBody[dtos.Voucher](r, w, requestSummary, start)
-	if !ok {
-		return
+	req := dtos.Voucher{
+		Amount: func() float64 {
+			cp, _ := strconv.ParseFloat(r.FormValue("amount"), 64)
+			if cp == 0 {
+				return 0.0
+			}
+			return cp
+		}(),
+		ToName:       r.FormValue("to_name"),
+		ToEmail:      r.FormValue("to_email"),
+		FromName:     r.FormValue("from_name"),
+		DeliveryTime: r.FormValue("delivery_time"),
+		Message:      r.FormValue("message"),
+		ExpiryDate:   r.FormValue("expiry_date"),
+		// ParentID:    utils.StringPtr(r.FormValue("parent_id")),
 	}
 	//Validate the request
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-	_, err = models.AddNewVoucher(*req, authuser.ID)
+	voucherID, err := models.AddNewVoucher(req, authuser.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	data := dtos.BuyVoucherData{
+		Amount:       req.Amount,
+		FromName:     req.FromName,
+		ToName:       req.ToName,
+		ToEmail:      req.ToEmail,
+		Message:      req.Message,
+		DeliveryTime: req.DeliveryTime,
+	}
+	err = models.InsertIntoVoucherPurchases(data, authuser.ID, voucherID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -94,7 +184,7 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
-		Payload:   nil,
+		Payload:   voucherID,
 		Message:   "Voucher created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -411,25 +501,30 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	// create voucher data
 	var voucher dtos.Voucher
 	voucher.Amount = req.Amount
-	active := "inactive"
+	active := "scheduled"
 	voucher.Status = &active
-	// Add 90 days from the delivery date
-	// ninetyDaysFromNow := req.DeliveryTime.AddDate(0, 0, 90)
-	// voucher.ExpiryDate = ninetyDaysFromNow
+
+	deliveryTime := models.StringToTime(req.DeliveryTime)
+	now := time.Now()
+
+	// If delivery time is in the past, mark as active
+	if deliveryTime.Before(now) {
+		active = "active"
+		voucher.Status = &active
+	}
+
+	expiryEnv := os.Getenv("VOUCHER_EXPIRY_DATE")
+	if expiryEnv == "" {
+		// Add 90 days from the delivery date
+		expiryDate := deliveryTime.AddDate(0, 0, 90)
+		voucher.ExpiryDate = expiryDate.Format("2006-01-02 15:04:05")
+	} else {
+		// Use expiry from environment variable
+		expiryTime := models.StringToTime(expiryEnv)
+		voucher.ExpiryDate = expiryTime.Format("2006-01-02 15:04:05")
+	}
 
 	voucherID, err := models.AddNewVoucher(voucher, authuser.ID)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
-	//add to voucher purchases
-	err = models.InsertIntoVoucherPurchases(*req, authuser.ID, voucherID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -546,4 +641,141 @@ func SendBoughtForVoucherEmails() {
 			}
 		}
 	}
+}
+
+func EditVoucherDesign(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
+	designID := mux.Vars(r)["design_id"]
+
+	// Parse multipart form (20 MB max)
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Failed to parse form: " + err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+
+	// Get image file
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Image is required",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	defer file.Close()
+
+	// Upload image to GCS
+	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	// Insert category into DB
+	err = models.EditVoucherDesign(designID, url)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Respond success
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   url,
+		Message:   "Voucher design updated successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+func DeleteVoucherDesign(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
+	designID := mux.Vars(r)["design_id"]
+	// Insert category into DB
+	err := models.DeleteVoucherDesign(designID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Respond success
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   nil,
+		Message:   "Voucher design deleted successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+func GetAllVoucherDesigns(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	// Insert category into DB
+	designs, err := models.GetAllVoucherDesigns()
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Respond success
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   designs,
+		Message:   "Voucher designs fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
 }

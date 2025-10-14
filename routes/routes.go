@@ -208,9 +208,13 @@ func SetupRoutes(router *mux.Router) {
 	api.HandleFunc("/refunds", handlers.ListRefundsHandler).Methods("GET")
 	api.HandleFunc("/refunds/{refund_id}", handlers.GetRefundByIDHandler).Methods("GET")
 	vouchers := api.PathPrefix(vouchersPath).Subrouter()
-	admin.Handle(vouchersPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateVoucherHandler))).Methods("POST")
+	voucherWithID := "/vouchers/{voucher_id}"
+	admin.Handle(vouchersPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateVoucherDesign))).Methods("POST")
+	admin.Handle(voucherWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.EditVoucherDesign))).Methods("PATCH")
 	admin.Handle(vouchersPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.ListVouchersHandler))).Methods("GET")
-	admin.Handle(vouchersPath+"/{voucher_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetVoucherHandler))).Methods("GET")
+	admin.Handle(voucherWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteVoucherDesign))).Methods("DELETE")
+	admin.Handle(voucherWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.GetVoucherHandler))).Methods("GET")
+	api.HandleFunc("/vouchers/designs", handlers.GetAllVoucherDesigns).Methods("GET")
 	//user vouchers
 	vouchers.Handle("/me/{voucher_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserVoucherHandler))).Methods("GET")
 	vouchers.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListUserVoucherHandler))).Methods("GET")
@@ -418,4 +422,10 @@ func SetupRoutes(router *mux.Router) {
 	warranty.Handle("/{warranty_type_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateWarrantType))).Methods("PATCH")
 	warranty.Handle("/{warranty_type_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteWarrantType))).Methods("DELETE")
 	warranty.Handle(productPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductWarranties))).Methods("POST")
+
+	// roles endpints
+	admin.Handle("/roles", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateRoleHandler))).Methods("POST")
+	admin.HandleFunc("/roles", handlers.GetRolesHandler).Methods("GET")
+	admin.Handle("/roles/{role_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateRoleHandler))).Methods("PATCH")
+	admin.Handle("roles/{role_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteRoleHandler))).Methods("DELETE")
 }

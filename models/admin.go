@@ -129,7 +129,8 @@ func ValidatePromoCode(voucherCode string) (dtos.PromoCodeData, error) {
 	return promoCode, nil
 }
 func UpdateVoucherBalance(code string, newBalance float64) error {
-	_, err := DB.Exec(`UPDATE vouchers SET balance = ? WHERE code = ?`, newBalance, code)
+	isRedeemed := true
+	_, err := DB.Exec(`UPDATE vouchers SET balance = ?, is_redeemed = ? WHERE code = ?`, newBalance, isRedeemed, code)
 	return err
 }
 
