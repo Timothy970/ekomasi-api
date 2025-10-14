@@ -516,7 +516,8 @@ func handleInventoryTracking(req *dtos.StockEntryRequest, storeID string) (strin
 		ProductID:         req.ProductID,
 		Quantity:          req.QuantityReceived,
 		LowStockThreshold: req.MinimumStockLevel,
-		StoreID:           storeID}
+		StoreID:           storeID,
+		SupplierID:        req.SupplierID}
 	// insert into db
 	inventoryID, err := models.StoreInventoryTracking(inventoryData)
 	if err != nil {
@@ -604,4 +605,70 @@ func ParseStoreInfoArray(s string) []dtos.StoreInfo {
 		return stores
 	}
 	return stores
+}
+
+func GetInventoryStockSummary(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
+	id := mux.Vars(r)["inventory_id"]
+	//add filter by store id
+	storeID := r.URL.Query().Get("store_id")
+	inv, err := models.GetInventoryStockSummary(id, storeID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   inv,
+		Message:   "Inventory stock summary fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+func GetInventoryStockHistory(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	id := mux.Vars(r)["inventory_id"]
+	//add filter by store id
+	inv, pagination, err := models.GetInventoryStockHistory(id, page, size)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   map[string]any{"history": inv, "pagination": pagination},
+		Message:   "Inventory stock history fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
 }

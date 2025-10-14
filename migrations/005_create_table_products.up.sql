@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS `products` (
    `sell_when_out_of_stock` boolean NOT NULL DEFAULT FALSE,
    `show_stock_quantity` boolean NOT NULL DEFAULT TRUE,
    `created_by_id` char(36) DEFAULT NULL,
+   `buying_price` decimal(10,2) DEFAULT '0.0',
    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
    `last_updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
    PRIMARY KEY (`product_id`),

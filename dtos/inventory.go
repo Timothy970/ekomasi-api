@@ -30,21 +30,28 @@ type InventoryListResponse struct {
 	Inventories []Inventory    `json:"inventories"`
 }
 type Inventory struct {
-	InventoryID       string  `json:"inventory_id"`
-	ProductID         string  `json:"product_id"`
-	VariantID         *string `json:"variant_id"`
-	Quantity          int     `json:"inventory_quantity"`
-	LowStockThreshold int     `json:"low_stock_threshold"`
-	Name              string  `json:"name"`
-	Description       string  `json:"description"`
-	SKU               string  `json:"sku"`
-	Tag               *string `json:"tag"`
-	Price             float64 `json:"price"`
-	CategoryID        string  `json:"category_id"`
-	CategoryName      string  `json:"category_name"`
-	StockQuantity     int     `json:"stock_quantity"`
-	SearchVector      string  `json:"search_vector"`
-	Images            []Image `json:"urls,omitempty"`
+	InventoryID       string   `json:"inventory_id"`
+	ProductID         string   `json:"product_id"`
+	VariantID         *string  `json:"variant_id"`
+	BatchNumber       *string  `json:"batch_number"`
+	Quantity          int      `json:"inventory_quantity"`
+	LowStockThreshold int      `json:"low_stock_threshold"`
+	Name              string   `json:"name"`
+	Description       string   `json:"description"`
+	SKU               string   `json:"sku"`
+	Tag               *string  `json:"tag"`
+	Price             float64  `json:"price"`
+	CategoryID        string   `json:"category_id"`
+	CategoryName      string   `json:"category_name"`
+	StockQuantity     int      `json:"stock_quantity"`
+	SearchVector      string   `json:"search_vector"`
+	Images            []Image  `json:"urls,omitempty"`
+	SupplierInfo      Supplier `json:"supplier_info"`
+	ManufacturingDate *string  `json:"manufacturing_date"`
+	ExpiryDate        *string  `json:"expiry_date"`
+	Warranty          *string  `json:"warranty"`
+	PlacedOn          string   `json:"placed_on"`
+	BuyingPrice       float64  `json:"buying_price"`
 }
 
 type InventoryTurnoverRequest struct {
@@ -122,4 +129,16 @@ type InventoryTracking struct {
 	Quantity          int    `json:"quantity"`
 	LowStockThreshold int    `json:"low_stock_threshold"`
 	StoreID           string `json:"store_id"`
+	SupplierID        string `json:"supplier_id"`
+}
+
+type InventoryStockSummary struct {
+	TotalStock       int `json:"total_stock"`
+	MinimumThreshold int `json:"minimum_threshold"`
+	TotalSales       int `json:"total_sales"`
+}
+type InventoryStockHistory struct {
+	Description string    `json:"description"`
+	Amount      float64   `json:"amount"`
+	Date        time.Time `json:"date"`
 }
