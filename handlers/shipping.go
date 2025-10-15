@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -354,7 +355,8 @@ func GetLocation(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	locationID := mux.Vars(r)["location_id"]
-	loc, err := models.GetLocationByID(locationID)
+	id, _ := strconv.Atoi(locationID)
+	loc, err := models.GetLocationByID(id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusBadRequest,

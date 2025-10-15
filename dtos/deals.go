@@ -14,18 +14,19 @@ type CreateDeal struct {
 	EndDate     time.Time `json:"end_date" validate:"required"`
 }
 type Deal struct {
-	DealID      string   `json:"deal_id"`
-	Name        string   `json:"name" validate:"required"`
-	Description string   `json:"description" validate:"required"`
-	Discount    *float64 `json:"discount"`
+	DealID    string        `json:"deal_id"`
+	Name      string        `json:"name" validate:"required"`
+	StartDate time.Time     `json:"start_date"`
+	EndDate   time.Time     `json:"end_date"`
+	Products  []DealProduct `json:"products"`
 }
 
 type DealWithProducts struct {
-	DealID      string        `json:"deal_id"`
-	Name        string        `json:"name"`
-	Description string        `json:"description"`
-	Discount    *float64      `json:"discount"`
-	Products    []DealProduct `json:"products"`
+	DealID    string        `json:"deal_id"`
+	Name      string        `json:"name"`
+	StartDate time.Time     `json:"start_date"`
+	EndDate   time.Time     `json:"end_date"`
+	Products  []DealProduct `json:"products"`
 }
 
 type ProductDeal struct {

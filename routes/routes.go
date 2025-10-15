@@ -136,6 +136,9 @@ func SetupRoutes(router *mux.Router) {
 	admin.Handle("/remove-products/variants/{variant_id}/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveProductVariant))).Methods("DELETE")
 	//List Product variants
 	products.HandleFunc("/variants/{product_id}", handlers.ListProductVariants).Methods("GET")
+	//List Deals
+	products.HandleFunc("/deals", handlers.GetDealsHandler).Methods("GET")
+	products.HandleFunc("/deals/{deal_id}", handlers.GetDealWithProductsHandler).Methods("GET")
 	//Moderate a review
 	admin.Handle("/products/{product_id}/reviews/{review_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateReview))).Methods("PATCH")
 	//Delete a reviews
@@ -177,6 +180,7 @@ func SetupRoutes(router *mux.Router) {
 	admin.Handle("/add-products/promotions", middleware.AuthenticateToken(http.HandlerFunc(handlers.AttachProductToPromotionHandler))).Methods("POST")
 	admin.Handle("/add-flash-deal", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateDealProductHandler))).Methods("POST")
 	admin.Handle("/remove-products/promotions", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveProductFromPromotionHandler))).Methods("DELETE")
+
 	//create blog
 	adminBlog := admin.PathPrefix("/blogs/{blog_id}").Subrouter()
 	admin.Handle("/blogs", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateBlogHandler))).Methods("POST")

@@ -6,6 +6,7 @@ import (
 	"adenzo_backend/utils"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -59,11 +60,10 @@ func CreateDealHandler(w http.ResponseWriter, r *http.Request) {
 func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
-	if !ok {
-		return
-	}
-	deals, err := models.GetAllDeals()
+
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+
+	deals, pagination, err := models.GetAllDeals(page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -76,7 +76,7 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   deals,
+		Payload:   map[string]any{"deals": deals, "pagination": pagination},
 		Message:   "Deals fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -314,15 +314,14 @@ func parseDealProductRequest(r *http.Request) (*dtos.FlashDealProducts, error) {
 		return nil, fmt.Errorf("failed to parse form: %w", err)
 	}
 
-	file, _, err := r.FormFile("image")
+	file, header, err := r.FormFile("image")
 	if err != nil {
 		return nil, fmt.Errorf("image is required")
 	}
 	defer file.Close()
 
 	// Upload to GCS (placeholder)
-	url := "jjjjjj"
-	// url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload image: %w", err)
 	}

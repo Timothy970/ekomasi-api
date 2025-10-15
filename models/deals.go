@@ -24,21 +24,41 @@ func CreateDeal(deal dtos.CreateDeal) (string, error) {
 	}
 	return dealID, nil
 }
-func GetAllDeals() ([]dtos.Deal, error) {
-	rows, err := DB.Query(`SELECT deal_id, name, description, discount, start_date, end_date FROM deals`)
+func GetAllDeals(page, size int) ([]dtos.Deal, *dtos.PaginationMeta, error) {
+	var countTotal int
+	err := DB.QueryRow(`SELECT COUNT(*) FROM deals`).Scan(&countTotal)
+	rows, err := DB.Query(`
+	SELECT deal_id, name, start_date, end_date
+	FROM deals d
+	LIMIT ? OFFSET ?
+	`, size, (page-1)*size)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 	var deals []dtos.Deal
 	for rows.Next() {
 		var d dtos.Deal
-		if err := rows.Scan(&d.DealID, &d.Name, &d.Description, &d.Discount); err != nil {
-			return nil, err
+		if err := rows.Scan(&d.DealID, &d.Name, &d.StartDate, &d.EndDate); err != nil {
+			return nil, nil, err
 		}
+		// get the deals products
+		products, err := GetProductsByDealID(d.DealID)
+		if err != nil {
+			return nil, nil, err
+		}
+		d.Products = products
 		deals = append(deals, d)
 	}
-	return deals, nil
+	pagination := &dtos.PaginationMeta{
+		Page:       page,
+		Size:       size,
+		TotalItems: countTotal,
+		TotalPages: (countTotal + size - 1) / size,
+		HasPrev:    page > 1,
+		HasNext:    page*size < countTotal,
+	}
+	return deals, pagination, nil
 }
 
 func isDealThere(dealID string) error {
@@ -53,8 +73,8 @@ func UpdateDeal(dealID string, deal dtos.Deal) error {
 	if err := isDealThere(dealID); err != nil {
 		return err
 	}
-	_, err := DB.Exec(`UPDATE deals SET name = ?, description = ?, discount = ? WHERE deal_id = ?`,
-		deal.Name, deal.Description, deal.Discount, dealID)
+	_, err := DB.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ? WHERE deal_id = ?`,
+		deal.Name, deal.StartDate, deal.EndDate, dealID)
 	return err
 }
 func DeleteDeal(dealID string) error {
@@ -98,119 +118,166 @@ func RemoveProductFromDeal(dealID, productID string) error {
 	return err
 }
 func GetDealWithProducts(dealID string, page, limit int) (*dtos.DealWithProducts, dtos.PaginationMeta, error) {
-	// Check if deal exists
+	// Check if the deal exists
 	if err := isDealThere(dealID); err != nil {
 		return nil, dtos.PaginationMeta{}, err
 	}
 
-	// Count total products in the deal
-	var total int
-	countQuery := `SELECT COUNT(*) FROM deal_products dp WHERE dp.deal_id = ?`
-	if err := DB.QueryRow(countQuery, dealID).Scan(&total); err != nil {
+	query := `
+		SELECT 
+			d.deal_id, d.name, d.start_date, d.end_date
+		FROM deals d
+		WHERE d.deal_id = ?
+	`
+
+	row := DB.QueryRow(query, dealID)
+
+	var deal dtos.DealWithProducts
+	var (
+		name      sql.NullString
+		startDate sql.NullTime
+		endDate   sql.NullTime
+	)
+
+	if err := row.Scan(&deal.DealID, &name, &startDate, &endDate); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, dtos.PaginationMeta{}, fmt.Errorf("deal not found")
+		}
 		return nil, dtos.PaginationMeta{}, err
 	}
 
-	// Pagination setup
-	offset := (page - 1) * limit
-	totalPages := (total + limit - 1) / limit
-	pagination := dtos.PaginationMeta{
-		Page:       page,
-		Size:       limit,
-		TotalItems: total,
-		TotalPages: totalPages,
-		HasPrev:    page > 1,
-		HasNext:    page < totalPages,
-	}
+	deal.Name = name.String
+	deal.StartDate = startDate.Time
+	deal.EndDate = endDate.Time
 
-	// Query deal details + paginated products
-	query := `
-		SELECT d.deal_id, d.name, d.description, d.discount, dp.product_id
-		FROM deals d
-		LEFT JOIN deal_products dp ON d.deal_id = dp.deal_id
-		WHERE d.deal_id = ?
-		LIMIT ? OFFSET ?
-	`
-	rows, err := DB.Query(query, dealID, limit, offset)
+	// Fetch paginated deal products
+	products, pagination, err := GetProductsByDealIDWithPagination(dealID, page, limit)
 	if err != nil {
 		return nil, dtos.PaginationMeta{}, err
 	}
-	defer rows.Close()
+	deal.Products = products
 
-	var deal *dtos.DealWithProducts
-
-	for rows.Next() {
-		var (
-			dealIDVal, name, desc sql.NullString
-			discount              sql.NullFloat64
-			productID             sql.NullString
-		)
-
-		if err := rows.Scan(&dealIDVal, &name, &desc, &discount, &productID); err != nil {
-			return nil, dtos.PaginationMeta{}, err
-		}
-
-		// Initialize deal once
-		if deal == nil {
-			deal = &dtos.DealWithProducts{
-				DealID: dealIDVal.String,
-				Name:   name.String,
-				// Description: desc.String,
-				// Discount:    nullableFloat64(discount),
-				Products: []dtos.DealProduct{},
-			}
-		}
-
-		// If product exists, fetch details
-		if productID.Valid {
-			product, err := GetProductByIDAndDealID(productID.String, dealIDVal.String)
-			if err != nil {
-				return nil, dtos.PaginationMeta{}, err
-			}
-			deal.Products = append(deal.Products, *product)
-		}
-	}
-
-	if deal == nil {
-		// In case deal exists but has no products
-		deal = &dtos.DealWithProducts{
-			DealID:   dealID,
-			Products: []dtos.DealProduct{},
-		}
-	}
-
-	return deal, pagination, nil
+	return &deal, *pagination, nil
 }
 
-func GetProductByIDAndDealID(productID, dealID string) (*dtos.DealProduct, error) {
+func GetProductsByDealID(dealID string) ([]dtos.DealProduct, error) {
 	query := `
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag, dp.discount, dp.discount_type
-		FROM products p
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at,
+			c.name AS category_name, p.tag, dp.discount, dp.discount_type
+		FROM deal_products dp
+		INNER JOIN products p ON p.product_id = dp.product_id
 		LEFT JOIN categories c ON p.category_id = c.category_id
-		LEFT JOIN deal_products dp ON p.product_id = dp.product_id AND dp.deal_id = ?
-		WHERE p.product_id = ?
+		WHERE dp.deal_id = ?
 	`
 
-	var p dtos.DealProduct
-	err := DB.QueryRow(query, dealID, productID).Scan(
-		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
-		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
-		&p.CategoryName, &p.Tag, &p.Discount, &p.DiscountType,
-	)
+	rows, err := DB.Query(query, dealID)
 	if err != nil {
 		return nil, err
 	}
-	// Fetch product images
-	images, err := fetchProductImages(p.ID)
-	if err != nil {
+	defer rows.Close()
+
+	var products []dtos.DealProduct
+
+	for rows.Next() {
+		var p dtos.DealProduct
+		err := rows.Scan(
+			&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
+			&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
+			&p.CategoryName, &p.Tag, &p.Discount, &p.DiscountType,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Fetch product images
+		images, err := fetchProductImages(p.ID)
+		if err != nil {
+			return nil, err
+		}
+		p.Images = images
+
+		// Fetch product variants
+		variants, err := getProductVariants(p.ID)
+		if err != nil {
+			return nil, err
+		}
+		p.ProductVariants = variants
+
+		products = append(products, p)
+	}
+
+	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	p.Images = images
-	variants, err := getProductVariants(p.ID)
+
+	return products, nil
+}
+
+func GetProductsByDealIDWithPagination(dealID string, page, limit int) ([]dtos.DealProduct, *dtos.PaginationMeta, error) {
+	countQuery := `SELECT COUNT(*) FROM deal_products WHERE deal_id = ?`
+	var totalItems int
+	err := DB.QueryRow(countQuery, dealID).Scan(&totalItems)
+	query := `
+		SELECT 
+			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at,
+			c.name AS category_name, p.tag, dp.discount, dp.discount_type
+		FROM deal_products dp
+		INNER JOIN products p ON p.product_id = dp.product_id
+		LEFT JOIN categories c ON p.category_id = c.category_id
+		WHERE dp.deal_id = ?
+		LIMIT ? OFFSET ?
+	`
+	offset := (page - 1) * limit
+	rows, err := DB.Query(query, dealID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	p.ProductVariants = variants
-	return &p, nil
+	defer rows.Close()
+
+	var products []dtos.DealProduct
+
+	for rows.Next() {
+		var p dtos.DealProduct
+		err := rows.Scan(
+			&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
+			&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
+			&p.CategoryName, &p.Tag, &p.Discount, &p.DiscountType,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Fetch product images
+		images, err := fetchProductImages(p.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		p.Images = images
+
+		// Fetch product variants
+		variants, err := getProductVariants(p.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		p.ProductVariants = variants
+
+		products = append(products, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	pagination := &dtos.PaginationMeta{
+		Page:       page,
+		Size:       limit,
+		TotalItems: totalItems,
+		TotalPages: (totalItems + limit - 1) / limit,
+		HasPrev:    page > 1,
+		HasNext:    page*limit < totalItems,
+	}
+
+	return products, pagination, nil
 }

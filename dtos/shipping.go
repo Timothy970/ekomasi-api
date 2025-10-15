@@ -17,3 +17,6 @@ type UpdateLocation struct {
 	Charge   float64 `json:"charge" validate:"required"`
 	Location string  `json:"location" validate:"required"`
 }
+type LocationID struct {
+	ID int `json:"location_id"`
+}

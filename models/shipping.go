@@ -225,7 +225,7 @@ func ListLocations(page, size int) ([]dtos.Location, dtos.PaginationMeta, error)
 }
 
 // Get location by ID
-func GetLocationByID(id string) (dtos.Location, error) {
+func GetLocationByID(id int) (dtos.Location, error) {
 	var loc dtos.Location
 	err := DB.QueryRow("SELECT id, location, charge FROM delivery_rates WHERE id = ?", id).Scan(&loc.ID, &loc.Location, &loc.Charge)
 	if err != nil {
