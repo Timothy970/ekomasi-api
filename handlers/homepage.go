@@ -1338,13 +1338,6 @@ func GetFeatured(w http.ResponseWriter, r *http.Request) {
 	} else {
 		featured = cachedFeatured
 	}
-	//check if token is passed and get if products are in users wishlist
-	ApplyUserWishlist(
-		r,
-		featured,
-		func(p *dtos.Product) string { return p.ID },
-		func(p *dtos.Product, inWishlist bool) { p.InWishlist = &inWishlist },
-	)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   featured,

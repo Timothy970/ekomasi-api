@@ -1972,24 +1972,22 @@ func getProductByPriceType(priceType string) (*dtos.Product, error) {
 }
 
 // check if products exists in wishlist with userID
-func GetUserWishlistProductIDs(userID string) (map[string]bool, error) {
-	rows, err := DB.Query(`
-		SELECT witems.product_id
-		FROM wishlists w
-		JOIN wishlist_items witems ON w.wishlist_id = witems.wishlist_id
-		WHERE w.user_id = ?`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+func IsProductInUserWishlist(userID, productID string) (bool, error) {
+	var exists bool
 
-	productMap := make(map[string]bool)
-	for rows.Next() {
-		var pid string
-		if err := rows.Scan(&pid); err != nil {
-			return nil, err
-		}
-		productMap[pid] = true
+	query := `
+		SELECT EXISTS(
+			SELECT 1
+			FROM wishlists w
+			JOIN wishlist_items witems ON w.wishlist_id = witems.wishlist_id
+			WHERE w.user_id = ? AND witems.product_id = ?
+		)
+	`
+
+	err := DB.QueryRow(query, userID, productID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check wishlist: %w", err)
 	}
-	return productMap, nil
+
+	return exists, nil
 }

@@ -127,6 +127,8 @@ func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	//check if token is passed, if so check if products belong to the users wishlist
+	ApplyUserWishlist(r, product.ID, product)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   product,
@@ -807,15 +809,6 @@ func GetCategoryProductsHandlerByCategoryID(w http.ResponseWriter, r *http.Reque
 			RawBody:   requestSummary})
 		return
 	}
-	//check if user token is passed, if so check if products belong to the users wishlist using generics
-	for i := range products {
-		ApplyUserWishlist(
-			r,
-			products[i].Products, // Apply to the inner slice
-			func(p *dtos.CategoryProduct) string { return p.ID },
-			func(p *dtos.CategoryProduct, inWishlist bool) { p.InWishlist = &inWishlist },
-		)
-	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusOK,
@@ -829,24 +822,23 @@ func GetCategoryProductsHandlerByCategoryID(w http.ResponseWriter, r *http.Reque
 		Request:   r,
 		RawBody:   requestSummary})
 }
-func ApplyUserWishlist[T any](r *http.Request, products []T, getProductID func(*T) string, setInWishlist func(*T, bool)) {
+func ApplyUserWishlist(r *http.Request, productID string, product *dtos.Product) (dtos.Product, bool) {
 	authuser, ok := middleware.IsUserTokenPassed(r)
 	if !ok {
-		return
+		return *product, false
 	}
 
-	userWishlist, err := models.GetUserWishlistProductIDs(authuser.ID)
+	userWishlist, err := models.IsProductInUserWishlist(authuser.ID, productID)
 	if err != nil {
 		log.Printf("error fetching wishlist products: %v", err)
-		return
+		return *product, false
 	}
 
-	for i := range products {
-		id := getProductID(&products[i])
-		if _, found := userWishlist[id]; found {
-			setInWishlist(&products[i], true)
-		}
+	if userWishlist {
+		product.InWishlist = &userWishlist
 	}
+
+	return *product, true
 }
 
 // Get Category products
@@ -875,15 +867,6 @@ func GetCategoryProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Request:   r,
 			RawBody:   requestSummary})
 		return
-	}
-	//check if token is passed, if so check if products belong to the users wishlist
-	for i := range products {
-		ApplyUserWishlist(
-			r,
-			products[i].Products, // Apply to the inner slice
-			func(p *dtos.CategoryProduct) string { return p.ID },
-			func(p *dtos.CategoryProduct, inWishlist bool) { p.InWishlist = &inWishlist },
-		)
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -1005,13 +988,6 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	//check if token is passed, if so check if products belong to the users wishlist
-	ApplyUserWishlist(
-		r,
-		products,
-		func(p *dtos.Product) string { return p.ID },
-		func(p *dtos.Product, inWishlist bool) { p.InWishlist = &inWishlist },
-	)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusOK,
