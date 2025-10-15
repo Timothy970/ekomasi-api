@@ -227,6 +227,7 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		res.DeliverCharge = loc.Charge
+		res.Final += loc.Charge
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
