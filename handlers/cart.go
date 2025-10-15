@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"adenzo_backend/dtos"
@@ -181,27 +181,7 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	cartID := mux.Vars(r)["cart_id"]
-	// Define optional body structure
-	type requestBody struct {
-		LocationID *int `json:"location_id,omitempty"`
-	}
-
-	var req requestBody
-
-	// Decode body only if it exists
-	if r.Body != nil && r.ContentLength > 0 {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusBadRequest,
-				Message:   "Invalid request body",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-	}
+	locationID := r.URL.Query().Get("location_id")
 	res, err := getCartItemsByCartID(cartID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -213,21 +193,24 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	// Optionally fetch location and set delivery charge
-	if req.LocationID != nil && *req.LocationID != 0 {
-		loc, err := models.GetLocationByID(*req.LocationID)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
+	if locationID != "" {
+		locationIDInt, _ := strconv.Atoi(locationID)
+		if locationIDInt != 0 {
+			loc, err := models.GetLocationByID(locationIDInt)
+			if err != nil {
+				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+					Code:      http.StatusInternalServerError,
+					Message:   err.Error(),
+					TimeTaken: time.Since(start),
+					Function:  utils.GetCurrentFuncName(),
+					Request:   r,
+					RawBody:   requestSummary})
+				return
+			}
+			res.DeliverCharge = loc.Charge
+			res.Final += loc.Charge
+
 		}
-		res.DeliverCharge = loc.Charge
-		res.Final += loc.Charge
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
