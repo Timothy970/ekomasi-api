@@ -14,7 +14,6 @@ import (
 
 var nopayment = "payment not found"
 var paymentid = "payment_id = ?"
-var novoucher = "Voucher not found"
 
 func StoreStkResponse(response map[string]interface{}, req dtos.MpesaRequest) error {
 	// Extract values safely from the response map

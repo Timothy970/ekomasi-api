@@ -33,7 +33,7 @@ func InsertCartItem(cartID string, productID string, quantity int) error {
 	if err != nil {
 		return err
 	}
-	err = isProductThere(productID)
+	err = IsProductThere(productID)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func UpdateCartItem(cartID string, productID string, quantity int) error {
 	if err != nil {
 		return err
 	}
-	err = isProductThere(productID)
+	err = IsProductThere(productID)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func DeleteCartItem(cartID, productID string) error {
 	if err != nil {
 		return err
 	}
-	err = isProductThere(productID)
+	err = IsProductThere(productID)
 	if err != nil {
 		return err
 	}

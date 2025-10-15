@@ -112,7 +112,7 @@ func isUserThere(id string) error {
 	}
 	return nil
 }
-func isProductThere(id string) error {
+func IsProductThere(id string) error {
 	exists, err := RecordExists("products", "product_id = ?", id)
 	if err != nil {
 		return err

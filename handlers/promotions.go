@@ -103,7 +103,8 @@ func GetPromoCodeByIDHandler(w http.ResponseWriter, r *http.Request) {
 func GetAllPromoCodesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	promos, err := models.GetAllPromoCodes()
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	promos, pagination, err := models.GetAllPromoCodes(page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{Code: http.StatusInternalServerError, Message: err.Error(),
 			TimeTaken: time.Since(start),
@@ -112,7 +113,7 @@ func GetAllPromoCodesHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{Code: http.StatusOK, Payload: promos, Message: "Promo codes retrieved successfully",
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{Code: http.StatusOK, Payload: map[string]any{"promocodes": promos, "pagination": pagination}, Message: "Promo codes retrieved successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

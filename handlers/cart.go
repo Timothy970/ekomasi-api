@@ -497,7 +497,7 @@ func applyVoucher(cart dtos.ViewCartResponse, code string) (dtos.ViewCartRespons
 }
 
 func applyPromoCode(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse, error) {
-	promoData, err := models.ValidatePromoCode(code)
+	promoData, err := models.ValidatePromoCode(code, cart.Final)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
 	}
@@ -520,5 +520,9 @@ func applyPromoCode(cart dtos.ViewCartResponse, code string) (dtos.ViewCartRespo
 
 	cart.Discount += discount
 	cart.Final -= discount
+	//update promo code usage count
+	if err := models.IncrementPromoCodeUsage(code); err != nil {
+		return dtos.ViewCartResponse{}, err
+	}
 	return cart, nil
 }

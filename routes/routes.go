@@ -76,7 +76,8 @@ func SetupRoutes(router *mux.Router) {
 	product.Handle("/add-products/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductsToBundleHandler))).Methods("POST")
 	// featured products
 	products.HandleFunc("/featured", handlers.GetFeatured).Methods("GET")
-
+	//get expensive aand cheapest products
+	products.HandleFunc("/cheap/expensive", handlers.GetExpensiveAndCheapProducts).Methods("GET")
 	//reviews endpoints
 	products.HandleFunc("/{product_id}/reviews", handlers.GetReviews).Methods("GET")
 	products.HandleFunc("/{product_id}/reviews/{review_id}", handlers.GetReviews).Methods("GET")
@@ -174,6 +175,7 @@ func SetupRoutes(router *mux.Router) {
 	admin.Handle("/promotions/{promotion_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePromotionHandler))).Methods("DELETE")
 	admin.Handle("/promotions/{promotion_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.EditPromotionHandler))).Methods("PATCH")
 	admin.Handle("/add-products/promotions", middleware.AuthenticateToken(http.HandlerFunc(handlers.AttachProductToPromotionHandler))).Methods("POST")
+	admin.Handle("/add-flash-deal", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateDealProductHandler))).Methods("POST")
 	admin.Handle("/remove-products/promotions", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveProductFromPromotionHandler))).Methods("DELETE")
 	//create blog
 	adminBlog := admin.PathPrefix("/blogs/{blog_id}").Subrouter()

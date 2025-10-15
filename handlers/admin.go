@@ -332,6 +332,7 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCacheByPrefix("pagination_page_")
 	_ = utils.DeleteCacheByPrefix("categories_products")
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
+	_ = utils.DeleteCache("expensiveandcheapproducts")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusCreated,
 		Payload:   product,

@@ -169,6 +169,27 @@ type Product struct {
 	Images           []Image           `json:"urls,omitempty"`
 	ProductVariants  []ProductVariants `json:"product_variants"`
 }
+type DealProduct struct {
+	ID               string            `json:"product_id"`
+	Name             string            `json:"name"`
+	Description      string            `json:"description"`
+	SKU              string            `json:"sku"`
+	Tag              *string           `json:"tag"`
+	Price            float64           `json:"price"`
+	CategoryID       string            `json:"category_id"`
+	CategoryName     string            `json:"category_name"`
+	StockQuantity    int               `json:"stock_quantity"`
+	MaxStockQuantity int               `json:"max_stock_quantiy"`
+	SearchVector     string            `json:"search_vector"`
+	IsInTodaysDeals  bool              `json:"in_today_deal"`
+	CreatedBy        string            `json:"created_by"`
+	CreatedAt        time.Time         `json:"created_at"`
+	LastUpdated      time.Time         `json:"last_updated"`
+	Images           []Image           `json:"urls,omitempty"`
+	ProductVariants  []ProductVariants `json:"product_variants"`
+	Discount         *float64          `json:"discount,omitempty"`
+	DiscountType     *string           `json:"discount_type,omitempty"`
+}
 type FeaturedProduct struct {
 	ID        int64     `json:"id"`
 	ProductID int64     `json:"product_id"`

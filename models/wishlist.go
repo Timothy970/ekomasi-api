@@ -179,7 +179,7 @@ func CreateNewWishList(Name, userID string) (string, error) {
 }
 func CreateWishListItem(wishlistID, productID, userID string) error {
 	//check if product exists
-	err := isProductThere(productID)
+	err := IsProductThere(productID)
 	if err != nil {
 		return err
 	}

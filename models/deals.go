@@ -8,21 +8,24 @@ import (
 	"github.com/teris-io/shortid"
 )
 
-func CreateDeal(deal dtos.CreateDeal) error {
+func CreateDeal(deal dtos.CreateDeal) (string, error) {
 	//check id name exists
 	exists, err := RecordExists("deals", "name = ?", deal.Name)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if exists {
-		return fmt.Errorf("deal with name %s already exists", deal.Name)
+		return "", fmt.Errorf("deal with name %s already exists", deal.Name)
 	}
 	dealID, _ := shortid.Generate()
-	_, err = DB.Exec(`INSERT INTO deals (deal_id, name, description, discount) VALUES (?, ?, ?)`, dealID, deal.Name, deal.Description, deal.Discount)
-	return err
+	_, err = DB.Exec(`INSERT INTO deals (deal_id, name, description, discount, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)`, dealID, deal.Name, deal.Description, deal.Discount, deal.StartDate, deal.EndDate)
+	if err != nil {
+		return "", err
+	}
+	return dealID, nil
 }
 func GetAllDeals() ([]dtos.Deal, error) {
-	rows, err := DB.Query(`SELECT deal_id, name, description, discount FROM deals`)
+	rows, err := DB.Query(`SELECT deal_id, name, description, discount, start_date, end_date FROM deals`)
 	if err != nil {
 		return nil, err
 	}
@@ -61,11 +64,11 @@ func DeleteDeal(dealID string) error {
 	_, err := DB.Exec(`DELETE FROM deals WHERE deal_id = ?`, dealID)
 	return err
 }
-func AddProductToDeal(dealID, productID string) error {
+func AddProductToDeal(dealID, productID string, discountType *string, discount *float64) error {
 	if err := isDealThere(dealID); err != nil {
 		return err
 	}
-	if err := isProductThere(productID); err != nil {
+	if err := IsProductThere(productID); err != nil {
 		return err
 	}
 	//check if product is already in deal
@@ -74,17 +77,21 @@ func AddProductToDeal(dealID, productID string) error {
 		return err
 	}
 	if exists {
-		return fmt.Errorf("product with ID %s is already in deal %s", productID, dealID)
+		// Update existing entry
+		_, err := DB.Exec(`UPDATE deal_products SET discount = ?, discount_type = ? WHERE deal_id = ? AND product_id = ?`,
+			discount, discountType, dealID, productID)
+		return err
 	}
 	productDealID, _ := shortid.Generate()
-	_, err = DB.Exec(`INSERT INTO deal_products (product_deal_id, deal_id, product_id) VALUES (?, ?, ?)`, productDealID, dealID, productID)
+	_, err = DB.Exec(`INSERT INTO deal_products (product_deal_id, deal_id, product_id, discount, discount_type) VALUES (?, ?, ?, ?, ?)`,
+		productDealID, dealID, productID, discount, discountType)
 	return err
 }
 func RemoveProductFromDeal(dealID, productID string) error {
 	if err := isDealThere(dealID); err != nil {
 		return err
 	}
-	if err := isProductThere(productID); err != nil {
+	if err := IsProductThere(productID); err != nil {
 		return err
 	}
 	_, err := DB.Exec(`DELETE FROM deal_products WHERE deal_id = ? AND product_id = ?`, dealID, productID)
@@ -145,17 +152,17 @@ func GetDealWithProducts(dealID string, page, limit int) (*dtos.DealWithProducts
 		// Initialize deal once
 		if deal == nil {
 			deal = &dtos.DealWithProducts{
-				DealID:      dealIDVal.String,
-				Name:        name.String,
-				Description: desc.String,
-				Discount:    nullableFloat64(discount),
-				Products:    []dtos.Product{},
+				DealID: dealIDVal.String,
+				Name:   name.String,
+				// Description: desc.String,
+				// Discount:    nullableFloat64(discount),
+				Products: []dtos.DealProduct{},
 			}
 		}
 
 		// If product exists, fetch details
 		if productID.Valid {
-			product, err := GetProductByID(productID.String)
+			product, err := GetProductByIDAndDealID(productID.String, dealIDVal.String)
 			if err != nil {
 				return nil, dtos.PaginationMeta{}, err
 			}
@@ -167,17 +174,43 @@ func GetDealWithProducts(dealID string, page, limit int) (*dtos.DealWithProducts
 		// In case deal exists but has no products
 		deal = &dtos.DealWithProducts{
 			DealID:   dealID,
-			Products: []dtos.Product{},
+			Products: []dtos.DealProduct{},
 		}
 	}
 
 	return deal, pagination, nil
 }
 
-// helper for nullable float64
-func nullableFloat64(f sql.NullFloat64) *float64 {
-	if f.Valid {
-		return &f.Float64
+func GetProductByIDAndDealID(productID, dealID string) (*dtos.DealProduct, error) {
+	query := `
+		SELECT 
+			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag, dp.discount, dp.discount_type
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.category_id
+		LEFT JOIN deal_products dp ON p.product_id = dp.product_id AND dp.deal_id = ?
+		WHERE p.product_id = ?
+	`
+
+	var p dtos.DealProduct
+	err := DB.QueryRow(query, dealID, productID).Scan(
+		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
+		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
+		&p.CategoryName, &p.Tag, &p.Discount, &p.DiscountType,
+	)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	// Fetch product images
+	images, err := fetchProductImages(p.ID)
+	if err != nil {
+		return nil, err
+	}
+	p.Images = images
+	variants, err := getProductVariants(p.ID)
+	if err != nil {
+		return nil, err
+	}
+	p.ProductVariants = variants
+	return &p, nil
 }

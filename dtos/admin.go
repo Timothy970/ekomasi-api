@@ -10,6 +10,8 @@ type PromoCode struct {
 	ExpiryDate         string `json:"expiry_date"`
 }
 type PromoCodeData struct {
-	DiscountType  string  `json:"discount_type"`
-	DiscountValue float64 `json:"discount_value"`
+	DiscountType      string   `json:"discount_type"`
+	DiscountValue     float64  `json:"discount_value"`
+	MinimumOrderValue *float64 `json:"minimum_order_value"`
+	MaximumUse        int      `json:"maximum_use"`
 }

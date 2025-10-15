@@ -17,6 +17,9 @@ var fetchbundle = "bundle_id = ?"
 var limtOffset = " LIMIT ? OFFSET ?"
 var lowerCname = " AND LOWER(c.name) LIKE ?"
 var lowerPname = " AND LOWER(p.name) LIKE ?"
+var lowerVariant = "(LOWER(v.variant_type) = ?)"
+var lowerVariantTypeName = "(LOWER(v.variant_type) = ? AND LOWER(v.name) = ?)"
+var whereBundleID = " WHERE bundle_id = ?"
 
 func GetAllProducts(categoryFilter, productFilter, categoryID string, page, limit int) ([]dtos.CategoryWithProducts, *dtos.PaginationMeta, error) {
 	if categoryID != "" {
@@ -471,7 +474,7 @@ func AddNewProduct(input dtos.CreateProduct, userID string) (*dtos.CreateProduct
 	}, nil
 }
 func UpdateProductByID(productID string, input dtos.CreateProduct) (*dtos.CreateProduct, error) {
-	errr := isProductThere(productID)
+	errr := IsProductThere(productID)
 	if errr != nil {
 		return nil, errr
 	}
@@ -517,7 +520,7 @@ func UpdateProductByID(productID string, input dtos.CreateProduct) (*dtos.Create
 }
 
 func DeleteProductByID(productID string) error {
-	err := isProductThere(productID)
+	err := IsProductThere(productID)
 	if err != nil {
 		return err
 	}
@@ -703,7 +706,7 @@ func GetBundleProducts(bundleID string, limit, page int) ([]dtos.GetBundleReques
 	var args []interface{}
 
 	if bundleID != "" {
-		countQuery += " WHERE bundle_id = ?"
+		countQuery += whereBundleID
 		args = append(args, bundleID)
 	}
 
@@ -732,7 +735,7 @@ func GetBundleProducts(bundleID string, limit, page int) ([]dtos.GetBundleReques
 		FROM product_bundles
 	`
 	if bundleID != "" {
-		query += " WHERE bundle_id = ?"
+		query += whereBundleID
 	}
 	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
 
@@ -893,7 +896,7 @@ func UpdateBundle(req dtos.UpdateBundle) error {
 		return nil // Nothing to update
 	}
 
-	query += " " + strings.Join(updates, ", ") + " WHERE bundle_id = ?"
+	query += " " + strings.Join(updates, ", ") + whereBundleID
 	args = append(args, req.ID)
 
 	if _, err := DB.Exec(query, args...); err != nil {
@@ -1204,7 +1207,7 @@ func IsValidCategory(categoryID string) (bool, error) {
 	return false, nil // subcategory, not valid
 }
 
-func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID string) ([]dtos.CategoryResponse, *dtos.PaginationMeta, error) {
+func GetCategoriesWithSubcategoriesAndProducts(searchParams dtos.SearchParams, filterCategoryID string) ([]dtos.CategoryResponse, *dtos.PaginationMeta, error) {
 	if filterCategoryID != "" {
 		ok, err := IsValidCategory(filterCategoryID)
 		if err != nil {
@@ -1216,7 +1219,7 @@ func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID 
 	}
 
 	// Get top-level categories
-	categories, err := getMainCategories(filterCategoryID)
+	categories, err := getMainCategories(filterCategoryID, searchParams)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1229,7 +1232,7 @@ func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID 
 		}
 		categories[i].Subcategories = subs
 
-		products, meta, err := getProductsForSubcategories(subIDs, page, size)
+		products, meta, err := getProductsForSubcategories(subIDs, searchParams.Page, searchParams.Limit, searchParams)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1240,7 +1243,7 @@ func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID 
 	return categories, paginationMeta, nil
 }
 
-func getMainCategories(filterCategoryID string) ([]dtos.CategoryResponse, error) {
+func getMainCategories(filterCategoryID string, params dtos.SearchParams) ([]dtos.CategoryResponse, error) {
 	query := `
 		SELECT category_id, name, parent_category_id, image, description
 		FROM categories
@@ -1250,7 +1253,16 @@ func getMainCategories(filterCategoryID string) ([]dtos.CategoryResponse, error)
 		query += " AND category_id = ?"
 		args = append(args, filterCategoryID)
 	}
-
+	if params.Q != "" {
+		query += " AND LOWER(name) LIKE ?"
+		searchTerm := "%" + strings.ToLower(params.Q) + "%"
+		args = append(args, searchTerm, searchTerm)
+	}
+	if params.CategoryName != "" {
+		query += " AND LOWER(name) LIKE ?"
+		searchTerm := "%" + strings.ToLower(params.CategoryName) + "%"
+		args = append(args, searchTerm)
+	}
 	rows, err := DB.Query(query, args...)
 	if err != nil {
 		return nil, err
@@ -1291,50 +1303,54 @@ func getSubcategoriesProducts(parentID string) ([]dtos.SubcategoryResponse, []st
 	return subs, ids, nil
 }
 
-func getProductsForSubcategories(subIDs []string, page, size int) ([]dtos.CategoryProduct, *dtos.PaginationMeta, error) {
+func getProductsForSubcategories(subIDs []string, page, size int, params dtos.SearchParams) ([]dtos.CategoryProduct, *dtos.PaginationMeta, error) {
 	if len(subIDs) == 0 {
 		return nil, nil, nil
 	}
 
-	// Build placeholders for IN clause
-	placeholders := strings.Repeat(",?", len(subIDs)-1)
-	// Count total products for pagination
-	countQuery := fmt.Sprintf(`
-        SELECT COUNT(*)
-        FROM products
-        WHERE category_id IN (?%s)
-    `, placeholders)
-	countArgs := make([]interface{}, len(subIDs))
-	for i, id := range subIDs {
-		countArgs[i] = id
-	}
-	var totalItems int
-	if err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
-		return nil, nil, err
+	// --- Helpers ---
+	buildPlaceholders := func(n int) string {
+		return strings.Repeat(",?", n-1)
 	}
 
-	// Pagination
 	offset := (page - 1) * size
+	placeholders := buildPlaceholders(len(subIDs))
 
-	// Fetch products with pagination
-	query := fmt.Sprintf(`
-        SELECT p.product_id, p.name, p.description, p.sku, p.price,
-               p.category_id, c.parent_category_id, p.stock_quantity, p.search_vector,
-               p.created_at, p.last_updated_at, p.tag
-        FROM products p
-        JOIN categories c ON p.category_id = c.category_id
-        WHERE p.category_id IN (?%s)
-        ORDER BY p.created_at DESC
-        LIMIT ? OFFSET ?
-    `, placeholders)
-	args := make([]interface{}, len(subIDs)+2)
+	// --- Build base query ---
+	baseQuery := fmt.Sprintf(`FROM products p
+		JOIN categories c ON p.category_id = c.category_id
+		WHERE p.category_id IN (?%s)`, placeholders)
+
+	args := make([]interface{}, len(subIDs))
 	for i, id := range subIDs {
 		args[i] = id
 	}
-	args[len(subIDs)] = size
-	args[len(subIDs)+1] = offset
 
-	rows, err := DB.Query(query, args...)
+	// --- Build filters dynamically ---
+	filterQuery, filterArgs := buildProductFilters(params)
+	args = append(args, filterArgs...)
+	whereClause := baseQuery + filterQuery
+
+	// --- Count total for pagination ---
+	countQuery := "SELECT COUNT(*) " + whereClause
+	var totalItems int
+	if err := DB.QueryRow(countQuery, args...).Scan(&totalItems); err != nil {
+		return nil, nil, err
+	}
+
+	// --- Fetch products with pagination ---
+	sortClause := getSortClause(params.SortBy)
+	dataQuery := fmt.Sprintf(`SELECT 
+			p.product_id, p.name, p.description, p.sku, p.price,
+			p.category_id, c.parent_category_id, p.stock_quantity,
+			p.search_vector, p.created_at, p.last_updated_at, p.tag
+		%s
+		ORDER BY %s
+		LIMIT ? OFFSET ?`, whereClause, sortClause)
+
+	args = append(args, size, offset)
+
+	rows, err := DB.Query(dataQuery, args...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1353,23 +1369,20 @@ func getProductsForSubcategories(subIDs []string, page, size int) ([]dtos.Catego
 			return nil, nil, err
 		}
 
-		pr.CategoryID = parentCategoryID // top-level / parent category
-		pr.SubcategoryID = subcategoryID // actual subcategory
+		pr.CategoryID = parentCategoryID
+		pr.SubcategoryID = subcategoryID
 
-		images, err := fetchProductImages(pr.ID)
-		if err != nil {
+		if pr.Images, err = fetchProductImages(pr.ID); err != nil {
 			return nil, nil, err
 		}
-		pr.Images = images
-		variants, err := getProductVariants(pr.ID)
-		if err != nil {
+		if pr.ProductVariants, err = getProductVariants(pr.ID); err != nil {
 			return nil, nil, err
 		}
-		pr.ProductVariants = variants
 
 		products = append(products, pr)
 	}
 
+	// --- Pagination metadata ---
 	totalPages := int(math.Ceil(float64(totalItems) / float64(size)))
 	meta := &dtos.PaginationMeta{
 		Page:       page,
@@ -1381,6 +1394,58 @@ func getProductsForSubcategories(subIDs []string, page, size int) ([]dtos.Catego
 	}
 
 	return products, meta, nil
+}
+func buildProductFilters(params dtos.SearchParams) (string, []interface{}) {
+	var conditions []string
+	var args []interface{}
+
+	if params.ProductName != "" {
+		conditions = append(conditions, "LOWER(p.name) LIKE ?")
+		args = append(args, "%"+strings.ToLower(params.ProductName)+"%")
+	}
+
+	if params.SKU != "" {
+		conditions = append(conditions, "LOWER(p.sku) = ?")
+		args = append(args, strings.ToLower(params.SKU))
+	}
+
+	if params.Tag != "" {
+		conditions = append(conditions, "LOWER(p.tag) = ?")
+		args = append(args, strings.ToLower(params.Tag))
+	}
+
+	if params.MinPrice > 0 && params.MaxPrice > 0 {
+		conditions = append(conditions, "p.price BETWEEN ? AND ?")
+		args = append(args, params.MinPrice, params.MaxPrice)
+	}
+
+	// --- Variants filtering ---
+	if len(params.Variants) > 0 {
+		variantConds := []string{}
+		for _, v := range params.Variants {
+			if strings.ToLower(v.Value) == "all" {
+				variantConds = append(variantConds, lowerVariant)
+				args = append(args, strings.ToLower(v.Type))
+			} else {
+				variantConds = append(variantConds, lowerVariantTypeName)
+				args = append(args, strings.ToLower(v.Type), strings.ToLower(v.Value))
+			}
+		}
+
+		variantQuery := fmt.Sprintf(`
+			AND p.product_id IN (
+				SELECT pv.product_id
+				FROM product_variants pv
+				JOIN variants v ON pv.variant_id = v.variant_id
+				WHERE %s
+			)`, strings.Join(variantConds, " OR "))
+		conditions = append(conditions, variantQuery)
+	}
+
+	if len(conditions) == 0 {
+		return "", args
+	}
+	return " AND " + strings.Join(conditions, " AND "), args
 }
 
 // new fetch products
@@ -1455,6 +1520,10 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 		query += " AND LOWER(p.tag) = ?"
 		args = append(args, strings.ToLower(params.Tag))
 	}
+	if params.MinPrice > 0 && params.MaxPrice > 0 {
+		query += " AND p.price BETWEEN ? AND ?"
+		args = append(args, params.MinPrice, params.MaxPrice)
+	}
 	// Apply multiple variant filters
 	if len(params.Variants) > 0 {
 		variantSubquery := `
@@ -1468,11 +1537,11 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 		for _, variant := range params.Variants {
 			if strings.ToLower(variant.Value) == "all" {
 				// Only match by type if "all"
-				variantConditions = append(variantConditions, "(LOWER(v.variant_type) = ?)")
+				variantConditions = append(variantConditions, lowerVariant)
 				args = append(args, strings.ToLower(variant.Type))
 			} else {
 				// Match by both type and value
-				variantConditions = append(variantConditions, "(LOWER(v.variant_type) = ? AND LOWER(v.name) = ?)")
+				variantConditions = append(variantConditions, lowerVariantTypeName)
 				args = append(args, strings.ToLower(variant.Type), strings.ToLower(variant.Value))
 			}
 		}
@@ -1526,7 +1595,10 @@ func buildCountQuerySearch(params dtos.SearchParams) (string, []interface{}) {
 		query += " AND LOWER(p.tag) = ?"
 		args = append(args, strings.ToLower(params.Tag))
 	}
-	// Apply multiple variant filters
+	if params.MinPrice > 0 && params.MaxPrice > 0 {
+		query += " AND p.price BETWEEN ? AND ?"
+		args = append(args, params.MinPrice, params.MaxPrice)
+	}
 	// Apply multiple variant filters
 	if len(params.Variants) > 0 {
 		variantSubquery := `
@@ -1540,11 +1612,11 @@ func buildCountQuerySearch(params dtos.SearchParams) (string, []interface{}) {
 		for _, variant := range params.Variants {
 			if strings.ToLower(variant.Value) == "all" {
 				// Only match by type if "all"
-				variantConditions = append(variantConditions, "(LOWER(v.variant_type) = ?)")
+				variantConditions = append(variantConditions, lowerVariant)
 				args = append(args, strings.ToLower(variant.Type))
 			} else {
 				// Match by both type and value
-				variantConditions = append(variantConditions, "(LOWER(v.variant_type) = ? AND LOWER(v.name) = ?)")
+				variantConditions = append(variantConditions, lowerVariantTypeName)
 				args = append(args, strings.ToLower(variant.Type), strings.ToLower(variant.Value))
 			}
 		}
@@ -1662,25 +1734,32 @@ func scanProduct(rows *sql.Rows, isAdmin bool) (dtos.Product, error) {
 		return product, err
 	}
 	product.ProductVariants = variants
-	//if is admin check who created the product
+
 	if isAdmin {
-		product.CreatedBy, err = getProductCreator(product.ID)
-		if err != nil {
-			return product, err
-		}
-		product.IsInTodaysDeals, err = isProductInTodaysDeal(product.ID)
-		if err != nil {
-			return product, err
-		}
-		product.MaxStockQuantity, err = getMaxQuantity(product.ID)
-		if product.MaxStockQuantity < product.StockQuantity {
-			product.MaxStockQuantity = product.StockQuantity
-		}
-		if err != nil {
+		if err := enrichProductAdmin(&product); err != nil {
 			return product, err
 		}
 	}
+
 	return product, nil
+}
+
+// enrichProductAdmin adds admin-specific fields to the product.
+func enrichProductAdmin(product *dtos.Product) error {
+	var err error
+	product.CreatedBy, err = getProductCreator(product.ID)
+	if err != nil {
+		return err
+	}
+	product.IsInTodaysDeals, err = isProductInTodaysDeal(product.ID)
+	if err != nil {
+		return err
+	}
+	product.MaxStockQuantity, err = getMaxQuantity(product.ID)
+	if product.MaxStockQuantity < product.StockQuantity {
+		product.MaxStockQuantity = product.StockQuantity
+	}
+	return err
 }
 func getProductCreator(productID string) (string, error) {
 	var createdByID sql.NullString
@@ -1769,7 +1848,7 @@ func getMaxQuantity(productID string) (int, error) {
 }
 
 func InsertProductSpecs(req dtos.ProductSpecs) error {
-	err := isProductThere(req.ProductID)
+	err := IsProductThere(req.ProductID)
 	if err != nil {
 		return err
 	}
@@ -1784,4 +1863,70 @@ func InsertProductSpecs(req dtos.ProductSpecs) error {
 	}
 
 	return nil
+}
+
+// Fetch most expensive and cheapest products
+func GetExpensiveAndCheapProducts() (*dtos.ExpensiveCheapProduct, error) {
+	cheapestProduct, err := getProductByPriceType("cheapest")
+	if err != nil {
+		return nil, err
+	}
+	expensiveProduct, err := getProductByPriceType("expensive")
+	if err != nil {
+		return nil, err
+	}
+	combinedProducts := &dtos.ExpensiveCheapProduct{
+		CheapestProduct:  *cheapestProduct,
+		ExpensiveProduct: *expensiveProduct,
+	}
+	return combinedProducts, nil
+}
+
+// getProductByPriceType fetches a single product with either the lowest or highest price.
+func getProductByPriceType(priceType string) (*dtos.Product, error) {
+	var orderClause string
+	switch strings.ToLower(priceType) {
+	case "cheapest":
+		orderClause = "ASC"
+	case "expensive":
+		orderClause = "DESC"
+	default:
+		return nil, fmt.Errorf("invalid price type: %s", priceType)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT 
+			p.product_id, p.name, p.description, p.sku, p.price, 
+			p.category_id, p.stock_quantity, p.search_vector, 
+			p.created_at, p.last_updated_at, c.name AS category_name, p.tag
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.category_id
+		ORDER BY p.price %s
+		LIMIT 1
+	`, orderClause)
+
+	var p dtos.Product
+	err := DB.QueryRow(query).Scan(
+		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
+		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
+		&p.CategoryName, &p.Tag,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // no products found
+		}
+		return nil, err
+	}
+
+	// Fetch product images
+	if p.Images, err = fetchProductImages(p.ID); err != nil {
+		return nil, err
+	}
+
+	// Fetch product variants
+	if p.ProductVariants, err = getProductVariants(p.ID); err != nil {
+		return nil, err
+	}
+
+	return &p, nil
 }

@@ -102,7 +102,7 @@ func DeleteCharge(id string) error {
 
 func AddChargeToProduct(input dtos.AddChargeToProductRequest) error {
 	//check if product exists
-	err := isProductThere(input.ProductID)
+	err := IsProductThere(input.ProductID)
 	if err != nil {
 		return err
 	}

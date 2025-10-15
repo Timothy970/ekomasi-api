@@ -170,6 +170,8 @@ type SearchParams struct {
 	Limit        int
 	SKU          string
 	Tag          string
+	MaxPrice     float64
+	MinPrice     float64
 }
 
 type VariantFilter struct {
@@ -211,6 +213,10 @@ type ProductSpecification struct {
 	WarrantyPeriod   int      `json:"warranty_period"` //in months
 	Weight           int      `json:"weight"`
 	WeightLimit      int      `json:"weight_limit"`
+}
+type ExpensiveCheapProduct struct {
+	CheapestProduct  Product `json:"cheapest_product"`
+	ExpensiveProduct Product `json:"expensive_product"`
 }
 type ProductSpecs struct {
 	ProductID    string `json:"product_id"`

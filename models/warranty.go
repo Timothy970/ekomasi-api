@@ -64,7 +64,7 @@ func DeleteWarrantType(warrantyID string) error {
 
 func AddProductWarranties(pw dtos.AddProductWarrantiesRequest) error {
 	//check if product exists
-	err := isProductThere(pw.ProductID)
+	err := IsProductThere(pw.ProductID)
 	if err != nil {
 		return err
 	}

@@ -179,7 +179,7 @@ func AddProductToPurchaseOrder(item dtos.PurchaseOrderItem) error {
 	if err != nil {
 		return err
 	}
-	err = isProductThere(item.ProductID)
+	err = IsProductThere(item.ProductID)
 	if err != nil {
 		return err
 	}

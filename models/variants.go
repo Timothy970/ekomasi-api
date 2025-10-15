@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"strings"
 
@@ -117,13 +116,12 @@ func AddProductVariant(variantID string, req dtos.ProductVariantRequest) error {
 	if err := variantexists(variantID); err != nil {
 		return err
 	}
-	if err := isProductThere(req.ProductID); err != nil {
+	if err := IsProductThere(req.ProductID); err != nil {
 		return err
 	}
 
 	// Check if the product already has the variant
 	exists, err := isProductWithVariant(variantID, req.ProductID)
-	log.Printf("is product with variant %s %s", exists, err)
 	if err != nil {
 		return err
 	}
@@ -134,7 +132,6 @@ func AddProductVariant(variantID string, req dtos.ProductVariantRequest) error {
 	}
 
 	if exists {
-		log.Printf("is product ****** %s %s", req.StockQuantity, additionalPrice)
 		// Update only if at least one field is provided
 		if req.StockQuantity == nil && additionalPrice == 0.0 {
 			// Nothing to update
@@ -189,7 +186,7 @@ func isProductWithVariant(variantID, productID string) (bool, error) {
 }
 
 func RemoveProductVariant(productID, variantID string) error {
-	err := isProductThere(productID)
+	err := IsProductThere(productID)
 	if err != nil {
 		return err
 	}

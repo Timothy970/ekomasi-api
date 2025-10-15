@@ -24,7 +24,6 @@ func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 		var err error
 		categories, err = models.GetAllCategories()
 		if err != nil {
-			log.Printf("Failed to get categories: %v", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				Code:      http.StatusNotFound,
 				Message:   err.Error(),

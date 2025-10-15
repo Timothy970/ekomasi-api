@@ -89,7 +89,7 @@ func ListInventory(page, size int, categoryID, stock, storeID string) ([]dtos.In
 }
 
 func CreateInventory(inv dtos.CreateInventoryRequest) error {
-	err := isProductThere(inv.ProductID)
+	err := IsProductThere(inv.ProductID)
 	if err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func GetInventoryTurnover(start, end time.Time, groupBy string) ([]dtos.Inventor
 }
 
 func GetInventoryTurnoverByProduct(productID string, start, end time.Time, groupBy string) ([]dtos.InventoryTurnoverItem, error) {
-	err := isProductThere(productID)
+	err := IsProductThere(productID)
 	if err != nil {
 		return nil, err
 	}
@@ -415,7 +415,7 @@ func StoreHandlingNotes(req dtos.InventoryCondition) error {
 }
 
 func StoreInventoryTracking(req dtos.InventoryTracking) (string, error) {
-	err := isProductThere(req.ProductID)
+	err := IsProductThere(req.ProductID)
 	if err != nil {
 		return "", err
 	}

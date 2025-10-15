@@ -28,22 +28,28 @@ type PromotionSummary struct {
 }
 
 type PromoCodeRequest struct {
-	ID            string    `json:"id"`
-	Description   *string   `json:"description"`
-	DiscountType  string    `json:"discount_type" validate:"required,oneof=PERCENTAGE FIXED"`
-	DiscountValue float64   `json:"discount_value" validate:"required"`
-	ExpiresAt     time.Time `json:"expires_at" validate:"required"`
-	IsActive      *bool     `json:"is_active"`
+	ID                string   `json:"id"`
+	Description       *string  `json:"description"`
+	DiscountType      string   `json:"discount_type" validate:"required,oneof=PERCENTAGE FIXED"`
+	DiscountValue     float64  `json:"discount_value" validate:"required"`
+	ExpiresAt         string   `json:"expires_at" validate:"required"`
+	IsActive          bool     `json:"is_active" validate:"required"`
+	Discount_Code     string   `json:"discount_code"`
+	MinimumOrderValue *float64 `json:"minimum_order_value"`
+	MaximumUse        int      `json:"maximum_use"`
 }
 
 type PromoCodeResponse struct {
-	ID            string    `json:"promo_code_id"`
-	Code          string    `json:"code" validate:"required"`
-	Description   *string   `json:"description"`
-	DiscountType  string    `json:"discount_type" validate:"required,oneof=PERCENTAGE FIXED"`
-	DiscountValue float64   `json:"discount_value" validate:"required"`
-	ExpiresAt     time.Time `json:"expires_at" validate:"required"`
-	IsActive      bool      `json:"is_active"`
+	ID                string    `json:"promo_code_id"`
+	Code              string    `json:"code" validate:"required"`
+	Description       *string   `json:"description"`
+	DiscountType      string    `json:"discount_type" validate:"required,oneof=PERCENTAGE FIXED"`
+	DiscountValue     float64   `json:"discount_value" validate:"required"`
+	ExpiresAt         time.Time `json:"expires_at" validate:"required"`
+	IsActive          bool      `json:"is_active"`
+	MinimumOrderValue *float64  `json:"minimum_order_value"`
+	MaximumUse        int       `json:"maximum_use"`
+	TimesUsed         int       `json:"times_used"`
 }
 
 type AddPromotionToProductRequest struct {
