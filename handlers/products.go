@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"adenzo_backend/dtos"
+	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"database/sql"
@@ -806,6 +807,15 @@ func GetCategoryProductsHandlerByCategoryID(w http.ResponseWriter, r *http.Reque
 			RawBody:   requestSummary})
 		return
 	}
+	//check if user token is passed, if so check if products belong to the users wishlist using generics
+	for i := range products {
+		ApplyUserWishlist(
+			r,
+			products[i].Products, // Apply to the inner slice
+			func(p *dtos.CategoryProduct) string { return p.ID },
+			func(p *dtos.CategoryProduct, inWishlist bool) { p.InWishlist = &inWishlist },
+		)
+	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusOK,
@@ -818,6 +828,25 @@ func GetCategoryProductsHandlerByCategoryID(w http.ResponseWriter, r *http.Reque
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
+}
+func ApplyUserWishlist[T any](r *http.Request, products []T, getProductID func(*T) string, setInWishlist func(*T, bool)) {
+	authuser, ok := middleware.IsUserTokenPassed(r)
+	if !ok {
+		return
+	}
+
+	userWishlist, err := models.GetUserWishlistProductIDs(authuser.ID)
+	if err != nil {
+		log.Printf("error fetching wishlist products: %v", err)
+		return
+	}
+
+	for i := range products {
+		id := getProductID(&products[i])
+		if _, found := userWishlist[id]; found {
+			setInWishlist(&products[i], true)
+		}
+	}
 }
 
 // Get Category products
@@ -846,6 +875,15 @@ func GetCategoryProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Request:   r,
 			RawBody:   requestSummary})
 		return
+	}
+	//check if token is passed, if so check if products belong to the users wishlist
+	for i := range products {
+		ApplyUserWishlist(
+			r,
+			products[i].Products, // Apply to the inner slice
+			func(p *dtos.CategoryProduct) string { return p.ID },
+			func(p *dtos.CategoryProduct, inWishlist bool) { p.InWishlist = &inWishlist },
+		)
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -967,6 +1005,13 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	//check if token is passed, if so check if products belong to the users wishlist
+	ApplyUserWishlist(
+		r,
+		products,
+		func(p *dtos.Product) string { return p.ID },
+		func(p *dtos.Product, inWishlist bool) { p.InWishlist = &inWishlist },
+	)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusOK,

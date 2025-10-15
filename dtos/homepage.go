@@ -168,6 +168,7 @@ type Product struct {
 	LastUpdated      time.Time         `json:"last_updated"`
 	Images           []Image           `json:"urls,omitempty"`
 	ProductVariants  []ProductVariants `json:"product_variants"`
+	InWishlist       *bool             `json:"liked_by_user,omitempty"`
 }
 type DealProduct struct {
 	ID               string            `json:"product_id"`

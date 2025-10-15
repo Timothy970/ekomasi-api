@@ -157,6 +157,8 @@ type CategoryProduct struct {
 	Tag             *string           `json:"tag"`
 	Images          []Image           `json:"urls"`
 	ProductVariants []ProductVariants `json:"products_variants"`
+	//only visible when user is authenticated
+	InWishlist *bool `json:"liked_by_user,omitempty"`
 }
 
 // SearchParams represents the search parameters
