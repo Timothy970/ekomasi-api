@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS product_discount;
+DROP TABLE IF EXISTS product_discounts;
