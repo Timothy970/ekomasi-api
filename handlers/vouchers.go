@@ -98,7 +98,7 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Router /api/admin/vouchers [post]
-func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
+func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
