@@ -98,7 +98,7 @@ func AddNewVoucher(v dtos.Voucher, userID string) (string, error) {
 	code, _ := GenerateVoucherCode()
 	query := `
 		INSERT INTO vouchers (voucher_id, code, original_value, status,user_id, expiry_date, balance)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
 	_, err := DB.Exec(query, voucherID, code, v.Amount, status, userID, v.ExpiryDate, v.Amount)
 	if err != nil {
@@ -111,7 +111,7 @@ func InsertIntoVoucherPurchases(v dtos.BuyVoucherData, userID, voucherID string)
 	// generate unique code
 	query := `
 		INSERT INTO voucher_purchases (purchase_id, voucher_id, from_user_id, to_name, to_email,personalized_msg, delivery_time, status, from_name)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	_, err := DB.Exec(query, purchaseID, voucherID, userID, v.ToName, v.ToEmail, v.Message, v.DeliveryTime, "PENDING", v.FromName)
 	if err != nil {

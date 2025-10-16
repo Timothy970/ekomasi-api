@@ -257,7 +257,7 @@ func UpdatePromoCode(id string, input dtos.PromoCodeRequest) (*dtos.PromoCodeReq
 		UPDATE promocodes
 		SET description = ?, discount_type = ?, discount_value = ?, expires_at = ?, is_active = ?, minimum_order_value = ?, maximum_use = ?
 		WHERE promo_code_id = ?`,
-		input.Description, input.DiscountType, input.DiscountValue, input.ExpiresAt, input.IsActive, id,
+		input.Description, input.DiscountType, input.DiscountValue, input.ExpiresAt, input.IsActive, input.MinimumOrderValue, input.MaximumUse, id,
 	)
 	if err != nil {
 		return nil, err
