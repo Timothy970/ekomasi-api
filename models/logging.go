@@ -72,7 +72,7 @@ func buildUserLogsFilter(module, status, role, date, q string) (string, []interf
 			WHERE LOWER(first_name) LIKE ? OR LOWER(last_name) LIKE ? OR LOWER(email) LIKE ? OR phone_number LIKE ?
 		)`)
 		qLike := "%" + strings.ToLower(q) + "%"
-		args = append(args, qLike, qLike, qLike)
+		args = append(args, qLike, qLike, qLike, qLike)
 	}
 
 	whereSQL := ""
