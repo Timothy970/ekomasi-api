@@ -143,7 +143,6 @@ func GetSalesTrendsOverTime(period string, start, end time.Time) (SalesTrendsOve
 	rows, err := DB.Query(query, start, end)
 	if err != nil {
 		return SalesTrendsOverTime{}, err
-
 	}
 	defer rows.Close()
 

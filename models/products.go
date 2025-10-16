@@ -620,7 +620,7 @@ func buildRelatedProductsQuery(categoryID, excludeProductID string, limit, page 
 	// Pagination
 	if limit > 0 {
 		offset := (page - 1) * limit
-		query += fmt.Sprintf(limtOffset)
+		query += limtOffset
 		args = append(args, limit, offset)
 	}
 
