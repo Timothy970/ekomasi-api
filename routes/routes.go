@@ -436,4 +436,9 @@ func SetupRoutes(router *mux.Router) {
 	admin.HandleFunc("/roles", handlers.GetRolesHandler).Methods("GET")
 	admin.Handle("/roles/{role_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateRoleHandler))).Methods("PATCH")
 	admin.Handle("roles/{role_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteRoleHandler))).Methods("DELETE")
+	//permissions endpoints
+	admin.Handle("/permissions", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreatePermissionHandler))).Methods("POST")
+	admin.HandleFunc("/permissions", handlers.GetPermissionsHandler).Methods("GET")
+	admin.Handle("/permissions/{permission_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePermissionHandler))).Methods("PATCH")
+	admin.Handle("/permissions/{permission_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePermissionHandler))).Methods("DELETE")
 }

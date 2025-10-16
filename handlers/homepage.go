@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"adenzo_backend/dtos"
+	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"database/sql"
@@ -756,11 +757,36 @@ func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	blog, ok := DecodeRequestBody[dtos.Blog](r, w, requestSummary, start)
-	if !ok {
+	authUser, userOk := middleware.UserFromContext(r.Context())
+	if !userOk || authUser.Role != "admin" {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusForbidden,
+			Message:   "User is not authorized",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
 		return
 	}
-
+	url, err := utils.ParseAndUploadFile(r, "image", 20)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Failed to upload file: " + err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	author := r.FormValue("author")
+	blog := &dtos.Blog{
+		ImageURL: &url,
+		Title:    r.FormValue("title"),
+		Content:  r.FormValue("content"),
+		Author:   &author,
+		AuthorID: authUser.ID,
+	}
 	//Validate the request
 	if !utils.ValidateStructAndRespond(blog, w, r, requestSummary, start) {
 		return

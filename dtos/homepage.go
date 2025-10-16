@@ -243,12 +243,14 @@ type AttachProductToPromotion struct {
 	ProductIDs  []string `json:"product_ids"`
 }
 type Blog struct {
-	BlogID      string `json:"blog_id"`
-	Title       string `json:"title" validate:"required"`
-	Content     string `json:"content" validate:"required"`
-	AuthorID    string `json:"author_id" validate:"required"`
-	PublishedAt string `json:"published_at"`
-	IsPublished bool   `json:"is_published"`
+	BlogID      string  `json:"blog_id"`
+	Title       string  `json:"title" validate:"required"`
+	Content     string  `json:"content" validate:"required"`
+	AuthorID    string  `json:"author_id"`
+	Author      *string `json:"author" validate:"required"`
+	PublishedAt string  `json:"published_at"`
+	IsPublished bool    `json:"is_published"`
+	ImageURL    *string `json:"image_url"`
 }
 type UpdateBlog struct {
 	// BlogID      string `json:"blog_id"`

@@ -38,38 +38,11 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse multipart form (20 MB max)
-	if err := r.ParseMultipartForm(20 << 20); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   "Failed to parse form: " + err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-		})
-		return
-	}
-
-	// Get image file
-	file, header, err := r.FormFile("image")
+	url, err := utils.ParseAndUploadFile(r, "image", 20)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusBadRequest,
-			Message:   "Image is required",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-		})
-		return
-	}
-	defer file.Close()
-
-	// Upload image to GCS
-	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Failed to upload image: " + err.Error(),
+			Message:   "Failed to upload file: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,

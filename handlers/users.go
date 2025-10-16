@@ -38,7 +38,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if (input.Email == "" || input.Phonenumber == "") && input.Role == "" {
+	if (input.Email == "" || input.Phonenumber == "") && input.RoleID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
 			Message:   mandatory,
@@ -655,7 +655,7 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if (input.Email == "" || input.Phonenumber == "") && input.Role == "" {
+	if (input.Email == "" || input.Phonenumber == "") && input.RoleID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
 			Message:   mandatory,
