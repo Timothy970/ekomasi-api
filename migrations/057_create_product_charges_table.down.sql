@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS product_charges
+DROP TABLE IF EXISTS product_charges;
