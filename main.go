@@ -25,6 +25,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"github.com/uptrace/uptrace-go/uptrace"
@@ -53,6 +54,10 @@ const migrationDir = "migrations"
 
 // Load environment variables
 func init() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Printf("Error loading .env file: %v", err)
+	}
 	// Initialize database connection or other configurations here.
 	fmt.Println("Initializing server...")
 }
@@ -114,12 +119,12 @@ func main() {
 		fmt.Println("Migration completed successfully.")
 		return
 	}
+
 	// Initialize Redis client
 	redisClient = redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")), // Redis server address
-		Username: os.Getenv("REDIS_USER"),
-		Password: os.Getenv("REDIS_PASS"),
-		DB:       0,                // Default DB
+		Addr:     fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")),
+		Password: os.Getenv("REDIS_PASSWORD"),
+		DB:       0, // Default DB
 	})
 
 	// Test Redis connection
@@ -188,8 +193,8 @@ func main() {
 	// CORS middleware
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:3001"}, // Specify exact origins
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH"}, // Allow specific HTTP methods
-		AllowedHeaders:   []string{"Content-Type", "Authorization"},         // Allow specific headers
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH"},          // Allow specific HTTP methods
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},                  // Allow specific headers
 		AllowCredentials: true,
 	}).Handler(router)
 
@@ -204,14 +209,14 @@ func main() {
 // Function to initialize a database connection with OpenTelemetry instrumentation
 func initDBConnection(user, password, host, port, dbName string) (*sql.DB, error) {
 	cfg := mysql.Config{
-		User:   user,
-		Passwd: password,
-		Net:    "tcp",
-		Addr:   fmt.Sprintf("%s:%s", host, port),
-		DBName: dbName,
+		User:      user,
+		Passwd:    password,
+		Net:       "tcp",
+		Addr:      fmt.Sprintf("%s:%s", host, port),
+		DBName:    dbName,
 		TLSConfig: "skip-verify",
 		Params: map[string]string{
-			"parseTime":            "true",
+			"parseTime": "true",
 			// This was causing the connection to fail when using a DB in Belgium
 			// "loc":                  "Africa/Nairobi",
 			"allowNativePasswords": "true",
