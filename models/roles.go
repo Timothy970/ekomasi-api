@@ -191,7 +191,7 @@ func DeleteRole(roleID string) error {
 	if err != nil {
 		return err
 	}
-	query := `DELETE FROM roles WHERE role_ = ?`
+	query := `DELETE FROM roles WHERE role_id = ?`
 	_, err = DB.Exec(query, roleID)
 
 	return err
