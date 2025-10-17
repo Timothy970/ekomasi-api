@@ -19,7 +19,7 @@ import (
 // GetUserByEmail retrieves a user by their email address.
 // It returns a User object or nil if no user is found.
 func GetUserByEmail(email string) (*dtos.User, error) {
-	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.role, u.phone_number FROM users u JOIN roles r ON u.role_id = r.role_id WHERE email = ?", email)
+	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.phone_number FROM users u JOIN roles r ON u.role_id = r.role_id WHERE email = ?", email)
 
 	var user dtos.User
 	var phone sql.NullString
@@ -56,7 +56,7 @@ func GetUserByEmail(email string) (*dtos.User, error) {
 	return &user, nil
 }
 func GetUserByPhone(phone string) (*dtos.User, error) {
-	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.role, u.phone_number FROM users u JOIN roles r ON u.role_id = r.role_id WHERE phone_number = ?", phone)
+	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.phone_number FROM users u JOIN roles r ON u.role_id = r.role_id WHERE phone_number = ?", phone)
 
 	var user dtos.User
 	var firstName sql.NullString
@@ -158,7 +158,7 @@ func GetUserByUserID(id string) (*dtos.Users, error) {
 		return nil, err
 	}
 
-	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.role, u.phone_number, u.last_login, u.created_at, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE user_id = ?", id)
+	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.phone_number, u.last_login, u.created_at, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE user_id = ?", id)
 
 	var user dtos.Users
 	var phone sql.NullString
