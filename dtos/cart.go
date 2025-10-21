@@ -16,7 +16,9 @@ type AddToCartRequest struct {
 	CartID    string `json:"cart_id" validate:"required"`
 }
 type CreateCartRequest struct {
-	UserID *string `json:"user_id"`
+	UserID    *string `json:"user_id" validate:"omitempty"`
+	ProductID string  `json:"product_id"`
+	Quantity  int     `json:"quantity"`
 }
 
 type AddToCartResponse struct {
@@ -24,11 +26,12 @@ type AddToCartResponse struct {
 }
 
 type ViewCartResponse struct {
-	CartItems    []CartItem `json:"cart_items"`
-	Total        float64    `json:"total"`
-	Discount     float64    `json:"discount"`
-	Final        float64    `json:"final"`
-	EstimatedTax float64    `json:"estimated_tax"`
+	CartItems     []CartItem `json:"cart_items"`
+	Total         float64    `json:"total"`
+	Discount      float64    `json:"discount"`
+	Final         float64    `json:"final"`
+	EstimatedTax  float64    `json:"estimated_tax"`
+	DeliverCharge float64    `json:"delivery_charge"`
 }
 
 type UpdateCartItemRequest struct {

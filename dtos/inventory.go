@@ -1,6 +1,8 @@
 package dtos
 
-import "time"
+import (
+	"time"
+)
 
 type InventoryDTO struct {
 	InventoryID       string    `json:"inventory_id"`
@@ -28,12 +30,28 @@ type InventoryListResponse struct {
 	Inventories []Inventory    `json:"inventories"`
 }
 type Inventory struct {
-	InventoryID       string    `json:"inventory_id"`
-	ProductID         string    `json:"product_id"`
-	VariantID         string    `json:"variant_id"`
-	Quantity          int       `json:"quantity"`
-	LowStockThreshold int       `json:"low_stock_threshold"`
-	LastUpdated       time.Time `json:"last_updated"`
+	InventoryID       string   `json:"inventory_id"`
+	ProductID         string   `json:"product_id"`
+	VariantID         *string  `json:"variant_id"`
+	BatchNumber       *string  `json:"batch_number"`
+	Quantity          int      `json:"inventory_quantity"`
+	LowStockThreshold int      `json:"low_stock_threshold"`
+	Name              string   `json:"name"`
+	Description       string   `json:"description"`
+	SKU               string   `json:"sku"`
+	Tag               *string  `json:"tag"`
+	Price             float64  `json:"price"`
+	CategoryID        string   `json:"category_id"`
+	CategoryName      string   `json:"category_name"`
+	StockQuantity     int      `json:"stock_quantity"`
+	SearchVector      string   `json:"search_vector"`
+	Images            []Image  `json:"urls,omitempty"`
+	SupplierInfo      Supplier `json:"supplier_info"`
+	ManufacturingDate *string  `json:"manufacturing_date"`
+	ExpiryDate        *string  `json:"expiry_date"`
+	Warranty          *string  `json:"warranty"`
+	PlacedOn          string   `json:"placed_on"`
+	BuyingPrice       float64  `json:"buying_price"`
 }
 
 type InventoryTurnoverRequest struct {
@@ -57,4 +75,70 @@ type InventoryTurnoverItem struct {
 	AvgInventory  float64 `json:"average_inventory"`
 	COGS          float64 `json:"cogs"`
 	TurnoverRatio float64 `json:"turnover_ratio"`
+}
+
+type StockEntryRequest struct {
+	ProductID         string      `json:"product_id" validate:"required"`
+	BatchNumber       string      `json:"batch_number" validate:"required"`
+	BatchImages       *[]string   `json:"batch_images"`
+	ExpiryDate        string      `json:"expiry_date" validate:"required"`
+	ManufacturingDate string      `json:"manufacturing_date" validate:"required"`
+	InspectionDate    string      `json:"inspection_date" validate:"required"`
+	InspectorID       string      `json:"inspector_id" validate:"required"`
+	InspectionNotes   string      `json:"inspection_notes"`
+	InspectionImage   *[]string   `json:"inspection_images"`
+	QuantityReceived  int         `json:"quantity_received" validate:"gte=1"`
+	MinimumStockLevel int         `json:"minimum_stock_level" validate:"gte=0"`
+	StoreQuantity     []StoreInfo `json:"store_quantity" validate:"required,dive"`
+	SupplierID        string      `json:"supplier_id" validate:"required"`
+	PurchaseOrderID   string      `json:"purchase_order_id" validate:"required"`
+	BuyingPrice       float64     `json:"buying_price" validate:"required,gte=0"`
+	ConditionID       string      `json:"condition_id" validate:"required"`
+	HandlingNotes     string      `json:"handling_notes"`
+}
+
+type StoreInfo struct {
+	StoreID  string `json:"store_id" validate:"required"`
+	Quantity int    `json:"quantity" validate:"required,gte=0"`
+}
+
+type Batch struct {
+	InventoryID       string   `json:"inventory_id"`
+	BatchNumber       string   `json:"batch_number"`
+	Images            []string `json:"images,omitempty"`
+	ExpiryDate        string   `json:"expiry_date"`
+	ManufacturingDate string   `json:"manufacturing_date"`
+}
+
+type Inspection struct {
+	BatchID         string   `json:"batch_id"`
+	InspectionDate  string   `json:"inspection_date"`
+	InspectorID     string   `json:"inspector_id"`
+	InspectionNotes string   `json:"inspection_notes"`
+	Images          []string `json:"images,omitempty"`
+}
+
+type InventoryCondition struct {
+	BatchID       string `json:"batch_id"`
+	ConditionID   string `json:"condition_id"`
+	HandlingNotes string `json:"handling_notes"`
+}
+
+type InventoryTracking struct {
+	ProductID         string `json:"product_id"`
+	Quantity          int    `json:"quantity"`
+	LowStockThreshold int    `json:"low_stock_threshold"`
+	StoreID           string `json:"store_id"`
+	SupplierID        string `json:"supplier_id"`
+}
+
+type InventoryStockSummary struct {
+	TotalStock       int `json:"total_stock"`
+	MinimumThreshold int `json:"minimum_threshold"`
+	TotalSales       int `json:"total_sales"`
+}
+type InventoryStockHistory struct {
+	Description string    `json:"description"`
+	Amount      float64   `json:"amount"`
+	Date        time.Time `json:"date"`
 }

@@ -163,66 +163,153 @@ func DeleteUserAddress(addressID, userID string) error {
 	return nil
 }
 
-// Get all users
-func GetAllUsersWithPagination(limit, offset int) ([]dtos.User, *dtos.PaginationMeta, error) {
-	// Fetch total count
-	var totalItems int
-	countQuery := "SELECT COUNT(*) FROM users"
-	err := DB.QueryRow(countQuery).Scan(&totalItems)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to count users: %w", err)
+// GetAllUsersWithPagination fetches users with pagination and optional search query
+func GetAllUsersWithPagination(limit, offset int, q, role string) ([]dtos.Users, *dtos.PaginationMeta, error) {
+	if limit <= 0 {
+		limit = 10
 	}
 
-	// Fetch paginated users
-	query := `
-		SELECT user_id, first_name, last_name, email, role, phone_number
-		FROM users
-		ORDER BY user_id DESC
-		LIMIT ? OFFSET ?
-	`
-	rows, err := DB.Query(query, limit, offset)
+	// Step 1: count total users
+	totalItems, err := countUsers(q, role)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to query users: %w", err)
+		return nil, nil, err
+	}
+
+	// Step 2: fetch paginated users
+	users, err := fetchUsers(limit, offset, q, role)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Step 3: build pagination meta
+	meta := buildPagination(limit, offset, totalItems)
+
+	return users, meta, nil
+}
+
+// --- Helpers ---
+
+func countUsers(q, role string) (int, error) {
+	query := "SELECT COUNT(*) FROM users"
+	var args []interface{}
+	var conditions []string
+
+	// Handle search filter
+	if q != "" {
+		q = "%" + strings.ToLower(q) + "%"
+		conditions = append(conditions, `(LOWER(first_name) LIKE ? OR LOWER(last_name) LIKE ? OR LOWER(email) LIKE ? OR phone_number LIKE ? )`)
+		args = append(args, q, q, q, q)
+	}
+
+	// Handle role filter
+	if role != "" {
+		conditions = append(conditions, `LOWER(role) = ?`)
+		args = append(args, strings.ToLower(role))
+	}
+
+	// Combine filters with WHERE if any
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	var total int
+	if err := DB.QueryRow(query, args...).Scan(&total); err != nil {
+		return 0, fmt.Errorf("failed to count users: %w", err)
+	}
+	return total, nil
+}
+
+func fetchUsers(limit, offset int, q, role string) ([]dtos.Users, error) {
+	query := `
+		SELECT user_id, first_name, last_name, email, role, phone_number, last_login, created_at, status
+		FROM users
+	`
+
+	var args []interface{}
+	var conditions []string
+
+	// Search filter
+	if q != "" {
+		q = "%" + strings.ToLower(q) + "%"
+		conditions = append(conditions, `(LOWER(first_name) LIKE ? OR LOWER(last_name) LIKE ? OR LOWER(email) LIKE ? OR phone_number LIKE ? )`)
+		args = append(args, q, q, q, q)
+	}
+
+	// Role filter
+	if role != "" {
+		conditions = append(conditions, `LOWER(role) = ?`)
+		args = append(args, strings.ToLower(role))
+	}
+
+	// Combine conditions if present
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Add sorting and pagination
+	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query users: %w", err)
 	}
 	defer rows.Close()
 
-	var users []dtos.User
+	var users []dtos.Users
 	for rows.Next() {
-		var user dtos.User
-		var phone sql.NullString
-		var firstName sql.NullString
-		var lastName sql.NullString
-		var userEmail sql.NullString
-
-		if err := rows.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &phone); err != nil {
-			return nil, nil, err
+		user, err := scanUserRow(rows)
+		if err != nil {
+			return nil, err
 		}
-
-		user.FirstName = ""
-		user.LastName = ""
-		user.Email = ""
-		user.Phone = ""
-
-		if firstName.Valid {
-			user.FirstName = firstName.String
-		}
-		if lastName.Valid {
-			user.LastName = lastName.String
-		}
-		if userEmail.Valid {
-			user.Email = userEmail.String
-		}
-		if phone.Valid {
-			user.Phone = phone.String
-		}
-
 		users = append(users, user)
 	}
 
-	// Calculate pagination meta
+	return users, nil
+}
+
+func scanUserRow(rows *sql.Rows) (dtos.Users, error) {
+	var user dtos.Users
+	var phone, firstName, lastName, userEmail sql.NullString
+	var dateJoined, lastLogin sql.NullTime
+
+	if err := rows.Scan(
+		&user.ID, &firstName, &lastName, &userEmail,
+		&user.Role, &phone, &lastLogin, &dateJoined, &user.Status,
+	); err != nil {
+		return dtos.Users{}, err
+	}
+
+	if firstName.Valid {
+		user.FirstName = firstName.String
+	}
+	if lastName.Valid {
+		user.LastName = lastName.String
+	}
+	if userEmail.Valid {
+		user.Email = userEmail.String
+	}
+	if phone.Valid {
+		user.Phone = phone.String
+	}
+	if dateJoined.Valid {
+		user.DateJoined = dateJoined.Time.Format("2006-01-02 15:04:05")
+	}
+	if lastLogin.Valid {
+		user.LastLogin = lastLogin.Time.Format("2006-01-02 15:04:05")
+	}
+
+	// fetch user address (ignores error)
+	user.UserAddress, _ = GetUserAddresses(user.ID)
+
+	return user, nil
+}
+
+func buildPagination(limit, offset, totalItems int) *dtos.PaginationMeta {
 	page := (offset / limit) + 1
 	totalPages := int(math.Ceil(float64(totalItems) / float64(limit)))
-	meta := &dtos.PaginationMeta{
+
+	return &dtos.PaginationMeta{
 		Page:       page,
 		Size:       limit,
 		TotalItems: totalItems,
@@ -230,8 +317,6 @@ func GetAllUsersWithPagination(limit, offset int) ([]dtos.User, *dtos.Pagination
 		HasPrev:    page > 1,
 		HasNext:    page < totalPages,
 	}
-
-	return users, meta, nil
 }
 
 // Get purchased product categories for the user

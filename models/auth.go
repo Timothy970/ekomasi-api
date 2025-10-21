@@ -19,7 +19,7 @@ import (
 // GetUserByEmail retrieves a user by their email address.
 // It returns a User object or nil if no user is found.
 func GetUserByEmail(email string) (*dtos.User, error) {
-	row := DB.QueryRow("SELECT user_id, first_name, last_name, email, role, phone_number FROM users WHERE email = ?", email)
+	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.phone_number FROM users u JOIN roles r ON u.role_id = r.role_id WHERE email = ?", email)
 
 	var user dtos.User
 	var phone sql.NullString
@@ -56,7 +56,7 @@ func GetUserByEmail(email string) (*dtos.User, error) {
 	return &user, nil
 }
 func GetUserByPhone(phone string) (*dtos.User, error) {
-	row := DB.QueryRow("SELECT user_id, first_name, last_name, email, role, phone_number FROM users WHERE phone_number = ?", phone)
+	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.phone_number FROM users u JOIN roles r ON u.role_id = r.role_id WHERE phone_number = ?", phone)
 
 	var user dtos.User
 	var firstName sql.NullString
@@ -112,7 +112,7 @@ func isUserThere(id string) error {
 	}
 	return nil
 }
-func isProductThere(id string) error {
+func IsProductThere(id string) error {
 	exists, err := RecordExists("products", "product_id = ?", id)
 	if err != nil {
 		return err
@@ -152,21 +152,22 @@ func isVariantThere(id string) error {
 	}
 	return nil
 }
-func GetUserByUserID(id string) (*dtos.User, error) {
+func GetUserByUserID(id string) (*dtos.Users, error) {
 	err := isUserThere(id)
 	if err != nil {
 		return nil, err
 	}
 
-	row := DB.QueryRow("SELECT user_id, first_name, last_name, email, role, phone_number FROM users WHERE user_id = ?", id)
+	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.phone_number, u.last_login, u.created_at, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE user_id = ?", id)
 
-	var user dtos.User
+	var user dtos.Users
 	var phone sql.NullString
 	var firstName sql.NullString
 	var lastName sql.NullString
 	var userEmail sql.NullString
+	var dateJoined, lastLogin sql.NullTime
 
-	err = row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &phone)
+	err = row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &phone, &lastLogin, &dateJoined, &user.Status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -191,64 +192,48 @@ func GetUserByUserID(id string) (*dtos.User, error) {
 	if phone.Valid {
 		user.Phone = phone.String
 	}
+	if dateJoined.Valid {
+		user.DateJoined = dateJoined.Time.Format("2006-01-02 15:04:05")
+	}
+	if lastLogin.Valid {
+		user.LastLogin = lastLogin.Time.Format("2006-01-02 15:04:05")
+	}
+	user.UserAddress, _ = GetUserAddresses(user.ID)
 
 	return &user, nil
 }
 func CreateUser(input dtos.RegisterRequest) (*dtos.User, error) {
-	//check if email and phone number exists for other users
-	if input.Email != "" {
-		if exists, _ := EmailExistsForOtherUser("userID", input.Email); exists {
-			return nil, errors.New("email already exists for another user")
-		}
-	}
-	if input.Phonenumber != "" {
-		if exists, _ := PhoneExistsForOtherUser("userID", input.Phonenumber); exists {
-			return nil, errors.New("phone number already exists for another user")
-		}
+	// Validate unique email and phone
+	if err := validateUniqueUserIdentifiers(input.Email, input.Phonenumber); err != nil {
+		return nil, err
 	}
 
+	// Generate user ID
 	userID, _ := shortid.Generate()
-	role := ""
-	if input.Role == "" {
-		role = "customer"
-	} else {
-		role = input.Role
-	}
-	// Start building columns and values
-	columns := []string{"user_id", "role"}
-	values := []interface{}{userID, role}
 
-	if input.Firstname != "" {
-		columns = append(columns, "first_name")
-		values = append(values, input.Firstname)
-	}
-	if input.Lastname != "" {
-		columns = append(columns, "last_name")
-		values = append(values, input.Lastname)
-	}
-	if input.Email != "" {
-		columns = append(columns, "email")
-		values = append(values, input.Email)
-	}
-
-	if input.Phonenumber != "" {
-		columns = append(columns, "phone_number")
-		values = append(values, input.Phonenumber)
-	}
-
-	// Construct the dynamic SQL query
-	query := fmt.Sprintf("INSERT INTO users (%s) VALUES (%s)",
-		strings.Join(columns, ", "),
-		strings.Repeat("?, ", len(columns)-1)+"?",
-	)
-
-	// Execute the query
-	_, err := DB.Exec(query, values...)
+	// Resolve role
+	roleID, err := resolveRoleID(input.RoleID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Return created user object
+	// Validate role existence
+	if err := isRoleThere(roleID); err != nil {
+		return nil, err
+	}
+
+	// Build dynamic insert query
+	if err := insertUser(userID, roleID, input); err != nil {
+		return nil, err
+	}
+
+	// Fetch role name for response
+	role, err := GetRoleNameByID(roleID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return created user
 	return &dtos.User{
 		ID:        userID,
 		FirstName: input.Firstname,
@@ -257,13 +242,68 @@ func CreateUser(input dtos.RegisterRequest) (*dtos.User, error) {
 		Role:      role,
 	}, nil
 }
+func validateUniqueUserIdentifiers(email, phone string) error {
+	if email != "" {
+		if exists, _ := EmailExistsForOtherUser("userID", email); exists {
+			return errors.New("email already exists for another user")
+		}
+	}
+	if phone != "" {
+		if exists, _ := PhoneExistsForOtherUser("userID", phone); exists {
+			return errors.New("phone number already exists for another user")
+		}
+	}
+	return nil
+}
+func resolveRoleID(inputRoleID string) (string, error) {
+	// If role ID is provided, use it as-is
+	if inputRoleID != "" {
+		return inputRoleID, nil
+	}
+
+	// Otherwise, default to the "customer" role
+	roleID, err := GetRoleIDForCustomerRole()
+	if err != nil {
+		return "", err
+	}
+	if roleID == "" {
+		return "", errors.New("customer role not found")
+	}
+
+	return roleID, nil
+}
+func insertUser(userID, roleID string, input dtos.RegisterRequest) error {
+	columns := []string{"user_id", "role_id"}
+	values := []interface{}{userID, roleID}
+
+	addIfNotEmpty := func(field string, value string) {
+		if value != "" {
+			columns = append(columns, field)
+			values = append(values, value)
+		}
+	}
+
+	addIfNotEmpty("first_name", input.Firstname)
+	addIfNotEmpty("last_name", input.Lastname)
+	addIfNotEmpty("email", input.Email)
+	addIfNotEmpty("phone_number", input.Phonenumber)
+
+	query := fmt.Sprintf(
+		"INSERT INTO users (%s) VALUES (%s)",
+		strings.Join(columns, ", "),
+		strings.Repeat("?, ", len(columns)-1)+"?",
+	)
+
+	_, err := DB.Exec(query, values...)
+	return err
+}
 
 func UpdateLastLogin(userID string) error {
 	_, err := DB.Exec("UPDATE users SET last_login = ? WHERE user_id = ?", time.Now(), userID)
 	return err
 }
 
-func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.User, error) {
+func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, error) {
 	log.Printf("user id***%s", userID)
 	// Check if user exists
 	err := isUserThere(userID)
@@ -301,9 +341,9 @@ func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.User, e
 		setClauses = append(setClauses, "phone_number = ?")
 		values = append(values, input.Phonenumber)
 	}
-	if input.Role != "" {
-		setClauses = append(setClauses, "role = ?")
-		values = append(values, input.Role)
+	if input.RoleID != "" {
+		setClauses = append(setClauses, "role_id = ?")
+		values = append(values, input.RoleID)
 	}
 
 	if len(setClauses) == 0 {

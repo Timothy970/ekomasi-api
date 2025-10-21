@@ -151,19 +151,45 @@ type Category struct {
 }
 
 type Product struct {
-	ID              string            `json:"product_id"`
-	Name            string            `json:"name"`
-	Description     string            `json:"description"`
-	SKU             string            `json:"sku"`
-	Price           float64           `json:"price"`
-	CategoryID      string            `json:"category_id"`
-	CategoryName    string            `json:"category_name"`
-	StockQuantity   int               `json:"stock_quantity"`
-	SearchVector    string            `json:"search_vector"`
-	CreatedAt       time.Time         `json:"created_at"`
-	LastUpdated     time.Time         `json:"last_updated"`
-	Images          []Image           `json:"urls,omitempty"`
-	ProductVariants []ProductVariants `json:"product_variants"`
+	ID               string            `json:"product_id"`
+	Name             string            `json:"name"`
+	Description      string            `json:"description"`
+	SKU              string            `json:"sku"`
+	Tag              *string           `json:"tag"`
+	Price            float64           `json:"price"`
+	CategoryID       string            `json:"category_id"`
+	CategoryName     string            `json:"category_name"`
+	StockQuantity    int               `json:"stock_quantity"`
+	MaxStockQuantity int               `json:"max_stock_quantiy"`
+	SearchVector     string            `json:"search_vector"`
+	IsInTodaysDeals  bool              `json:"in_today_deal"`
+	CreatedBy        string            `json:"created_by"`
+	CreatedAt        time.Time         `json:"created_at"`
+	LastUpdated      time.Time         `json:"last_updated"`
+	Images           []Image           `json:"urls,omitempty"`
+	ProductVariants  []ProductVariants `json:"product_variants"`
+	InWishlist       *bool             `json:"liked_by_user,omitempty"`
+}
+type DealProduct struct {
+	ID               string            `json:"product_id"`
+	Name             string            `json:"name"`
+	Description      string            `json:"description"`
+	SKU              string            `json:"sku"`
+	Tag              *string           `json:"tag"`
+	Price            float64           `json:"price"`
+	CategoryID       string            `json:"category_id"`
+	CategoryName     string            `json:"category_name"`
+	StockQuantity    int               `json:"stock_quantity"`
+	MaxStockQuantity int               `json:"max_stock_quantiy"`
+	SearchVector     string            `json:"search_vector"`
+	IsInTodaysDeals  bool              `json:"in_today_deal"`
+	CreatedBy        string            `json:"created_by"`
+	CreatedAt        time.Time         `json:"created_at"`
+	LastUpdated      time.Time         `json:"last_updated"`
+	Images           []Image           `json:"urls,omitempty"`
+	ProductVariants  []ProductVariants `json:"product_variants"`
+	Discount         *float64          `json:"discount,omitempty"`
+	DiscountType     *string           `json:"discount_type,omitempty"`
 }
 type FeaturedProduct struct {
 	ID        int64     `json:"id"`
@@ -180,6 +206,7 @@ type Image struct {
 	ImageID   string `json:"image_id"`
 	URL       string `json:"url"`
 	IsPrimary bool   `json:"is_primary"`
+	Type      string `json:"type"`
 }
 type DeliveryFeedback struct {
 	FeedbackID string `json:"feedback_id"`
@@ -216,12 +243,14 @@ type AttachProductToPromotion struct {
 	ProductIDs  []string `json:"product_ids"`
 }
 type Blog struct {
-	BlogID      string `json:"blog_id"`
-	Title       string `json:"title" validate:"required"`
-	Content     string `json:"content" validate:"required"`
-	AuthorID    string `json:"author_id" validate:"required"`
-	PublishedAt string `json:"published_at"`
-	IsPublished bool   `json:"is_published"`
+	BlogID      string  `json:"blog_id"`
+	Title       string  `json:"title" validate:"required"`
+	Content     string  `json:"content" validate:"required"`
+	AuthorID    string  `json:"author_id"`
+	Author      *string `json:"author" validate:"required"`
+	PublishedAt string  `json:"published_at"`
+	IsPublished bool    `json:"is_published"`
+	ImageURL    *string `json:"image_url"`
 }
 type UpdateBlog struct {
 	// BlogID      string `json:"blog_id"`

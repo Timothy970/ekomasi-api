@@ -23,7 +23,7 @@ type RegisterRequest struct {
 	Password    string `json:"password"`
 	Email       string `json:"email" validate:"omitempty,required,email"`
 	Phonenumber string `json:"phone_number"`
-	Role        string `json:"role"`
+	RoleID      string `json:"role_id"`
 }
 type Subscriber struct {
 	Email string `json:"email" validate:"required,email"`

@@ -47,11 +47,16 @@ var redisClient *redis.Client
 var tracer trace.Tracer
 var meter metric.Meter
 var logger *slog.Logger
+var adenzo = "adenzo-backend"
 
 const migrationDir = "migrations"
 
 // Load environment variables
 func init() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Printf("Error loading .env file: %v", err)
+	}
 	// Initialize database connection or other configurations here.
 	fmt.Println("Initializing server...")
 }
@@ -69,8 +74,8 @@ func main() {
 	)
 
 	// Initialize OpenTelemetry components
-	tracer = otel.Tracer("adenzo-backend")
-	meter = otel.Meter("adenzo-backend")
+	tracer = otel.Tracer(adenzo)
+	meter = otel.Meter(adenzo)
 
 	// Setup structured logging with OpenTelemetry integration
 	utils.InitLogger()
@@ -113,12 +118,12 @@ func main() {
 		fmt.Println("Migration completed successfully.")
 		return
 	}
+
 	// Initialize Redis client
 	redisClient = redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")), // Redis server address
-		Username: os.Getenv("REDIS_USER"),
-		Password: os.Getenv("REDIS_PASS"),
-		DB:       0,                // Default DB
+		Addr:     fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")),
+		Password: os.Getenv("REDIS_PASSWORD"),
+		DB:       0, // Default DB
 	})
 
 	// Test Redis connection
@@ -150,7 +155,7 @@ func main() {
 	router := mux.NewRouter()
 
 	// Add OpenTelemetry middleware for HTTP requests
-	router.Use(otelmux.Middleware("adenzo-backend"))
+	router.Use(otelmux.Middleware(adenzo))
 
 	// Add custom telemetry middleware
 	router.Use(middleware.TelemetryMiddleware)
@@ -163,6 +168,9 @@ func main() {
 	// Run cart reminders every 3 days (check daily at midnight, or use cron if needed)
 	// handlers.StartCartReminderScheduler(24*time.Hour, 3)
 	// handlers.StartCartReminderScheduler(1*time.Minute, 1)
+	//scheduler to send bought for voucher emails
+	handlers.StartVoucherEmailScheduler(time.Minute, 0) //every minute for testing
+	// Run abandoned checkout reminders every 24 hours
 	// Run wishlist reminders every 7 days
 	// handlers.StartWishlistReminderScheduler(1*time.Minute, 1)
 	// handlers.StartWishlistReminderScheduler(24*time.Hour, 7)
@@ -183,14 +191,14 @@ func main() {
 	}
 	// CORS middleware
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},                                     // Allow all origins
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH"}, // Allow specific HTTP methods
-		AllowedHeaders:   []string{"Content-Type", "Authorization"},         // Allow specific headers
+		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:3001", "*"}, // Specify exact origins
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH"},               // Allow specific HTTP methods
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},                       // Allow specific headers
 		AllowCredentials: true,
 	}).Handler(router)
 
 	// Wrap with OpenTelemetry HTTP instrumentation
-	instrumentedHandler := otelhttp.NewHandler(corsHandler, "adenzo-backend")
+	instrumentedHandler := otelhttp.NewHandler(corsHandler, adenzo)
 
 	log.Printf("Server started on port %s", port)
 	fmt.Printf("Server listening on port %s...\n", port)
@@ -200,14 +208,14 @@ func main() {
 // Function to initialize a database connection with OpenTelemetry instrumentation
 func initDBConnection(user, password, host, port, dbName string) (*sql.DB, error) {
 	cfg := mysql.Config{
-		User:   user,
-		Passwd: password,
-		Net:    "tcp",
-		Addr:   fmt.Sprintf("%s:%s", host, port),
-		DBName: dbName,
+		User:      user,
+		Passwd:    password,
+		Net:       "tcp",
+		Addr:      fmt.Sprintf("%s:%s", host, port),
+		DBName:    dbName,
 		TLSConfig: "skip-verify",
 		Params: map[string]string{
-			"parseTime":            "true",
+			"parseTime": "true",
 			// This was causing the connection to fail when using a DB in Belgium
 			// "loc":                  "Africa/Nairobi",
 			"allowNativePasswords": "true",

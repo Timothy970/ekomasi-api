@@ -10,7 +10,7 @@ import (
 )
 
 func CreateStockTransfer(st dtos.StockTransferDTO) error {
-	err := isProductThere(st.ProductID)
+	err := IsProductThere(st.ProductID)
 	if err != nil {
 		return err
 	}

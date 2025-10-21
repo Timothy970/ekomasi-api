@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
@@ -78,9 +79,20 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	myWishlist, err := models.GetMyWishlistItems(user.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
-		Payload:   nil,
+		Code:      http.StatusOK,
+		Payload:   myWishlist,
 		Message:   "Product added successfully to the wishlist",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -99,15 +111,11 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} map[string]interface{}
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
-// @Router /api/wishlist/prodcut/{wishlist_id} [delete]
+// @Router /api/wishlist/prodcut [delete]
 func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	item, ok := DecodeRequestBody[dtos.WishlistItem](r, w, requestSummary, start)
-	if !ok {
-		return
-	}
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -119,16 +127,36 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	//Validate the request
-	if !utils.ValidateStructAndRespond(item, w, r, requestSummary, start) {
+	productID := mux.Vars(r)["product_id"]
+
+	wishlistID, err := models.GetWishlistByUserID(user.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
 		return
 	}
-	wishlistID := mux.Vars(r)["wishlist_id"]
-	err := models.RemoveWishlistItem(wishlistID, item.ProductID, user.ID)
+	log.Printf("wishlist id*******************: %s", wishlistID)
+	err = models.RemoveWishlistItem(wishlistID, productID, user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusNotFound,
-			Message:   "WishList was not found",
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	myWishlist, err := models.GetMyWishlistItems(user.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -137,7 +165,7 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   nil,
+		Payload:   myWishlist,
 		Message:   "Product removed successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -279,15 +307,21 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 
-	req, ok := DecodeRequestBody[dtos.ShareWishlistRequest](r, w, requestSummary, start)
+	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   noUser,
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
 		return
 	}
-
 	// Check if wishlist exists and is public
-	wishlists, err := models.GetWishlistByID(req.WishlistID)
+	wishlists, err := models.GetMyWishlistItems(user.ID)
 
-	if err != nil || len(wishlists) == 0 {
+	if err != nil || len(wishlists.Products) == 0 {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusNotFound,
 			Message:   "Wishlist not found",
@@ -298,8 +332,7 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wishlist := wishlists[0]
-	if !wishlist.IsPublic {
+	if !wishlists.IsPublic {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusForbidden,
 			Message:   "This wishlist is private",
@@ -310,7 +343,8 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	baseURL := os.Getenv("BASE_URL")
-	shareLink := fmt.Sprintf("%s/wishlist/share/%s", baseURL, req.WishlistID)
+	encodedID := base64.URLEncoding.EncodeToString([]byte(wishlists.WishlistID))
+	shareLink := fmt.Sprintf("%swishlist/share/%s", baseURL, encodedID)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
@@ -336,7 +370,20 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	vars := mux.Vars(r)
-	wishlistID := vars["wishlist_id"]
+	encodedID := vars["wishlist_id"]
+
+	decodedBytes, err := base64.URLEncoding.DecodeString(encodedID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Invalid wishlist link",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	wishlistID := string(decodedBytes)
 
 	wishlists, err := models.GetWishlistByID(wishlistID)
 
@@ -415,6 +462,42 @@ func DeleteWishList(w http.ResponseWriter, r *http.Request) {
 		Code:      http.StatusCreated,
 		Payload:   nil,
 		Message:   "Wishlist deleted successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+func GetMyWishList(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	user, ok := middleware.UserFromContext(r.Context())
+	if !ok {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   noUser,
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	myWishlist, err := models.GetMyWishlistItems(user.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   myWishlist,
+		Message:   "My wishlists",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

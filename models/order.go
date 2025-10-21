@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/teris-io/shortid"
 )
@@ -224,9 +225,16 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
 
 	return orders, nil
 }
-func ListOrdersByUser(userID string) ([]dtos.Order, error) {
+func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.PaginationMeta, error) {
+	offset := (page - 1) * limit
+	var total int
+	err := DB.QueryRow(`SELECT COUNT(*) FROM orders WHERE user_id = ?`, userID).Scan(&total)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	query := `
-        SELECT 
+		SELECT 
             o.order_id,
             o.total_amount,
             o.total_discount,
@@ -242,11 +250,11 @@ func ListOrdersByUser(userID string) ([]dtos.Order, error) {
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
         WHERE o.user_id = ?
-        ORDER BY o.created_at DESC`
+        ORDER BY o.created_at DESC LIMIT ? OFFSET ?`
 
-	rows, err := DB.Query(query, userID)
+	rows, err := DB.Query(query, userID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
@@ -270,7 +278,7 @@ func ListOrdersByUser(userID string) ([]dtos.Order, error) {
 			&guestDetailsStr,
 			&ord.CreatedAt,
 		); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		// Parse guest JSON fields
@@ -284,18 +292,26 @@ func ListOrdersByUser(userID string) ([]dtos.Order, error) {
 		// Fetch items for this order
 		items, err := getOrderProducts(ord.OrderID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		ord.Items = items
 		address, err := GetUserAddresses(userID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		ord.UserAddress = &address
 		orders = append(orders, ord)
 	}
+	pagination := &dtos.PaginationMeta{
+		HasNext:    offset+limit < total,
+		HasPrev:    page > 1,
+		Page:       page,
+		Size:       limit,
+		TotalItems: total,
+		TotalPages: (total + limit - 1) / limit,
+	}
 
-	return orders, nil
+	return orders, pagination, nil
 }
 
 func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
@@ -361,37 +377,32 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 	return &ord, nil
 }
 
-func UpdateOrderStatus(orderID, status string) error {
-	res, err := DB.Exec(`UPDATE orders SET status = ? WHERE order_id = ?`, status, orderID)
-	if err != nil {
+func UpdateOrderStatus(orderID string, req dtos.UpdateOrderStatusRequest) error {
+	// Check if order exists
+	if err := isOrderThere(orderID); err != nil {
 		return err
 	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return errors.New("order not found")
-	}
-	return nil
-}
 
-func getOrderItems(orderID string) ([]dtos.OrderItem, error) {
-	rows, err := DB.Query(`SELECT product_id, quantity, unit_price FROM order_items WHERE order_id = ?`, orderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var items []dtos.OrderItem
-	for rows.Next() {
-		var item dtos.OrderItem
-		if err := rows.Scan(&item.ProductID, &item.Quantity, &item.UnitPrice); err != nil {
-			return nil, err
+	// Update with or without payment method
+	if req.PaymentMethod != nil {
+		_, err := DB.Exec(
+			`UPDATE orders SET status = ?, payment_method = ? WHERE order_id = ?`,
+			req.Status, *req.PaymentMethod, orderID,
+		)
+		if err != nil {
+			return err
 		}
-		items = append(items, item)
+	} else {
+		_, err := DB.Exec(
+			`UPDATE orders SET status = ? WHERE order_id = ?`,
+			req.Status, orderID,
+		)
+		if err != nil {
+			return err
+		}
 	}
-	return items, nil
+
+	return nil
 }
 
 func isOrderThere(id string) error {
@@ -518,4 +529,272 @@ func getOrderProducts(orderID string) ([]dtos.OrderProduct, error) {
 	}
 
 	return items, nil
+}
+
+// admin handler to get all orders with pagination and filtering
+// filter by status, time range: today, this week, this month, last month, this year
+// search by order id, user
+func ListOrdersByAdmin(status, timeRange, orderID, user string, page, limit int) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
+	offset := (page - 1) * limit
+
+	conds := buildAdminOrderConditions(status, timeRange, orderID, user)
+
+	total, err := getAdminOrderCount(conds)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	query, queryArgs := buildAdminOrderQuery(conds, limit, offset)
+	rows, err := DB.Query(query, queryArgs...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	orders, err := scanAdminOrderRows(rows)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pagination := &dtos.PaginationMeta{
+		HasNext:    offset+limit < total,
+		HasPrev:    page > 1,
+		Page:       page,
+		Size:       limit,
+		TotalItems: total,
+		TotalPages: (total + limit - 1) / limit,
+	}
+
+	return orders, pagination, nil
+}
+
+// Helper to build WHERE conditions and args
+type OrderConditions struct {
+	Conditions []string
+	Args       []interface{}
+	JoinUsers  bool
+}
+
+func buildAdminOrderConditions(status, timeRange, orderID, user string) OrderConditions {
+	var conditions []string
+	var args []interface{}
+	joinUsers := false
+
+	if status != "" {
+		conditions = append(conditions, "o.status = ?")
+		args = append(args, status)
+	}
+
+	now := time.Now()
+	var start, end time.Time
+
+	switch timeRange {
+	case "today":
+		start = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		end = start.Add(24 * time.Hour)
+	case "this_week":
+		weekday := int(now.Weekday())
+		if weekday == 0 {
+			weekday = 7
+		}
+		start = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).AddDate(0, 0, -(weekday - 1))
+		end = start.AddDate(0, 0, 7)
+	case "this_month":
+		start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+		end = start.AddDate(0, 1, 0)
+	case "last_month":
+		start = time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, now.Location())
+		end = start.AddDate(0, 1, 0)
+	case "this_year":
+		start = time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+		end = start.AddDate(1, 0, 0)
+	}
+
+	if !start.IsZero() && !end.IsZero() {
+		conditions = append(conditions, "o.created_at >= ? AND o.created_at < ?")
+		args = append(args, start, end)
+	}
+
+	if orderID != "" {
+		conditions = append(conditions, "o.order_id = ?")
+		args = append(args, orderID)
+	}
+
+	if user != "" {
+		joinUsers = true
+		conditions = append(conditions, `(
+			(o.user_id IS NULL AND o.guest_personal_details LIKE ?)
+			OR
+			(o.user_id IS NOT NULL AND (
+				u.email LIKE ? OR
+				u.first_name LIKE ? OR
+				u.last_name LIKE ? OR
+				u.phone_number LIKE ?
+			))
+		)`)
+
+		likeUser := "%" + user + "%"
+		args = append(args, likeUser, likeUser, likeUser, likeUser, likeUser)
+	}
+
+	return OrderConditions{
+		Conditions: conditions,
+		Args:       args,
+		JoinUsers:  joinUsers,
+	}
+}
+
+// Helper to get total count
+func getAdminOrderCount(conds OrderConditions) (int, error) {
+	countQuery := "SELECT COUNT(*) FROM orders o"
+	if conds.JoinUsers {
+		countQuery += " LEFT JOIN users u ON u.user_id = o.user_id"
+	}
+	if len(conds.Conditions) > 0 {
+		countQuery += " WHERE " + joinConditions(conds.Conditions)
+	}
+	var total int
+	err := DB.QueryRow(countQuery, conds.Args...).Scan(&total)
+	return total, err
+}
+
+// Helper to build main query and args
+func buildAdminOrderQuery(conds OrderConditions, limit, offset int) (string, []interface{}) {
+	query := `
+		SELECT 
+			o.user_id,
+			o.order_id,
+			o.total_amount,
+			o.total_discount,
+			o.delivery_id,
+			o.status,
+			o.payment_status,
+			d.status AS delivery_status,
+			o.payment_method,
+			d.delivery_charge,
+			d.delivery_address,
+			o.guest_delivery_address,
+			o.guest_personal_details,
+			o.created_at
+		FROM orders o
+		LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id`
+	if conds.JoinUsers {
+		query += " LEFT JOIN users u ON u.user_id = o.user_id"
+	}
+	if len(conds.Conditions) > 0 {
+		query += " WHERE " + joinConditions(conds.Conditions)
+	}
+	query += " ORDER BY o.created_at DESC LIMIT ? OFFSET ?"
+	args := append(append([]interface{}{}, conds.Args...), limit, offset)
+	return query, args
+}
+
+// Helper to join conditions with AND
+func joinConditions(conditions []string) string {
+	return "(" + conditions[0] + ")" + func() string {
+		if len(conditions) == 1 {
+			return ""
+		}
+		s := ""
+		for i := 1; i < len(conditions); i++ {
+			s += " AND (" + conditions[i] + ")"
+		}
+		return s
+	}()
+}
+
+// Helper to scan rows
+func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
+	var orders []dtos.AdminOrder
+	for rows.Next() {
+		var ord dtos.AdminOrder
+		var guestAddrStr, guestDetailsStr string
+		var userID sql.NullString
+		if err := rows.Scan(
+			&userID,
+			&ord.OrderID,
+			&ord.TotalAmount,
+			&ord.TotalDiscount,
+			&ord.DeliveryID,
+			&ord.OrderStatus,
+			&ord.PaymentStatus,
+			&ord.DeliveryStatus,
+			&ord.PaymentMethod,
+			&ord.DeliveryCharge,
+			&ord.DeliveryAddress,
+			&guestAddrStr,
+			&guestDetailsStr,
+			&ord.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		if guestAddrStr != "" {
+			_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
+		}
+		if guestDetailsStr != "" {
+			_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
+		}
+		items, err := getOrderProducts(ord.OrderID)
+		ord.ItemsCount = len(items)
+		if err != nil {
+			return nil, err
+		}
+		ord.Items = items
+		var user *dtos.Users
+		if userID.Valid {
+			user, err = GetUserByUserID(userID.String)
+			if err != nil {
+				return nil, err
+			}
+		}
+		ord.User = user
+		orders = append(orders, ord)
+	}
+	return orders, nil
+}
+
+// get order counts, total amount grouped by status
+func GetOrderCountsByStatus() ([]dtos.OrderStatusCount, error) {
+	query := `
+		SELECT status, COUNT(*) as count, SUM(total_amount) as total_amount
+		FROM orders
+		GROUP BY status
+	`
+	rows, err := DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := []dtos.OrderStatusCount{}
+	var totalOrders int
+	var totalAmount float64
+
+	for rows.Next() {
+		var status string
+		var count int
+		var amount float64
+
+		if err := rows.Scan(&status, &count, &amount); err != nil {
+			return nil, err
+		}
+
+		counts = append(counts, dtos.OrderStatusCount{
+			Status:      status,
+			Count:       count,
+			TotalAmount: amount,
+		})
+
+		totalOrders += count
+		totalAmount += amount
+	}
+
+	// Append total row
+	counts = append(counts, dtos.OrderStatusCount{
+		Status:      "Total Orders",
+		Count:       totalOrders,
+		TotalAmount: totalAmount,
+	})
+
+	return counts, nil
 }

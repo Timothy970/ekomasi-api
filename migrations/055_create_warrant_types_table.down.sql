@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS warranty_types;

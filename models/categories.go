@@ -128,8 +128,9 @@ func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
 		_, err := DB.Exec(`
 		INSERT INTO categories (category_id, name, description, image)
 		VALUES (?, ?, ?, ?)`,
-			categoryID, input.Name, categoryID, input.Image,
+			categoryID, input.Name, input.Description, input.Image,
 		)
+
 		if err != nil {
 			return nil, err
 		}
@@ -291,4 +292,123 @@ func CategoryExists(id string) error {
 	}
 
 	return nil
+}
+
+// Retrieves admin categories with pagination
+func GetAdminCategories(page, limit int, categoryName string) ([]dtos.AdminCategoryData, *dtos.PaginationMeta, error) {
+	//get total count
+	var total int
+	err := DB.QueryRow("SELECT COUNT(*) FROM categories").Scan(&total)
+	if err != nil {
+		return nil, nil, err
+	}
+	offset := (page - 1) * limit
+	// Parent Categories have the parent is null
+	// Subcategories will have the subcategories count as  _
+	// The items count for for parent categories will be the total products in all its subcategories
+	rows, err := DB.Query(`
+    SELECT 
+        c.category_id,
+        c.name,
+        IF(c.parent_category_id IS NULL, 'Parent', 'Subcategory') AS type,
+        CASE 
+            WHEN c.parent_category_id IS NULL 
+                THEN (
+                    SELECT COUNT(*) 
+                    FROM products p 
+                    JOIN categories sc ON sc.category_id = p.category_id
+                    WHERE sc.parent_category_id = c.category_id
+                )
+            ELSE (
+                SELECT COUNT(*) 
+                FROM products p 
+                WHERE p.category_id = c.category_id
+            )
+        END AS items,
+        (SELECT COUNT(*) FROM categories sc WHERE sc.parent_category_id = c.category_id) AS subcategories,
+        c.description
+    FROM categories c
+    ORDER BY c.name
+    LIMIT ? OFFSET ?`, limit, offset)
+
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var categories []dtos.AdminCategoryData
+	for rows.Next() {
+		var cat dtos.AdminCategoryData
+		if err := rows.Scan(&cat.ID, &cat.Name, &cat.Type, &cat.Items, &cat.Subcategories, &cat.Description); err != nil {
+			return nil, nil, err
+		}
+		categories = append(categories, cat)
+	}
+	pagination := &dtos.PaginationMeta{
+		Page:       page,
+		Size:       limit,
+		TotalItems: total,
+		TotalPages: (total + limit - 1) / limit,
+		HasPrev:    page > 1,
+		HasNext:    offset+limit < total,
+	}
+	return categories, pagination, nil
+
+}
+
+// GetCategoriesWithSubCategories returns all parent categories and their subcategories
+func GetCategoriesWithSubCategories() ([]dtos.CategoryWithSubCategories, error) {
+	// Fetch all parent categories (no parent_category_id)
+	parentQuery := `
+		SELECT category_id, name 
+		FROM categories
+		WHERE parent_category_id IS NULL
+	`
+
+	rows, err := DB.Query(parentQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch parent categories: %w", err)
+	}
+	defer rows.Close()
+
+	var categories []dtos.CategoryWithSubCategories
+
+	for rows.Next() {
+		var cat dtos.CategoryWithSubCategories
+		if err := rows.Scan(&cat.CategoryID, &cat.Category); err != nil {
+			return nil, fmt.Errorf("failed to scan parent category: %w", err)
+		}
+
+		// Fetch subcategories for this parent
+		subQuery := `
+			SELECT category_id, name 
+			FROM categories
+			WHERE parent_category_id = ?
+		`
+
+		subRows, err := DB.Query(subQuery, cat.CategoryID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch subcategories for %s: %w", cat.CategoryID, err)
+		}
+
+		defer subRows.Close()
+
+		var subcategories []dtos.SubCategory
+		for subRows.Next() {
+			var sub dtos.SubCategory
+			if err := subRows.Scan(&sub.CategoryID, &sub.Category); err != nil {
+				return nil, fmt.Errorf("failed to scan subcategory: %w", err)
+			}
+			subcategories = append(subcategories, sub)
+		}
+
+		cat.SubCategory = subcategories
+		categories = append(categories, cat)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return categories, nil
 }

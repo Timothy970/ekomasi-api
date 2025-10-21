@@ -3,12 +3,13 @@ package dtos
 import "time"
 
 type MpesaRequest struct {
-	Phone       string `json:"phone_number"`
-	Amount      int    `json:"amount"`
+	Phone       string `json:"phone_number" validate:"required"`
+	Amount      int    `json:"amount" validate:"required, min=1"`
 	Reference   string `json:"reference"`
 	Description string `json:"description"`
 	OrderID     string `json:"order_id"`
 	DeliveryID  string `json:"delivery_id"`
+	Type        string `json:"type"`
 }
 type STKCallbackRequest struct {
 	Body struct {
@@ -35,39 +36,66 @@ type VoucherRequest struct {
 	DeliveryID  string `json:"delivery_id"`
 }
 type Voucher struct {
-	Amount     float64   `json:"amount" validate:"required"`
-	IsActive   *bool     `json:"is_active"`
-	CreatedAt  time.Time `json:"created_at"`
-	ExpiryDate time.Time `json:"expiry_date" validate:"required"`
+	Amount       float64   `json:"amount" validate:"required"`
+	ToName       string    `json:"to_name" validate:"required"`
+	ToEmail      string    `json:"to_email" validate:"required"`
+	FromName     string    `json:"from_name" validate:"required"`
+	DeliveryTime string    `json:"delivery_time" validate:"required"`
+	Message      string    `json:"message" validate:"required"`
+	Status       *string   `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	ExpiryDate   string    `json:"expiry_date" validate:"required"`
 }
 type BuyVoucher struct {
 	Amount     float64   `json:"amount" validate:"required"`
-	IsActive   *bool     `json:"is_active"`
+	Status     string    `json:"status"`
 	CreatedAt  time.Time `json:"created_at"`
 	ExpiryDate time.Time `json:"expiry_date" validate:"required"`
 }
 type BuyVoucherData struct {
-	Amount       float64   `json:"amount" validate:"required"`
-	FromName     string    `json:"from_name" validate:"required"`
-	ToName       string    `json:"to_name" validate:"required"`
-	ToEmail      string    `json:"to_email" validate:"required"`
-	Message      string    `json:"message" validate:"required"`
-	DeliveryTime time.Time `json:"delivery_time" validate:"required"`
+	DesignID     string  `json:"design_id" validate:"required"`
+	Amount       float64 `json:"amount" validate:"required"`
+	FromName     string  `json:"from_name" validate:"required"`
+	ToName       string  `json:"to_name" validate:"required"`
+	ToEmail      string  `json:"to_email" validate:"required"`
+	Message      string  `json:"message" validate:"required"`
+	DeliveryTime string  `json:"delivery_time" validate:"required"`
 }
 type VoucherData struct {
 	VoucherID  string    `json:"voucher_id"`
 	Code       string    `json:"code"`
 	Amount     float64   `json:"amount"`
 	Balance    float64   `json:"balance"`
-	IsActive   bool      `json:"is_active"`
+	Status     string    `json:"status"`
 	CreatedAt  time.Time `json:"created_at"`
 	ExpiryDate time.Time `json:"expiry_date"`
+	From       *string   `json:"from"`
+	To         *string   `json:"to"`
+	IsReedemed *bool     `json:"is_reedemed"`
+}
+type SingleVoucherData struct {
+	VoucherID      string           `json:"voucher_id"`
+	Code           string           `json:"code"`
+	Amount         float64          `json:"amount"`
+	Balance        float64          `json:"balance"`
+	Status         string           `json:"status"`
+	CreatedAt      time.Time        `json:"created_at"`
+	ExpiryDate     time.Time        `json:"expiry_date"`
+	From           *string          `json:"from"`
+	To             *string          `json:"to"`
+	IsReedemed     *bool            `json:"is_reedemed"`
+	VoucherHistory []map[string]any `json:"voucher_history"`
 }
 type VoucherDataUpdate struct {
-	Code       string    `json:"code" validate:"required"`
-	Amount     float64   `json:"amount" validate:"required"`
-	IsActive   *bool     `json:"is_active"`
-	ExpiryDate time.Time `json:"expiry_date" validate:"required"`
+	Amount        float64 `json:"amount" validate:"required"`
+	Status        *string `json:"status"`
+	ExpiryDate    string  `json:"expiry_date" validate:"required"`
+	ToName        string  `json:"to_name" validate:"required"`
+	ToEmail       string  `json:"to_email" validate:"required"`
+	FromName      string  `json:"from_name" validate:"required"`
+	DeliveryTime  string  `json:"delivery_time" validate:"required"`
+	Message       string  `json:"message" validate:"required"`
+	InternalNotes string  `json:"internal_notes"`
 }
 type Payment struct {
 	PaymentID     string  `json:"payment_id"`
@@ -113,4 +141,22 @@ type CreateVoucherRequest struct {
 	IsRedeemed       bool       `json:"is_redeemed"`
 	CreatedAt        time.Time  `json:"created_at"`
 	RedeemedAt       *time.Time `json:"redeemed_at,omitempty"`
+}
+
+type RedeemVoucherRequest struct {
+	Code string `json:"code" validate:"required"`
+}
+
+type VoucherEmailInfo struct {
+	VoucherID       string  `json:"voucher_id"`
+	PersonalizedMsg string  `json:"personalized_msg"`
+	DeliveryTime    string  `json:"delivery_time"`
+	VoucherCode     string  `json:"voucher_code"`
+	Amount          float64 `json:"amount"`
+	ToName          string  `json:"to_name"`
+	ToEmail         string  `json:"to_email"`
+	FromName        string  `json:"from_name"`
+	Message         string  `json:"message"`
+	ExpiryDate      string  `json:"expiry_date"`
+	Code            string  `json:"code"`
 }

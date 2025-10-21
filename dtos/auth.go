@@ -17,6 +17,18 @@ type User struct {
 	LastLogin    time.Time `json:"last_login,omitempty"`
 }
 
+type Users struct {
+	ID          string        `json:"user_id"`
+	FirstName   string        `json:"first_name"`
+	LastName    string        `json:"last_name"`
+	Email       string        `json:"email"`
+	Phone       string        `json:"phone"`
+	Role        string        `json:"role"`
+	LastLogin   string        `json:"last_login"`
+	DateJoined  string        `json:"date_joined"`
+	Status      string        `json:"status"`
+	UserAddress []UserAddress `json:"user_address"`
+}
 type UserInput struct {
 	FirstName   string `json:"first_name"`
 	LastName    string `json:"last_name"`

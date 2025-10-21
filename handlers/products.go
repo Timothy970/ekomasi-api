@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"adenzo_backend/dtos"
+	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"database/sql"
@@ -10,6 +11,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -93,35 +95,6 @@ func parsePagination(pageStr, sizeStr string) (int, int) {
 	return page, limit
 }
 
-// getProductsFromCacheOrDB returns products from cache if available, otherwise from DB and updates cache.
-func getProductsFromCacheOrDB(page, limit int, categoryFilter, productFilter, categoryID string) ([]dtos.CategoryWithProducts, *dtos.PaginationMeta, error) {
-	var cachedProducts []dtos.CategoryWithProducts
-	var cachedPagination *dtos.PaginationMeta
-
-	cacheKeyProducts := fmt.Sprintf("products_page_%d_size_%d", page, limit)
-	cacheKeyPagination := fmt.Sprintf("pagination_page_%d_size_%d", page, limit)
-
-	_ = utils.GetCache(cacheKeyProducts, &cachedProducts)
-	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
-
-	// Cache hit
-	if cachedProducts != nil {
-		return cachedProducts, cachedPagination, nil
-	}
-
-	// Cache miss → fetch from DB
-	products, pagination, err := models.GetAllProducts(categoryFilter, productFilter, categoryID, page, limit)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Update cache (optional: add TTL)
-	_ = utils.SetCache(cacheKeyProducts, products)
-	_ = utils.SetCache(cacheKeyPagination, pagination)
-
-	return products, pagination, nil
-}
-
 // @Summary Product By ID Data
 // @Description Get product product by id.
 // @Tags Products
@@ -154,6 +127,8 @@ func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	//check if token is passed, if so check if products belong to the users wishlist
+	ApplyUserWishlist(r, product.ID, product)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
 		Payload:   product,
@@ -178,88 +153,136 @@ func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Router /api/product/image [post]
 func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	productID := r.FormValue("product_id")
-	if productID == "" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   "product_id is required",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
+	reqSummary := utils.GetRequestSummary(r)
 
-	isPrimaryStr := r.FormValue("is_primary")
-	isPrimary := strings.ToLower(isPrimaryStr) == "true"
-
-	err := r.ParseMultipartForm(20 << 20) // 20 MB
+	productID, isPrimary, videoLink, err := parseUploadRequest(r)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Failed to parse form: " + err.Error(),
+			Code:      http.StatusBadRequest,
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   requestSummary})
+			RawBody:   reqSummary,
+		})
 		return
 	}
 
-	formFiles := r.MultipartForm.File["file"]
-	if len(formFiles) == 0 {
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   reqSummary,
+		})
+		return
+	}
+
+	var uploadedResults []map[string]string
+
+	// handle optional video link
+	if videoLink != "" {
+		if err := models.InsertProductImage(productID, videoLink, "video", isPrimary); err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusBadRequest,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   reqSummary,
+			})
+			return
+		}
+	}
+
+	fileTypes := []string{"gallery", "thumbnail", "video"}
+	for _, fileType := range fileTypes {
+		results, err := handleFileUploads(r, productID, fileType, isPrimary)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusBadRequest,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   reqSummary,
+			})
+			return
+		}
+		uploadedResults = append(uploadedResults, results...)
+	}
+
+	if len(uploadedResults) == 0 {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusBadRequest,
 			Message:   "No files uploaded",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   requestSummary})
+			RawBody:   reqSummary,
+		})
 		return
 	}
 
-	uploadedURLs := []string{}
+	clearProductCache()
 
-	for _, fileHeader := range formFiles {
-		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fileHeader})
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
-				Message:   "Failed to upload file: " + err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   ""})
-			return
-		}
-
-		err = models.InsertProductImage(productID, url, isPrimary)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
-				Message:   "Failed to insert image into DB: " + err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
-		}
-
-		uploadedURLs = append(uploadedURLs, url)
-	}
-	_ = utils.DeleteCacheByPrefix("products_page_")
-	_ = utils.DeleteCacheByPrefix("pagination_page_")
-	_ = utils.DeleteCacheByPrefix("categories_products")
-	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   uploadedURLs,
-		Message:   "Product image(s) uploaded successfully",
+		Payload:   uploadedResults,
+		Message:   "Product media uploaded successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
-		RawBody:   requestSummary})
+		RawBody:   reqSummary,
+	})
+}
+func handleFileUploads(r *http.Request, productID, fileType string, isPrimary bool) ([]map[string]string, error) {
+	formFiles := r.MultipartForm.File[fileType]
+	if len(formFiles) == 0 {
+		return nil, nil
+	}
+
+	var uploaded []map[string]string
+	for _, fileHeader := range formFiles {
+		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fileHeader})
+		if err != nil {
+			return nil, fmt.Errorf("failed to upload %s: %w", fileType, err)
+		}
+
+		if err := models.InsertProductImage(productID, url, fileType, isPrimary); err != nil {
+			return nil, fmt.Errorf("failed to insert %s into DB: %w", fileType, err)
+		}
+
+		uploaded = append(uploaded, map[string]string{
+			"type": fileType,
+			"url":  url,
+		})
+	}
+	return uploaded, nil
+}
+func clearProductCache() {
+	prefixes := []string{
+		"products_page_",
+		"pagination_page_",
+		"categories_products",
+		"categories_products_pagination",
+		"expensiveandcheapproducts",
+	}
+	for _, prefix := range prefixes {
+		_ = utils.DeleteCacheByPrefix(prefix)
+	}
+}
+
+func parseUploadRequest(r *http.Request) (string, bool, string, error) {
+	productID := r.FormValue("product_id")
+	if productID == "" {
+		return "", false, "", fmt.Errorf("product_id is required")
+	}
+	isPrimary := strings.ToLower(r.FormValue("is_primary")) == "true"
+	videoLink := r.FormValue("video_link")
+	return productID, isPrimary, videoLink, nil
 }
 
 // get related products
@@ -362,65 +385,26 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	bundleName := r.URL.Query().Get("bundle_name")
+	// bundleName := r.URL.Query().Get("bundle_name")
 	bundleID := r.URL.Query().Get("bundle_id")
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	useCache := bundleID == "" && bundleName == ""
-	var bundles []dtos.GetBundleRequest
-	var cachedBundles []dtos.GetBundleRequest
-	var pagination *dtos.PaginationMeta
-	var cachedPagination *dtos.PaginationMeta
-	cacheKeyBundles := fmt.Sprintf("products_bundles_page_%d_size_%d", page, limit)
-	cacheKeyPagination := fmt.Sprintf("bundles_pagination_page_%d_size_%d", page, limit)
 
-	if useCache {
-		_ = utils.GetCache(cacheKeyBundles, &cachedBundles)
-		_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
-		if cachedBundles == nil {
-			var err error
-			bundles, pagination, err = models.GetBundleProducts(bundleID, bundleName, limit, page)
-			if err != nil {
-				log.Printf("bundles get error::%s", err)
-				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-					Code:      http.StatusNotFound,
-					Message:   err.Error(),
-					TimeTaken: time.Since(start),
-					Function:  utils.GetCurrentFuncName(),
-					Request:   r,
-					RawBody:   requestSummary})
-				return
-			}
-			_ = utils.SetCache(cacheKeyBundles, bundles)
-			_ = utils.SetCache(cacheKeyPagination, pagination)
-		} else {
-			bundles = cachedBundles
-			pagination = cachedPagination
-		}
-	} else {
-		var err error
-		bundles, pagination, err = models.GetBundleProducts(bundleID, bundleName, limit, page)
-		if err != nil {
-			log.Printf("bundles get error::%s", err)
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
-		}
-	}
-	response := map[string]interface{}{
-		"bundles": bundles,
-	}
-	if pagination != nil {
-		response["pagination"] = pagination
+	bundles, pagination, err := models.GetBundleProducts(bundleID, limit, page)
+	if err != nil {
+		log.Printf("bundles get error::%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code:      http.StatusOK,
-		Payload:   response,
+		Payload:   map[string]any{"bundles": bundles, "pagination": pagination},
 		Message:   "Bundles fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -438,19 +422,90 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.Bundle](r, w, requestSummary, start)
-	if !ok {
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
 		return
 	}
+	// Get image file
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Image is required",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	defer file.Close()
+	// Upload image to GCS
+	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	req := &dtos.Bundle{
+		Name:        r.FormValue("bundle_name"),
+		Description: r.FormValue("bundle_description"),
+		Price:       func() float64 { p, _ := strconv.ParseFloat(r.FormValue("bundle_price"), 64); return p }(),
+		Image:       url,
+		CategoryID:  r.FormValue("category_id"),
+		Products: func() []dtos.BundleProducts {
+			productsStr := r.FormValue("products")
+			if productsStr == "" {
+				return []dtos.BundleProducts{}
+			}
+
+			var products []dtos.BundleProducts
+			if err := json.Unmarshal([]byte(productsStr), &products); err != nil {
+				// you may want to handle error properly instead of swallowing it
+				return []dtos.BundleProducts{}
+			}
+			return products
+		}(),
+		KeepSelling: func() *bool {
+			ks := strings.ToLower(r.FormValue("keep_selling"))
+			switch ks {
+			case "true":
+				b := true
+				return &b
+			case "false":
+				b := false
+				return &b
+			}
+			return nil
+		}(),
+		CompareAtPrice: func() *float64 {
+			cp, _ := strconv.ParseFloat(r.FormValue("compare_at_price"), 64)
+			if cp == 0 {
+				return nil
+			}
+			return &cp
+		}(),
+	}
+
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-	err := models.CreateBundle(*req)
+	err = models.CreateBundle(*req)
 	if err != nil {
 		log.Printf("create bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
-			Message:   "Failed to create product bundle",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -479,14 +534,68 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.UpdateBundle](r, w, requestSummary, start)
-	if !ok {
+	// Parse multipart form (20 MB max)
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   "Failed to parse form: " + err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
 		return
 	}
+
+	// Handle optional image upload
+	var imageURL string
+	if file, header, err := r.FormFile("image"); err == nil {
+		defer file.Close()
+		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusInternalServerError,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+			})
+			return
+		}
+		imageURL = url
+	}
+
+	req := &dtos.UpdateBundle{
+		Name:        r.FormValue("bundle_name"),
+		Description: r.FormValue("bundle_description"),
+		Price:       func() float64 { p, _ := strconv.ParseFloat(r.FormValue("bundle_price"), 64); return p }(),
+		Image:       &imageURL,
+		CategoryID:  r.FormValue("category_id"),
+		KeepSelling: func() *bool {
+			ks := strings.ToLower(r.FormValue("keep_selling"))
+			switch ks {
+			case "true":
+				b := true
+				return &b
+			case "false":
+				b := false
+				return &b
+			}
+			return nil
+		}(),
+		CompareAtPrice: func() *float64 {
+			cp, _ := strconv.ParseFloat(r.FormValue("compare_at_price"), 64)
+			if cp == 0 {
+				return nil
+			}
+			return &cp
+		}(),
+		ID: r.FormValue("bundle_id"),
+	}
+
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-	err := models.UpdateBundle(*req, req.ID)
+	err := models.UpdateBundle(*req)
 	if err != nil {
 		log.Printf("update bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -555,14 +664,14 @@ func AddProductsToBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.AddProductsToBundle](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[[]dtos.BundleProducts](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
 		return
 	}
-	err := models.AddProductsToBundle(*req, req.ID)
+	err := models.AddProductsToBundle(*req, mux.Vars(r)["bundle_id"])
 	if err != nil {
 		log.Printf("dd product to bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -682,12 +791,14 @@ func GetCategoryProductsHandlerByCategoryID(w http.ResponseWriter, r *http.Reque
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-
+	searchParams, ok := ParseSearchParams(r, start, requestSummary, w)
+	if !ok {
+		return // Error response already sent
+	}
 	categoryID := mux.Vars(r)["category_id"]
 
 	// Fetch from DB
-	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(page, limit, categoryID)
+	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(*searchParams, categoryID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusNotFound,
@@ -711,6 +822,24 @@ func GetCategoryProductsHandlerByCategoryID(w http.ResponseWriter, r *http.Reque
 		Request:   r,
 		RawBody:   requestSummary})
 }
+func ApplyUserWishlist(r *http.Request, productID string, product *dtos.Product) (dtos.Product, bool) {
+	authuser, ok := middleware.IsUserTokenPassed(r)
+	if !ok {
+		return *product, false
+	}
+
+	userWishlist, err := models.IsProductInUserWishlist(authuser.ID, productID)
+	if err != nil {
+		log.Printf("error fetching wishlist products: %v", err)
+		return *product, false
+	}
+
+	if userWishlist {
+		product.InWishlist = &userWishlist
+	}
+
+	return *product, true
+}
 
 // Get Category products
 // @Summary All Products Data
@@ -723,34 +852,21 @@ func GetCategoryProductsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	searchParams, ok := ParseSearchParams(r, start, requestSummary, w)
+	if !ok {
+		return // Error response already sent
+	}
 	// Fetch from DB
-	var pagination *dtos.PaginationMeta
-	var cachedPagination *dtos.PaginationMeta
-	var products []dtos.CategoryResponse
-	var cachedProdcts []dtos.CategoryResponse
-	cacheKeyProducts := fmt.Sprintf("categories_products%d_size_%d", page, limit)
-	cacheKeyPagination := fmt.Sprintf("categories_products_pagination%d_size_%d", page, limit)
-	_ = utils.GetCache(cacheKeyProducts, &cachedProdcts)
-	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
-	if cachedProdcts == nil {
-		var err error
-		products, pagination, err = models.GetCategoriesWithSubcategoriesAndProducts(page, limit, "")
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
-		}
-		_ = utils.SetCache(cacheKeyPagination, pagination)
-		_ = utils.SetCache(cacheKeyProducts, products)
-	} else {
-		pagination = cachedPagination
-		products = cachedProdcts
+	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(*searchParams, "")
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusNotFound,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -778,53 +894,89 @@ const (
 	SortAlphabeticallyZA = "alphabetically:z-a"
 )
 
+// ParseSearchParams extracts and validates search query parameters from an HTTP request.
+func ParseSearchParams(r *http.Request, start time.Time, requestSummary string, w http.ResponseWriter) (*dtos.SearchParams, bool) {
+	query := r.URL.Query()
+
+	// Parse variants (e.g., variant=color---red&variant=size---L)
+	var variants []dtos.VariantFilter
+	for _, variantParam := range query["variant"] {
+		if variantParam == "" {
+			continue
+		}
+		parts := strings.Split(variantParam, "---")
+		if len(parts) == 2 {
+			variants = append(variants, dtos.VariantFilter{
+				Type:  parts[0],
+				Value: parts[1],
+			})
+		}
+	}
+
+	// Build search params
+	searchParams := &dtos.SearchParams{
+		Q:            query.Get("q"),
+		CategoryName: query.Get("category_name"),
+		ProductName:  query.Get("product_name"),
+		Variants:     variants,
+		SortBy:       query.Get("sort_by"),
+		SKU:          query.Get("sku"),
+		Tag:          query.Get("tag"),
+		MaxPrice:     getFloatQueryParam(query, "maxPrice"),
+		MinPrice:     getFloatQueryParam(query, "minPrice"),
+	}
+
+	// Parse pagination
+	searchParams.Page, searchParams.Limit = parsePagination(query.Get("page"), query.Get("size"))
+
+	// Validate sort parameter
+	if !validateSortParam(searchParams.SortBy, r, w, start, requestSummary) {
+		return nil, false
+	}
+
+	log.Printf("search params: %+v", searchParams)
+	return searchParams, true
+}
+func validateSortParam(sortBy string, r *http.Request, w http.ResponseWriter, start time.Time, requestSummary string) bool {
+	if sortBy == "" {
+		return true
+	}
+
+	validSorts := map[string]bool{
+		"price_high_to_low":  true,
+		"price_low_to_high":  true,
+		"date_old_to_new":    true,
+		"date_new_to_old":    true,
+		"featured":           true,
+		"best_sellers":       true,
+		"alphabetically_a_z": true,
+		"alphabetically_z_a": true,
+	}
+
+	if !validSorts[sortBy] {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusBadRequest,
+			Message:   fmt.Sprintf("Invalid sort parameter: %s", sortBy),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return false
+	}
+	return true
+}
+
 func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 
-	// Parse query parameters
-	query := r.URL.Query()
-
-	searchParams := dtos.SearchParams{
-		CategoryName: query.Get("category_name"),
-		ProductName:  query.Get("product_name"),
-		VariantName:  query.Get("variant_name"),
-		VariantValue: query.Get("variant_value"),
-		SortBy:       query.Get("sort_by"),
+	searchParams, ok := ParseSearchParams(r, start, requestSummary, w)
+	if !ok {
+		return // Error response already sent
 	}
-
-	// Parse pagination
-	page, limit := parsePagination(query.Get("page"), query.Get("size"))
-	searchParams.Page = page
-	searchParams.Limit = limit
-
-	// Validate sort parameter
-	if searchParams.SortBy != "" {
-		validSorts := map[string]bool{
-			SortPriceHighToLow:   true,
-			SortPriceLowToHigh:   true,
-			SortDateOldToNew:     true,
-			SortDateNewToOld:     true,
-			SortFeatured:         true,
-			SortBestSellers:      true,
-			SortAlphabeticallyAZ: true,
-			SortAlphabeticallyZA: true,
-		}
-		if !validSorts[searchParams.SortBy] {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusBadRequest,
-				Message:   "Invalid sort parameter",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-	}
-
 	// Perform search
-	products, pagination, err := models.SearchProducts(searchParams)
+	products, pagination, err := models.SearchProducts(*searchParams, false)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -842,11 +994,11 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Payload: map[string]interface{}{
 			"products":   products,
 			"pagination": pagination,
-			"filters": map[string]string{
+			"filters": map[string]interface{}{
+				"q":             searchParams.Q,
 				"category_name": searchParams.CategoryName,
 				"product_name":  searchParams.ProductName,
-				"variant_name":  searchParams.VariantName,
-				"variant_value": searchParams.VariantValue,
+				"variants":      searchParams.Variants, // Now shows all variants
 				"sort_by":       searchParams.SortBy,
 			},
 		},
@@ -857,11 +1009,22 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary,
 	})
 }
+func getFloatQueryParam(query url.Values, key string) float64 {
+	valueStr := query.Get(key)
+	if valueStr == "" {
+		return 0
+	}
+	value, err := strconv.ParseFloat(valueStr, 64)
+	if err != nil {
+		return 0
+	}
+	return value
+}
 
 // add product features
 // @Summary Add product features
 // @Description Add product an features
-// @Tags Products
+// @Tags Admin
 // @Accept multipart/form-data
 // @Produce json
 // @Param product_id formData string true "Product ID"
@@ -878,8 +1041,7 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
 		return
 	}
-
-	productID := r.FormValue("product_id")
+	productID := mux.Vars(r)["product_id"]
 
 	// Parse multipart form (20 MB max)
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
@@ -962,7 +1124,7 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	featureID := r.FormValue("feature_id")
+	featureID := mux.Vars(r)["feature_id"]
 	// Parse multipart form in case image is sent
 	_ = r.ParseMultipartForm(20 << 20)
 
@@ -983,7 +1145,7 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	req := dtos.ProductFeature{
+	req := dtos.UpdateProductFeature{
 		Header:        r.FormValue("header"),
 		Description:   r.FormValue("description"),
 		ImagePosition: r.FormValue("image_position"),
@@ -1020,11 +1182,11 @@ func GetFeaturesByProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 
-	productID := r.URL.Query().Get("product_id")
+	productID := mux.Vars(r)["product_id"]
 	features, err := models.GetProductFeaturesByProductID(productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			Code:      http.StatusNotFound,
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1051,7 +1213,7 @@ func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	featureID := r.URL.Query().Get("feature_id")
+	featureID := mux.Vars(r)["feature_id"]
 
 	err := models.DeleteProductFeature(featureID)
 	if err != nil {
@@ -1069,6 +1231,225 @@ func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		Code:      http.StatusOK,
 		Payload:   nil,
 		Message:   "Product feature deleted successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure the user is an admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	if !ok {
+		return
+	}
+
+	req, ok := DecodeRequestBody[dtos.ProductSpecification](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	//handle products specifications
+	err := handleProductSpecs(*req)
+	log.Printf("handleProductSpecs ***** %s", err)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//handle products variants
+	err = handleProductsVariants(*req)
+	log.Printf("handleProductsVariants ***** %s", err)
+
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//handle product warranty
+	err = handleProductsWarranty(*req)
+	log.Printf("handleProductsWarranty ***** %s", err)
+
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//add tax to a product
+	err = attachProductTax(*req)
+	log.Printf("attachProductTax ***** %s", err)
+
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	// add discount to a product
+	err = attachProductDiscount(*req)
+	log.Printf("attachProductDiscount ***** %s", err)
+
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			Code:      http.StatusInternalServerError,
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   nil,
+		Message:   "Product specifications added successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+func handleProductSpecs(req dtos.ProductSpecification) error {
+	data := dtos.ProductSpecs{
+		ProductID:    req.ProductID,
+		Weight:       req.Weight,
+		WeightLimit:  req.WeightLimit,
+		Dimensions:   req.Dimensions,
+		Manufacturer: req.Manufacturer,
+	}
+	err := models.InsertProductSpecs(data)
+	return err
+}
+func handleProductsVariants(req dtos.ProductSpecification) error {
+	data := dtos.ProductVariantRequest{
+		ProductID: req.ProductID,
+	}
+	noVariantMsg := "variant not found"
+
+	// Map each variant type to its IDs
+	variantGroups := map[string][]string{
+		"age":      req.Age,
+		"brand":    toSlice(req.Brand), // handle single value as slice
+		"material": req.Material,
+		"color":    req.Color,
+		"size":     req.Size,
+	}
+
+	// Loop through each variant group
+	for variantType, variantIDs := range variantGroups {
+		for _, id := range variantIDs {
+			if err := addProductVariantWithHandling(id, variantType, data, noVariantMsg); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+func toSlice(value string) []string {
+	if value == "" {
+		return nil
+	}
+	return []string{value}
+}
+
+func addProductVariantWithHandling(variantID, variantType string, data dtos.ProductVariantRequest, notFoundMsg string) error {
+	err := models.AddProductVariant(variantID, data)
+	if err == nil {
+		return nil
+	}
+	if err.Error() == notFoundMsg {
+		return fmt.Errorf("%s variant with variant_id %s not found", variantType, variantID)
+	}
+	return err
+}
+
+func handleProductsWarranty(req dtos.ProductSpecification) error {
+	data := dtos.AddProductWarrantiesRequest{
+		ProductID:         req.ProductID,
+		WarrantyTypeID:    req.WarrantyType,
+		WarrantyPeriod:    req.WarrantyPeriod,
+		ManufacturingDate: req.ManufacturerDate,
+		ExpiryDate:        req.ExpiryDate,
+	}
+	err := models.AddProductWarranties(data)
+	return err
+}
+
+func attachProductTax(req dtos.ProductSpecification) error {
+	data := dtos.AddChargeToProductRequest{
+		ProductID: req.ProductID,
+		ChargeID:  req.Tax,
+	}
+	err := models.AddChargeToProduct(data)
+	return err
+}
+func attachProductDiscount(req dtos.ProductSpecification) error {
+	data := dtos.AddPromotionToProductRequest{
+		ProductID:       req.ProductID,
+		PromotionTypeID: req.DiscountType,
+	}
+	if data.PromotionTypeID != "" {
+		err := models.AddPromotionToProduct(data)
+		if err != nil {
+			return nil
+		}
+	}
+	return nil
+}
+
+// Function to return the most expensive and most cheapest product
+func GetExpensiveAndCheapProducts(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	cacheKey := "expensiveandcheapproducts"
+	var products *dtos.ExpensiveCheapProduct
+	var cachedProducts *dtos.ExpensiveCheapProduct
+	_ = utils.GetCache(cacheKey, &cachedProducts)
+	if cachedProducts == nil {
+		var err error
+		products, err = models.GetExpensiveAndCheapProducts()
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusNotFound,
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+			})
+			return
+		}
+		_ = utils.SetCache(cacheKey, products)
+	} else {
+		products = cachedProducts
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		Code:      http.StatusOK,
+		Payload:   products,
+		Message:   "Expensive and cheapest products fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

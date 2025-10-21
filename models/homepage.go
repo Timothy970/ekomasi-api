@@ -335,7 +335,7 @@ func scanCategoryProductRow(rows *sql.Rows) (string, string, string, *string, dt
 
 func fetchProductImages(productID string) ([]dtos.Image, error) {
 	rows, err := DB.Query(`
-		SELECT image_id, url, is_primary 
+		SELECT image_id, url, is_primary, type
 		FROM product_images 
 		WHERE product_id = ?`, productID,
 	)
@@ -347,7 +347,7 @@ func fetchProductImages(productID string) ([]dtos.Image, error) {
 	var images []dtos.Image
 	for rows.Next() {
 		var img dtos.Image
-		if err := rows.Scan(&img.ImageID, &img.URL, &img.IsPrimary); err != nil {
+		if err := rows.Scan(&img.ImageID, &img.URL, &img.IsPrimary, &img.Type); err != nil {
 			return nil, err
 		}
 		images = append(images, img)
@@ -566,10 +566,10 @@ func CreateBlog(blog dtos.Blog) error {
 	blogID, _ := shortid.Generate()
 
 	query := `
-		INSERT INTO blogs (blog_id, title, content, author_id, published_at, is_published)
-		VALUES (?, ?, ?, ?, ?, ?)`
+		INSERT INTO blogs (blog_id, title, content, author_id, published_at, is_published, image_url, author)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 
-	_, err = DB.Exec(query, blogID, blog.Title, blog.Content, blog.AuthorID, blog.PublishedAt, blog.IsPublished)
+	_, err = DB.Exec(query, blogID, blog.Title, blog.Content, blog.AuthorID, blog.PublishedAt, blog.IsPublished, blog.ImageURL, blog.Author)
 	return err
 }
 func GetBlogByID(blogID string) (*dtos.Blog, error) {
@@ -580,12 +580,12 @@ func GetBlogByID(blogID string) (*dtos.Blog, error) {
 	if !exists {
 		return nil, errors.New(noblog)
 	}
-	query := `SELECT blog_id, title, content, author_id, published_at, is_published FROM blogs WHERE blog_id = ?`
+	query := `SELECT blog_id, title, content, author_id, published_at, is_published, image_url, author FROM blogs WHERE blog_id = ?`
 
 	row := DB.QueryRow(query, blogID)
 
 	var blog dtos.Blog
-	err = row.Scan(&blog.BlogID, &blog.Title, &blog.Content, &blog.AuthorID, &blog.PublishedAt, &blog.IsPublished)
+	err = row.Scan(&blog.BlogID, &blog.Title, &blog.Content, &blog.AuthorID, &blog.PublishedAt, &blog.IsPublished, &blog.ImageURL, &blog.Author)
 	if err != nil {
 		return nil, err
 	}
@@ -632,7 +632,7 @@ func ListBlogs(page, limit int) ([]dtos.Blog, *dtos.PaginationMeta, error) {
 
 	// 2. Fetch paginated data
 	query := `
-		SELECT blog_id, title, content, author_id, published_at, is_published
+		SELECT blog_id, title, content, author_id, published_at, is_published, image_url, author
 		FROM blogs
 		ORDER BY published_at DESC
 		LIMIT ? OFFSET ?
@@ -648,7 +648,7 @@ func ListBlogs(page, limit int) ([]dtos.Blog, *dtos.PaginationMeta, error) {
 	var blogs []dtos.Blog
 	for rows.Next() {
 		var blog dtos.Blog
-		err := rows.Scan(&blog.BlogID, &blog.Title, &blog.Content, &blog.AuthorID, &blog.PublishedAt, &blog.IsPublished)
+		err := rows.Scan(&blog.BlogID, &blog.Title, &blog.Content, &blog.AuthorID, &blog.PublishedAt, &blog.IsPublished, &blog.ImageURL, &blog.Author)
 		if err != nil {
 			return nil, nil, err
 		}

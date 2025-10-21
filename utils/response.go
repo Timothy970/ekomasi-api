@@ -32,7 +32,7 @@ type ErrorJSONResponseOptions struct {
 	RawBody   string
 }
 
-func RespondWithError(w http.ResponseWriter, erropts ErrorJSONResponseOptions) {
+var RespondWithError = func(w http.ResponseWriter, erropts ErrorJSONResponseOptions) {
 
 	RespondWithJSON(w, SuccessJSONResponseOptions{
 		Code:      erropts.Code,
@@ -46,7 +46,7 @@ func RespondWithError(w http.ResponseWriter, erropts ErrorJSONResponseOptions) {
 
 }
 
-func RespondWithJSON(w http.ResponseWriter, opts SuccessJSONResponseOptions) {
+var RespondWithJSON = func(w http.ResponseWriter, opts SuccessJSONResponseOptions) {
 	ctx := opts.Request.Context()
 
 	userID := "unknown"
@@ -126,7 +126,8 @@ func levelFromStatus(code int) logger.LogLevel {
 }
 
 // GetRequestSummary returns a formatted string with method, path, address, and body
-func GetRequestSummary(r *http.Request) string {
+var GetRequestSummary = func(r *http.Request) string {
+	contentType := r.Header.Get("Content-Type")
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("Failed to read request body: %v", err)
@@ -135,19 +136,14 @@ func GetRequestSummary(r *http.Request) string {
 
 	// Restore body for future use
 	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-	// Attempt to mask password field if body is JSON
-	maskedPayload := string(bodyBytes)
-	var data map[string]interface{}
-	if json.Unmarshal(bodyBytes, &data) == nil {
-		for key := range data {
-			if strings.EqualFold(key, "password") {
-				data[key] = "***************"
-			}
-		}
-		if maskedJSON, err := json.Marshal(data); err == nil {
-			maskedPayload = string(maskedJSON)
-		}
+	var maskedPayload string
+	// Don't log binary/multipart payloads
+	if strings.HasPrefix(contentType, "multipart/form-data") ||
+		strings.HasPrefix(contentType, "image/") {
+		maskedPayload = "[binary data omitted]"
+	} else {
+		// Mask sensitive fields if JSON
+		maskedPayload = maskSensitiveFields(bodyBytes)
 	}
 
 	return fmt.Sprintf(
@@ -158,4 +154,31 @@ func GetRequestSummary(r *http.Request) string {
 		r.RemoteAddr,
 		maskedPayload,
 	)
+}
+
+// maskSensitiveFields replaces sensitive keys with safe values
+func maskSensitiveFields(body []byte) string {
+	var data map[string]interface{}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return string(body) // not JSON, return raw
+	}
+
+	sensitiveKeys := map[string]string{
+		"password":  "***************",
+		"apikey":    "***************",
+		"body":      "",
+		"image":     "",
+		"image_url": "",
+	}
+
+	for key := range data {
+		if masked, ok := sensitiveKeys[strings.ToLower(key)]; ok {
+			data[key] = masked
+		}
+	}
+
+	if maskedJSON, err := json.Marshal(data); err == nil {
+		return string(maskedJSON)
+	}
+	return string(body)
 }

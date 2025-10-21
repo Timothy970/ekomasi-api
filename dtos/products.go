@@ -11,6 +11,10 @@ type CreateProduct struct {
 	CategoryID    string  `json:"category_id" validate:"required"`
 	StockQuantity int     `json:"stock_quantity" validate:"required,gte=0"`
 	SearchVector  string  `json:"search_vector" validate:"required"`
+	Tag           *string `json:"tag,omitempty"`
+	LowStockAlert int     `json:"low_stock_quantity_warning" validate:"gte=0"`
+	SellWhenOOS   *bool   `json:"sell_when_out_of_stock"`
+	ShowStock     *bool   `json:"show_stock_quantity"`
 }
 
 // AddToCartWithVariantsRequest represents the request to add item with specific variants to cart
@@ -51,18 +55,35 @@ type GetBundleRequest struct {
 	BundleName        string    `json:"bundle_name"`
 	BundleDescription string    `json:"bundle_description"`
 	BundlePrice       float64   `json:"bundle_price"`
+	BundleImage       *string   `json:"bundle_image"`
+	CategoryID        string    `json:"category_id"`
+	CompareAtPrice    *float64  `json:"compare_at_price"`
+	KeepSelling       *bool     `json:"keep_selling_when_out_of_stock"`
 	Products          []Product `json:"products"`
 }
 type Bundle struct {
-	Name        string  `json:"bundle_name"`
-	Description string  `json:"bundle_description"`
-	Price       float64 `json:"bundle_price"`
+	Name           string           `json:"bundle_name" validate:"required"`
+	Description    string           `json:"bundle_description" validate:"required"`
+	Price          float64          `json:"bundle_price" validate:"required,min=0"`
+	Image          string           `json:"bundle_image" validate:"required"`
+	CategoryID     string           `json:"category_id" validate:"required"`
+	Products       []BundleProducts `json:"products" validate:"required"`
+	KeepSelling    *bool            `json:"keep_selling"`
+	CompareAtPrice *float64         `json:"compare_at_price"`
+}
+type BundleProducts struct {
+	ProductID string `json:"product_id" validate:"required"`
+	Quantity  int    `json:"quantity" validate:"required,gte=1"`
 }
 type UpdateBundle struct {
-	ID          string  `json:"bundle_id" validate:"required"`
-	Name        string  `json:"bundle_name" validate:"required"`
-	Description string  `json:"bundle_description" validate:"required"`
-	Price       float64 `json:"bundle_price" validate:"required"`
+	Name           string   `json:"bundle_name"`
+	Description    string   `json:"bundle_description"`
+	Price          float64  `json:"bundle_price"`
+	Image          *string  `json:"bundle_image"`
+	CategoryID     string   `json:"category_id"`
+	KeepSelling    *bool    `json:"keep_selling"`
+	CompareAtPrice *float64 `json:"compare_at_price"`
+	ID             string   `json:"bundle_id" validate:"required"`
 }
 type DeleteBundle struct {
 	ID string `json:"bundle_id" validate:"required"`
@@ -133,19 +154,31 @@ type CategoryProduct struct {
 	SearchVector    string            `json:"search_vector"`
 	CreatedAt       time.Time         `json:"created_at"`
 	LastUpdated     time.Time         `json:"last_updated"`
+	Tag             *string           `json:"tag"`
 	Images          []Image           `json:"urls"`
 	ProductVariants []ProductVariants `json:"products_variants"`
+	//only visible when user is authenticated
+	InWishlist *bool `json:"liked_by_user,omitempty"`
 }
 
 // SearchParams represents the search parameters
 type SearchParams struct {
+	Q            string // Search query for category name OR product name
 	CategoryName string
 	ProductName  string
-	VariantName  string // variant_type:name format
-	VariantValue string // the actual variant value
+	Variants     []VariantFilter // Changed from single variant to slice
 	SortBy       string
 	Page         int
 	Limit        int
+	SKU          string
+	Tag          string
+	MaxPrice     float64
+	MinPrice     float64
+}
+
+type VariantFilter struct {
+	Type  string
+	Value string
 }
 
 type ProductFeature struct {
@@ -155,4 +188,42 @@ type ProductFeature struct {
 	Image         string `json:"image" validate:"required"`
 	Description   string `json:"description" validate:"required"`
 	ImagePosition string `json:"image-position" validate:"required"`
+}
+type UpdateProductFeature struct {
+	ID            string `json:"feature_id"`
+	ProductID     string `json:"product_id"`
+	Header        string `json:"header" validate:"required"`
+	Image         string `json:"image"`
+	Description   string `json:"description" validate:"required"`
+	ImagePosition string `json:"image-position" validate:"required"`
+}
+type ProductSpecification struct {
+	ProductID        string   `json:"product_id" validate:"required"`
+	Age              []string `json:"age"`   //ids of the age variants
+	Brand            string   `json:"brand"` //brand id for the variant brand
+	CategoryID       string   `json:"category_id"`
+	Color            []string `json:"color"` //color variants ids
+	Dimensions       string   `json:"dimensions"`
+	DiscountType     string   `json:"discount_type"` // type id
+	ExpiryDate       string   `json:"expiry_date"`
+	ManufacturerDate string   `json:"manufacture_date"`
+	Manufacturer     string   `json:"manufacturer"`
+	Material         []string `json:"material"` //material variant ids
+	Size             []string `json:"size"`     //size variant ids
+	Tax              string   `json:"tax"`      //charge id
+	WarrantyType     string   `json:"warranty_type"`
+	WarrantyPeriod   int      `json:"warranty_period"` //in months
+	Weight           int      `json:"weight"`
+	WeightLimit      int      `json:"weight_limit"`
+}
+type ExpensiveCheapProduct struct {
+	CheapestProduct  Product `json:"cheapest_product"`
+	ExpensiveProduct Product `json:"expensive_product"`
+}
+type ProductSpecs struct {
+	ProductID    string `json:"product_id"`
+	Weight       int    `json:"weight"`
+	WeightLimit  int    `json:"weight_limit"`
+	Dimensions   string `json:"dimensions"`
+	Manufacturer string `json:"manufacturer"`
 }

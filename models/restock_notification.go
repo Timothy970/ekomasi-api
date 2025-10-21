@@ -13,7 +13,7 @@ func CreateRestockNotification(rn dtos.RestockNotificationRequest) error {
 	if err != nil {
 		return err
 	}
-	err = isProductThere(rn.ProductID)
+	err = IsProductThere(rn.ProductID)
 
 	if err != nil {
 		return err

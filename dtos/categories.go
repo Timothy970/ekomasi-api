@@ -39,3 +39,23 @@ type ProductData struct {
 	Price float64 `json:"price"`
 	URL   *string `json:"url,omitempty"`
 }
+
+type AdminCategoryData struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Type          string `json:"type"`
+	Items         int    `json:"items"`
+	Subcategories int    `json:"subcategories"`
+	Description   string `json:"description"`
+}
+
+type CategoryWithSubCategories struct {
+	Category    string        `json:"name"`
+	CategoryID  string        `json:"category_id"`
+	SubCategory []SubCategory `json:"subcategories"`
+}
+
+type SubCategory struct {
+	Category   string `json:"name"`
+	CategoryID string `json:"category_id"`
+}

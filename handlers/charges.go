@@ -88,6 +88,9 @@ func UpdateChargeHandler(w http.ResponseWriter, r *http.Request) {
 func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
+	// if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	// 	return
+	// }
 
 	id := mux.Vars(r)["charge_id"]
 	charge, err := models.GetChargeByID(id)
@@ -111,6 +114,10 @@ func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 func GetAllChargesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
+	// if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	// 	return
+	// }
+
 	charges, err := models.GetAllCharges()
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{Code: http.StatusInternalServerError, Message: err.Error(),
@@ -145,6 +152,36 @@ func DeleteChargeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{Code: http.StatusOK, Message: "Charge deleted successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// Add charge to product
+func AddChargeToProductHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+		return
+	}
+	req, ok := DecodeRequestBody[dtos.AddChargeToProductRequest](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+		return
+	}
+	err := models.AddChargeToProduct(*req)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{Code: http.StatusInternalServerError, Message: err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{Code: http.StatusOK, Message: "Charge added to product successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

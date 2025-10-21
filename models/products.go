@@ -15,72 +15,70 @@ import (
 var nobundle = "bundle not found"
 var fetchbundle = "bundle_id = ?"
 var limtOffset = " LIMIT ? OFFSET ?"
+var lowerCname = " AND LOWER(c.name) LIKE ?"
+var lowerPname = " AND LOWER(p.name) LIKE ?"
+var lowerVariant = "(LOWER(v.variant_type) = ?)"
+var lowerVariantTypeName = "(LOWER(v.variant_type) = ? AND LOWER(v.name) = ?)"
+var whereBundleID = " WHERE bundle_id = ?"
 
 func GetAllProducts(categoryFilter, productFilter, categoryID string, page, limit int) ([]dtos.CategoryWithProducts, *dtos.PaginationMeta, error) {
-	// Build queries
 	if categoryID != "" {
-		err := CategoryExists(categoryID)
-		if err != nil {
+		if err := CategoryExists(categoryID); err != nil {
 			return nil, nil, err
 		}
 	}
 	query, args := buildProductQuery(categoryFilter, productFilter, categoryID, page, limit)
 	countQuery, countArgs := buildCountQuery(categoryFilter, productFilter, categoryID)
 
-	// Fetch products and categories
 	rows, err := DB.Query(query, args...)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
 
-	// Count total items
 	var totalItems int64
 	if err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
 		return nil, nil, err
 	}
 
-	// Map of categories
-	categoryMap := make(map[string]*dtos.CategoryWithProducts)
+	categoryMap, err := processProductRows(rows)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	// Process rows
+	result := buildResultFromCategoryMap(categoryMap, categoryID)
+
+	pagination := calculatePagination(page, limit, totalItems)
+	return result, &pagination, nil
+}
+
+// Helper to process product rows and build category map
+func processProductRows(rows *sql.Rows) (map[string]*dtos.CategoryWithProducts, error) {
+	categoryMap := make(map[string]*dtos.CategoryWithProducts)
 	for rows.Next() {
 		cat, prod, err := scanCategoryAndProduct(rows)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-
-		// Ensure category is initialized in the map
 		if _, exists := categoryMap[cat.CategoryID]; !exists {
 			categoryMap[cat.CategoryID] = &cat
 		}
-
-		// Append product if exists
 		if prod != nil {
 			categoryMap[cat.CategoryID].Products = append(categoryMap[cat.CategoryID].Products, *prod)
 		}
 	}
+	return categoryMap, nil
+}
 
-	var result []dtos.CategoryWithProducts
+// Helper to build result from category map
+func buildResultFromCategoryMap(categoryMap map[string]*dtos.CategoryWithProducts, categoryID string) []dtos.CategoryWithProducts {
 	if categoryID != "" {
-		// Find the specific category and build its complete hierarchy including parents
 		if targetCat, exists := categoryMap[categoryID]; exists {
-			// Build the complete hierarchy from root to the target category
-			completeHierarchy := buildCompleteHierarchyWithParents(categoryMap, targetCat)
-			result = completeHierarchy
-		} else {
-			// Category not found, return empty result
-			result = []dtos.CategoryWithProducts{}
+			return buildCompleteHierarchyWithParents(categoryMap, targetCat)
 		}
-	} else {
-		// No categoryID specified, return full hierarchy
-		result = buildCategoryHierarchy(categoryMap)
+		return []dtos.CategoryWithProducts{}
 	}
-
-	// Pagination
-	pagination := calculatePagination(page, limit, totalItems)
-
-	return result, &pagination, nil
+	return buildCategoryHierarchy(categoryMap)
 }
 
 // Helper function to build complete hierarchy including parents for a specific category
@@ -162,11 +160,11 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
 	var args []interface{}
 
 	if categoryFilter != "" {
-		query += " AND LOWER(c.name) LIKE ?"
+		query += lowerCname
 		args = append(args, "%"+strings.ToLower(categoryFilter)+"%")
 	}
 	if productFilter != "" {
-		query += " AND LOWER(p.name) LIKE ?"
+		query += lowerPname
 		args = append(args, "%"+strings.ToLower(productFilter)+"%")
 	}
 	if categoryID != "" {
@@ -210,18 +208,18 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 		SELECT 
 			c.category_id, c.name, c.parent_category_id, c.description,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, p.tag
 		FROM categories c
 		LEFT JOIN products p ON c.category_id = p.category_id
 		WHERE 1=1`
 	var args []interface{}
 
 	if categoryFilter != "" {
-		query += " AND LOWER(c.name) LIKE ?"
+		query += lowerCname
 		args = append(args, "%"+strings.ToLower(categoryFilter)+"%")
 	}
 	if productFilter != "" {
-		query += " AND LOWER(p.name) LIKE ?"
+		query += lowerPname
 		args = append(args, "%"+strings.ToLower(productFilter)+"%")
 	}
 	if categoryID != "" {
@@ -236,7 +234,7 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 
 	if limit > 0 {
 		offset := (page - 1) * limit
-		query += " LIMIT ? OFFSET ?"
+		query += limtOffset
 		args = append(args, limit, offset)
 	}
 
@@ -264,9 +262,9 @@ func calculatePagination(page, limit int, totalItems int64) dtos.PaginationMeta 
 
 func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Product, error) {
 	var (
-		catID, catName, catDesc string
-		parentCatID             *string
-
+		catID, catName, catDesc                              string
+		parentCatID                                          *string
+		tag                                                  sql.NullString
 		productID, name, desc, sku, categoryID, searchVector sql.NullString
 		price                                                sql.NullFloat64
 		stockQuantity                                        sql.NullInt64
@@ -276,7 +274,7 @@ func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Pr
 	if err := rows.Scan(
 		&catID, &catName, &parentCatID, &catDesc,
 		&productID, &name, &desc, &sku, &price, &categoryID,
-		&stockQuantity, &searchVector, &createdAt, &updatedAt,
+		&stockQuantity, &searchVector, &createdAt, &updatedAt, &tag,
 	); err != nil {
 		return dtos.CategoryWithProducts{}, nil, err
 	}
@@ -297,7 +295,10 @@ func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Pr
 	if stockQuantity.Valid {
 		stock = int(stockQuantity.Int64)
 	}
-
+	tagPtr := ""
+	if tag.Valid {
+		tagPtr = tag.String
+	}
 	product := dtos.Product{
 		ID:            productID.String,
 		Name:          name.String,
@@ -307,6 +308,7 @@ func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Pr
 		CategoryID:    categoryID.String,
 		StockQuantity: stock,
 		SearchVector:  searchVector.String,
+		Tag:           &tagPtr,
 	}
 
 	if createdAt.Valid {
@@ -390,9 +392,10 @@ func getProductVariants(productID string) ([]dtos.ProductVariants, error) {
 func GetProductByID(productID string) (*dtos.Product, error) {
 	query := `
 		SELECT 
-			product_id, name, description, sku, price, category_id,
-			stock_quantity, search_vector, created_at, last_updated_at
-		FROM products
+			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.category_id
 		WHERE product_id = ?
 	`
 
@@ -400,6 +403,7 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 	err := DB.QueryRow(query, productID).Scan(
 		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
 		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
+		&p.CategoryName, &p.Tag,
 	)
 	if err != nil {
 		return nil, err
@@ -417,7 +421,7 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 	p.ProductVariants = variants
 	return &p, nil
 }
-func AddNewProduct(input dtos.CreateProduct) (*dtos.CreateProduct, error) {
+func AddNewProduct(input dtos.CreateProduct, userID string) (*dtos.CreateProduct, error) {
 	skuExists, err := RecordExists("products", "sku = ?", input.SKU)
 	if err != nil {
 		return nil, err
@@ -441,11 +445,18 @@ func AddNewProduct(input dtos.CreateProduct) (*dtos.CreateProduct, error) {
 		return nil, fmt.Errorf("cannot add product to a parent category, choose a subcategory instead")
 	}
 	productID, _ := shortid.Generate()
-
+	sellWhenOOs := false
+	showStock := false
+	if input.SellWhenOOS != nil {
+		sellWhenOOs = *input.SellWhenOOS
+	}
+	if input.ShowStock != nil {
+		showStock = *input.ShowStock
+	}
 	_, err = DB.Exec(`
-		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector,
+		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, created_by_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, sellWhenOOs, showStock, userID,
 	)
 	if err != nil {
 		return nil, err
@@ -463,7 +474,7 @@ func AddNewProduct(input dtos.CreateProduct) (*dtos.CreateProduct, error) {
 	}, nil
 }
 func UpdateProductByID(productID string, input dtos.CreateProduct) (*dtos.CreateProduct, error) {
-	errr := isProductThere(productID)
+	errr := IsProductThere(productID)
 	if errr != nil {
 		return nil, errr
 	}
@@ -485,9 +496,9 @@ func UpdateProductByID(productID string, input dtos.CreateProduct) (*dtos.Create
 	}
 	_, err = DB.Exec(`
 		UPDATE products
-		SET name = ?, description = ?, sku = ?, price = ?, stock_quantity = ?, search_vector = ?, last_updated_at = CURRENT_TIMESTAMP
+		SET name = ?, description = ?, sku = ?, price = ?, stock_quantity = ?, search_vector = ?, last_updated_at = CURRENT_TIMESTAMP, tag = ?, low_stock_quantity_warning = ?, sell_when_out_of_stock = ?, show_stock_quantity = ?
 		WHERE product_id = ?`,
-		input.Name, input.Description, input.SKU, input.Price, input.StockQuantity, input.SearchVector,
+		input.Name, input.Description, input.SKU, input.Price, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, input.SellWhenOOS, input.ShowStock,
 		productID,
 	)
 
@@ -509,7 +520,7 @@ func UpdateProductByID(productID string, input dtos.CreateProduct) (*dtos.Create
 }
 
 func DeleteProductByID(productID string) error {
-	err := isProductThere(productID)
+	err := IsProductThere(productID)
 	if err != nil {
 		return err
 	}
@@ -543,10 +554,10 @@ func DeleteProductByID(productID string) error {
 	return err
 }
 
-func InsertProductImage(productID, imageURL string, isPrimary bool) error {
+func InsertProductImage(productID, imageURL, fileType string, isPrimary bool) error {
 	imageID, _ := shortid.Generate()
-	query := `INSERT INTO product_images (image_id, product_id, url, is_primary) VALUES (?, ?, ?, ?)`
-	_, err := DB.Exec(query, imageID, productID, imageURL, isPrimary)
+	query := `INSERT INTO product_images (image_id, product_id, url, is_primary, type) VALUES (?, ?, ?, ?, ?)`
+	_, err := DB.Exec(query, imageID, productID, imageURL, isPrimary, fileType)
 	return err
 }
 func GetRelatedProducts(categoryID, excludeProductID string, limit, page int) ([]dtos.Product, *dtos.PaginationMeta, error) {
@@ -592,7 +603,7 @@ func buildRelatedProductsQuery(categoryID, excludeProductID string, limit, page 
 	query := `
         SELECT 
             p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-            p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+            p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, p.tag
         FROM products p
         WHERE p.category_id = ?
     `
@@ -609,7 +620,7 @@ func buildRelatedProductsQuery(categoryID, excludeProductID string, limit, page 
 	// Pagination
 	if limit > 0 {
 		offset := (page - 1) * limit
-		query += fmt.Sprintf(limtOffset)
+		query += limtOffset
 		args = append(args, limit, offset)
 	}
 
@@ -632,19 +643,22 @@ func buildRelatedProductsCountQuery(categoryID, excludeProductID string) (string
 
 func scanRelatedProduct(rows *sql.Rows) (dtos.Product, error) {
 	var (
-		productID, name, desc, sku, categoryID, searchVector sql.NullString
-		price                                                sql.NullFloat64
-		stockQuantity                                        sql.NullInt64
-		createdAt, updatedAt                                 sql.NullTime
+		productID, name, desc, sku, categoryID, searchVector, tag sql.NullString
+		price                                                     sql.NullFloat64
+		stockQuantity                                             sql.NullInt64
+		createdAt, updatedAt                                      sql.NullTime
 	)
 
 	if err := rows.Scan(
 		&productID, &name, &desc, &sku, &price, &categoryID,
-		&stockQuantity, &searchVector, &createdAt, &updatedAt,
+		&stockQuantity, &searchVector, &createdAt, &updatedAt, &tag,
 	); err != nil {
 		return dtos.Product{}, err
 	}
-
+	tagPtr := ""
+	if tag.Valid {
+		tagPtr = tag.String
+	}
 	product := dtos.Product{
 		ID:            productID.String,
 		Name:          name.String,
@@ -654,6 +668,7 @@ func scanRelatedProduct(rows *sql.Rows) (dtos.Product, error) {
 		CategoryID:    categoryID.String,
 		StockQuantity: int(stockQuantity.Int64),
 		SearchVector:  searchVector.String,
+		Tag:           &tagPtr,
 	}
 
 	if createdAt.Valid {
@@ -678,76 +693,31 @@ func scanRelatedProduct(rows *sql.Rows) (dtos.Product, error) {
 }
 
 // Get bundles
-func GetBundleProducts(bundleID, bundleName string, limit, page int) ([]dtos.GetBundleRequest, *dtos.PaginationMeta, error) {
-	isPaginated := bundleID == "" && bundleName == ""
-	log.Printf("bundle))))id  %s", bundleID)
+func GetBundleProducts(bundleID string, limit, page int) ([]dtos.GetBundleRequest, *dtos.PaginationMeta, error) {
+	// Validate optional bundle ID
 	if bundleID != "" {
-		err := isBundleThere(bundleID)
-		if err != nil {
+		if err := isBundleThere(bundleID); err != nil {
 			return nil, nil, err
 		}
 	}
-	baseQuery, args := buildBaseQuery(bundleID, bundleName)
-	log.Printf("args1111%s", args)
 
-	var pagination *dtos.PaginationMeta
-	if isPaginated {
-		var err error
-		pagination, args, baseQuery, err = addPagination(baseQuery, args, limit, page)
-		if err != nil {
-			log.Printf("000000000000000 %s", err)
-			return nil, nil, err
-		}
-	}
-	query := buildSelectQuery(baseQuery)
-	log.Printf("query.....%s", query)
-	log.Printf("args.....%s", args)
-	rows, err := DB.Query(query, args...)
-	if err != nil {
-		log.Printf("111111111111111111111%s", err)
-		return nil, nil, err
-	}
-	defer rows.Close()
-
-	bundles, err := mapBundlesWithProducts(rows)
-	if err != nil {
-		log.Printf("2222222222222222%s", err)
-		return nil, nil, err
-	}
-	log.Printf("333333333333333333")
-
-	return bundles, pagination, nil
-}
-
-func buildBaseQuery(bundleID, bundleName string) (string, []interface{}) {
-	query := `
-		FROM product_bundles pb
-		LEFT JOIN bundle_products bp ON pb.bundle_id = bp.bundle_id
-		LEFT JOIN products p ON bp.product_id = p.product_id
-		WHERE 1=1
-	`
+	// Count total bundles for pagination
+	countQuery := "SELECT COUNT(*) FROM product_bundles"
 	var args []interface{}
 
 	if bundleID != "" {
-		query += " AND pb.bundle_id = ?"
+		countQuery += whereBundleID
 		args = append(args, bundleID)
 	}
-	if bundleName != "" {
-		query += " AND LOWER(pb.name) LIKE ?"
-		args = append(args, "%"+strings.ToLower(bundleName)+"%")
-	}
-	return query, args
-}
 
-func addPagination(baseQuery string, args []interface{}, limit, page int) (*dtos.PaginationMeta, []interface{}, string, error) {
 	var total int
-	countQuery := "SELECT COUNT(DISTINCT pb.bundle_id) " + baseQuery
 	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
-		return nil, args, "", err
+		return nil, nil, err
 	}
 
 	offset := (page - 1) * limit
 	totalPages := (total + limit - 1) / limit
+
 	pagination := &dtos.PaginationMeta{
 		Page:       page,
 		Size:       limit,
@@ -757,151 +727,129 @@ func addPagination(baseQuery string, args []interface{}, limit, page int) (*dtos
 		HasNext:    page < totalPages,
 	}
 
-	args = append(args, limit, offset)
-	baseQuery += " ORDER BY pb.bundle_id LIMIT ? OFFSET ?"
-	return pagination, args, baseQuery, nil
-}
-
-func buildSelectQuery(baseQuery string) string {
-	return `
+	// Fetch paginated bundles
+	query := `
 		SELECT 
-			pb.bundle_id, pb.name, pb.description, pb.bundle_price,
-			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
-	` + baseQuery
-}
+			bundle_id, name, description, bundle_price, bundle_image, 
+			category_id, compare_at_price, keep_selling_when_out_of_stock
+		FROM product_bundles
+	`
+	if bundleID != "" {
+		query += whereBundleID
+	}
+	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
 
-func mapBundlesWithProducts(rows *sql.Rows) ([]dtos.GetBundleRequest, error) {
-	bundleMap := make(map[string]*dtos.GetBundleRequest)
+	args = append(args, limit, offset)
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	var bundles []dtos.GetBundleRequest
+	for rows.Next() {
+		var b dtos.GetBundleRequest
+		var compareAtPrice sql.NullFloat64
+		var keepSelling sql.NullBool
+
+		if err := rows.Scan(
+			&b.BundleID, &b.BundleName, &b.BundleDescription, &b.BundlePrice,
+			&b.BundleImage, &b.CategoryID, &compareAtPrice, &keepSelling,
+		); err != nil {
+			return nil, nil, err
+		}
+
+		b.CompareAtPrice = nullFloat64ToPtr(compareAtPrice)
+		b.KeepSelling = &keepSelling.Bool
+
+		//Fetch products belonging to this bundle
+		products, err := getProductsForBundle(b.BundleID)
+		if err != nil {
+			return nil, nil, err
+		}
+		b.Products = products
+
+		bundles = append(bundles, b)
+	}
+	log.Printf("count of bundles************************** %v", len(bundles))
+
+	return bundles, pagination, nil
+}
+func getProductsForBundle(bundleID string) ([]dtos.Product, error) {
+	query := `
+		SELECT product_id, quantity
+		FROM bundle_products
+		WHERE bundle_id = ?
+	`
+	rows, err := DB.Query(query, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []dtos.Product
 
 	for rows.Next() {
-		bundle, product, err := scanBundleAndProduct(rows)
-		if err != nil {
+		var productID string
+		var quantity int
+		if err := rows.Scan(&productID, &quantity); err != nil {
 			return nil, err
 		}
 
-		if existing, ok := bundleMap[bundle.BundleID]; ok {
-			if product != nil {
-				existing.Products = append(existing.Products, *product)
-			}
-		} else {
-			if product != nil {
-				bundle.Products = []dtos.Product{*product}
-			} else {
-				bundle.Products = []dtos.Product{}
-			}
-			bundleMap[bundle.BundleID] = &bundle
+		// Reuse your existing reusable product function
+		product, err := GetProductByID(productID)
+		if err != nil {
+			// Skip missing products instead of failing the entire bundle
+			log.Printf("warning: failed to fetch product %s for bundle %s: %v", productID, bundleID, err)
+			continue
 		}
+
+		// Override product quantity with bundle_products.quantity
+		product.StockQuantity = quantity
+		products = append(products, *product)
 	}
 
-	var bundles []dtos.GetBundleRequest
-	for _, b := range bundleMap {
-		bundles = append(bundles, *b)
-	}
-	return bundles, nil
-}
-
-// func buildBundleQuery(bundleID, bundleName string) (string, []interface{}) {
-// 	var args []interface{}
-// 	query := `
-// 		SELECT
-// 			pb.bundle_id, pb.name, pb.description, pb.bundle_price,
-// 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-// 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
-// 		FROM product_bundles pb
-// 		LEFT JOIN bundle_products bp ON pb.bundle_id = bp.bundle_id
-// 		LEFT JOIN products p ON bp.product_id = p.product_id
-// 		WHERE 1=1
-// 	`
-// 	if bundleID != "" {
-// 		query += " AND pb.bundle_id = ?"
-// 		args = append(args, bundleID)
-// 	}
-// 	if bundleName != "" {
-// 		query += " AND LOWER(pb.name) LIKE ?"
-// 		args = append(args, "%"+strings.ToLower(bundleName)+"%")
-// 	}
-// 	query += " ORDER BY pb.bundle_id"
-// 	return query, args
-// }
-
-func scanBundleAndProduct(rows *sql.Rows) (dtos.GetBundleRequest, *dtos.Product, error) {
-	var (
-		bundleID, bundleName, bundleDesc                     sql.NullString
-		bundlePrice                                          sql.NullFloat64
-		productID, name, desc, sku, categoryID, searchVector sql.NullString
-		price                                                sql.NullFloat64
-		stockQuantity                                        sql.NullInt64
-		createdAt, updatedAt                                 sql.NullTime
-	)
-
-	if err := rows.Scan(
-		&bundleID, &bundleName, &bundleDesc, &bundlePrice,
-		&productID, &name, &desc, &sku, &price, &categoryID,
-		&stockQuantity, &searchVector, &createdAt, &updatedAt,
-	); err != nil {
-		return dtos.GetBundleRequest{}, nil, err
-	}
-
-	bundle := dtos.GetBundleRequest{
-		BundleID:          bundleID.String,
-		BundleName:        bundleName.String,
-		BundleDescription: bundleDesc.String,
-		BundlePrice:       bundlePrice.Float64,
-	}
-
-	// if product_id is NULL, return the bundle with no product
-	if !productID.Valid {
-		return bundle, nil, nil
-	}
-
-	product := &dtos.Product{
-		ID:            productID.String,
-		Name:          name.String,
-		Description:   desc.String,
-		SKU:           sku.String,
-		Price:         price.Float64,
-		CategoryID:    categoryID.String,
-		StockQuantity: int(stockQuantity.Int64),
-		SearchVector:  searchVector.String,
-	}
-
-	if createdAt.Valid {
-		product.CreatedAt = createdAt.Time
-	}
-	if updatedAt.Valid {
-		product.LastUpdated = updatedAt.Time
-	}
-
-	images, err := fetchProductImages(product.ID)
-	if err != nil {
-		return dtos.GetBundleRequest{}, nil, err
-	}
-	product.Images = images
-	variants, err := getProductVariants(product.ID)
-	if err != nil {
-		return dtos.GetBundleRequest{}, nil, err
-	}
-	product.ProductVariants = variants
-	return bundle, product, nil
+	return products, nil
 }
 
 // create bundle
 func CreateBundle(req dtos.Bundle) error {
-	bundleID, _ := shortid.Generate()
-	_, err := DB.Exec(`
-		INSERT INTO product_bundles (bundle_id, name, description, bundle_price)
-		VALUES (?,?,?,?)
-	`, bundleID, req.Name, req.Description, req.Price)
+	err := isCategoryThere(req.CategoryID)
 	if err != nil {
 		return err
+	}
+	var parentID *string
+	err = DB.QueryRow("SELECT parent_category_id FROM categories WHERE category_id = ?", req.CategoryID).Scan(&parentID)
+	if err != nil {
+		return err
+	}
+
+	// 3. Prevent adding product to parent category
+	if parentID == nil {
+		return fmt.Errorf("cannot create bundle in a parent category, choose a subcategory instead")
+	}
+
+	bundleID, _ := shortid.Generate()
+	_, err = DB.Exec(`
+		INSERT INTO product_bundles (bundle_id, name, description, bundle_price, bundle_image, category_id, compare_at_price, keep_selling_when_out_of_stock)
+		VALUES (?,?,?,?,?,?,?,?)
+	`, bundleID, req.Name, req.Description, req.Price, req.Image, req.CategoryID, req.CompareAtPrice, req.KeepSelling)
+	if err != nil {
+		return err
+	}
+	log.Printf("already addedd bundle")
+	//add products to bundle
+	if len(req.Products) > 0 {
+		err = AddProductsToBundle(req.Products, bundleID)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // update bundle
-func UpdateBundle(req dtos.UpdateBundle, bundleID string) error {
-	exists, err := RecordExists("product_bundles", fetchbundle, bundleID)
+func UpdateBundle(req dtos.UpdateBundle) error {
+	exists, err := RecordExists("product_bundles", fetchbundle, req.ID)
 	if err != nil {
 		return err
 	}
@@ -924,13 +872,32 @@ func UpdateBundle(req dtos.UpdateBundle, bundleID string) error {
 		updates = append(updates, "bundle_price = ?")
 		args = append(args, req.Price)
 	}
-
+	if req.Image != nil {
+		updates = append(updates, "bundle_image = ?")
+		args = append(args, req.Image)
+	}
+	if req.CategoryID != "" {
+		err = isCategoryThere(req.CategoryID)
+		if err != nil {
+			return err
+		}
+		updates = append(updates, "category_id = ?")
+		args = append(args, req.CategoryID)
+	}
+	if req.KeepSelling != nil {
+		updates = append(updates, "keep_selling_when_out_of_stock = ?")
+		args = append(args, *req.KeepSelling)
+	}
+	if req.CompareAtPrice != nil {
+		updates = append(updates, "compare_at_price = ?")
+		args = append(args, *req.CompareAtPrice)
+	}
 	if len(updates) == 0 {
 		return nil // Nothing to update
 	}
 
-	query += " " + strings.Join(updates, ", ") + " WHERE bundle_id = ?"
-	args = append(args, bundleID)
+	query += " " + strings.Join(updates, ", ") + whereBundleID
+	args = append(args, req.ID)
 
 	if _, err := DB.Exec(query, args...); err != nil {
 		return fmt.Errorf("failed to update bundle: %v", err)
@@ -957,7 +924,8 @@ func DeleteBundle(bundleID string) error {
 	return nil
 }
 
-func AddProductsToBundle(req dtos.AddProductsToBundle, bundleID string) error {
+func AddProductsToBundle(req []dtos.BundleProducts, bundleID string) error {
+	// check if bundle exists
 	exists, err := RecordExists("product_bundles", fetchbundle, bundleID)
 	if err != nil {
 		return err
@@ -965,30 +933,33 @@ func AddProductsToBundle(req dtos.AddProductsToBundle, bundleID string) error {
 	if !exists {
 		return fmt.Errorf("%s", nobundle)
 	}
-	if len(req.ProductIDs) == 0 {
-		return fmt.Errorf("no products provided")
-	}
-	checkQuery := `SELECT COUNT(1) FROM bundle_products WHERE bundle_id = ? AND product_id = ?`
-	insertQuery := `INSERT INTO bundle_products (bundle_product_id, bundle_id, product_id) VALUES (?, ?, ?)`
 
-	for _, productID := range req.ProductIDs {
-		bundleProductID, _ := shortid.Generate()
+	checkQuery := `SELECT COUNT(1) FROM bundle_products WHERE bundle_id = ? AND product_id = ?`
+	insertQuery := `INSERT INTO bundle_products (bundle_product_id, bundle_id, product_id, quantity) VALUES (?, ?, ?, ?)`
+
+	for _, product := range req {
+		// Check if this product already exists in the bundle
 		var count int
-		err := DB.QueryRow(checkQuery, bundleID, productID).Scan(&count)
-		if err != nil {
-			return fmt.Errorf("failed to check existence for product %s: %v", productID, err)
+		if err := DB.QueryRow(checkQuery, bundleID, product.ProductID).Scan(&count); err != nil {
+			return err
 		}
 
 		if count > 0 {
 			continue // skip if already exists
 		}
 
-		if _, err := DB.Exec(insertQuery, bundleProductID, bundleID, productID); err != nil {
-			return fmt.Errorf("failed to insert product to a bundle %s: %v", productID, err)
+		// Generate bundle_product_id
+		bundleProductID, _ := shortid.Generate()
+
+		// Insert product into bundle
+		if _, err := DB.Exec(insertQuery, bundleProductID, bundleID, product.ProductID, product.Quantity); err != nil {
+			return err
 		}
 	}
+
 	return nil
 }
+
 func RemoveProductsFromBundle(req dtos.AddProductsToBundle, bundleID string) error {
 	exists, err := RecordExists("product_bundles", fetchbundle, bundleID)
 	if err != nil {
@@ -1147,7 +1118,7 @@ func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.Subca
 	rows, err := DB.Query(`
 		SELECT 
 			product_id, name, description, sku, price, category_id, 
-			stock_quantity, search_vector, created_at, last_updated_at
+			stock_quantity, search_vector, created_at, last_updated_at, tag
 		FROM products
 		WHERE category_id = ?
 		ORDER BY created_at DESC
@@ -1163,7 +1134,7 @@ func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.Subca
 		if err := rows.Scan(
 			&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price,
 			&p.CategoryID, &p.StockQuantity, &p.SearchVector,
-			&p.CreatedAt, &p.LastUpdated,
+			&p.CreatedAt, &p.LastUpdated, &p.Tag,
 		); err != nil {
 			return nil, nil, err
 		}
@@ -1236,85 +1207,78 @@ func IsValidCategory(categoryID string) (bool, error) {
 	return false, nil // subcategory, not valid
 }
 
-func GetCategoriesWithSubcategoriesAndProducts(page, size int, filterCategoryID string) ([]dtos.CategoryResponse, *dtos.PaginationMeta, error) {
+// GetCategoriesWithSubcategoriesAndProducts retrieves main categories (or filtered one),
+// their subcategories, and products under each subcategory.
+func GetCategoriesWithSubcategoriesAndProducts(
+	searchParams dtos.SearchParams,
+	filterCategoryID string,
+) ([]dtos.CategoryResponse, *dtos.PaginationMeta, error) {
+
+	// --- Validate category filter ---
 	if filterCategoryID != "" {
-		ok, err := IsValidCategory(filterCategoryID)
+		valid, err := IsValidCategory(filterCategoryID)
 		if err != nil {
 			return nil, nil, err
 		}
-		if !ok {
+		if !valid {
 			return nil, nil, fmt.Errorf("cannot use a subcategory ID, must be a main category")
 		}
 	}
-	offset := (page - 1) * size
 
-	// Count top-level categories
-	totalItems, err := getTotalCategoriesCount(filterCategoryID)
+	// --- Fetch main categories ---
+	categories, err := getMainCategories(filterCategoryID, searchParams)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Get top-level categories
-	categories, err := getMainCategories(filterCategoryID, size, offset)
-	if err != nil {
-		return nil, nil, err
-	}
+	var paginationMeta *dtos.PaginationMeta
 
-	// For each category, attach subcategories & products
+	// --- For each category, attach subcategories and products ---
 	for i := range categories {
-		subs, subIDs, err := getSubcategoriesProducts(categories[i].ID)
+		subs, subIDs, err := getSubcategoriesWithParentID(categories[i].ID)
 		if err != nil {
 			return nil, nil, err
 		}
 		categories[i].Subcategories = subs
 
-		if len(subIDs) > 0 {
-			products, err := getProductsForSubcategories(subIDs)
-			if err != nil {
-				return nil, nil, err
-			}
-			categories[i].Products = products
+		products, meta, err := getProductsForSubcategories(subIDs, searchParams.Page, searchParams.Limit, searchParams)
+		if err != nil {
+			return nil, nil, err
 		}
+		categories[i].Products = products
+		paginationMeta = meta
 	}
 
-	meta := &dtos.PaginationMeta{
-		Page:       page,
-		Size:       size,
-		TotalItems: totalItems,
-		TotalPages: (totalItems + size - 1) / size,
-		HasPrev:    page > 1,
-		HasNext:    page*size < totalItems,
-	}
-
-	return categories, meta, nil
+	return categories, paginationMeta, nil
 }
-func getTotalCategoriesCount(filterCategoryID string) (int, error) {
-	query := `SELECT COUNT(*) FROM categories WHERE parent_category_id IS NULL`
-	args := []interface{}{}
+
+//
+// --- MAIN CATEGORY QUERY ---
+//
+
+func getMainCategories(filterCategoryID string, params dtos.SearchParams) ([]dtos.CategoryResponse, error) {
+	var (
+		query = `
+			SELECT category_id, name, parent_category_id, image, description
+			FROM categories
+			WHERE parent_category_id IS NULL`
+		args []interface{}
+	)
+
 	if filterCategoryID != "" {
 		query += " AND category_id = ?"
 		args = append(args, filterCategoryID)
 	}
 
-	var count int
-	if err := DB.QueryRow(query, args...).Scan(&count); err != nil {
-		return 0, err
+	if params.Q != "" {
+		query += " AND LOWER(name) LIKE ?"
+		args = append(args, "%"+strings.ToLower(params.Q)+"%")
 	}
-	return count, nil
-}
 
-func getMainCategories(filterCategoryID string, size, offset int) ([]dtos.CategoryResponse, error) {
-	query := `
-		SELECT category_id, name, parent_category_id, image, description
-		FROM categories
-		WHERE parent_category_id IS NULL`
-	args := []interface{}{}
-	if filterCategoryID != "" {
-		query += " AND category_id = ?"
-		args = append(args, filterCategoryID)
+	if params.CategoryName != "" {
+		query += " AND LOWER(name) LIKE ?"
+		args = append(args, "%"+strings.ToLower(params.CategoryName)+"%")
 	}
-	query += " ORDER BY category_id DESC LIMIT ? OFFSET ?"
-	args = append(args, size, offset)
 
 	rows, err := DB.Query(query, args...)
 	if err != nil {
@@ -1330,10 +1294,15 @@ func getMainCategories(filterCategoryID string, size, offset int) ([]dtos.Catego
 		}
 		categories = append(categories, cat)
 	}
+
 	return categories, nil
 }
 
-func getSubcategoriesProducts(parentID string) ([]dtos.SubcategoryResponse, []string, error) {
+//
+// --- SUBCATEGORIES QUERY ---
+//
+
+func getSubcategoriesWithParentID(parentID string) ([]dtos.SubcategoryResponse, []string, error) {
 	rows, err := DB.Query(`
 		SELECT category_id, name, parent_category_id, image, description
 		FROM categories
@@ -1343,8 +1312,11 @@ func getSubcategoriesProducts(parentID string) ([]dtos.SubcategoryResponse, []st
 	}
 	defer rows.Close()
 
-	var subs []dtos.SubcategoryResponse
-	var ids []string
+	var (
+		subs []dtos.SubcategoryResponse
+		ids  []string
+	)
+
 	for rows.Next() {
 		var sub dtos.SubcategoryResponse
 		if err := rows.Scan(&sub.ID, &sub.Name, &sub.ParentID, &sub.ImageURL, &sub.Description); err != nil {
@@ -1353,16 +1325,24 @@ func getSubcategoriesProducts(parentID string) ([]dtos.SubcategoryResponse, []st
 		subs = append(subs, sub)
 		ids = append(ids, sub.ID)
 	}
+
 	return subs, ids, nil
 }
 
-func getProductsForSubcategories(subIDs []string) ([]dtos.CategoryProduct, error) {
+//
+// --- PRODUCTS FOR SUBCATEGORIES ---
+//
+
+func getProductsForSubcategories(subIDs []string, page, size int, params dtos.SearchParams) ([]dtos.CategoryProduct, *dtos.PaginationMeta, error) {
+	if len(subIDs) == 0 {
+		return nil, nil, nil
+	}
+
+	offset := (page - 1) * size
 	placeholders := strings.Repeat(",?", len(subIDs)-1)
-	query := fmt.Sprintf(`
-		SELECT p.product_id, p.name, p.description, p.sku, p.price,
-		       p.category_id, c.parent_category_id, p.stock_quantity, p.search_vector,
-		       p.created_at, p.last_updated_at
-		FROM products p
+
+	// Base query
+	baseQuery := fmt.Sprintf(`FROM products p
 		JOIN categories c ON p.category_id = c.category_id
 		WHERE p.category_id IN (?%s)`, placeholders)
 
@@ -1371,9 +1351,34 @@ func getProductsForSubcategories(subIDs []string) ([]dtos.CategoryProduct, error
 		args[i] = id
 	}
 
-	rows, err := DB.Query(query, args...)
+	// Apply filters
+	filterQuery, filterArgs := buildProductFilters(params)
+	args = append(args, filterArgs...)
+	whereClause := baseQuery + filterQuery
+
+	// --- Count total items ---
+	countQuery := "SELECT COUNT(*) " + whereClause
+	var totalItems int
+	if err := DB.QueryRow(countQuery, args...).Scan(&totalItems); err != nil {
+		return nil, nil, err
+	}
+
+	// --- Fetch products ---
+	sortClause := getSortClause(params.SortBy)
+	dataQuery := fmt.Sprintf(`
+		SELECT 
+			p.product_id, p.name, p.description, p.sku, p.price,
+			p.category_id, c.parent_category_id, p.stock_quantity,
+			p.search_vector, p.created_at, p.last_updated_at, p.tag
+		%s
+		ORDER BY %s
+		LIMIT ? OFFSET ?`, whereClause, sortClause)
+
+	args = append(args, size, offset)
+
+	rows, err := DB.Query(dataQuery, args...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
@@ -1385,32 +1390,106 @@ func getProductsForSubcategories(subIDs []string) ([]dtos.CategoryProduct, error
 		if err := rows.Scan(
 			&pr.ID, &pr.Name, &pr.Description, &pr.SKU, &pr.Price,
 			&subcategoryID, &parentCategoryID, &pr.StockQuantity,
-			&pr.SearchVector, &pr.CreatedAt, &pr.LastUpdated,
+			&pr.SearchVector, &pr.CreatedAt, &pr.LastUpdated, &pr.Tag,
 		); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		pr.CategoryID = parentCategoryID // top-level / parent category
-		pr.SubcategoryID = subcategoryID // actual subcategory
+		pr.CategoryID = parentCategoryID
+		pr.SubcategoryID = subcategoryID
 
-		images, err := fetchProductImages(pr.ID)
-		if err != nil {
-			return nil, err
+		// Fetch related images and variants
+		if pr.Images, err = fetchProductImages(pr.ID); err != nil {
+			return nil, nil, err
 		}
-		pr.Images = images
-		variants, err := getProductVariants(pr.ID)
-		if err != nil {
-			return nil, err
+		if pr.ProductVariants, err = getProductVariants(pr.ID); err != nil {
+			return nil, nil, err
 		}
-		pr.ProductVariants = variants
 
 		products = append(products, pr)
 	}
-	return products, nil
+
+	// --- Pagination metadata ---
+	meta := &dtos.PaginationMeta{
+		Page:       page,
+		Size:       size,
+		TotalItems: totalItems,
+		TotalPages: int(math.Ceil(float64(totalItems) / float64(size))),
+		HasPrev:    page > 1,
+		HasNext:    page*size < totalItems,
+	}
+
+	return products, meta, nil
+}
+
+//
+// --- FILTER BUILDER ---
+//
+
+func buildProductFilters(params dtos.SearchParams) (string, []interface{}) {
+	var (
+		conditions []string
+		args       []interface{}
+	)
+
+	if params.ProductName != "" {
+		conditions = append(conditions, "LOWER(p.name) LIKE ?")
+		args = append(args, "%"+strings.ToLower(params.ProductName)+"%")
+	}
+
+	if params.SKU != "" {
+		conditions = append(conditions, "LOWER(p.sku) = ?")
+		args = append(args, strings.ToLower(params.SKU))
+	}
+
+	if params.Tag != "" {
+		conditions = append(conditions, "LOWER(p.tag) = ?")
+		args = append(args, strings.ToLower(params.Tag))
+	}
+
+	if params.MinPrice > 0 && params.MaxPrice > 0 {
+		conditions = append(conditions, "p.price BETWEEN ? AND ?")
+		args = append(args, params.MinPrice, params.MaxPrice)
+	}
+
+	// --- Variants filtering (fixed: NO leading "AND") ---
+	if len(params.Variants) > 0 {
+		var variantConds []string
+		for _, v := range params.Variants {
+			if strings.ToLower(v.Value) == "all" {
+				// lowerVariant should be something like: "LOWER(v.type) = ?"
+				variantConds = append(variantConds, lowerVariant)
+				args = append(args, strings.ToLower(v.Type))
+			} else {
+				// lowerVariantTypeName should be something like: "LOWER(v.type) = ? AND LOWER(pv.value) = ?"
+				variantConds = append(variantConds, lowerVariantTypeName)
+				args = append(args, strings.ToLower(v.Type), strings.ToLower(v.Value))
+			}
+		}
+
+		// IMPORTANT: no leading AND here — the full condition is just the IN(...) expression
+		variantQuery := fmt.Sprintf(
+			`p.product_id IN (
+				SELECT pv.product_id
+				FROM product_variants pv
+				JOIN variants v ON pv.variant_id = v.variant_id
+				WHERE %s
+			)`,
+			strings.Join(variantConds, " OR "),
+		)
+
+		// append the single condition (no leading AND)
+		conditions = append(conditions, variantQuery)
+	}
+
+	if len(conditions) == 0 {
+		return "", args
+	}
+	return " AND " + strings.Join(conditions, " AND "), args
 }
 
 // new fetch products
-func SearchProducts(params dtos.SearchParams) ([]dtos.Product, *dtos.PaginationMeta, error) {
+func SearchProducts(params dtos.SearchParams, isAdmin bool) ([]dtos.Product, *dtos.PaginationMeta, error) {
 	// Build the main query
 	query, args := buildSearchQuery(params)
 	countQuery, countArgs := buildCountQuerySearch(params)
@@ -1430,7 +1509,7 @@ func SearchProducts(params dtos.SearchParams) ([]dtos.Product, *dtos.PaginationM
 
 	var products []dtos.Product
 	for rows.Next() {
-		product, err := scanProduct(rows)
+		product, err := scanProduct(rows, isAdmin)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1451,34 +1530,65 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 		SELECT DISTINCT
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at,
-			c.name as category_name
+			c.name as category_name, p.tag
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
 		WHERE 1=1
 	`
 	var args []interface{}
-
+	// Apply search query (q parameter) - searches both category name and product name
+	if params.Q != "" {
+		query += " AND (LOWER(p.name) LIKE ? OR LOWER(c.name) LIKE ?)"
+		searchTerm := "%" + strings.ToLower(params.Q) + "%"
+		args = append(args, searchTerm, searchTerm)
+	}
 	// Apply filters
 	if params.CategoryName != "" {
-		query += " AND LOWER(c.name) LIKE ?"
+		query += lowerCname
 		args = append(args, "%"+strings.ToLower(params.CategoryName)+"%")
 	}
 
 	if params.ProductName != "" {
-		query += " AND LOWER(p.name) LIKE ?"
+		query += lowerPname
 		args = append(args, "%"+strings.ToLower(params.ProductName)+"%")
 	}
+	if params.SKU != "" {
+		query += " AND LOWER(p.sku) = ?"
+		args = append(args, strings.ToLower(params.SKU))
+	}
+	if params.Tag != "" {
+		query += " AND LOWER(p.tag) = ?"
+		args = append(args, strings.ToLower(params.Tag))
+	}
+	if params.MinPrice > 0 && params.MaxPrice > 0 {
+		query += " AND p.price BETWEEN ? AND ?"
+		args = append(args, params.MinPrice, params.MaxPrice)
+	}
+	// Apply multiple variant filters
+	if len(params.Variants) > 0 {
+		variantSubquery := `
+        AND p.product_id IN (
+            SELECT pv.product_id 
+            FROM product_variants pv
+            JOIN variants v ON pv.variant_id = v.variant_id
+            WHERE `
 
-	if params.VariantName != "" && params.VariantValue != "" {
-		query += `
-			AND p.product_id IN (
-				SELECT pv.product_id 
-				FROM product_variants pv
-				JOIN variants v ON pv.variant_id = v.variant_id
-				WHERE LOWER(v.variant_type) = ? AND LOWER(v.name) = ?
-			)
-		`
-		args = append(args, strings.ToLower(params.VariantName), strings.ToLower(params.VariantValue))
+		variantConditions := []string{}
+		for _, variant := range params.Variants {
+			if strings.ToLower(variant.Value) == "all" {
+				// Only match by type if "all"
+				variantConditions = append(variantConditions, lowerVariant)
+				args = append(args, strings.ToLower(variant.Type))
+			} else {
+				// Match by both type and value
+				variantConditions = append(variantConditions, lowerVariantTypeName)
+				args = append(args, strings.ToLower(variant.Type), strings.ToLower(variant.Value))
+			}
+		}
+
+		variantSubquery += strings.Join(variantConditions, " OR ")
+		variantSubquery += ")"
+		query += variantSubquery
 	}
 
 	// Apply sorting
@@ -1487,7 +1597,7 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 	// Apply pagination
 	if params.Limit > 0 {
 		offset := (params.Page - 1) * params.Limit
-		query += " LIMIT ? OFFSET ?"
+		query += limtOffset
 		args = append(args, params.Limit, offset)
 	}
 
@@ -1502,27 +1612,58 @@ func buildCountQuerySearch(params dtos.SearchParams) (string, []interface{}) {
 		WHERE 1=1
 	`
 	var args []interface{}
-
+	// Apply search query
+	if params.Q != "" {
+		query += " AND (LOWER(p.name) LIKE ? OR LOWER(c.name) LIKE ?)"
+		searchTerm := "%" + strings.ToLower(params.Q) + "%"
+		args = append(args, searchTerm, searchTerm)
+	}
 	if params.CategoryName != "" {
-		query += " AND LOWER(c.name) LIKE ?"
+		query += lowerCname
 		args = append(args, "%"+strings.ToLower(params.CategoryName)+"%")
 	}
 
 	if params.ProductName != "" {
-		query += " AND LOWER(p.name) LIKE ?"
+		query += lowerPname
 		args = append(args, "%"+strings.ToLower(params.ProductName)+"%")
 	}
+	if params.SKU != "" {
+		query += " AND LOWER(p.sku) = ?"
+		args = append(args, strings.ToLower(params.SKU))
+	}
+	if params.Tag != "" {
+		query += " AND LOWER(p.tag) = ?"
+		args = append(args, strings.ToLower(params.Tag))
+	}
+	if params.MinPrice > 0 && params.MaxPrice > 0 {
+		query += " AND p.price BETWEEN ? AND ?"
+		args = append(args, params.MinPrice, params.MaxPrice)
+	}
+	// Apply multiple variant filters
+	if len(params.Variants) > 0 {
+		variantSubquery := `
+        AND p.product_id IN (
+            SELECT pv.product_id 
+            FROM product_variants pv
+            JOIN variants v ON pv.variant_id = v.variant_id
+            WHERE `
 
-	if params.VariantName != "" && params.VariantValue != "" {
-		query += `
-			AND p.product_id IN (
-				SELECT pv.product_id 
-				FROM product_variants pv
-				JOIN variants v ON pv.variant_id = v.variant_id
-				WHERE LOWER(v.variant_type) = ? AND LOWER(v.name) = ?
-			)
-		`
-		args = append(args, strings.ToLower(params.VariantName), strings.ToLower(params.VariantValue))
+		variantConditions := []string{}
+		for _, variant := range params.Variants {
+			if strings.ToLower(variant.Value) == "all" {
+				// Only match by type if "all"
+				variantConditions = append(variantConditions, lowerVariant)
+				args = append(args, strings.ToLower(variant.Type))
+			} else {
+				// Match by both type and value
+				variantConditions = append(variantConditions, lowerVariantTypeName)
+				args = append(args, strings.ToLower(variant.Type), strings.ToLower(variant.Value))
+			}
+		}
+
+		variantSubquery += strings.Join(variantConditions, " OR ")
+		variantSubquery += ")"
+		query += variantSubquery
 	}
 
 	return query, args
@@ -1569,17 +1710,26 @@ func getSortClause(sortBy string) string {
 		return "p.created_at DESC"
 	}
 }
-func scanProduct(rows *sql.Rows) (dtos.Product, error) {
+
+// Helper to convert sql.NullFloat64 to *float64
+func nullFloat64ToPtr(n sql.NullFloat64) *float64 {
+	if n.Valid {
+		return &n.Float64
+	}
+	return nil
+}
+
+func scanProduct(rows *sql.Rows, isAdmin bool) (dtos.Product, error) {
 	var (
-		productID, name, desc, sku, categoryID, searchVector, categoryName sql.NullString
-		price                                                              sql.NullFloat64
-		stockQuantity                                                      sql.NullInt64
-		createdAt, updatedAt                                               sql.NullTime
+		productID, name, desc, sku, categoryID, searchVector, categoryName, tag sql.NullString
+		price                                                                   sql.NullFloat64
+		stockQuantity                                                           sql.NullInt64
+		createdAt, updatedAt                                                    sql.NullTime
 	)
 
 	if err := rows.Scan(
 		&productID, &name, &desc, &sku, &price, &categoryID,
-		&stockQuantity, &searchVector, &createdAt, &updatedAt, &categoryName,
+		&stockQuantity, &searchVector, &createdAt, &updatedAt, &categoryName, &tag,
 	); err != nil {
 		return dtos.Product{}, err
 	}
@@ -1588,7 +1738,10 @@ func scanProduct(rows *sql.Rows) (dtos.Product, error) {
 	if stockQuantity.Valid {
 		stock = int(stockQuantity.Int64)
 	}
-
+	tagStr := ""
+	if tag.Valid {
+		tagStr = strings.TrimSpace(tag.String)
+	}
 	product := dtos.Product{
 		ID:            productID.String,
 		Name:          name.String,
@@ -1599,6 +1752,7 @@ func scanProduct(rows *sql.Rows) (dtos.Product, error) {
 		CategoryName:  categoryName.String,
 		StockQuantity: stock,
 		SearchVector:  searchVector.String,
+		Tag:           &tagStr,
 	}
 
 	if createdAt.Valid {
@@ -1621,5 +1775,219 @@ func scanProduct(rows *sql.Rows) (dtos.Product, error) {
 	}
 	product.ProductVariants = variants
 
+	if isAdmin {
+		if err := enrichProductAdmin(&product); err != nil {
+			return product, err
+		}
+	}
+
 	return product, nil
+}
+
+// enrichProductAdmin adds admin-specific fields to the product.
+func enrichProductAdmin(product *dtos.Product) error {
+	var err error
+	product.CreatedBy, err = getProductCreator(product.ID)
+	if err != nil {
+		return err
+	}
+	product.IsInTodaysDeals, err = isProductInTodaysDeal(product.ID)
+	if err != nil {
+		return err
+	}
+	product.MaxStockQuantity, err = getMaxQuantity(product.ID)
+	if product.MaxStockQuantity < product.StockQuantity {
+		product.MaxStockQuantity = product.StockQuantity
+	}
+	return err
+}
+func getProductCreator(productID string) (string, error) {
+	var createdByID sql.NullString
+	query := `SELECT created_by_id FROM products WHERE product_id = ?`
+
+	err := DB.QueryRow(query, productID).Scan(&createdByID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil // product not found → treat as no creator
+		}
+		return "", fmt.Errorf("failed to get product creator ID: %v", err)
+	}
+
+	// If created_by_id is NULL → return empty string
+	if !createdByID.Valid || createdByID.String == "" {
+		return "", nil
+	}
+
+	// Fetch user info
+	var firstName, lastName sql.NullString
+	userQuery := `SELECT first_name, last_name FROM users WHERE user_id = ?`
+	err = DB.QueryRow(userQuery, createdByID.String).Scan(&firstName, &lastName)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil // user not found → return empty
+		}
+		return "", fmt.Errorf("failed to get user details: %v", err)
+	}
+
+	// Handle possible NULLs
+	fn := ""
+	ln := ""
+	if firstName.Valid {
+		fn = firstName.String
+	}
+	if lastName.Valid {
+		ln = lastName.String
+	}
+
+	fullName := strings.TrimSpace(fn + " " + ln)
+	return fullName, nil
+}
+func isProductInTodaysDeal(productID string) (bool, error) {
+	var dealID string
+
+	// Get deal_id for a deal whose name matches 'today'
+	dealQuery := `SELECT deal_id FROM deals WHERE name REGEXP '(?i)today' LIMIT 1`
+	err := DB.QueryRow(dealQuery).Scan(&dealID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil // No "today" deal exists
+		}
+		return false, fmt.Errorf("failed to get today's deal: %v", err)
+	}
+
+	// 2Check if this product is linked to that deal
+	var exists bool
+	checkQuery := `SELECT EXISTS(
+		SELECT 1 FROM deal_products WHERE product_id = ? AND deal_id = ?
+	)`
+	err = DB.QueryRow(checkQuery, productID, dealID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check product-deal link: %v", err)
+	}
+
+	return exists, nil
+}
+func getMaxQuantity(productID string) (int, error) {
+	var totalQuantity sql.NullInt64
+
+	query := `
+		SELECT SUM(quantity)
+		FROM inventory
+		WHERE product_id = ?
+	`
+	err := DB.QueryRow(query, productID).Scan(&totalQuantity)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get quantity for product %s: %v", productID, err)
+	}
+
+	if !totalQuantity.Valid {
+		return 0, nil // no entries found for this product
+	}
+
+	return int(totalQuantity.Int64), nil
+}
+
+func InsertProductSpecs(req dtos.ProductSpecs) error {
+	err := IsProductThere(req.ProductID)
+	if err != nil {
+		return err
+	}
+	insertQuery := `INSERT INTO product_specifications (specifications_id, product_id, weight, weight_limit, dimensions, manufacturer) VALUES (?, ?, ?, ?,?,?)`
+
+	// Generate bundle_product_id
+	specificationsID, _ := shortid.Generate()
+
+	// Insert product into bundle
+	if _, err := DB.Exec(insertQuery, specificationsID, req.ProductID, req.Weight, req.WeightLimit, req.Dimensions, req.Manufacturer); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Fetch most expensive and cheapest products
+func GetExpensiveAndCheapProducts() (*dtos.ExpensiveCheapProduct, error) {
+	cheapestProduct, err := getProductByPriceType("cheapest")
+	if err != nil {
+		return nil, err
+	}
+	expensiveProduct, err := getProductByPriceType("expensive")
+	if err != nil {
+		return nil, err
+	}
+	combinedProducts := &dtos.ExpensiveCheapProduct{
+		CheapestProduct:  *cheapestProduct,
+		ExpensiveProduct: *expensiveProduct,
+	}
+	return combinedProducts, nil
+}
+
+// getProductByPriceType fetches a single product with either the lowest or highest price.
+func getProductByPriceType(priceType string) (*dtos.Product, error) {
+	var orderClause string
+	switch strings.ToLower(priceType) {
+	case "cheapest":
+		orderClause = "ASC"
+	case "expensive":
+		orderClause = "DESC"
+	default:
+		return nil, fmt.Errorf("invalid price type: %s", priceType)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT 
+			p.product_id, p.name, p.description, p.sku, p.price, 
+			p.category_id, p.stock_quantity, p.search_vector, 
+			p.created_at, p.last_updated_at, c.name AS category_name, p.tag
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.category_id
+		ORDER BY p.price %s
+		LIMIT 1
+	`, orderClause)
+
+	var p dtos.Product
+	err := DB.QueryRow(query).Scan(
+		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
+		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
+		&p.CategoryName, &p.Tag,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // no products found
+		}
+		return nil, err
+	}
+
+	// Fetch product images
+	if p.Images, err = fetchProductImages(p.ID); err != nil {
+		return nil, err
+	}
+
+	// Fetch product variants
+	if p.ProductVariants, err = getProductVariants(p.ID); err != nil {
+		return nil, err
+	}
+
+	return &p, nil
+}
+
+// check if products exists in wishlist with userID
+func IsProductInUserWishlist(userID, productID string) (bool, error) {
+	var exists bool
+
+	query := `
+		SELECT EXISTS(
+			SELECT 1
+			FROM wishlists w
+			JOIN wishlist_items witems ON w.wishlist_id = witems.wishlist_id
+			WHERE w.user_id = ? AND witems.product_id = ?
+		)
+	`
+
+	err := DB.QueryRow(query, userID, productID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check wishlist: %w", err)
+	}
+
+	return exists, nil
 }

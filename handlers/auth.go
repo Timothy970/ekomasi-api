@@ -1,3 +1,8 @@
+/*
+Package handlers implements HTTP request handlers for authentication and authorization.
+This file contains handlers for user authentication flows including registration,
+login, logout and token management.
+*/
 package handlers
 
 import (
@@ -21,30 +26,39 @@ import (
 	"adenzo_backend/utils"
 )
 
+// Authentication-related constants
 const (
-	maxLoginAttempts      = 5
-	jailDuration          = 15 * time.Minute
+	// Maximum number of failed login attempts before user is jailed
+	maxLoginAttempts = 5
+	// Duration for which a user is jailed after max failed attempts
+	jailDuration = 15 * time.Minute
+	// Redis key prefix for tracking login attempts
 	loginAttemptKeyPrefix = "login:attempts:"
-	jailKeyPrefix         = "login:jail:"
+	// Redis key prefix for tracking jailed users
+	jailKeyPrefix = "login:jail:"
 )
 
+// Message templates for notifications
 var message = "Your verification code is %s. It will expire in 5 minutes. Adenzo."
 var subject = "Adenzo, Here is your OTP"
 
-// var tokenerr = "Failed to generate token"
+// JWT secret key for token signing
 var jwtSecret = []byte("Q7wcj5g0cDNRxoknR5uu")
 
-// RegisterHandler handles user registration.
-// @Summary Sign Up
-// @Description Sign up
-// @Tags Auth
-// @Accept json
-// @Produce json
-// @Param cart body dtos.RegisterRequest true "Sign up User"
-// @Success 201 {object} dtos.RegisterResponse
-// @Failure 400 {object} dtos.ErrorResponse
-// @Failure 409 {object} dtos.ErrorResponse
-// @Router /api/auth/signup [post]
+/*
+RegisterHandler processes new user registration requests.
+It validates input, checks for existing users, creates the account,
+generates and sends OTP for verification.
+
+Flow:
+1. Validates request body
+2. Checks if email/phone is provided
+3. Validates phone number format if provided
+4. Checks for existing user
+5. Creates user in database
+6. Generates and stores OTP
+7. Sends OTP via email/SMS
+*/
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -192,19 +206,19 @@ func CheckUserExistsByEmailOrPhone(w http.ResponseWriter, r *http.Request, req d
 	return true
 }
 
-// VerifySignupOTPHandler handles OTP verification during signup.
-//
-// @Summary Verify Signup OTP
-// @Description Verifies the OTP provided during user signup using either email or phone.
-// @Tags Auth
-// @Accept  json
-// @Produce  json
-// @Param request body dtos.VerifyOTP true "OTP verification payload"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{} "Bad request"
-// @Failure 401 {object} map[string]interface{} "Unauthorized"
-// @Failure 500 {object} map[string]interface{} "Server error"
-// @Router /api/auth/verify-otp [post]
+/*
+VerifySignupOTPHandler verifies OTP during signup process.
+It validates the OTP sent during registration and generates auth tokens
+on successful verification.
+
+Flow:
+1. Validates request (email/phone + OTP)
+2. Looks up user
+3. Validates OTP
+4. Generates auth tokens
+5. Updates last login
+6. Returns tokens
+*/
 func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -299,7 +313,7 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate token
-	token, err := generateToken(user, "auth", time.Hour)
+	token, err := generateToken(user, "auth", 5*time.Hour)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -332,17 +346,18 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// LoginHandler handles user login and generates JWT token.
-// @Summary Sign In
-// @Description Sign in
-// @Tags Auth
-// @Accept json
-// @Produce json
-// @Param cart body dtos.RegisterRequest true "Sign in User"
-// @Success 200 {object} dtos.RegisterResponse
-// @Failure 400 {object} dtos.ErrorResponse
-// @Failure 409 {object} dtos.ErrorResponse
-// @Router /api/auth/signin [post]
+/*
+LoginHandler processes user login requests.
+It implements rate limiting and jail mechanism for failed attempts.
+Sends OTP for two-factor authentication.
+
+Flow:
+1. Validates login request
+2. Checks if user is jailed
+3. Verifies user exists
+4. Generates and sends OTP
+5. Clears failed attempts on success
+*/
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -404,16 +419,16 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// LoginHandler handles user refresh Token
-// @Summary Refresh Token
-// @Description Refresh Token
-// @Tags Auth
-// @Accept json
-// @Produce json
-// @Success 200 {object} dtos.RegisterResponse
-// @Failure 400 {object} dtos.ErrorResponse
-// @Failure 409 {object} dtos.ErrorResponse
-// @Router /api/auth/refresh-token [post]
+/*
+RefreshTokenHandler handles token refresh requests.
+Issues new access and refresh tokens if the refresh token is valid.
+
+Flow:
+1. Validates refresh token
+2. Verifies user still exists
+3. Generates new token pair
+4. Updates last login time
+*/
 func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -451,8 +466,8 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// validate it a good refresh token
-	// Generate token
-	token, err := generateToken(user, "auth", time.Hour)
+	// Generate token that expires after 7 days
+	token, err := generateToken(user, "auth", 7*24*time.Hour)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -471,9 +486,9 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	// Return success response
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		Code: http.StatusOK,
-		Payload: map[string]interface{}{
+		Payload: map[string]any{
 			"token":                    token,
-			"token_expires_in":         3600,
+			"token_expires_in":         3600 * 7 * 24,
 			"refresh_token":            refreshToken,
 			"refresh_token_expires_in": 3600 * 12,
 		},
@@ -486,16 +501,15 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// LogoutHandler handles user logout
-// @Summary Logout
-// @Description Logs out the currently authenticated user by deleting their token
-// @Tags Auth
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Router /api/auth/logout [post]
+/*
+LogoutHandler invalidates the current user's token.
+Adds token to blacklist in Redis until original expiration.
+
+Flow:
+1. Extracts token
+2. Gets token expiration
+3. Adds to blacklist
+*/
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -543,7 +557,16 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 // 	json.NewEncoder(w).Encode(user.Profile)
 // }
 
-// resend otp
+/*
+ResendOptHandler resends OTP to user.
+Used when original OTP expires or wasn't received.
+
+Flow:
+1. Validates request
+2. Verifies user exists
+3. Generates new OTP
+4. Sends via email/SMS
+*/
 func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -608,7 +631,9 @@ func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// generateJWT generates a JWT token for the given username.
+// Helper functions
+
+// generateToken creates a new JWT token with user claims
 func generateToken(user *dtos.User, tokenType string, expiresIn time.Duration) (string, error) {
 	claims := jwt.MapClaims{
 		"id":           user.ID,
@@ -624,7 +649,7 @@ func generateToken(user *dtos.User, tokenType string, expiresIn time.Duration) (
 	return token.SignedString(jwtSecret)
 }
 
-// StoreOTPInRedis stores the OTP for a user ID in Redis with a TTL.
+// StoreOTPInRedis saves OTP in Redis with expiration
 func StoreOTPInRedis(userID string, otp string, ttl time.Duration) error {
 	key := fmt.Sprintf("otp:%s", userID)
 	err := Redis.Set(context.Background(), key, otp, ttl).Err()
@@ -634,6 +659,8 @@ func StoreOTPInRedis(userID string, otp string, ttl time.Duration) error {
 	}
 	return nil
 }
+
+// GetAndInvalidateOTP retrieves and immediately invalidates an OTP
 func GetAndInvalidateOTP(userID string) (string, error) {
 	ctx := context.Background()
 	key := fmt.Sprintf("otp:%s", userID)
@@ -652,7 +679,7 @@ func GetAndInvalidateOTP(userID string) (string, error) {
 	return otp, nil
 }
 
-// helper to get token claims
+// DecodeTokenHandler decodes and returns JWT claims without validation
 func DecodeTokenHandler(w http.ResponseWriter, r *http.Request) {
 	tokenStr := r.URL.Query().Get("token")
 	if tokenStr == "" {
@@ -685,7 +712,7 @@ func DecodeTokenHandler(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, `{"error":"Invalid token claims"}`, http.StatusBadRequest)
 }
 
-// helper function to implement jail mechanisms
+// Redis key management helpers
 func getLoginKey(identifier string) string {
 	return loginAttemptKeyPrefix + identifier
 }
@@ -693,6 +720,8 @@ func getLoginKey(identifier string) string {
 func getJailKey(identifier string) string {
 	return jailKeyPrefix + identifier
 }
+
+// Rate limiting and jail mechanism helpers
 func isUserJailed(identifier string) (bool, error) {
 	key := getJailKey(identifier)
 	count, err := Redis.Exists(context.Background(), key).Result()
@@ -727,6 +756,8 @@ func clearLoginAttempts(identifier string) {
 	Redis.Del(context.Background(), getLoginKey(identifier))
 	Redis.Del(context.Background(), getJailKey(identifier))
 }
+
+// Request processing helpers
 func decodeLoginRequest(r *http.Request) (*dtos.LoginRequest, error) {
 	var req dtos.LoginRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -754,6 +785,7 @@ func fetchUser(email, phone string) (*dtos.User, error) {
 	return models.GetUserByPhone(phone)
 }
 
+// Error handling helpers
 func handleFailedLogin(w http.ResponseWriter, identifier string, start time.Time, r *http.Request, raw string) {
 	_ = incrementFailedLogin(identifier)
 	attempts, _ := getFailedAttempts(identifier)
@@ -787,6 +819,7 @@ func dispatchOTP(user *dtos.User, otp string) {
 	}
 }
 
+// Response helpers
 func respondBadRequest(w http.ResponseWriter, msg string, start time.Time, r *http.Request, raw string) {
 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 		Code:      http.StatusBadRequest,
@@ -820,7 +853,7 @@ func respondInternalError(w http.ResponseWriter, msg string, start time.Time, r 
 	})
 }
 
-// auth.go - Modified to use dependency injection
+// Dependency injection interfaces and initialization
 type UtilsService interface {
 	GetRequestSummary(r *http.Request) string
 	ValidateStructAndRespond(req interface{}, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) bool

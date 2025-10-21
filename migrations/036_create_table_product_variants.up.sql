@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
    `product_variants_id` char(36) NOT NULL,
    `product_id` char(36) NOT NULL,
    `additional_price` decimal(10,2) NOT NULL DEFAULT '0.00',
-   `stock_quantity` int NOT NULL DEFAULT '0',
+   `stock_quantity` int DEFAULT '0',
    PRIMARY KEY (`product_variants_id`),
    UNIQUE KEY `uq_variant_product` (`variant_id`,`product_id`),
    KEY `idx_product_variants_product_id` (`product_id`),

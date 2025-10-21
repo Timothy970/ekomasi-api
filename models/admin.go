@@ -98,16 +98,16 @@ func ValidateVoucher(voucherCode string) (float64, error) {
 	return balance, nil
 }
 
-func ValidatePromoCode(voucherCode string) (dtos.PromoCodeData, error) {
+func ValidatePromoCode(voucherCode string, orderValue float64) (dtos.PromoCodeData, error) {
 	var promoCode dtos.PromoCodeData
 	var expiry time.Time
 	var isActive bool
 
 	err := DB.QueryRow(`
-		SELECT discount_type, expires_at, is_active, discount_value
+		SELECT discount_type, expires_at, is_active, discount_value, minimum_order_value, maximum_use
 		FROM vouchers 
 		WHERE code = ?
-	`, voucherCode).Scan(&promoCode.DiscountType, &expiry, &isActive, promoCode.DiscountValue)
+	`, voucherCode).Scan(&promoCode.DiscountType, &expiry, &isActive, promoCode.DiscountValue, promoCode.MinimumOrderValue, promoCode.MaximumUse)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -125,16 +125,30 @@ func ValidatePromoCode(voucherCode string) (dtos.PromoCodeData, error) {
 	if !isActive {
 		return dtos.PromoCodeData{}, fmt.Errorf("promo code is inactive")
 	}
-
+	//check if used up
+	if promoCode.MaximumUse <= 0 {
+		return dtos.PromoCodeData{}, fmt.Errorf("promo code has been used up")
+	}
+	//check if minimum order value is met
+	if promoCode.MinimumOrderValue != nil && orderValue < *promoCode.MinimumOrderValue {
+		return dtos.PromoCodeData{}, fmt.Errorf("minimum order value of %.2f not met", *promoCode.MinimumOrderValue)
+	}
 	return promoCode, nil
 }
+func IncrementPromoCodeUsage(code string) error {
+	//also increment number of times used
+	_, err := DB.Exec(`UPDATE promocodes SET maximum_use = maximum_use - 1, times_used = times_used + 1 WHERE code = ? AND maximum_use > 0`, code)
+	return err
+}
 func UpdateVoucherBalance(code string, newBalance float64) error {
-	_, err := DB.Exec(`UPDATE vouchers SET balance = ? WHERE code = ?`, newBalance, code)
+	isRedeemed := true
+	_, err := DB.Exec(`UPDATE vouchers SET balance = ?, is_redeemed = ? WHERE code = ?`, newBalance, isRedeemed, code)
 	return err
 }
 
 func AddProductFeature(input dtos.ProductFeature, productID string) (*dtos.ProductFeature, error) {
-	err := isProductThere(productID)
+	log.Println("Adding feature to product:", productID)
+	err := IsProductThere(productID)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +181,7 @@ func isFeatureThere(id string) error {
 	}
 	return nil
 }
-func UpdateProductFeature(input dtos.ProductFeature, featureID string) (*dtos.ProductFeature, error) {
+func UpdateProductFeature(input dtos.UpdateProductFeature, featureID string) (*dtos.ProductFeature, error) {
 	err := isFeatureThere(featureID)
 	if err != nil {
 		return nil, err
@@ -199,7 +213,7 @@ func UpdateProductFeature(input dtos.ProductFeature, featureID string) (*dtos.Pr
 	return GetProductFeatureByID(featureID)
 }
 func GetProductFeaturesByProductID(productID string) ([]dtos.ProductFeature, error) {
-	err := isProductThere(productID)
+	err := IsProductThere(productID)
 	if err != nil {
 		return nil, err
 	}

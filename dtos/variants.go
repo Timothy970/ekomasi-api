@@ -1,7 +1,7 @@
 package dtos
 
 type VariantRequest struct {
-	VariantType string  `json:"variant_type" validate:"required,oneof=color size material brand gender age_group availability condition pattern style season fit capacity length width sales_promotion feature"`
+	VariantType string  `json:"variant_type" validate:"required"`
 	Name        string  `json:"name" validate:"required"`
 	HexCode     *string `json:"hex_code,omitempty"` // only relevant for colors
 }
@@ -49,5 +49,5 @@ type ProductVariants struct {
 	Name            string  `json:"name"`
 	HexCode         *string `json:"hex_code,omitempty"`
 	AdditionalPrice float64 `json:"additional_price"`
-	StockQuantity   int     `json:"stock_quantity"`
+	StockQuantity   *int    `json:"stock_quantity"`
 }

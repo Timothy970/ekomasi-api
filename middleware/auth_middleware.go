@@ -185,4 +185,33 @@ func sendErrorResponse(w http.ResponseWriter, code int, message string) {
 	json.NewEncoder(w).Encode(response)
 }
 
-//Helper function to delete/blacklist tok
+func IsUserTokenPassed(r *http.Request) (*AuthenticatedUser, bool) {
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, bearer) {
+		return nil, false
+	}
+
+	tokenStr := strings.TrimPrefix(authHeader, bearer)
+
+	// Parse without validating expiration (optional)
+	token, _, err := new(jwt.Parser).ParseUnverified(tokenStr, jwt.MapClaims{})
+	if err != nil {
+		return nil, false
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, false
+	}
+
+	user := &AuthenticatedUser{
+		ID:        fmt.Sprintf("%v", claims["id"]),
+		Email:     fmt.Sprintf("%v", claims["email"]),
+		FirstName: fmt.Sprintf("%v", claims["first_name"]),
+		LastName:  fmt.Sprintf("%v", claims["last_name"]),
+		Role:      fmt.Sprintf("%v", claims["role"]),
+		Phone:     fmt.Sprintf("%v", claims["phone_number"]),
+	}
+
+	return user, true
+}

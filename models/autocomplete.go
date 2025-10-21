@@ -174,7 +174,7 @@ func searchCategoriesAutoComplete(searchTerm string, limit int) ([]dtos.AutoComp
 				Type:        categoryType,
 				ID:          categoryID.String,
 				Name:        name.String,
-				DisplayName: "Category: " + name.String,
+				DisplayName: name.String,
 				Link:        fmt.Sprintf("/%s/%s", categoryType, categoryID.String),
 			})
 		}

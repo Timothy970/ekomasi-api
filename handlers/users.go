@@ -38,7 +38,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if (input.Email == "" || input.Phonenumber == "") && input.Role == "" {
+	if (input.Email == "" || input.Phonenumber == "") && input.RoleID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
 			Message:   mandatory,
@@ -101,9 +101,11 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	if limit < 1 {
 		limit = 10
 	}
-
+	// support query by user name,phone,email
+	q := r.URL.Query().Get("q")
+	role := r.URL.Query().Get("role")
 	offset := (page - 1) * limit
-	users, meta, err := models.GetAllUsersWithPagination(limit, offset)
+	users, meta, err := models.GetAllUsersWithPagination(limit, offset, q, role)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -394,7 +396,7 @@ func GetUserDetails(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	user, err := models.GetUserByEmail(authUser.Email)
+	user, err := models.GetUserByUserID(authUser.ID)
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -408,14 +410,8 @@ func GetUserDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
-		Payload: map[string]interface{}{
-			"user_id":    user.ID,
-			"first_name": user.FirstName,
-			"last_name":  user.LastName,
-			"email":      user.Email,
-			"role":       user.Role,
-		},
+		Code:      http.StatusOK,
+		Payload:   user,
 		Message:   "User details",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -659,7 +655,7 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if (input.Email == "" || input.Phonenumber == "") && input.Role == "" {
+	if (input.Email == "" || input.Phonenumber == "") && input.RoleID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
 			Message:   mandatory,
