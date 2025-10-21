@@ -16,7 +16,7 @@ env:
   - name: ENVIRONMENT
     value: development
   - name: PORT
-    value: 8009
+    value: 8080
   - name: V2_URL
     value: http://api-v2.communications.svc.cluster.local:8080
   - name: DB_NAME
