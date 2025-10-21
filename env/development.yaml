@@ -41,3 +41,7 @@ secrets:
 requires:
   - mysql
   - redis
+
+migration_type: custom
+migration_command: ["/app/app", "-migrate=true"]
+
