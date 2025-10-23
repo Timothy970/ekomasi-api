@@ -13,6 +13,10 @@ CREATE TABLE IF NOT EXISTS stock_transfers (
    KEY `to_warehouse_id` (`to_warehouse_id`),
    KEY `idx_stock_transfers_product_id` (`product_id`),
    CONSTRAINT `stock_transfers_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`) ON DELETE RESTRICT,
+   -- NOTE: The foreign key reference for `variant_id` was changed from `product_variants` to `variants`.
+   -- This change was made to reflect the new table structure after renaming or consolidating product variants.
+   -- Impact: Existing data referencing `product_variants` must be migrated to `variants` before applying this migration.
+   -- Ensure all application code and data are updated accordingly to prevent foreign key violations.
    CONSTRAINT `stock_transfers_ibfk_2` FOREIGN KEY (`variant_id`) REFERENCES `variants` (`variant_id`) ON DELETE RESTRICT,
    CONSTRAINT `stock_transfers_ibfk_3` FOREIGN KEY (`from_warehouse_id`) REFERENCES `warehouses` (`warehouse_id`) ON DELETE RESTRICT,
    CONSTRAINT `stock_transfers_ibfk_4` FOREIGN KEY (`to_warehouse_id`) REFERENCES `warehouses` (`warehouse_id`) ON DELETE RESTRICT
