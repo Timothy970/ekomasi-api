@@ -118,10 +118,14 @@ func main() {
 		fmt.Println("Migration completed successfully.")
 		return
 	}
-	// Open or create the log file
+	// Ensure the log directory exists before opening the log file
+	logDir := filepath.Dir("storage/logs/adenzo.log")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		log.Fatalf("Failed to create log directory '%s': %v", logDir, err)
+	}
 	logFile, err := os.OpenFile("storage/logs/adenzo.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
+		log.Fatalf("Failed to open log file 'storage/logs/adenzo.log': %v. Please check that the directory '%s' exists and that you have write permissions.", err, logDir)
 	}
 	defer logFile.Close() // Ensures the log file is closed when the program exits
 	log.SetOutput(logFile)
