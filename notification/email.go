@@ -36,7 +36,7 @@ func SendEmail(to string, subject string, body string) error {
 // function to send single emails to apiv2
 func sendSingleEmail(data map[string]interface{}) (string, error) {
 	sendUrl := os.Getenv("V2_URL")
-	url := sendUrl + "services/send-email"
+	url := sendUrl + "/services/send-email"
 	method := "POST"
 	payloadBytes, err := json.Marshal(data)
 	if err != nil {
