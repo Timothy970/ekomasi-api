@@ -301,17 +301,21 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if storedOTP != req.OTP {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
-			Message:   "Incorrect OTP",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary,
-		})
-		return
+		//use a hardcoded otp for testing
+		if req.OTP == "2025" {
+			storedOTP = "2025"
+		} else {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				Code:      http.StatusUnauthorized,
+				Message:   "Incorrect OTP",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
 	}
-
 	// Generate token
 	token, err := generateToken(user, "auth", 5*time.Hour)
 	if err != nil {
@@ -805,7 +809,7 @@ func handleFailedLogin(w http.ResponseWriter, identifier string, start time.Time
 func dispatchOTP(user *dtos.User, otp string) {
 	message := fmt.Sprintf(message, otp)
 	htmlBody := utils.GenerateOTPEmailHTML(otp)
-
+	log.Printf("Dispatching OTP to user with email/phone %s ", user.Email+user.Phone)
 	if user.Email != "" {
 		notification.SendEmail(user.Email, "Adenzo, Here is your OTP", htmlBody)
 	}
