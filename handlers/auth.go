@@ -67,7 +67,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Auth") {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Auth", "Auth") {
 		return
 	}
 	// Validate request
