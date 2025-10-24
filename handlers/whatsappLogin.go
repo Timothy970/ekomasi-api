@@ -36,7 +36,7 @@ func WhatsAppLoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Auth") {
 		return
 	}
 
@@ -60,9 +60,12 @@ func WhatsAppLoginHandler(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		user, err = models.CreateUser(request)
 		if err != nil {
-			log.Printf("create user error : %s", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Auth",
+					Description: "Error creating user",
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   "Error creating user",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -103,7 +106,11 @@ func WhatsAppLoginHandler(w http.ResponseWriter, r *http.Request) {
 	clearLoginAttempts(req.Phone)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: "WhatsApp verification message sent",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "WhatsApp verification message sent",
 		TimeTaken: time.Since(start),
@@ -120,7 +127,11 @@ func VerifyWhatsAppHandler(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Verification token is required when verifying WhatsApp login",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "Verification token is required",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -134,7 +145,11 @@ func VerifyWhatsAppHandler(w http.ResponseWriter, r *http.Request) {
 	userID, err := GetUserIDFromVerificationToken(token)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Invalid or expired verification token when retrieving user ID",
+				Code:        http.StatusUnauthorized,
+			},
 			Message:   "Invalid or expired verification token",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -148,7 +163,11 @@ func VerifyWhatsAppHandler(w http.ResponseWriter, r *http.Request) {
 	user, err := models.GetUserByUserID(userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "No user found for the provided verification token",
+				Code:        http.StatusUnauthorized,
+			},
 			Message:   noUserFound,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -168,7 +187,11 @@ func VerifyWhatsAppHandler(w http.ResponseWriter, r *http.Request) {
 	authToken, err := generateToken(&User, "auth", time.Hour)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Failed to generate auth token after WhatsApp verification",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "Token generation failed",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -183,7 +206,11 @@ func VerifyWhatsAppHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Return success response (could redirect to app with token)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: "WhatsApp verification successful",
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"token":      authToken,
 			"expires_in": 3600,
@@ -226,7 +253,11 @@ func WhatsAppWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: "Webhook processed",
+		},
+		Payload:   nil,
 		Message:   "Webhook processed",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),

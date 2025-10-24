@@ -12,6 +12,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var variantWithID = "Variant with ID "
+
 // Create a variant
 // Create Product Variant
 // @Summary Product Variants
@@ -25,7 +27,7 @@ func CreateVariant(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -35,14 +37,18 @@ func CreateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 
 	_, err := models.CreateVariant(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to create variant",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -52,7 +58,11 @@ func CreateVariant(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = utils.DeleteCache("all_variants")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Variant created successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Variant created successfully",
 		TimeTaken: time.Since(start),
@@ -93,7 +103,11 @@ func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
 	variant, pagination, err := models.GetVariantsWithProductsPaginated(variants, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to get products variants",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -121,7 +135,11 @@ func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Products variants fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   response,
 		Message:   "Products variants",
 		TimeTaken: time.Since(start),
@@ -146,7 +164,11 @@ func GetVariant(w http.ResponseWriter, r *http.Request) {
 	variant, err := models.GetVariant(id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to fetch variant with ID " + id,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -155,7 +177,11 @@ func GetVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: variantWithID + id + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   variant,
 		Message:   "Variant fetched successfully",
 		TimeTaken: time.Since(start),
@@ -183,7 +209,11 @@ func ListVariants(w http.ResponseWriter, r *http.Request) {
 		variants, err = models.ListVariants()
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusBadRequest,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Failed to list variants",
+					Code:        http.StatusBadRequest,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -196,7 +226,11 @@ func ListVariants(w http.ResponseWriter, r *http.Request) {
 		variants = cachedVariants
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Variants fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   variants,
 		Message:   "Variants fetched successfully",
 		TimeTaken: time.Since(start),
@@ -217,7 +251,7 @@ func UpdateVariant(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -227,14 +261,18 @@ func UpdateVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	id := mux.Vars(r)["variant_id"]
 
 	if err := models.UpdateVariantByID(id, *req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to update variant with ID " + id,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -244,7 +282,11 @@ func UpdateVariant(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = utils.DeleteCache("all_variants")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: variantWithID + id + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Variants updated successfully",
 		TimeTaken: time.Since(start),
@@ -265,14 +307,18 @@ func DeleteVariant(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
 	id := mux.Vars(r)["variant_id"]
 	if err := models.DeleteVariantByID(id); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to delete variant with ID " + id,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -282,7 +328,11 @@ func DeleteVariant(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = utils.DeleteCache("all_variants")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: variantWithID + id + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Variants deleted successfully",
 		TimeTaken: time.Since(start),
@@ -304,7 +354,7 @@ func AddProductVariant(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -314,14 +364,18 @@ func AddProductVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	id := mux.Vars(r)["variant_id"]
 
 	if err := models.AddProductVariant(id, *req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to add product to variant with ID " + id,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -333,7 +387,11 @@ func AddProductVariant(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCacheByPrefix("products_page_")
 	_ = utils.DeleteCacheByPrefix("pagination_page_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product added to variant successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Product added to variant successfully",
 		TimeTaken: time.Since(start),
@@ -354,7 +412,7 @@ func RemoveProductVariant(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -363,7 +421,11 @@ func RemoveProductVariant(w http.ResponseWriter, r *http.Request) {
 	variantID := mux.Vars(r)["variant_id"]
 	if err := models.RemoveProductVariant(productID, variantID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to remove product with ID " + productID + " from variant with ID " + variantID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -372,7 +434,11 @@ func RemoveProductVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product with ID " + productID + " removed from variant with ID " + variantID + " successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Product removed from variant successfully",
 		TimeTaken: time.Since(start),
@@ -396,7 +462,11 @@ func ListProductVariants(w http.ResponseWriter, r *http.Request) {
 	pv, err := models.ListProductVariants(productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to list variants for product with ID " + productID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -405,7 +475,11 @@ func ListProductVariants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product variants retrieved successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   pv,
 		Message:   "Product variants",
 		TimeTaken: time.Since(start),

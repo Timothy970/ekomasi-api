@@ -13,6 +13,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var dealWithID = "Deal with ID "
+
 // Create deals eg today's deal, flash sale, etc
 // Get deals
 // Update deals
@@ -24,7 +26,7 @@ func CreateDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Deals")
 	if !ok {
 		return
 	}
@@ -32,13 +34,17 @@ func CreateDealHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
 		return
 	}
 	_, err := models.CreateDeal(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: "Failed to create deal",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -48,7 +54,11 @@ func CreateDealHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Deals",
+			Description: "Deal created successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "Deal created successfully",
 		TimeTaken: time.Since(start),
@@ -66,7 +76,11 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 	deals, pagination, err := models.GetAllDeals(page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: "Failed to get deals",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -75,7 +89,11 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Deals",
+			Description: "All deals fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   map[string]any{"deals": deals, "pagination": pagination},
 		Message:   "Deals fetched successfully",
 		TimeTaken: time.Since(start),
@@ -86,7 +104,7 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Deals")
 	if !ok {
 		return
 	}
@@ -95,13 +113,17 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
 		return
 	}
 	err := models.UpdateDeal(dealID, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: "Failed to update deal with ID " + dealID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -110,7 +132,11 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Deals",
+			Description: dealWithID + dealID + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Deal updated successfully",
 		TimeTaken: time.Since(start),
@@ -121,7 +147,7 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Deals")
 	if !ok {
 		return
 	}
@@ -129,7 +155,11 @@ func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
 	err := models.DeleteDeal(dealID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: "Failed to delete deal with ID " + dealID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -138,7 +168,11 @@ func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Deals",
+			Description: dealWithID + dealID + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Deal deleted successfully",
 		TimeTaken: time.Since(start),
@@ -150,7 +184,7 @@ func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
 func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Deals")
 	if !ok {
 		return
 	}
@@ -158,13 +192,17 @@ func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
 		return
 	}
 	err := models.AddProductToDeal(req.ID, req.ProductID, nil, nil)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: "Failed to add product with product ID " + req.ProductID + " to deal with deal ID " + req.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -173,7 +211,11 @@ func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Deals",
+			Description: "Product with ID " + req.ProductID + " added to deal with ID " + req.ID + " successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Product added to deal successfully",
 		TimeTaken: time.Since(start),
@@ -185,7 +227,7 @@ func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
 func RemoveProductFromDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Deals")
 	if !ok {
 		return
 	}
@@ -193,13 +235,17 @@ func RemoveProductFromDealHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
 		return
 	}
 	err := models.RemoveProductFromDeal(req.ID, req.ProductID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: "Failed to remove product with product ID " + req.ProductID + " from deal with deal ID " + req.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -208,7 +254,11 @@ func RemoveProductFromDealHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Deals",
+			Description: "Product with ID " + req.ProductID + " removed from deal with ID " + req.ID + " successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Product removed from deal successfully",
 		TimeTaken: time.Since(start),
@@ -225,7 +275,11 @@ func GetDealWithProductsHandler(w http.ResponseWriter, r *http.Request) {
 	deals, pagination, err := models.GetDealWithProducts(dealID, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: "Failed to get deal with ID " + dealID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -234,7 +288,11 @@ func GetDealWithProductsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Deals",
+			Description: "Deal of ID " + dealID + " with products fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   map[string]any{"deals": deals, "pagination": pagination},
 		Message:   "Deal with products fetched successfully",
 		TimeTaken: time.Since(start),
@@ -246,14 +304,18 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Deals"); !ok {
 		return
 	}
 
 	req, err := parseDealProductRequest(r)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: "Failed to parse deal product request",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -262,7 +324,7 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
 		return
 	}
 
@@ -273,7 +335,11 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 	startDate, endDate, err := parseDuration(req.Duration)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: "Failed to parse duration when creating deal",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -286,7 +352,11 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 	dealID, err := createDeal(req.Title, startDate, endDate)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: "Failed to create deal",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -301,7 +371,12 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Deals",
+			Description: dealWithID + dealID + " created successfully",
+			Code:        http.StatusCreated,
+		},
+		Payload:   nil,
 		Message:   fmt.Sprintf("%s Deal created successfully", req.Title),
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -357,7 +432,11 @@ func validateProductsExist(products []dtos.ProductsDeal, w http.ResponseWriter, 
 				err = fmt.Errorf("product with ID %s not found", p.ProductID)
 			}
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Deals",
+					Description: "Failed to validate product existence when creating deal",
+					Code:        http.StatusBadRequest,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -390,7 +469,11 @@ func addProductsToDeal(dealID string, products []dtos.ProductsDeal, w http.Respo
 		discount := float64(p.Discount)
 		if err := models.AddProductToDeal(dealID, p.ProductID, &p.DiscountType, &discount); err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Deals",
+					Description: "Failed to add product to deal when creating deal with deal ID " + dealID,
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),

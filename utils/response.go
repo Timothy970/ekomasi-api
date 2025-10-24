@@ -14,34 +14,39 @@ import (
 	"time"
 )
 
+type CollectiveInfo struct {
+	Module      string
+	Description string
+	Code        int
+}
 type SuccessJSONResponseOptions struct {
-	Code      int
-	Payload   interface{}
-	Message   string
-	TimeTaken time.Duration
-	Function  string
-	Request   *http.Request
-	RawBody   string
+	CollectiveInfo CollectiveInfo
+	Payload        interface{}
+	Message        string
+	TimeTaken      time.Duration
+	Function       string
+	Request        *http.Request
+	RawBody        string
 }
 type ErrorJSONResponseOptions struct {
-	Code      int
-	Message   string
-	TimeTaken time.Duration
-	Function  string
-	Request   *http.Request
-	RawBody   string
+	CollectiveInfo CollectiveInfo
+	Message        string
+	TimeTaken      time.Duration
+	Function       string
+	Request        *http.Request
+	RawBody        string
 }
 
 var RespondWithError = func(w http.ResponseWriter, erropts ErrorJSONResponseOptions) {
 
 	RespondWithJSON(w, SuccessJSONResponseOptions{
-		Code:      erropts.Code,
-		Payload:   nil,
-		Message:   erropts.Message,
-		TimeTaken: erropts.TimeTaken,
-		Function:  erropts.Function,
-		Request:   erropts.Request,
-		RawBody:   erropts.RawBody,
+		CollectiveInfo: erropts.CollectiveInfo,
+		Payload:        nil,
+		Message:        erropts.Message,
+		TimeTaken:      erropts.TimeTaken,
+		Function:       erropts.Function,
+		Request:        erropts.Request,
+		RawBody:        erropts.RawBody,
 	})
 
 }
@@ -57,35 +62,37 @@ var RespondWithJSON = func(w http.ResponseWriter, opts SuccessJSONResponseOption
 	// Log to file
 	log.Printf(
 		`[%s] [%s] User: %s | Request Info: %s | Function: %s | Time Taken: %s | Status Code: %d | Message: %s`,
-		http.StatusText(opts.Code),
+		http.StatusText(opts.CollectiveInfo.Code),
 		time.Now().Format("2006-01-02 15:04:05"),
 		userID,
 		opts.RawBody,
 		opts.Function,
 		opts.TimeTaken,
-		opts.Code,
+		opts.CollectiveInfo.Code,
 		opts.Message,
 	)
 
 	// Log to DB
 	logger.Log(logger.LogEntry{
-		Level:   levelFromStatus(opts.Code),
+		Level:   levelFromStatus(opts.CollectiveInfo.Code),
 		Message: opts.Message,
 		UserID:  &userID,
 		Metadata: map[string]interface{}{
 			"Request Info": opts.RawBody,
 			"Function":     opts.Function,
 			"Time Taken":   opts.TimeTaken.String(),
+			"Module":       opts.CollectiveInfo.Module,
+			"Description":  opts.CollectiveInfo.Description,
 		},
 	})
 
 	// Create response
 	response := map[string]interface{}{
-		"status_code": opts.Code,
+		"status_code": opts.CollectiveInfo,
 		"message":     opts.Message,
 	}
 
-	if opts.Code < 400 || (opts.Payload != nil && !isEmpty(opts.Payload)) {
+	if opts.CollectiveInfo.Code < 400 || (opts.Payload != nil && !isEmpty(opts.Payload)) {
 		response["data"] = opts.Payload
 	}
 
@@ -96,7 +103,7 @@ var RespondWithJSON = func(w http.ResponseWriter, opts SuccessJSONResponseOption
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(opts.Code)
+	w.WriteHeader(opts.CollectiveInfo.Code)
 	w.Write(respBytes)
 }
 

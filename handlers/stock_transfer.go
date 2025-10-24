@@ -24,7 +24,7 @@ func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse")
 	if !ok {
 		return
 	}
@@ -33,12 +33,16 @@ func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Warehouse") {
 		return
 	}
 	if req.FromWarehouseID == req.ToWarehouseID {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Warehouse",
+				Description: "From and To warehouse cannot be the same",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "From and To warehouse cannot be the same",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -48,7 +52,11 @@ func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := models.CreateStockTransfer(*req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Warehouse",
+				Description: "Failed to create stock transfer",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -59,7 +67,11 @@ func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("transfers_")
 	utils.DeleteCacheByPrefix("transfers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Warehouse",
+			Description: "Stock transfer created successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "Stock transfer created successfully",
 		TimeTaken: time.Since(start),
@@ -83,7 +95,7 @@ func ListStockTransfers(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse"); !ok {
 		return
 	}
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
@@ -100,7 +112,11 @@ func ListStockTransfers(w http.ResponseWriter, r *http.Request) {
 		transfers, meta, err = models.ListStockTransfers(page, size)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Warehouse",
+					Description: "Failed to list stock transfers",
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -116,7 +132,11 @@ func ListStockTransfers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Warehouse",
+			Description: "Stock transfers fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   dtos.StockTransferListResponse{Meta: *meta, StockTransfers: transfers},
 		Message:   "Stock transfers fetched successfully",
 		TimeTaken: time.Since(start),
@@ -142,7 +162,11 @@ func GetStockTransfer(w http.ResponseWriter, r *http.Request) {
 	st, err := models.GetStockTransferByID(id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Warehouse",
+				Description: "Failed to fetch stock transfer with ID " + id,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -152,7 +176,11 @@ func GetStockTransfer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Warehouse",
+			Description: "Stock transfer fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   st,
 		Message:   "Stock transfer fetched successfully",
 		TimeTaken: time.Since(start),
@@ -174,7 +202,7 @@ func UpdateStockTransfer(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse")
 	if !ok {
 		return
 	}
@@ -183,14 +211,18 @@ func UpdateStockTransfer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Warehouse") {
 		return
 	}
 	id := mux.Vars(r)["transfer_id"]
 
 	if err := models.UpdateStockTransfer(req.Quantity, id); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Warehouse",
+				Description: "Failed to update stock transfer with ID " + id,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -201,7 +233,11 @@ func UpdateStockTransfer(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("transfers_")
 	utils.DeleteCacheByPrefix("transfers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Warehouse",
+			Description: "Stock transfer with ID " + id + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Stock transfer updated successfully",
 		TimeTaken: time.Since(start),

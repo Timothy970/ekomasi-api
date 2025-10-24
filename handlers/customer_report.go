@@ -21,7 +21,11 @@ func GetCustomerRetention(w http.ResponseWriter, r *http.Request) {
 	ret, err := models.GetCustomerRetention(start, end, duration)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to get customer retention report",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -36,7 +40,11 @@ func GetCustomerRetention(w http.ResponseWriter, r *http.Request) {
 		rate = float64(ret.ReturningCustomers) / float64(total) * 100
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Customer retention report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"new_customers":              ret.NewCustomers,
 			"returning_customers":        ret.NewCustomers,
@@ -65,7 +73,11 @@ func GetCustomerRetentionTrends(w http.ResponseWriter, r *http.Request) {
 	if periodStr != "" {
 		if periodStr != "month" && periodStr != "quarter" && periodStr != "year" {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusBadRequest,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Reports",
+					Description: "Invalid period specified for customer retention trends",
+					Code:        http.StatusBadRequest,
+				},
 				Message:   "Period should be either month, quarter or year",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -79,7 +91,11 @@ func GetCustomerRetentionTrends(w http.ResponseWriter, r *http.Request) {
 	ret, err := models.GetCustomerRetentionTrends(start, end, period)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to get customer retention trends",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -89,7 +105,11 @@ func GetCustomerRetentionTrends(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Customer retention trend report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   ret,
 		Message:   "Customer retention trend report generated successfully",
 		TimeTaken: time.Since(start),
@@ -107,7 +127,11 @@ func GetCustomerRetentionSummary(w http.ResponseWriter, r *http.Request) {
 	ret, err := models.GetCustomerRetentionSummary(start, end)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to get customer retention summary",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -117,7 +141,11 @@ func GetCustomerRetentionSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Customer retention summary report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   ret,
 		Message:   "Customer retention summary report generated successfully",
 		TimeTaken: time.Since(start),

@@ -16,7 +16,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
-var InvalidOrderID = "Invalid order ID"
+var (
+	InvalidOrderID = "Invalid order ID"
+	orderWithID    = "Order with ID "
+)
 
 // CreateOrder creates a new order for the authenticated user
 // @Summary      Create order
@@ -38,7 +41,7 @@ func CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
 		return
 	}
 	totalAmount, totalDiscount, applyFreeShipping, err := processOrderItems(req.OrderItems)
@@ -76,7 +79,11 @@ func CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	finalAmount := totalAmount + req.DeliveryCharge - totalDiscount
 	//send sms and email notification
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: orderWithID + orderID + " created successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload: map[string]interface{}{
 			"order_id":    orderID,
 			"delivery_id": deliveryID,
@@ -133,7 +140,11 @@ func createOrderItems(orderID string, items []dtos.OrderItemRequest) error {
 
 func respondInternalServerError(w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time, msg string) {
 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-		Code:      http.StatusInternalServerError,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: msg,
+			Code:        http.StatusInternalServerError,
+		},
 		Message:   msg,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -186,7 +197,7 @@ func calculateDifferentPromotionTypes(promo *dtos.PromotionData, item dtos.Order
 func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
 	if !ok {
 		return
 	}
@@ -199,7 +210,11 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 	functionName := utils.GetCurrentFuncName()
 	respondWithError := func(code int, message string) {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      code,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: message,
+				Code:        code,
+			},
 			Message:   message,
 			TimeTaken: time.Since(start),
 			Function:  functionName,
@@ -210,7 +225,11 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 
 	respondWithSuccess := func(payload interface{}) {
 		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-			Code:      http.StatusOK,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Order retrieved successfully",
+				Code:        http.StatusOK,
+			},
 			Payload:   payload,
 			Message:   "Success",
 			TimeTaken: time.Since(start),
@@ -264,7 +283,11 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 	orderID := r.URL.Query().Get("order_id")
 	if orderID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Invalid order ID provided",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   InvalidOrderID,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -282,7 +305,11 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s", err)
 
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to update order status for order ID " + orderID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -292,7 +319,11 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: "Order status for order ID " + orderID + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Order status updated successfully",
 		TimeTaken: time.Since(start),
@@ -317,7 +348,11 @@ func ListOrders(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to retrieve user from context",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -330,7 +365,11 @@ func ListOrders(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to list orders for user ID " + user.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -340,7 +379,11 @@ func ListOrders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: "Orders fetched successfully for user ID " + user.ID,
+			Code:        http.StatusOK,
+		},
 		Payload:   map[string]any{"orders": orders, "pagination": pagination},
 		Message:   "List Orders",
 		TimeTaken: time.Since(start),
@@ -367,7 +410,11 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 	orderID := r.URL.Query().Get("order_id")
 	if orderID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Invalid order ID",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   InvalidOrderID,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -378,7 +425,11 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to retrieve user from context",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -389,7 +440,11 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 	order, err := models.GetOrderByUser(orderID, user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to fetch order with ID " + orderID + " for user ID " + user.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -399,7 +454,11 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	if order == nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Order not found with order ID " + orderID + " and user ID " + user.ID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   "Order not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -409,7 +468,11 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: orderWithID + orderID + " fetched successfully for user ID " + user.ID,
+			Code:        http.StatusOK,
+		},
 		Payload:   order,
 		Message:   "Orders",
 		TimeTaken: time.Since(start),
@@ -424,7 +487,11 @@ func ViewOrderPOS(w http.ResponseWriter, r *http.Request) {
 	orderID := r.URL.Query().Get("order_id")
 	if orderID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Invalid order ID provided: " + orderID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   InvalidOrderID,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -435,7 +502,11 @@ func ViewOrderPOS(w http.ResponseWriter, r *http.Request) {
 	order, err := models.GetOrderByID(orderID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to fetch order with ID " + orderID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -445,7 +516,11 @@ func ViewOrderPOS(w http.ResponseWriter, r *http.Request) {
 	}
 	if order == nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: orderWithID + orderID + " not found",
+				Code:        http.StatusNotFound,
+			},
 			Message:   "Order not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -455,7 +530,11 @@ func ViewOrderPOS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: orderWithID + orderID + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   order,
 		Message:   "Orders",
 		TimeTaken: time.Since(start),
@@ -485,7 +564,11 @@ func ListGuestOrders(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to list guest orders for order ID " + orderID + " with email " + email + " and phone " + phone,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -495,7 +578,11 @@ func ListGuestOrders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: "Guest orders fetched successfully for order ID " + orderID + " with email " + email + " and phone " + phone,
+			Code:        http.StatusOK,
+		},
 		Payload:   orders,
 		Message:   "List Orders",
 		TimeTaken: time.Since(start),
@@ -510,7 +597,7 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure the user is an admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
 	if !ok {
 		return
 	}
@@ -523,7 +610,11 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to list orders for admin",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -533,7 +624,11 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: "Orders fetched successfully for admin",
+			Code:        http.StatusOK,
+		},
 		Payload:   map[string]any{"orders": orders, "pagination": pagination},
 		Message:   "All Orders",
 		TimeTaken: time.Since(start),
@@ -678,7 +773,7 @@ func GetOrderCountsByStatus(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure the user is an admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
 	if !ok {
 		return
 	}
@@ -686,7 +781,11 @@ func GetOrderCountsByStatus(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to get order counts by status",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -695,7 +794,11 @@ func GetOrderCountsByStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: "Order counts by status retrieved successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   counts,
 		Message:   "Orders count by status",
 		TimeTaken: time.Since(start),

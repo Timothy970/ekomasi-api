@@ -42,13 +42,17 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(item, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(item, w, r, requestSummary, start, "Products") {
 		return
 	}
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: noUser,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -60,7 +64,11 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 	wishlistID, err := models.GetOrCreateWishlist(user.ID, "My Wishlist")
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to get or create wishlist for user with ID " + user.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -71,7 +79,11 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 	err = models.CreateWishListItem(wishlistID, item.ProductID, user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to create wishlist item for user with ID " + user.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -82,7 +94,11 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 	myWishlist, err := models.GetMyWishlistItems(user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to get wishlist items for user with ID " + user.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -91,7 +107,10 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product added successfully to the wishlist for user with ID " + user.ID,
+		},
 		Payload:   myWishlist,
 		Message:   "Product added successfully to the wishlist",
 		TimeTaken: time.Since(start),
@@ -119,7 +138,11 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: noUser,
+				Code:        http.StatusUnauthorized,
+			},
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -132,7 +155,11 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 	wishlistID, err := models.GetWishlistByUserID(user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to get wishlist for user with ID " + user.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -140,11 +167,14 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	log.Printf("wishlist id*******************: %s", wishlistID)
 	err = models.RemoveWishlistItem(wishlistID, productID, user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to remove wishlist item for user with ID " + user.ID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -155,7 +185,11 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 	myWishlist, err := models.GetMyWishlistItems(user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to get wishlist items for user with ID " + user.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -164,7 +198,11 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product removed successfully from the wishlist for user with ID " + user.ID,
+			Code:        http.StatusOK,
+		},
 		Payload:   myWishlist,
 		Message:   "Product removed successfully",
 		TimeTaken: time.Since(start),
@@ -190,7 +228,11 @@ func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: noUser,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -215,7 +257,11 @@ func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("no wishlist:: %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to get wishlists for user with ID " + user.ID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   "WishList was not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -230,7 +276,11 @@ func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
 		response["pagination"] = pagination
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Wishlists fetched successfully for user with ID " + user.ID,
+			Code:        http.StatusOK,
+		},
 		Payload:   response,
 		Message:   "All wishlists",
 		TimeTaken: time.Since(start),
@@ -258,7 +308,11 @@ func CreateWishList(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: noUser,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -273,7 +327,11 @@ func CreateWishList(w http.ResponseWriter, r *http.Request) {
 	newList, err := models.CreateWishList(*body, user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to create wishlist for user with ID " + user.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "Failed to create wishlist",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -283,7 +341,11 @@ func CreateWishList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Wishlist created successfully for user with ID " + user.ID,
+			Code:        http.StatusCreated,
+		},
 		Payload:   newList,
 		Message:   "Wishlist created successfully",
 		TimeTaken: time.Since(start),
@@ -310,7 +372,11 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: noUser,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -323,7 +389,11 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil || len(wishlists.Products) == 0 {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Wishlist not found for user with ID " + user.ID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   "Wishlist not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -334,7 +404,11 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 
 	if !wishlists.IsPublic {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusForbidden,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Wishlist is private for user with ID " + user.ID,
+				Code:        http.StatusForbidden,
+			},
 			Message:   "This wishlist is private",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -347,7 +421,11 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 	shareLink := fmt.Sprintf("%swishlist/share/%s", baseURL, encodedID)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Share link generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   shareLink,
 		Message:   "Share link",
 		TimeTaken: time.Since(start),
@@ -375,7 +453,11 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 	decodedBytes, err := base64.URLEncoding.DecodeString(encodedID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Invalid wishlist link",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "Invalid wishlist link",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -389,7 +471,11 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil || len(wishlists) == 0 {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Wishlist not found or is empty with ID " + wishlistID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   "Wishlist not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -401,7 +487,11 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 	wishlist := wishlists[0]
 	if !wishlist.IsPublic {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusForbidden,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Wishlist with ID " + wishlistID + " is private",
+				Code:        http.StatusForbidden,
+			},
 			Message:   "This wishlist is private",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -410,7 +500,11 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Shared wishlist fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   wishlist.Products,
 		Message:   "Shared wishlist",
 		TimeTaken: time.Since(start),
@@ -437,7 +531,11 @@ func DeleteWishList(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: noUser,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -449,7 +547,11 @@ func DeleteWishList(w http.ResponseWriter, r *http.Request) {
 	err := models.DeleteWishList(wishlistID, user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to delete wishlist with ID " + wishlistID + " for user with ID " + user.ID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -459,7 +561,11 @@ func DeleteWishList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Wishlist with ID " + wishlistID + " deleted successfully for user with ID " + user.ID,
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Wishlist deleted successfully",
 		TimeTaken: time.Since(start),
@@ -475,7 +581,11 @@ func GetMyWishList(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: noUser,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -486,7 +596,11 @@ func GetMyWishList(w http.ResponseWriter, r *http.Request) {
 	myWishlist, err := models.GetMyWishlistItems(user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to retrieve wishlist items for user with ID " + user.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -495,7 +609,11 @@ func GetMyWishList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Wishlist items retrieved successfully for user with ID " + user.ID,
+			Code:        http.StatusOK,
+		},
 		Payload:   myWishlist,
 		Message:   "My wishlists",
 		TimeTaken: time.Since(start),

@@ -53,7 +53,11 @@ func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to retrieve products",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -64,7 +68,11 @@ func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "All products retrieved successfully",
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"products":   products,
 			"pagination": pagination,
@@ -110,15 +118,23 @@ func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
-				Message:   "Product no found",
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: productWithID + productID + " not found",
+					Code:        http.StatusNotFound,
+				},
+				Message:   "Product not found",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
 				Request:   r,
 				RawBody:   requestSummary})
 		} else {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Error fetch product with ID " + productID,
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   "Error fetch product",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -130,7 +146,11 @@ func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
 	//check if token is passed, if so check if products belong to the users wishlist
 	ApplyUserWishlist(r, product.ID, product)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: productWithID + product.ID + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   product,
 		Message:   "Product fetched successfully",
 		TimeTaken: time.Since(start),
@@ -158,7 +178,11 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	productID, isPrimary, videoLink, err := parseUploadRequest(r)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: err.Error(),
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -170,7 +194,11 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to parse multipart form" + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -186,7 +214,11 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	if videoLink != "" {
 		if err := models.InsertProductImage(productID, videoLink, "video", isPrimary); err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusBadRequest,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Failed to insert video link for product ID " + productID,
+					Code:        http.StatusBadRequest,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -202,7 +234,11 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 		results, err := handleFileUploads(r, productID, fileType, isPrimary)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusBadRequest,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Failed to upload " + fileType + " for product ID " + productID,
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -216,7 +252,11 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 
 	if len(uploadedResults) == 0 {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "No files uploaded for product ID " + productID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "No files uploaded",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -229,7 +269,11 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	clearProductCache()
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product media for product with ID " + productID + " uploaded successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   uploadedResults,
 		Message:   "Product media uploaded successfully",
 		TimeTaken: time.Since(start),
@@ -301,7 +345,11 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	if productID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: productIdRequired,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   productIdRequired,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -319,7 +367,11 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 		var cachedProducts []dtos.Product
 		if err := json.Unmarshal([]byte(cachedVal), &cachedProducts); err == nil {
 			utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-				Code:      http.StatusOK,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Related Products for product ID " + productID + " fetched from cache successfully",
+					Code:        http.StatusOK,
+				},
 				Payload:   cachedProducts,
 				Message:   "Related Products",
 				TimeTaken: time.Since(start),
@@ -336,7 +388,11 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 	product, err := models.GetProductByID(productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: productWithID + productID + " not found",
+				Code:        http.StatusNotFound,
+			},
 			Message:   productNotFound,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -350,7 +406,11 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("error getting related products %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "No related products for product with ID " + productID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   "No related products found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -367,7 +427,11 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Related Products for product ID " + productID + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"products":   relatedProducts,
 			"pagination": pagination,
@@ -393,7 +457,11 @@ func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("bundles get error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to fetch bundles",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -403,7 +471,11 @@ func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Bundles fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   map[string]any{"bundles": bundles, "pagination": pagination},
 		Message:   "Bundles fetched successfully",
 		TimeTaken: time.Since(start),
@@ -418,13 +490,17 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to parse form data: " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -436,7 +512,11 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("image")
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Image is required when creating a bundle",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "Image is required",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -449,7 +529,11 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -497,14 +581,18 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		}(),
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	err = models.CreateBundle(*req)
 	if err != nil {
 		log.Printf("create bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to create product bundle",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -515,7 +603,11 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("products_bundles_page_")
 	utils.DeleteCacheByPrefix("bundles_pagination_page_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product bundle created successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "Created product bundle successfully",
 		TimeTaken: time.Since(start),
@@ -530,14 +622,18 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
 	// Parse multipart form (20 MB max)
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to parse form data: " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "Failed to parse form: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -553,7 +649,11 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Failed to upload image to storage :" + err.Error(),
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -592,14 +692,18 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		ID: r.FormValue("bundle_id"),
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	err := models.UpdateBundle(*req)
 	if err != nil {
 		log.Printf("update bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to update product bundle with ID " + req.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -608,7 +712,11 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product bundle with ID " + req.ID + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Product bundle updated successfully",
 		TimeTaken: time.Since(start),
@@ -622,7 +730,7 @@ func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -630,14 +738,18 @@ func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	err := models.DeleteBundle(req.ID)
 	if err != nil {
 		log.Printf("delete bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to delete product bundle with ID " + req.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -646,7 +758,11 @@ func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product bundle with ID " + req.ID + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Product bundle deleted successfully",
 		TimeTaken: time.Since(start),
@@ -660,7 +776,7 @@ func AddProductsToBundleHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -668,14 +784,18 @@ func AddProductsToBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	err := models.AddProductsToBundle(*req, mux.Vars(r)["bundle_id"])
 	if err != nil {
 		log.Printf("dd product to bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to add product(s) to bundle with ID " + mux.Vars(r)["bundle_id"],
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -684,7 +804,11 @@ func AddProductsToBundleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product(s) added to bundle with ID " + mux.Vars(r)["bundle_id"] + " successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Product(s) added to bundle successfully",
 		TimeTaken: time.Since(start),
@@ -698,7 +822,7 @@ func RemoveProductsFromBundleHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -707,14 +831,17 @@ func RemoveProductsFromBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	err := models.RemoveProductsFromBundle(*req, bundleID)
 	if err != nil {
-		log.Printf("dd product to bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to remove product(s) from bundle with ID " + bundleID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "Failed to remove product(s) from bundle",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -725,7 +852,11 @@ func RemoveProductsFromBundleHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("products_bundles_page_")
 	utils.DeleteCacheByPrefix("bundles_pagination_page_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product(s) removed from bundle with ID " + bundleID + " successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Product(s) removed from bundle successfully",
 		TimeTaken: time.Since(start),
@@ -752,7 +883,11 @@ func GetProductsHandlerBySubCategoryID(w http.ResponseWriter, r *http.Request) {
 	products, pagination, err := models.FetchSubcategoryProducts(subCategoryID, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Error fetch products for subcategory ID " + subCategoryID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -768,7 +903,11 @@ func GetProductsHandlerBySubCategoryID(w http.ResponseWriter, r *http.Request) {
 	// 	}
 	// }
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Subcategory products fetched successfully for subcategory ID " + subCategoryID,
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"products":   products,
 			"pagination": pagination,
@@ -801,7 +940,11 @@ func GetCategoryProductsHandlerByCategoryID(w http.ResponseWriter, r *http.Reque
 	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(*searchParams, categoryID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Error fetch products for category ID " + categoryID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -811,7 +954,11 @@ func GetCategoryProductsHandlerByCategoryID(w http.ResponseWriter, r *http.Reque
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Category products fetched successfully for category ID " + categoryID,
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"categories": products,
 			"pagination": pagination,
@@ -860,7 +1007,11 @@ func GetCategoryProductsHandler(w http.ResponseWriter, r *http.Request) {
 	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(*searchParams, "")
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Error fetch category products",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -870,7 +1021,11 @@ func GetCategoryProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Category products fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"categories": products,
 			"pagination": pagination,
@@ -955,7 +1110,11 @@ func validateSortParam(sortBy string, r *http.Request, w http.ResponseWriter, st
 
 	if !validSorts[sortBy] {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: fmt.Sprintf("Invalid sort parameter: %s", sortBy),
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("Invalid sort parameter: %s", sortBy),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -979,7 +1138,11 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 	products, pagination, err := models.SearchProducts(*searchParams, false)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to search products",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "Failed to search products: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -990,7 +1153,11 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Products fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"products":   products,
 			"pagination": pagination,
@@ -1038,7 +1205,7 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products"); !ok {
 		return
 	}
 	productID := mux.Vars(r)["product_id"]
@@ -1046,8 +1213,12 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form (20 MB max)
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   "Failed to parse form: " + err.Error(),
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to parse request data: " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -1059,7 +1230,11 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("image")
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Image field is required and must be a valid file",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "Image is required",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1073,8 +1248,12 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Failed to upload image: " + err.Error(),
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -1090,14 +1269,18 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		ImagePosition: r.FormValue("image_position"),
 	}
 	// Validate request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	//insert into db
 	feature, err := models.AddProductFeature(req, productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to add product feature: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1106,7 +1289,11 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product feature added successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   feature,
 		Message:   "Product feature added successfully",
 		TimeTaken: time.Since(start),
@@ -1120,7 +1307,7 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products"); !ok {
 		return
 	}
 
@@ -1135,8 +1322,12 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		imageURL, err = utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
-				Message:   "Failed to upload image: " + err.Error(),
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Failed to upload image to storage :" + err.Error(),
+					Code:        http.StatusInternalServerError,
+				},
+				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
 				Request:   r,
@@ -1152,14 +1343,18 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		Image:         imageURL, // empty if not uploaded
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 
 	feature, err := models.UpdateProductFeature(req, featureID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to update product feature: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1169,7 +1364,11 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product feature updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   feature,
 		Message:   "Product feature updated successfully",
 		TimeTaken: time.Since(start),
@@ -1186,7 +1385,11 @@ func GetFeaturesByProductHandler(w http.ResponseWriter, r *http.Request) {
 	features, err := models.GetProductFeaturesByProductID(productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to fetch product features: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1196,7 +1399,11 @@ func GetFeaturesByProductHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product features fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   features,
 		Message:   "Product features fetched successfully",
 		TimeTaken: time.Since(start),
@@ -1209,7 +1416,7 @@ func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products"); !ok {
 		return
 	}
 
@@ -1218,7 +1425,11 @@ func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 	err := models.DeleteProductFeature(featureID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to delete product feature: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "Failed to delete feature: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1228,7 +1439,11 @@ func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product feature deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Product feature deleted successfully",
 		TimeTaken: time.Since(start),
@@ -1243,7 +1458,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure the user is an admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -1257,7 +1472,11 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	log.Printf("handleProductSpecs ***** %s", err)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to add product specifications: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1271,7 +1490,11 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to add product variants: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1285,7 +1508,11 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to add product warranty: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1299,7 +1526,11 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to add product tax: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1313,7 +1544,11 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to add product discount: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1322,7 +1557,11 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product specifications added successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Product specifications added successfully",
 		TimeTaken: time.Since(start),
@@ -1434,7 +1673,11 @@ func GetExpensiveAndCheapProducts(w http.ResponseWriter, r *http.Request) {
 		products, err = models.GetExpensiveAndCheapProducts()
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Failed to fetch expensive and cheapest products",
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -1447,7 +1690,11 @@ func GetExpensiveAndCheapProducts(w http.ResponseWriter, r *http.Request) {
 		products = cachedProducts
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Expensive and cheapest products fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   products,
 		Message:   "Expensive and cheapest products fetched successfully",
 		TimeTaken: time.Since(start),

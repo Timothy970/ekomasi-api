@@ -34,15 +34,18 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Categories"); !ok {
 		return
 	}
 
 	url, err := utils.ParseAndUploadFile(r, "image", 20)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   "Failed to upload file: " + err.Error(),
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Categories",
+				Description: "Failed to upload file: " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -58,7 +61,7 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		ParentID:    utils.StringPtr(r.FormValue("parent_id")),
 	}
 	// Validate request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Categories") {
 		return
 	}
 
@@ -67,7 +70,11 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error adding new category: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Categories",
+				Description: "Failed to add new category",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -83,7 +90,11 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	// Respond success
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Categories",
+			Description: "Category created successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   category,
 		Message:   "Category created successfully",
 		TimeTaken: time.Since(start),
@@ -110,15 +121,18 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Categories"); !ok {
 		return
 	}
 
 	// Parse multipart form (20 MB max)
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   "Failed to parse form: " + err.Error(),
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Categories",
+				Description: "Failed to parse form: " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -133,8 +147,11 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
-				Message:   "Failed to upload image: " + err.Error(),
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Categories",
+					Description: "Failed to upload image: " + err.Error(),
+					Code:        http.StatusInternalServerError,
+				},
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
 				Request:   r,
@@ -153,7 +170,7 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Categories") {
 		return
 	}
 
@@ -164,7 +181,11 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error updating category: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Categories",
+				Description: "Failed to update category with id " + id,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -181,7 +202,11 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Respond success
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Categories",
+			Description: "Category with ID " + id + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   category,
 		Message:   "Category updated successfully",
 		TimeTaken: time.Since(start),
@@ -208,25 +233,20 @@ func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Categories")
 	if !ok {
 		return
 	}
 	id := mux.Vars(r)["category_id"]
-	if id == "" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   noCategoryID,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-	}
 	err := models.DeleteCategory(id)
 	if err != nil {
 		log.Printf("Error deleting product %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Categories",
+				Description: "Failed to delete category with id " + id,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -240,7 +260,11 @@ func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCacheByPrefix("categories_products")
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Categories",
+			Description: "Category with ID " + id + " deleted successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "Category deleted successfully",
 		TimeTaken: time.Since(start),
@@ -265,14 +289,18 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
 	authuser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "User not validated or authenticated",
+				Code:        http.StatusUnauthorized,
+			},
 			Message:   "User not validated",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -284,14 +312,18 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	product, err := models.AddNewProduct(*req, authuser.ID)
 	if err != nil {
 		log.Printf("Error for adding new product %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to add new product",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -307,7 +339,11 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	_ = utils.DeleteCache("expensiveandcheapproducts")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product created successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   product,
 		Message:   "Product created successfully",
 		TimeTaken: time.Since(start),
@@ -333,7 +369,7 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -348,7 +384,11 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error for updating new product %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to update product with id " + productID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -362,7 +402,11 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCacheByPrefix("categories_products")
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product with ID " + productID + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   updatedProduct,
 		Message:   "Product updated successfully",
 		TimeTaken: time.Since(start),
@@ -386,7 +430,7 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -396,7 +440,11 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error for updating new product %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to delete product with id " + productID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -410,7 +458,11 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCacheByPrefix("categories_products")
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product with ID " + productID + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Product deleted successfully",
 		TimeTaken: time.Since(start),
@@ -441,7 +493,11 @@ func AddCoupon(w http.ResponseWriter, r *http.Request) {
 	if err := models.CreateCoupon(*req); err != nil {
 		log.Printf("Error adding item to cart: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Promotions",
+				Description: "Failed to create coupon",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "Failed to create coupon",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -451,7 +507,11 @@ func AddCoupon(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Promotions",
+			Description: "Coupon created successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Coupon created successfully",
 		TimeTaken: time.Since(start),

@@ -16,7 +16,11 @@ func GetProductPerformanceSummary(w http.ResponseWriter, r *http.Request) {
 	categoryID := r.URL.Query().Get("category_id")
 	if categoryID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Category ID is required for product performance report",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "Category ID is required",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -28,7 +32,11 @@ func GetProductPerformanceSummary(w http.ResponseWriter, r *http.Request) {
 	report, err := models.GetProductPerformance(startTime, endTime, categoryID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to generate product performance report",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "failed to generate report: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -39,7 +47,11 @@ func GetProductPerformanceSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Product performance report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   report,
 		Message:   "product performance report generated successfully",
 		TimeTaken: time.Since(start),
@@ -58,7 +70,11 @@ func GetIndividualProductPerformanceSummary(w http.ResponseWriter, r *http.Reque
 	report, err := models.GetSingleProductPerformance(productID, startTime, endTime)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to generate individual product performance report",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "failed to generate report: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -69,7 +85,11 @@ func GetIndividualProductPerformanceSummary(w http.ResponseWriter, r *http.Reque
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Individual product performance report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   report,
 		Message:   "individual product performance report generated successfully",
 		TimeTaken: time.Since(start),

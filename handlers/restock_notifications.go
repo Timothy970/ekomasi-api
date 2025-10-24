@@ -29,13 +29,17 @@ func RequestRestockNotification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Notifications") {
 		return
 	}
 
 	if err := models.CreateRestockNotification(*req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Notifications",
+				Description: "Failed to create restock notification",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -45,7 +49,11 @@ func RequestRestockNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Notifications",
+			Description: "Restock notification sent",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Restock notification sent",
 		TimeTaken: time.Since(start),
@@ -72,7 +80,11 @@ func ListUserRestockNotifications(w http.ResponseWriter, r *http.Request) {
 	log.Printf("******nots %v", notifications)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Notifications",
+				Description: "Failed to list restock notifications for user ID " + userID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -81,7 +93,11 @@ func ListUserRestockNotifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Notifications",
+			Description: "Restock notifications for user ID " + userID + " retrieved successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   notifications,
 		Message:   "Notifications",
 		TimeTaken: time.Since(start),
@@ -107,7 +123,11 @@ func CancelRestockNotification(w http.ResponseWriter, r *http.Request) {
 
 	if err := models.DeleteRestockNotification(notificationID, userID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Notifications",
+				Description: "Failed to cancel restock notification with ID " + notificationID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -117,7 +137,11 @@ func CancelRestockNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Notifications",
+			Description: "Restock notification with ID " + notificationID + " cancelled successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Restock notification cancelled successfully",
 		TimeTaken: time.Since(start),
@@ -150,7 +174,11 @@ func TriggerRestockNotifications(w http.ResponseWriter, r *http.Request) {
 	notifications, err := models.GetNotificationsByProduct(productID, variantPtr)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Notifications",
+				Description: "Failed to get restock notifications for product ID " + productID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -162,7 +190,11 @@ func TriggerRestockNotifications(w http.ResponseWriter, r *http.Request) {
 	// will: send email/SMS to each user in notifications
 	// after sending, delete them so they don't get duplicates
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Notifications",
+			Description: "Restock notifications triggered for product ID " + productID,
+			Code:        http.StatusOK,
+		},
 		Payload:   len(notifications),
 		Message:   "triggered_count",
 		TimeTaken: time.Since(start),

@@ -12,6 +12,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var supplierWithID = "Supplier with ID "
+
 // Create Supplier
 // @Summary Create Supplier
 // @Description Create Supplier
@@ -26,7 +28,7 @@ func CreateSupplier(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Suppliers")
 	if !ok {
 		return
 	}
@@ -35,13 +37,17 @@ func CreateSupplier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Suppliers") {
 		return
 	}
 
 	if err := models.CreateSupplier(*req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Suppliers",
+				Description: "Failed to create supplier",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -52,9 +58,13 @@ func CreateSupplier(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("suppliers_")
 	utils.DeleteCacheByPrefix("suppliers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Suppliers",
+			Description: "Supplier created successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
-		Message:   "Suplier created successfully",
+		Message:   "Supplier created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -75,7 +85,7 @@ func ListSuppliers(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Suppliers"); !ok {
 		return
 	}
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
@@ -92,7 +102,11 @@ func ListSuppliers(w http.ResponseWriter, r *http.Request) {
 		suppliers, meta, err = models.ListSuppliers(page, size)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Suppliers",
+					Description: "Failed to list suppliers",
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -111,9 +125,13 @@ func ListSuppliers(w http.ResponseWriter, r *http.Request) {
 		"pagination": meta,
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Suppliers",
+			Description: "Suppliers fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   resp,
-		Message:   "Supliers fetched successfully",
+		Message:   "Suppliers fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -134,7 +152,7 @@ func GetSupplierByID(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Suppliers"); !ok {
 		return
 	}
 	id := mux.Vars(r)["supplier_id"]
@@ -142,7 +160,11 @@ func GetSupplierByID(w http.ResponseWriter, r *http.Request) {
 	supplier, err := models.GetSupplierByID(id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Suppliers",
+				Description: "Failed to fetch supplier with ID " + id,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -152,9 +174,13 @@ func GetSupplierByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Suppliers",
+			Description: supplierWithID + id + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   supplier,
-		Message:   "Suplier fetched successfully",
+		Message:   "Supplier fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -175,7 +201,7 @@ func UpdateSupplier(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Suppliers")
 	if !ok {
 		return
 	}
@@ -184,12 +210,16 @@ func UpdateSupplier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Suppliers") {
 		return
 	}
 	if !utils.IsValidKenyanPhone(req.ContactPhone) {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Suppliers",
+				Description: "Invalid phone number format",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "Invalid phone number",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -201,7 +231,11 @@ func UpdateSupplier(w http.ResponseWriter, r *http.Request) {
 
 	if err := models.UpdateSupplier(*req, id); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Suppliers",
+				Description: "Failed to update supplier with ID " + id,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -212,9 +246,13 @@ func UpdateSupplier(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("suppliers_")
 	utils.DeleteCacheByPrefix("suppliers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Suppliers",
+			Description: supplierWithID + id + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
-		Message:   "Suplier updated successfully",
+		Message:   "Supplier updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -235,7 +273,7 @@ func DeleteSupplier(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Suppliers")
 	if !ok {
 		return
 	}
@@ -244,7 +282,11 @@ func DeleteSupplier(w http.ResponseWriter, r *http.Request) {
 
 	if err := models.DeleteSupplier(id); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Suppliers",
+				Description: "Failed to delete supplier with ID " + id,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -255,9 +297,13 @@ func DeleteSupplier(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("suppliers_")
 	utils.DeleteCacheByPrefix("suppliers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Suppliers",
+			Description: supplierWithID + id + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
-		Message:   "Suplier deleted successfully",
+		Message:   "Supplier deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

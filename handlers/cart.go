@@ -16,7 +16,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
-var notAuthenticated = "User not authenticated"
+var (
+	notAuthenticated     = "User not authenticated"
+	failedToGetCartItems = "Failed to get cart items for Cart ID "
+)
 
 // Create a cart handler
 // @Summary Create Cart
@@ -44,7 +47,11 @@ func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
 	cartID, err := models.CreateCart(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: "Failed to create cart",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -54,7 +61,11 @@ func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Cart",
+			Description: "Cart created successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   map[string]interface{}{"cart_id": cartID},
 		Message:   "Cart created successfully",
 		TimeTaken: time.Since(start),
@@ -81,7 +92,11 @@ func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: "User not authenticated to fetch cart",
+				Code:        http.StatusForbidden,
+			},
 			Message:   notAuthenticated,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -92,7 +107,11 @@ func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
 	cartID, err := models.GetUserCart(user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: "Failed to fetch user cart with user ID" + user.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -102,7 +121,11 @@ func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Cart",
+			Description: "Cart with ID " + cartID + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   map[string]interface{}{"cart_id": cartID},
 		Message:   "Cart fetched successfully",
 		TimeTaken: time.Since(start),
@@ -132,12 +155,16 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Cart") {
 		return
 	}
 	if err := models.InsertCartItem(req.CartID, req.ProductID, req.Quantity); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      404,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: "Failed to add item to cart with Cart ID " + req.CartID,
+				Code:        404,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -148,7 +175,11 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 	res, err := getCartItemsByCartID(req.CartID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      404,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: failedToGetCartItems + req.CartID,
+				Code:        404,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -157,7 +188,11 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Cart",
+			Description: "Product with ID " + req.ProductID + " added to cart successfully with Cart ID " + req.CartID,
+			Code:        http.StatusOK,
+		},
 		Payload:   res,
 		Message:   "Product added to cart successfully",
 		TimeTaken: time.Since(start),
@@ -185,7 +220,11 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 	res, err := getCartItemsByCartID(cartID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: failedToGetCartItems + cartID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -199,7 +238,11 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 			loc, err := models.GetLocationByID(locationIDInt)
 			if err != nil {
 				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-					Code:      http.StatusInternalServerError,
+					CollectiveInfo: utils.CollectiveInfo{
+						Module:      "Cart",
+						Description: "Failed to fetch location with ID " + locationID,
+						Code:        http.StatusInternalServerError,
+					},
 					Message:   err.Error(),
 					TimeTaken: time.Since(start),
 					Function:  utils.GetCurrentFuncName(),
@@ -213,7 +256,11 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Cart",
+			Description: "Cart Items fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   res,
 		Message:   "Cart Items fetched successfully",
 		TimeTaken: time.Since(start),
@@ -330,7 +377,11 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := models.UpdateCartItem(cartID, req.ProductID, req.Quantity); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: "Failed to update cart item with Cart ID " + cartID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -341,7 +392,11 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 	res, err := getCartItemsByCartID(cartID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: failedToGetCartItems + cartID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -350,7 +405,11 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Cart",
+			Description: "Cart item updated successfully with Cart ID " + cartID,
+			Code:        http.StatusOK,
+		},
 		Payload:   res,
 		Message:   "Cart item updated successfully",
 		TimeTaken: time.Since(start),
@@ -384,7 +443,11 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := models.DeleteCartItem(cartID, req.ProductID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: "Failed to remove cart item with Cart ID " + cartID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -395,7 +458,11 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 	res, err := getCartItemsByCartID(cartID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: failedToGetCartItems + cartID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -404,7 +471,11 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Cart",
+			Description: "Product removed from cart successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   res,
 		Message:   "Product removed from cart successfully",
 		TimeTaken: time.Since(start),
@@ -433,7 +504,7 @@ func ApplyCouponHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Cart") {
 		return
 	}
 	//validate coupon/promc code/voucher
@@ -441,7 +512,11 @@ func ApplyCouponHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error fetching cart items: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: failedToGetCartItems + req.CartID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -451,7 +526,11 @@ func ApplyCouponHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Cart",
+			Description: "Coupon applied successfully to Cart ID " + req.CartID,
+			Code:        http.StatusOK,
+		},
 		Payload:   items,
 		Message:   "Coupon applied successfully",
 		TimeTaken: time.Since(start),

@@ -28,7 +28,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Notifications")
 	if !ok {
 		return
 	}
@@ -38,14 +38,18 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Notifications") {
 		return
 	}
 	//check if user exists
 	exists, err := models.RecordExists("users", "user_id = ?", req.RecipientID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Notifications",
+				Description: "Failed to check if user exists with ID " + req.RecipientID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -55,7 +59,11 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if !exists {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Notifications",
+				Description: "User not found with ID " + req.RecipientID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "user not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -66,8 +74,12 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	//check channle
 	if req.Channel != "email" && req.Channel != "sms" && req.Channel != "whatsapp" && req.Channel != "push" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Invalid notification type",
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Notifications",
+				Description: "Invalid notification type",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   "Invalid notification type specified",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -77,7 +89,11 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	err = sendNotification(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Notifications",
+				Description: "Failed to send notification",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -88,7 +104,11 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	req.SentAt = time.Now().Format("2006-01-02 15:04:05")
 	if err := models.CreateNotification(*req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Notifications",
+				Description: "Failed to create notification",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -99,7 +119,11 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("notifications_")
 	utils.DeleteCacheByPrefix("notifications_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Notifications",
+			Description: "Notification created successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "Notification created successfully",
 		TimeTaken: time.Since(start),
@@ -147,7 +171,7 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Notifications")
 	if !ok {
 		return
 	}
@@ -165,7 +189,11 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 		notifications, pagination, err = models.ListNotifications(page, limit)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Notifications",
+					Description: "Failed to list notifications",
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -183,7 +211,11 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Notifications",
+			Description: "Notifications fetched successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   resp,
 		Message:   "Notifications fetched successfully",
 		TimeTaken: time.Since(start),
@@ -204,7 +236,7 @@ func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Notifications")
 	if !ok {
 		return
 	}
@@ -215,12 +247,16 @@ func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Notifications") {
 		return
 	}
 	if err := models.UpdateNotification(req.Status, id); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Notifications",
+				Description: "Failed to update notification with ID " + id,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -231,7 +267,11 @@ func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("notifications_")
 	utils.DeleteCacheByPrefix("notifications_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Notifications",
+			Description: "Notification with ID " + id + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Notification updated successfully",
 		TimeTaken: time.Since(start),
@@ -251,14 +291,18 @@ func DeleteNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Notifications")
 	if !ok {
 		return
 	}
 	id := mux.Vars(r)["notification_id"]
 	if err := models.DeleteNotification(id); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Notifications",
+				Description: "Failed to delete notification with ID " + id,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -269,7 +313,11 @@ func DeleteNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("notifications_")
 	utils.DeleteCacheByPrefix("notifications_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Notifications",
+			Description: "Notification with ID " + id + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Notification deleted successfully",
 		TimeTaken: time.Since(start),
@@ -289,7 +337,7 @@ func ListLogsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
@@ -299,7 +347,11 @@ func ListLogsHandler(w http.ResponseWriter, r *http.Request) {
 	logs, meta, err := models.ListLogs(page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Logs",
+				Description: "Failed to list logs",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -314,7 +366,11 @@ func ListLogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Logs",
+			Description: "Logs retrieved successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   resp,
 		Message:   "Logs",
 		TimeTaken: time.Since(start),

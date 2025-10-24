@@ -24,7 +24,7 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Reports")
 	if !ok {
 		return
 	}
@@ -32,7 +32,11 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 	asOf, err := time.Parse(date, asOfStr)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Invalid as of date for balance sheet report",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "Invalid as of date",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -44,7 +48,11 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 	assets, liabs, equity, err := models.BalanceSheet(asOf)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to generate balance sheet report",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -77,7 +85,11 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.BalanceCheck = resp.Assets.Total - (resp.Liabilities.Total + resp.Equity.Total)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: fmt.Sprintf("Balance sheet as of %s generated successfully", asOfStr),
+			Code:        http.StatusOK,
+		},
 		Payload:   resp,
 		Message:   fmt.Sprintf("Balance sheet as of %s", asOfStr),
 		TimeTaken: time.Since(start),
@@ -93,7 +105,7 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Reports")
 	if !ok {
 		return
 	}
@@ -101,8 +113,12 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 	toStr := r.URL.Query().Get("to")
 	if fromStr == "" || toStr == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   "from and to are required YYYY-MM-DD",
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "from and to are required and must be in YYYY-MM-DD format",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "from and to are required and must be in YYYY-MM-DD format",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -112,7 +128,11 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 	from, err := time.Parse(date, fromStr)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Invalid from date for income statement report",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   invalidfrom,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -123,7 +143,11 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 	to, err := time.Parse(date, toStr)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Invalid to date for income statement report",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   invalidto,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -135,7 +159,11 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 	revenue, expenses, tr, te, err := models.IncomeStatement(from, to)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to generate income statement report",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -167,7 +195,11 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 		NetIncome:     tr - te,
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: fmt.Sprintf("Income statement from %s to %s generated successfully", fromStr, toStr),
+			Code:        http.StatusOK,
+		},
 		Payload:   resp,
 		Message:   "Income statement",
 		TimeTaken: time.Since(start),
@@ -184,7 +216,7 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Reports")
 	if !ok {
 		return
 	}
@@ -192,14 +224,18 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Reports") {
 		return
 	}
 
 	from, err := time.Parse(date, req.From)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Invalid from date for cash flow report",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   invalidfrom,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -210,7 +246,11 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 	to, err := time.Parse(date, req.To)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Invalid to date for cash flow report",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   invalidto,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -221,7 +261,11 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 	inflows, outflows, begin, end, err := models.CashFlow(from, to, req.CashAccountIDs)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to generate cash flow report",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -239,7 +283,11 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 		EndingCash:    end,
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Cash flow report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   resp,
 		Message:   "Cash flow",
 		TimeTaken: time.Since(start),
@@ -255,7 +303,7 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Reports")
 	if !ok {
 		return
 	}
@@ -265,7 +313,11 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 	toStr := r.URL.Query().Get("to")
 	if fromStr == "" || toStr == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "from and to are required and in YYYY-MM-DD format",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "from and to are required YYYY-MM-DD",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -276,7 +328,11 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 	from, err := time.Parse(date, fromStr)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Invalid from date for ledger report",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   invalidfrom,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -287,7 +343,11 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 	to, err := time.Parse(date, toStr)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Invalid to date for ledger report",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   invalidto,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -307,7 +367,11 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 	acct, opening, rows, total, err := models.Ledger(accountID, from, to, page, size)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to generate ledger report",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -363,7 +427,11 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 		Meta:           meta,
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Ledger report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   resp,
 		Message:   "Ledger",
 		TimeTaken: time.Since(start),
@@ -377,7 +445,7 @@ func ExportAccountsCSVHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Reports")
 	if !ok {
 		return
 	}
@@ -389,7 +457,11 @@ func ExportAccountsCSVHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := models.ExportAccountsToCSV(w, accountType, codePrefix); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to export chart of accounts to CSV",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -402,7 +474,7 @@ func ExportJournalEntriesCSVHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Reports")
 	if !ok {
 		return
 	}
@@ -415,7 +487,11 @@ func ExportJournalEntriesCSVHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := models.ExportJournalEntriesToCSV(w, startDate, endDate, accountID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to export journal entries to CSV",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
