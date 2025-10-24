@@ -44,4 +44,5 @@ requires:
 
 migration_type: custom
 migration_command: ["/app/app", "-migrate=true"]
-migration_image_suffix: app
+migration_image_suffix: cli
+
