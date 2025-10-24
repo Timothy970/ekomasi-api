@@ -23,6 +23,12 @@ env:
     value: adenzo
   - name: SHORTCODE
     value: Emalify
+  - name: REDIS_HOST
+    value: localhost
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_PASSWORD
+    value: ""
 
 secrets:
   - MPESA_CONSUMER_KEY
