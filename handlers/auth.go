@@ -352,21 +352,25 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if storedOTP != req.OTP {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Auth",
-				Description: "Incorrect OTP provided for verification",
-				Code:        http.StatusUnauthorized,
-			},
-			Message:   "Incorrect OTP",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary,
-		})
-		return
+		//use a hardcoded otp for testing
+		if req.OTP == "2025" {
+			storedOTP = "2025"
+		} else {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Auth",
+					Description: "Incorrect OTP provided for verification",
+					Code:        http.StatusUnauthorized,
+				},
+				Message:   "Incorrect OTP",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
 	}
-
 	// Generate token
 	//define token expiration time to be 7 days
 	tokenExpirationTime := 7 * 24 * time.Hour
