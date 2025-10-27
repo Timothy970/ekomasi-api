@@ -16,8 +16,8 @@ func SendSmsMessages(to, message string) {
 	method := "POST"
 
 	newPayload := map[string]interface{}{
-		"apikey":    os.Getenv("APIKEY"),
-		"partnerID": os.Getenv("PARTNERID"),
+		"apikey":    os.Getenv("SMSAPIKEY"),
+		"partnerID": os.Getenv("SMSPARTNERID"),
 		"mobile":    to,
 		"message":   message,
 		"shortcode": os.Getenv("SHORTCODE"),
