@@ -317,7 +317,13 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// Generate token
-	token, err := generateToken(user, "auth", 5*time.Hour)
+	//define token expiration time to be 7 days
+	tokenExpirationTime := 7 * 24 * time.Hour
+	// for admins to be  1 day
+	if user.Role == "admin" || user.Role == "superadmin" {
+		tokenExpirationTime = 24 * time.Hour
+	}
+	token, err := generateToken(user, "auth", tokenExpirationTime)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -338,9 +344,9 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		Code: http.StatusOK,
 		Payload: map[string]interface{}{
 			"token":                    token,
-			"token_expires_in":         3600,
+			"token_expires_in":         int(tokenExpirationTime.Seconds()),
 			"refresh_token":            refreshToken,
-			"refresh_token_expires_in": 3600 * 12,
+			"refresh_token_expires_in": int(12 * time.Hour.Seconds()),
 		},
 		Message:   "Verification successful",
 		TimeTaken: time.Since(start),
@@ -471,7 +477,12 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// validate it a good refresh token
 	// Generate token that expires after 7 days
-	token, err := generateToken(user, "auth", 7*24*time.Hour)
+	tokenExpirationTime := 7 * 24 * time.Hour
+	// for admin the token expiration time is 1 day
+	if user.Role == "admin" || user.Role == "superadmin" {
+		tokenExpirationTime = 24 * time.Hour
+	}
+	token, err := generateToken(user, "auth", tokenExpirationTime)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
@@ -492,9 +503,9 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 		Code: http.StatusOK,
 		Payload: map[string]any{
 			"token":                    token,
-			"token_expires_in":         3600 * 7 * 24,
+			"token_expires_in":         int(tokenExpirationTime.Seconds()),
 			"refresh_token":            refreshToken,
-			"refresh_token_expires_in": 3600 * 12,
+			"refresh_token_expires_in": int(12 * time.Hour.Seconds()),
 		},
 		Message:   "Token refreshed successfully",
 		TimeTaken: time.Since(start),
