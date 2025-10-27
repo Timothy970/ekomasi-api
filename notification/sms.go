@@ -11,7 +11,8 @@ import (
 
 func SendSmsMessages(to, message string) {
 	// This function sends an SMS message using the Emalify API.
-	url := os.Getenv("SENDSMSURL")
+	url := os.Getenv("V2_URL")
+	url = strings.TrimSuffix(url, "/") + "/services/sendsms"
 	method := "POST"
 
 	newPayload := map[string]interface{}{
