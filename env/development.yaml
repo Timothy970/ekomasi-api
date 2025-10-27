@@ -36,6 +36,8 @@ secrets:
   - PARTNERID
   - SENDER_EMAIL
   - SERVICE_ACCOUNT
+  - SMSAPIKEY
+  - SMSPARTNERID
   
 
 requires:
