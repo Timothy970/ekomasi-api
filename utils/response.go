@@ -88,7 +88,7 @@ var RespondWithJSON = func(w http.ResponseWriter, opts SuccessJSONResponseOption
 
 	// Create response
 	response := map[string]interface{}{
-		"status_code": opts.CollectiveInfo,
+		"status_code": opts.CollectiveInfo.Code,
 		"message":     opts.Message,
 	}
 
