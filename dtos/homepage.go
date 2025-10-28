@@ -275,14 +275,14 @@ type BlogRequest struct {
 	UpdatedAt   string    `json:"updated_at"`
 	PublishedAt time.Time `json:"published_at"`
 	Status      *string   `json:"status"`
-	Author      struct {
-		Name   string  `json:"name" validate:"required"`
-		Avatar *string `json:"avatar"`
-	} `json:"author"`
-
-	ReadTimeMinutes int     `json:"read_time_minutes" validate:"required"`
-	Title           string  `json:"title" validate:"required"`
-	Description     *string `json:"description"`
+	// Author      struct {
+	// 	Name   string  `json:"name" validate:"required"`
+	// 	Avatar *string `json:"avatar"`
+	// } `json:"author"`
+	Author          map[string]any `json:"author"`
+	ReadTimeMinutes int            `json:"read_time_minutes" validate:"required"`
+	Title           string         `json:"title" validate:"required"`
+	Description     *string        `json:"description"`
 
 	Sections []struct {
 		Position   int         `json:"position" validate:"required"`
@@ -302,9 +302,10 @@ type BlogRequest struct {
 // }
 type BlogBanner map[string]any
 
-type Paragraph struct {
-	Text string `json:"text"`
-}
+//	type Paragraph struct {
+//		Text string `json:"text"`
+//	}
+type Paragraph map[string]any
 
 //	type BlogImage struct {
 //		ImageURL string `json:"image_url"`
