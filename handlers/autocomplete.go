@@ -32,7 +32,11 @@ func AutoCompleteHandler(w http.ResponseWriter, r *http.Request) {
 		suggestions, err := AutoCompleteSearchWithCache(query, limit)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Failed to fetch autocomplete suggestions",
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   "Failed to fetch autocomplete suggestions: " + err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -43,7 +47,11 @@ func AutoCompleteHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-			Code: http.StatusOK,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Autocomplete suggestions fetched successfully",
+				Code:        http.StatusOK,
+			},
 			Payload: dtos.AutoCompleteResponse{
 				Suggestions: suggestions,
 				Total:       len(suggestions),

@@ -11,6 +11,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var warehouseWithID = "Warehouse with ID "
+
 // Create warehouse
 //
 // @Summary Create warehouse
@@ -26,7 +28,7 @@ func CreateWarehouse(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse")
 	if !ok {
 		return
 	}
@@ -35,14 +37,18 @@ func CreateWarehouse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Warehouse") {
 		return
 	}
 
 	_, err := models.CreateWarehouse(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Warehouse",
+				Description: "Failed to create warehouse: " + err.Error(),
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -53,7 +59,11 @@ func CreateWarehouse(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("warehouses_")
 	utils.DeleteCacheByPrefix("warehouses_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Warehouse",
+			Description: "Warehouse created successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Warehouse created successfully",
 		TimeTaken: time.Since(start),
@@ -75,7 +85,7 @@ func ListWarehouses(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse")
 	if !ok {
 		return
 	}
@@ -93,7 +103,11 @@ func ListWarehouses(w http.ResponseWriter, r *http.Request) {
 		warehouses, meta, err = models.ListWarehouses(page, size)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Warehouse",
+					Description: "Failed to list warehouses",
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -113,7 +127,11 @@ func ListWarehouses(w http.ResponseWriter, r *http.Request) {
 		Meta: meta,
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Warehouse",
+			Description: "Warehouses fetched successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   resp,
 		Message:   "Warehouses fetched successfully",
 		TimeTaken: time.Since(start),
@@ -136,14 +154,18 @@ func GetWarehouse(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse"); !ok {
 		return
 	}
 	id := mux.Vars(r)["warehouse_id"]
 	warehouse, err := models.GetWarehouseByID(id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Warehouse",
+				Description: "Failed to fetch warehouse with ID " + id,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -153,7 +175,11 @@ func GetWarehouse(w http.ResponseWriter, r *http.Request) {
 	}
 	if warehouse == nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Warehouse",
+				Description: warehouseWithID + id + " not found",
+				Code:        http.StatusNotFound,
+			},
 			Message:   "Warehouse not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -162,7 +188,11 @@ func GetWarehouse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Warehouse",
+			Description: warehouseWithID + id + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   warehouse,
 		Message:   "Warehouse fetched successfully",
 		TimeTaken: time.Since(start),
@@ -184,7 +214,7 @@ func UpdateWarehouse(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse")
 	if !ok {
 		return
 	}
@@ -193,14 +223,18 @@ func UpdateWarehouse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Warehouse") {
 		return
 	}
 	id := mux.Vars(r)["warehouse_id"]
 	err := models.UpdateWarehouse(id, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Warehouse",
+				Description: "Failed to update warehouse with ID " + id,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -211,7 +245,11 @@ func UpdateWarehouse(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("warehouses_")
 	utils.DeleteCacheByPrefix("warehouses_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Warehouse",
+			Description: warehouseWithID + id + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Warehouse updated successfully",
 		TimeTaken: time.Since(start),
@@ -233,7 +271,7 @@ func DeleteWarehouse(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse")
 	if !ok {
 		return
 	}
@@ -241,7 +279,11 @@ func DeleteWarehouse(w http.ResponseWriter, r *http.Request) {
 	err := models.DeleteWarehouse(id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Warehouse",
+				Description: "Failed to delete warehouse with ID " + id,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -252,7 +294,11 @@ func DeleteWarehouse(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("warehouses_")
 	utils.DeleteCacheByPrefix("warehouses_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Warehouse",
+			Description: warehouseWithID + id + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Warehouse deleted successfully",
 		TimeTaken: time.Since(start),

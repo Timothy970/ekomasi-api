@@ -13,6 +13,13 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+var (
+	contentType        = "Content-Type"
+	totalSales         = "Total Sales"
+	contentDisposition = "Content-Disposition"
+	avgOrderValue      = "Avg Order Value"
+)
+
 func GetSalesTrendsSummary(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -25,8 +32,12 @@ func GetSalesTrendsSummary(w http.ResponseWriter, r *http.Request) {
 	report, err := models.GetSalesTrendsSummary(startTime, endTime, prevStart, prevEnd)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "failed to generate report: " + err.Error(),
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to get sales trends summary report :" + err.Error(),
+				Code:        http.StatusNotFound,
+			},
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -36,9 +47,13 @@ func GetSalesTrendsSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Sales trend summary report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   report,
-		Message:   "Sales trend report generated successfully",
+		Message:   "Sales trend summary report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -58,8 +73,12 @@ func GetSalesTrendsOverTime(w http.ResponseWriter, r *http.Request) {
 	report, err := models.GetSalesTrendsOverTime(period, startTime, endTime)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "failed to generate report: " + err.Error(),
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to get sales trends over time report",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -69,7 +88,11 @@ func GetSalesTrendsOverTime(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Sales trend report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   report,
 		Message:   "Sales trend report generated successfully",
 		TimeTaken: time.Since(start),
@@ -87,7 +110,11 @@ func GetCustomerSegmentation(w http.ResponseWriter, r *http.Request) {
 	data, err := models.GetCustomerSegmentation(start, end)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to get customer segmentation report",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -105,7 +132,11 @@ func GetCustomerSegmentation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Customer segmentation report",
+			Code:        http.StatusCreated,
+		},
 		Payload:   resp,
 		Message:   "Customer segmentation report",
 		TimeTaken: time.Since(start),
@@ -124,7 +155,11 @@ func GetSalesByRegion(w http.ResponseWriter, r *http.Request) {
 	data, err := models.GetSalesByRegion(start, end)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to get sales by region report",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -155,7 +190,11 @@ func GetSalesByRegion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Sales segmentation report",
+			Code:        http.StatusCreated,
+		},
 		Payload:   resp,
 		Message:   "Sales segmentation report",
 		TimeTaken: time.Since(start),
@@ -166,13 +205,13 @@ func GetSalesByRegion(w http.ResponseWriter, r *http.Request) {
 
 // ---------------- CSV Export ----------------
 func exportCSV(w http.ResponseWriter, data []dtos.RegionSales) {
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment;filename=sales_by_region.csv")
+	w.Header().Set(contentType, "text/csv")
+	w.Header().Set(contentDisposition, "attachment;filename=sales_by_region.csv")
 
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
 
-	writer.Write([]string{"Region", "Total Sales", "Avg Order Value", "Transactions"})
+	writer.Write([]string{"Region", totalSales, avgOrderValue, "Transactions"})
 	for _, r := range data {
 		writer.Write([]string{
 			r.Region,
@@ -188,7 +227,7 @@ func exportExcel(w http.ResponseWriter, data []dtos.RegionSales) {
 	f := excelize.NewFile()
 	sheet := "Sheet1"
 
-	headers := []string{"Region", "Total Sales", "Avg Order Value", "Transactions"}
+	headers := []string{"Region", totalSales, avgOrderValue, "Transactions"}
 	for i, h := range headers {
 		col := string(rune('A' + i))
 		f.SetCellValue(sheet, col+"1", h)
@@ -202,8 +241,8 @@ func exportExcel(w http.ResponseWriter, data []dtos.RegionSales) {
 		f.SetCellValue(sheet, "D"+row, r.Transactions)
 	}
 
-	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", "attachment;filename=sales_by_region.xlsx")
+	w.Header().Set(contentType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set(contentDisposition, "attachment;filename=sales_by_region.xlsx")
 	_ = f.Write(w)
 }
 
@@ -216,7 +255,7 @@ func exportPDF(w http.ResponseWriter, data []dtos.RegionSales) {
 	pdf.Ln(12)
 
 	pdf.SetFont("Arial", "B", 10)
-	headers := []string{"Region", "Total Sales", "Avg Order Value", "Transactions"}
+	headers := []string{"Region", totalSales, avgOrderValue, "Transactions"}
 	colWidths := []float64{50, 40, 40, 40}
 
 	// table headers
@@ -235,7 +274,7 @@ func exportPDF(w http.ResponseWriter, data []dtos.RegionSales) {
 		pdf.Ln(-1)
 	}
 
-	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", "attachment;filename=sales_by_region.pdf")
+	w.Header().Set(contentType, "application/pdf")
+	w.Header().Set(contentDisposition, "attachment;filename=sales_by_region.pdf")
 	_ = pdf.Output(w)
 }

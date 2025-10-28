@@ -67,13 +67,17 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Auth") {
 		return
 	}
 	// Validate request
 	if req.Phonenumber == "" && req.Email == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Phone number or email is required for registration",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "Phone number or email is required",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -84,7 +88,11 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	if req.Phonenumber != "" {
 		if !utils.IsValidKenyanPhone(req.Phonenumber) {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusBadRequest,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Auth",
+					Description: "Invalid phone number format provided",
+					Code:        http.StatusBadRequest,
+				},
 				Message:   "Invalid phone number",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -102,7 +110,11 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("create user error : %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Error creating new user",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "Error creating user",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -124,7 +136,11 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	handleSendingOtps(*req, otp, *user)
 	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: "User created successfully and activation code sent",
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "User created, activation code sent",
 		TimeTaken: time.Since(start),
@@ -154,7 +170,11 @@ func CheckUserExistsByEmailOrPhone(w http.ResponseWriter, r *http.Request, req d
 		if err != nil {
 			log.Printf("GetUserByEmail error: %s", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Auth",
+					Description: "Error getting user by email: " + req.Email,
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   "Error checking email",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -165,7 +185,11 @@ func CheckUserExistsByEmailOrPhone(w http.ResponseWriter, r *http.Request, req d
 		}
 		if existingUser != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusConflict,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Auth",
+					Description: "User with this email " + req.Email + " already exists",
+					Code:        http.StatusConflict,
+				},
 				Message:   "User with this email already exists",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -181,7 +205,11 @@ func CheckUserExistsByEmailOrPhone(w http.ResponseWriter, r *http.Request, req d
 		if err != nil {
 			log.Printf("GetUserByPhone error: %s", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Auth",
+					Description: "Error getting user by phone number: " + req.Phonenumber,
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   "Error checking phone number",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -192,7 +220,11 @@ func CheckUserExistsByEmailOrPhone(w http.ResponseWriter, r *http.Request, req d
 		}
 		if existingUser != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusConflict,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Auth",
+					Description: "User with this phone number " + req.Phonenumber + " already exists",
+					Code:        http.StatusConflict,
+				},
 				Message:   "User with this phone number already exists",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -232,7 +264,11 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 	// Validate required fields
 	if req.Email == "" && req.Phone == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Email or phone number is required",
+				Code:        http.StatusUnauthorized,
+			},
 			Message:   "Email or phone number is required",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -243,7 +279,11 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.OTP == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "OTP cannot be empty and is required for verification",
+				Code:        http.StatusUnauthorized,
+			},
 			Message:   "OTP cannot be empty",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -261,7 +301,11 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		user, err = models.GetUserByEmail(req.Email)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusUnauthorized,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Auth",
+					Description: "User not found with email: " + req.Email,
+					Code:        http.StatusNotFound,
+				},
 				Message:   noUserFound,
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -275,7 +319,11 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("GetUserByPhone error: %s", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Auth",
+					Description: "Error when getting user with phone number: " + req.Phone,
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   "Error checking phone number",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -287,12 +335,15 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate OTP
-	storedOTP, err := GetAndInvalidateOTP(user.ID)
+	err = validateOtp(user.ID, *req)
 	if err != nil {
-		log.Printf("Error retrieving OTP: %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
-			Message:   "Invalid or expired OTP",
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Error retrieving OTP, the OTP may be invalid or expired : " + err.Error(),
+				Code:        http.StatusUnauthorized,
+			},
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -300,22 +351,7 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if storedOTP != req.OTP {
-		//use a hardcoded otp for testing
-		if req.OTP == "2025" {
-			storedOTP = "2025"
-		} else {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusUnauthorized,
-				Message:   "Incorrect OTP",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-	}
+
 	// Generate token
 	//define token expiration time to be 7 days
 	tokenExpirationTime := 7 * 24 * time.Hour
@@ -326,8 +362,12 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 	token, err := generateToken(user, "auth", tokenExpirationTime)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Token generation failed",
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Token failed to be generated after successful OTP verification",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   "Token generation was unsuccessful",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -341,7 +381,11 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Return success response
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: "User successfully verified",
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"token":                    token,
 			"token_expires_in":         int(tokenExpirationTime.Seconds()),
@@ -354,6 +398,22 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary,
 	})
+}
+func validateOtp(userID string, req dtos.VerifyOTP) error {
+	storedOTP, err := GetAndInvalidateOTP(userID)
+	if err != nil {
+		log.Printf("Error retrieving OTP: %s", err)
+		return fmt.Errorf("invalid or expired OTP: %w", err)
+	}
+	if storedOTP != req.OTP {
+		//use a hardcoded otp for testing
+		if req.OTP == "2025" {
+			storedOTP = "2025"
+		} else {
+			return errors.New("incorrect OTP")
+		}
+	}
+	return nil
 }
 
 /*
@@ -396,7 +456,11 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if user == nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: noUserFound,
+				Code:        http.StatusUnauthorized,
+			},
 			Message:   "User not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -419,7 +483,11 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	dispatchOTP(user, otp)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: "OTP sent successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "OTP sent",
 		TimeTaken: time.Since(start),
@@ -467,7 +535,11 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if user == nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: noUserFound,
+				Code:        http.StatusUnauthorized,
+			},
 			Message:   "User not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -485,7 +557,11 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	token, err := generateToken(user, "auth", tokenExpirationTime)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Token generation failed",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "Token generation failed",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -500,7 +576,11 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Return success response
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: "Token refreshed and sent successfully",
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]any{
 			"token":                    token,
 			"token_expires_in":         int(tokenExpirationTime.Seconds()),
@@ -550,9 +630,13 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: "User with id" + claims.UserID + " logged out successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
-		Message:   "Logged out successfully",
+		Message:   "User logged out successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -593,7 +677,11 @@ func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("ERR:::::::::::%v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Error fetching user for OTP resend",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -603,8 +691,12 @@ func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if user == nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusUnauthorized,
-			Message:   "User does'nt exist",
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "User with email or phone " + req.Email + req.Phone + " doesn't exist for OTP resend",
+				Code:        http.StatusNotFound,
+			},
+			Message:   "User doesn't exist",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -637,7 +729,11 @@ func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: "Resend OTP generated and resent successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "OTP resent successfully",
 		TimeTaken: time.Since(start),
@@ -808,7 +904,11 @@ func handleFailedLogin(w http.ResponseWriter, identifier string, start time.Time
 		_ = jailUser(identifier)
 	}
 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-		Code:      http.StatusUnauthorized,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: "Invalid credentials provided during login",
+			Code:        http.StatusUnauthorized,
+		},
 		Message:   "Invalid credentials",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -837,7 +937,11 @@ func dispatchOTP(user *dtos.User, otp string) {
 // Response helpers
 func respondBadRequest(w http.ResponseWriter, msg string, start time.Time, r *http.Request, raw string) {
 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-		Code:      http.StatusBadRequest,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: msg,
+			Code:        http.StatusBadRequest,
+		},
 		Message:   msg,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -848,7 +952,11 @@ func respondBadRequest(w http.ResponseWriter, msg string, start time.Time, r *ht
 
 func respondTooManyAttempts(w http.ResponseWriter, start time.Time, r *http.Request, raw string) {
 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-		Code:      http.StatusTooManyRequests,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: "Too many failed login attempts",
+			Code:        http.StatusTooManyRequests,
+		},
 		Message:   "Too many failed attempts. Try again later.",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -859,7 +967,11 @@ func respondTooManyAttempts(w http.ResponseWriter, start time.Time, r *http.Requ
 
 func respondInternalError(w http.ResponseWriter, msg string, start time.Time, r *http.Request, raw string) {
 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-		Code:      http.StatusInternalServerError,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: msg,
+			Code:        http.StatusInternalServerError,
+		},
 		Message:   msg,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),

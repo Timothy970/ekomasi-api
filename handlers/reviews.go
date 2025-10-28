@@ -15,6 +15,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var productWithID = "Product with ID "
+
 // GetReviews godoc
 // @Summary      Product Reviews
 // @Description  Get all reviews for a specific product
@@ -71,7 +73,11 @@ func GetReviews(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: productWithID + productID + " is not found",
+					Code:        http.StatusNotFound,
+				},
 				Message:   "Product not found",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -80,7 +86,11 @@ func GetReviews(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Printf("error getting reviews:::%v", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Error fetching product reviews for product with ID " + productID,
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   "Error fetching product reviews",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -102,7 +112,11 @@ func GetReviews(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product reviews for product ID " + productID + " retrieved successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   response,
 		Message:   "Product reviews",
 		TimeTaken: time.Since(start),
@@ -132,7 +146,7 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	//check if product exists
@@ -140,7 +154,11 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 	if err != nil || product == nil {
 		if err == sql.ErrNoRows {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: productWithID + productID + " has not been found",
+					Code:        http.StatusNotFound,
+				},
 				Message:   productNotFound,
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -148,7 +166,11 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 				RawBody:   requestSummary})
 		} else {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Error fetching product reviews for product with ID " + productID,
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -161,7 +183,11 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error adding new product review: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Error adding new review for product ID " + productID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -178,9 +204,13 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Review added successfully for product ID " + productID,
+			Code:        http.StatusCreated,
+		},
 		Payload:   review,
-		Message:   "Review added succesfully",
+		Message:   "Review added successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -201,7 +231,7 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 func UpdateReview(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -217,7 +247,11 @@ func UpdateReview(w http.ResponseWriter, r *http.Request) {
 	if err != nil || product == nil {
 		if err == sql.ErrNoRows {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: productWithID + productID + " not found",
+					Code:        http.StatusNotFound,
+				},
 				Message:   productNotFound,
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -225,7 +259,11 @@ func UpdateReview(w http.ResponseWriter, r *http.Request) {
 				RawBody:   requestSummary})
 		} else {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Error fetching product reviews for product ID " + productID,
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -238,7 +276,11 @@ func UpdateReview(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error moderating review: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Error moderating review for product ID " + productID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -261,9 +303,13 @@ func UpdateReview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Review moderated successfully for product ID " + productID,
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
-		Message:   "Review moderated succesfully",
+		Message:   "Review moderated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -286,7 +332,7 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -297,7 +343,11 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 	if err != nil || product == nil {
 		if err == sql.ErrNoRows {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: productWithID + productID + " not found",
+					Code:        http.StatusNotFound,
+				},
 				Message:   productNotFound,
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -305,7 +355,11 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 				RawBody:   requestSummary})
 		} else {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Error fetching product reviews for product ID " + productID,
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -318,7 +372,11 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error deleteing review: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Error deleting review for product ID " + productID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -341,7 +399,11 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Review deleted successfully for product ID " + productID,
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "Review deleted succesfully",
 		TimeTaken: time.Since(start),

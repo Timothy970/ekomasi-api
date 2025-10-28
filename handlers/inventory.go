@@ -29,7 +29,7 @@ func ListInventory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
 		return
 	}
 	categoryID := r.URL.Query().Get("category_id")
@@ -53,7 +53,11 @@ func ListInventory(w http.ResponseWriter, r *http.Request) {
 		inventories, pagination, err = models.ListInventory(page, size, categoryID, stock, storeID)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusBadRequest,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Inventory",
+					Description: "Failed to list inventory",
+					Code:        http.StatusBadRequest,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -71,7 +75,11 @@ func ListInventory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Inventory",
+			Description: "Inventories fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload: dtos.InventoryListResponse{
 			Meta:        *pagination,
 			Inventories: inventories,
@@ -98,7 +106,7 @@ func CreateInventory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory")
 	if !ok {
 		return
 	}
@@ -107,13 +115,17 @@ func CreateInventory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Inventory") {
 		return
 	}
 
 	if err := models.CreateInventory(*req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to create inventory",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -124,7 +136,11 @@ func CreateInventory(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("inventories_")
 	utils.DeleteCacheByPrefix("inventories_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Inventory",
+			Description: "Inventory saved successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "Inventory created successfully",
 		TimeTaken: time.Since(start),
@@ -148,7 +164,7 @@ func GetInventory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
 		return
 	}
 	id := mux.Vars(r)["inventory_id"]
@@ -156,7 +172,11 @@ func GetInventory(w http.ResponseWriter, r *http.Request) {
 	inv, err := models.GetInventory(id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to get inventory",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -166,7 +186,11 @@ func GetInventory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Inventory",
+			Description: "Inventory fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   inv,
 		Message:   "Inventory fetched successfully",
 		TimeTaken: time.Since(start),
@@ -190,7 +214,7 @@ func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory")
 	if !ok {
 		return
 	}
@@ -200,7 +224,11 @@ func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.LowStockThreshold == nil && req.Quantity == nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "LowStockThreshold or Quantity must be provided",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "Request cannot be empty",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -208,14 +236,18 @@ func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Inventory") {
 		return
 	}
 	id := mux.Vars(r)["inventory_id"]
 
 	if err := models.UpdateInventory(id, req.Quantity, req.LowStockThreshold); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to update inventory with ID " + id,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -226,7 +258,11 @@ func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("inventories_")
 	utils.DeleteCacheByPrefix("inventories_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Inventory",
+			Description: "Inventory with ID " + id + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Inventory updated successfully",
 		TimeTaken: time.Since(start),
@@ -250,7 +286,7 @@ func DeleteInventory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory")
 	if !ok {
 		return
 	}
@@ -258,7 +294,11 @@ func DeleteInventory(w http.ResponseWriter, r *http.Request) {
 
 	if err := models.DeleteInventory(id); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to delete inventory with ID " + id,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -269,7 +309,11 @@ func DeleteInventory(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("inventories_")
 	utils.DeleteCacheByPrefix("inventories_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Inventory",
+			Description: "Inventory with ID " + id + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Inventory deleted successfully",
 		TimeTaken: time.Since(start),
@@ -290,7 +334,11 @@ func GetInventoryTurnover(w http.ResponseWriter, r *http.Request) {
 	data, err := models.GetInventoryTurnover(start, end, groupBy)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to get inventory turnover report",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -309,7 +357,11 @@ func GetInventoryTurnover(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Summary inventory turnover report generated successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   resp,
 		Message:   "Summary inventory turnover report",
 		TimeTaken: time.Since(start),
@@ -333,7 +385,11 @@ func GetInventoryTurnoverByProduct(w http.ResponseWriter, r *http.Request) {
 	data, err := models.GetInventoryTurnoverByProduct(productID, start, end, groupBy)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to get inventory turnover report for product " + productID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -352,7 +408,11 @@ func GetInventoryTurnoverByProduct(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Product inventory turnover report generated successfully for product " + productID,
+			Code:        http.StatusCreated,
+		},
 		Payload:   resp,
 		Message:   "Product inventory turnover report",
 		TimeTaken: time.Since(start),
@@ -371,14 +431,18 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
 		return
 	}
 
 	// Parse multipart form (20 MB limit)
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to parse multipart form when creating stock entry",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -391,7 +455,11 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 	batchImageUrls, err := handleImageUpload(r, "batch_images")
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to upload batch images when creating stock entry",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -403,7 +471,11 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 	inspectionImageUrls, err := handleImageUpload(r, "inspection_images")
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to upload inspection images when creating stock entry",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -433,7 +505,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		HandlingNotes:     r.FormValue("handling_notes"),
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Inventory") {
 		return
 	}
 	var invetoryIDS []string
@@ -442,7 +514,11 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		inventoryID, err := handleInventoryTracking(req, storeID)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Inventory",
+					Description: "Failed to store inventory tracking when creating stock entry",
+					Code:        http.StatusNotFound,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -454,7 +530,11 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		batchID, err := handleBatch(req, inventoryID)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Inventory",
+					Description: "Failed to store batch details when creating stock entry",
+					Code:        http.StatusNotFound,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -465,7 +545,11 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		err = handleInspection(req, batchID)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Inventory",
+					Description: "Failed to store inspection details when creating stock entry",
+					Code:        http.StatusNotFound,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -476,7 +560,11 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		err = handleStoreConditonsAndNotes(req, batchID)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Inventory",
+					Description: "Failed to store handling notes when creating stock entry",
+					Code:        http.StatusNotFound,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -486,7 +574,11 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Inventory",
+			Description: "Inventory(stock entry) created successfully with inventory IDs " + fmt.Sprint(invetoryIDS),
+			Code:        http.StatusCreated,
+		},
 		Payload:   map[string]any{"inventory_ids": invetoryIDS},
 		Message:   "Inventory created successfully",
 		TimeTaken: time.Since(start),
@@ -612,7 +704,7 @@ func GetInventoryStockSummary(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
 		return
 	}
 	id := mux.Vars(r)["inventory_id"]
@@ -621,7 +713,11 @@ func GetInventoryStockSummary(w http.ResponseWriter, r *http.Request) {
 	inv, err := models.GetInventoryStockSummary(id, storeID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to get inventory stock summary for inventory with ID " + id,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -631,7 +727,11 @@ func GetInventoryStockSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Inventory",
+			Description: "Successfully fetched inventory stock summary for inventory with ID " + id,
+			Code:        http.StatusOK,
+		},
 		Payload:   inv,
 		Message:   "Inventory stock summary fetched successfully",
 		TimeTaken: time.Since(start),
@@ -645,7 +745,7 @@ func GetInventoryStockHistory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
 		return
 	}
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
@@ -654,7 +754,11 @@ func GetInventoryStockHistory(w http.ResponseWriter, r *http.Request) {
 	inv, pagination, err := models.GetInventoryStockHistory(id, page, size)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to get inventory stock history for inventory with ID " + id,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -664,7 +768,11 @@ func GetInventoryStockHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Inventory",
+			Description: "Successfully fetched inventory stock history for inventory with ID " + id,
+			Code:        http.StatusOK,
+		},
 		Payload:   map[string]any{"history": inv, "pagination": pagination},
 		Message:   "Inventory stock history fetched successfully",
 		TimeTaken: time.Since(start),

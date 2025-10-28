@@ -16,7 +16,11 @@ func CartAbandonmentReport(w http.ResponseWriter, r *http.Request) {
 	report, err := models.GetCartAbandonmentRate(startTime, endTime)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to generate cart abandonment report",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "failed to generate report: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -27,7 +31,11 @@ func CartAbandonmentReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Cart abandonment report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   report,
 		Message:   "Cart abandonment report generated successfully",
 		TimeTaken: time.Since(start),
@@ -50,7 +58,11 @@ func CartAbandonmentTrendReport(w http.ResponseWriter, r *http.Request) {
 	report, err := models.GetCartAbandonmentTrend(startTime, endTime, period)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to generate cart abandonment trend report",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "failed to generate report: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -61,7 +73,11 @@ func CartAbandonmentTrendReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Cart abandonment trend report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   report,
 		Message:   "Cart abandonment trend report generated successfully",
 		TimeTaken: time.Since(start),

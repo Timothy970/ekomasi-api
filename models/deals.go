@@ -4,6 +4,7 @@ import (
 	"adenzo_backend/dtos"
 	"database/sql"
 	"fmt"
+	"os"
 
 	"github.com/teris-io/shortid"
 )
@@ -28,7 +29,7 @@ func GetAllDeals(page, size int) ([]dtos.Deal, *dtos.PaginationMeta, error) {
 	var countTotal int
 	err := DB.QueryRow(`SELECT COUNT(*) FROM deals`).Scan(&countTotal)
 	rows, err := DB.Query(`
-	SELECT deal_id, name, start_date, end_date
+	SELECT deal_id, name, start_date, end_date, is_active
 	FROM deals d
 	LIMIT ? OFFSET ?
 	`, size, (page-1)*size)
@@ -39,7 +40,7 @@ func GetAllDeals(page, size int) ([]dtos.Deal, *dtos.PaginationMeta, error) {
 	var deals []dtos.Deal
 	for rows.Next() {
 		var d dtos.Deal
-		if err := rows.Scan(&d.DealID, &d.Name, &d.StartDate, &d.EndDate); err != nil {
+		if err := rows.Scan(&d.DealID, &d.Name, &d.StartDate, &d.EndDate, &d.IsActive); err != nil {
 			return nil, nil, err
 		}
 		// get the deals products
@@ -47,6 +48,8 @@ func GetAllDeals(page, size int) ([]dtos.Deal, *dtos.PaginationMeta, error) {
 		if err != nil {
 			return nil, nil, err
 		}
+		baseUrl := os.Getenv("BASE_URL")
+		d.Link = fmt.Sprintf("%s/products/deals/%s", baseUrl, d.DealID)
 		d.Products = products
 		deals = append(deals, d)
 	}
@@ -125,7 +128,7 @@ func GetDealWithProducts(dealID string, page, limit int) (*dtos.DealWithProducts
 
 	query := `
 		SELECT 
-			d.deal_id, d.name, d.start_date, d.end_date
+			d.deal_id, d.name, d.start_date, d.end_date, d.is_active
 		FROM deals d
 		WHERE d.deal_id = ?
 	`
@@ -139,7 +142,7 @@ func GetDealWithProducts(dealID string, page, limit int) (*dtos.DealWithProducts
 		endDate   sql.NullTime
 	)
 
-	if err := row.Scan(&deal.DealID, &name, &startDate, &endDate); err != nil {
+	if err := row.Scan(&deal.DealID, &name, &startDate, &endDate, &deal.IsActive); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, dtos.PaginationMeta{}, fmt.Errorf("deal not found")
 		}
@@ -156,7 +159,9 @@ func GetDealWithProducts(dealID string, page, limit int) (*dtos.DealWithProducts
 		return nil, dtos.PaginationMeta{}, err
 	}
 	deal.Products = products
-
+	// Construct the deal link
+	baseUrl := os.Getenv("BASE_URL")
+	deal.Link = fmt.Sprintf("%s/products/deals/%s", baseUrl, deal.DealID)
 	return &deal, *pagination, nil
 }
 

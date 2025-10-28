@@ -18,7 +18,11 @@ func GetEffectiveness(w http.ResponseWriter, r *http.Request) {
 	results, err := models.GetEffectiveness(promotionID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to get promotion effectiveness report",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -28,7 +32,11 @@ func GetEffectiveness(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Promotion effectiveness report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   results,
 		Message:   "Promotion effectiveness report generated successfully",
 		TimeTaken: time.Since(start),
@@ -47,7 +55,11 @@ func GetComparison(w http.ResponseWriter, r *http.Request) {
 	results, err := models.GetComparison(promotionID, startTime, endTime)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to get promotion with promotion ID " + promotionID + " comparison report",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -57,7 +69,11 @@ func GetComparison(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Promotion for promotion ID " + promotionID + " comparison report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   results,
 		Message:   "Promotion comparison report generated successfully",
 		TimeTaken: time.Since(start),
@@ -75,7 +91,11 @@ func GetSummary(w http.ResponseWriter, r *http.Request) {
 	results, err := models.GetPromotionSummary(startTime, endTime)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to get promotion summary report",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -85,7 +105,11 @@ func GetSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Promotion summary report generated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   results,
 		Message:   "Promotion summary report generated successfully",
 		TimeTaken: time.Since(start),

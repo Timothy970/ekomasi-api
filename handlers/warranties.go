@@ -16,7 +16,7 @@ func CreateWarrantType(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -25,13 +25,17 @@ func CreateWarrantType(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	err := models.CreateWarrantType(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to create warranty",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -41,7 +45,11 @@ func CreateWarrantType(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Warranty created successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "Warranty created successfully",
 		TimeTaken: time.Since(start),
@@ -63,7 +71,11 @@ func GetAllWarrantyTypes(w http.ResponseWriter, r *http.Request) {
 	warrantyTypes, err := models.GetAllWarrantTypes()
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to get warranty types",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -73,7 +85,11 @@ func GetAllWarrantyTypes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Warranty types retrieved successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   warrantyTypes,
 		Message:   "Warranty types retrieved successfully",
 		TimeTaken: time.Since(start),
@@ -87,7 +103,7 @@ func UpdateWarrantType(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -95,14 +111,18 @@ func UpdateWarrantType(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	warrantID := mux.Vars(r)["warranty_type_id"]
 	err := models.UpdateWarrantType(warrantID, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to update warranty type with ID " + warrantID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -111,7 +131,11 @@ func UpdateWarrantType(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Warranty type with ID " + warrantID + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Warranty type updated successfully",
 		TimeTaken: time.Since(start),
@@ -124,7 +148,7 @@ func DeleteWarrantType(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -132,7 +156,11 @@ func DeleteWarrantType(w http.ResponseWriter, r *http.Request) {
 	err := models.DeleteWarrantType(warrantID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to delete warranty type with ID " + warrantID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -141,7 +169,11 @@ func DeleteWarrantType(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Warranty type with ID " + warrantID + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Warranty type deleted successfully",
 		TimeTaken: time.Since(start),
@@ -156,7 +188,7 @@ func AddProductWarranties(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
 	if !ok {
 		return
 	}
@@ -164,13 +196,17 @@ func AddProductWarranties(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	err := models.AddProductWarranties(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to add product warranties",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -179,7 +215,11 @@ func AddProductWarranties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product warranties added successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Product warranties added successfully",
 		TimeTaken: time.Since(start),

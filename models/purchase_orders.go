@@ -11,7 +11,7 @@ import (
 var nopurcahseorder = "purchase order not found"
 var wherepo = "po_id = ?"
 
-func AddNewPurcahseOrder(req dtos.CreatePurchaseOrderRequest) error {
+func AddNewPurchaseOrder(req dtos.CreatePurchaseOrderRequest) error {
 	err := isSupplierThere(req.SupplierID)
 	if err != nil {
 		return err

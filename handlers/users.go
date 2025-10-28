@@ -12,7 +12,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
-var mandatory = "Include mandatory fields"
+var (
+	mandatory  = "Include mandatory fields"
+	userWithID = "User with ID "
+)
 
 // AddUser for Admins only
 //
@@ -30,7 +33,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
@@ -40,7 +43,11 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if (input.Email == "" || input.Phonenumber == "") && input.RoleID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Missing mandatory fields email, phone number or role ID",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   mandatory,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -51,7 +58,11 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	user, err := models.CreateUser(*input)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to create user",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -61,7 +72,11 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	}
 	//send email to the created user
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "User created successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   user,
 		Message:   "User added successfully",
 		TimeTaken: time.Since(start),
@@ -86,7 +101,7 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
@@ -108,7 +123,11 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	users, meta, err := models.GetAllUsersWithPagination(limit, offset, q, role)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to fetch users: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -121,7 +140,11 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		"pagination": meta,
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Users fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   response,
 		Message:   "Users",
 		TimeTaken: time.Since(start),
@@ -144,7 +167,7 @@ func GetUserByID(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
@@ -152,7 +175,11 @@ func GetUserByID(w http.ResponseWriter, r *http.Request) {
 	user, err := models.GetUserByUserID(userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to fetch user with ID " + userID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -162,7 +189,11 @@ func GetUserByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: userWithID + userID + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   user,
 		Message:   "User fetched successfully",
 		TimeTaken: time.Since(start),
@@ -188,7 +219,11 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	authuser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "User not found in context or not authenticated",
+				Code:        http.StatusUnauthorized,
+			},
 			Message:   "User not validated",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -202,7 +237,11 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if input.Email == "" && input.Phonenumber == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Missing mandatory fields email or phone number",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   mandatory,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -210,13 +249,17 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start, "Users") {
 		return
 	}
 	if input.Phonenumber != "" {
 		if !utils.IsValidKenyanPhone(input.Phonenumber) {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusBadRequest,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Users",
+					Description: "Invalid phone number format",
+					Code:        http.StatusBadRequest,
+				},
 				Message:   "Invalid phone number",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -228,7 +271,11 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	user, err := models.FindByIdAndUpdate(*input, authuser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to update user with ID " + authuser.ID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -238,7 +285,11 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: userWithID + authuser.ID + " details updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   user,
 		Message:   "User details updated successfully",
 		TimeTaken: time.Since(start),
@@ -262,7 +313,7 @@ func DeleteUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
@@ -270,7 +321,11 @@ func DeleteUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	err := models.DeleteUserByID(userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to delete user with ID " + userID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -280,7 +335,11 @@ func DeleteUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: userWithID + userID + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "User deleted successfully",
 		TimeTaken: time.Since(start),
@@ -304,7 +363,7 @@ func ActivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
@@ -312,7 +371,11 @@ func ActivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	err := models.ActivateUserByID(userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to activate user with ID " + userID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -322,7 +385,11 @@ func ActivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: userWithID + userID + " activated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "User activated successfully",
 		TimeTaken: time.Since(start),
@@ -346,7 +413,7 @@ func DeactivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
@@ -354,7 +421,11 @@ func DeactivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	err := models.DeactivateUserByID(userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to deactivate user with ID " + userID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -364,7 +435,11 @@ func DeactivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: userWithID + userID + " deactivated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "User deactivated successfully",
 		TimeTaken: time.Since(start),
@@ -388,8 +463,12 @@ func GetUserDetails(w http.ResponseWriter, r *http.Request) {
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "User not autgenticated",
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "User not authenticated",
+				Code:        http.StatusUnauthorized,
+			},
+			Message:   "User not authenticated",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -400,7 +479,11 @@ func GetUserDetails(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to fetch user with ID " + authUser.ID + " details",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "User not validated",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -410,7 +493,11 @@ func GetUserDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: userWithID + authUser.ID + " details fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   user,
 		Message:   "User details",
 		TimeTaken: time.Since(start),
@@ -437,7 +524,11 @@ func CreateAddress(w http.ResponseWriter, r *http.Request) {
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "User not found in context and not authenticated",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "User not found in context",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -450,13 +541,17 @@ func CreateAddress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start, "Users") {
 		return
 	}
 	err := models.CreateUserAddress(*input, authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to create address for user with ID " + authUser.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -466,7 +561,11 @@ func CreateAddress(w http.ResponseWriter, r *http.Request) {
 	}
 	//send email to the created user
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Address for user with ID " + authUser.ID + " added successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "User address added successfully",
 		TimeTaken: time.Since(start),
@@ -493,7 +592,11 @@ func GetUserAddress(w http.ResponseWriter, r *http.Request) {
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "User not found in context and not authenticated",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "User not found in context",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -505,7 +608,11 @@ func GetUserAddress(w http.ResponseWriter, r *http.Request) {
 	addresses, err := models.GetUserAddresses(authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to fetch addresses for user with ID " + authUser.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -515,7 +622,11 @@ func GetUserAddress(w http.ResponseWriter, r *http.Request) {
 	}
 	//send email to the created user
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Addresses for user with ID " + authUser.ID + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   addresses,
 		Message:   "User address fetched successfully",
 		TimeTaken: time.Since(start),
@@ -542,7 +653,11 @@ func UpdateAddress(w http.ResponseWriter, r *http.Request) {
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: noUser,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -556,13 +671,17 @@ func UpdateAddress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start, "Users") {
 		return
 	}
 	err := models.UpdateUserAddress(addressID, authUser.ID, input)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to update address for user with ID " + authUser.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -572,7 +691,11 @@ func UpdateAddress(w http.ResponseWriter, r *http.Request) {
 	}
 	//send email to the created user
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: userWithID + authUser.ID + " address updated successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "User address updated successfully",
 		TimeTaken: time.Since(start),
@@ -599,7 +722,11 @@ func DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "User not found in context and not validated",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "User not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -611,7 +738,11 @@ func DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	err := models.DeleteUserAddress(addressID, authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to delete address for user with ID " + authUser.ID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -621,7 +752,11 @@ func DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	}
 	//send email to the created user
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: userWithID + authUser.ID + " address deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "User address deleted successfully",
 		TimeTaken: time.Since(start),
@@ -646,7 +781,7 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
@@ -657,7 +792,11 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 	if (input.Email == "" || input.Phonenumber == "") && input.RoleID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Missing mandatory fields email, phone number or role ID",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   mandatory,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -668,7 +807,11 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	user, err := models.FindByIdAndUpdate(*input, userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to update user with ID " + userID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -678,7 +821,11 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: userWithID + userID + " details updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   user,
 		Message:   "User details updated successfully",
 		TimeTaken: time.Since(start),
@@ -696,7 +843,11 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "User not found in context and not validated",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -719,7 +870,11 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 	purchaseCats, err := models.GetPurchasedCategories(authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to fetch purchased categories for user with ID " + authUser.ID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -731,7 +886,11 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 	wishlistCats, err := models.GetWishlistCategories(authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to fetch wishlist categories for user with ID " + authUser.ID,
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -747,7 +906,11 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 	recommended, pagination, err := models.GetProductsByCategories(categories, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to fetch recommended products",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -757,7 +920,11 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Recommended products fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"products":   recommended,
 			"pagination": pagination,
@@ -789,13 +956,17 @@ func AddSubscriber(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start, "Users") {
 		return
 	}
 	err := models.CreateSubscribers(input.Email)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to create subscriber",
+				Code:        http.StatusNotFound,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -805,7 +976,11 @@ func AddSubscriber(w http.ResponseWriter, r *http.Request) {
 	}
 	//send email to the created user
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Subscriber added successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "Subscriber added successfully",
 		TimeTaken: time.Since(start),

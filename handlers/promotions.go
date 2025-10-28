@@ -10,11 +10,13 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var promoCodeWithID = "Promo code with ID "
+
 // Add PromoCode
 func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
 		return
 	}
 
@@ -22,14 +24,19 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
 		return
 	}
 
 	promo, err := models.AddPromoCode(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code: http.StatusInternalServerError, Message: err.Error(), TimeTaken: time.Since(start),
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Promotions",
+				Description: "Failed to add promo code",
+				Code:        http.StatusInternalServerError,
+			},
+			Message: err.Error(), TimeTaken: time.Since(start),
 			Function: utils.GetCurrentFuncName(),
 			Request:  r,
 			RawBody:  requestSummary,
@@ -37,7 +44,12 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK, Payload: promo, Message: "Promo code added successfully", TimeTaken: time.Since(start),
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Promotions",
+			Description: "Promo code added successfully",
+			Code:        http.StatusOK,
+		},
+		Payload: promo, Message: "Promo code added successfully", TimeTaken: time.Since(start),
 		Function: utils.GetCurrentFuncName(),
 		Request:  r,
 		RawBody:  requestSummary,
@@ -48,7 +60,7 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
 		return
 	}
 
@@ -57,13 +69,18 @@ func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
 		return
 	}
 	promo, err := models.UpdatePromoCode(id, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code: http.StatusInternalServerError, Message: err.Error(), TimeTaken: time.Since(start),
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Promotions",
+				Description: "Failed to update promo code with ID " + id,
+				Code:        http.StatusInternalServerError,
+			},
+			Message: err.Error(), TimeTaken: time.Since(start),
 			Function: utils.GetCurrentFuncName(),
 			Request:  r,
 			RawBody:  requestSummary,
@@ -71,7 +88,12 @@ func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK, Payload: promo, Message: "Promo code updated successfully", TimeTaken: time.Since(start),
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Promotions",
+			Description: promoCodeWithID + id + " updated successfully",
+			Code:        http.StatusOK,
+		},
+		Payload: promo, Message: "Promo code updated successfully", TimeTaken: time.Since(start),
 		Function: utils.GetCurrentFuncName(),
 		Request:  r,
 		RawBody:  requestSummary,
@@ -85,14 +107,24 @@ func GetPromoCodeByIDHandler(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["promo_id"]
 	promo, err := models.GetPromoCodeByID(id)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{Code: http.StatusInternalServerError, Message: err.Error(),
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Promotions",
+			Description: "Failed to get promo code with ID " + id,
+			Code:        http.StatusNotFound,
+		},
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{Code: http.StatusOK, Payload: promo, Message: "Promo code retrieved successfully",
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+		Module:      "Promotions",
+		Description: promoCodeWithID + id + " retrieved successfully",
+		Code:        http.StatusOK,
+	},
+		Payload: promo, Message: "Promo code retrieved successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -106,14 +138,24 @@ func GetAllPromoCodesHandler(w http.ResponseWriter, r *http.Request) {
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	promos, pagination, err := models.GetAllPromoCodes(page, limit)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{Code: http.StatusInternalServerError, Message: err.Error(),
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Promotions",
+			Description: "Failed to retrieve all promo codes",
+			Code:        http.StatusInternalServerError,
+		},
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{Code: http.StatusOK, Payload: map[string]any{"promocodes": promos, "pagination": pagination}, Message: "Promo codes retrieved successfully",
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+		Module:      "Promotions",
+		Description: "All promo codes retrieved successfully",
+		Code:        http.StatusOK,
+	},
+		Payload: map[string]any{"promocodes": promos, "pagination": pagination}, Message: "Promo codes retrieved successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -124,7 +166,7 @@ func GetAllPromoCodesHandler(w http.ResponseWriter, r *http.Request) {
 func DeletePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
 		return
 	}
 
@@ -132,14 +174,25 @@ func DeletePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := models.DeletePromoCode(id)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{Code: http.StatusInternalServerError, Message: err.Error(),
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Promotions",
+			Description: "Failed to delete promo code with ID " + id,
+			Code:        http.StatusInternalServerError,
+		},
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{Code: http.StatusOK, Message: "Promo code deleted successfully",
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+		Module:      "Promotions",
+		Description: promoCodeWithID + id + " deleted successfully",
+		Code:        http.StatusOK,
+	},
+		Payload:   nil,
+		Message:   "Promo code deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -148,7 +201,7 @@ func DeletePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
 		return
 	}
 
@@ -158,14 +211,18 @@ func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
 		return
 	}
 
 	err := models.SetPromoCodeActiveStatus(id, req.IsActive)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Promotions",
+				Description: "Failed to set promo code active status for ID " + id,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -180,7 +237,11 @@ func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Promotions",
+			Description: msg + " for ID " + id,
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   msg,
 		TimeTaken: time.Since(start),
@@ -193,7 +254,7 @@ func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
 func AddPromotionToProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
 		return
 	}
 
@@ -201,11 +262,16 @@ func AddPromotionToProductHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
 		return
 	}
 	if err := models.AddPromotionToProduct(*req); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{Code: http.StatusInternalServerError, Message: err.Error(),
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Promotions",
+			Description: "Failed to add promotion to product with ID " + req.ProductID,
+			Code:        http.StatusInternalServerError,
+		},
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -213,7 +279,13 @@ func AddPromotionToProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{Code: http.StatusOK, Message: "Promotion added to product successfully",
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+		Module:      "Promotions",
+		Description: "Promotion added to product with ID " + req.ProductID + " successfully",
+		Code:        http.StatusOK,
+	},
+		Payload:   nil,
+		Message:   "Promotion added to product successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

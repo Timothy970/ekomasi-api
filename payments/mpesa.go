@@ -23,7 +23,11 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 	var req dtos.MpesaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "Failed to decode MPESA payment request",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   "Invalid request",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -36,7 +40,11 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 	client, err := NewMpesaClient()
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "Failed to initialize MPESA client",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   fmt.Sprintf("Failed to initialize MPESA client %s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -49,7 +57,11 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 	response, err := client.LipaNaMpesaOnline(req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "Failed to initiate MPESA payment",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -61,7 +73,11 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 	err = models.StoreStkResponse(response, req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "Failed to store MPESA payment request",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -71,7 +87,11 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Payments",
+			Description: "MPESA payment request initiated successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   response,
 		Message:   "Payment request initiated successfully",
 		TimeTaken: time.Since(start),
@@ -189,100 +209,112 @@ func (m *MpesaClient) LipaNaMpesaOnline(paymentRequest dtos.MpesaRequest) (map[s
 
 // Handler for the MPesa callback
 func HandleMpesaCallback(w http.ResponseWriter, r *http.Request) {
-	log.Printf("************************callback hit******************")
-	// start := time.Now()
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "failed to read body", http.StatusBadRequest)
 		return
 	}
 	log.Printf("callback body:::::%v", string(bodyBytes))
-	var callback dtos.STKCallbackRequest
-	log.Printf("************************callback marshalling******************")
 
+	var callback dtos.STKCallbackRequest
 	if err := json.Unmarshal(bodyBytes, &callback); err != nil {
 		http.Error(w, "failed to parse callback", http.StatusBadRequest)
 		return
 	}
-	log.Printf("************************callback finished******************")
-
-	// Pretty-print the struct if needed
-	callbackJSON, _ := json.MarshalIndent(callback, "", "  ")
-	log.Printf("********** Parsed Callback Struct:\n%s", string(callbackJSON))
 
 	stk := callback.Body.StkCallback
-
-	log.Printf("MPESA CALLBACK RECEIVED:\n- CheckoutRequestID: %s\n- Result: %s\n- Time: %s\n",
-		stk.CheckoutRequestID, stk.ResultDesc, time.Now().Format(time.RFC3339))
+	logCallbackInfo(stk.CheckoutRequestID, stk.ResultDesc)
 
 	if stk.ResultCode == 0 {
-		// Success - extract info from metadata
-		var amount float64
-		var mpesaCode, phone string
-
-		for _, item := range stk.CallbackMetadata.Item {
-			switch item.Name {
-			case "Amount":
-				amount = item.Value.(float64)
-			case "MpesaReceiptNumber":
-				mpesaCode = item.Value.(string)
-			case "PhoneNumber":
-				phone = fmt.Sprintf("%.0f", item.Value.(float64)) // from float to string
-			}
-		}
-
-		// Log or store success transaction
-		log.Printf("SUCCESSFUL PAYMENT:\n- Phone: %s\n- Amount: %.2f\n- Code: %s\n", phone, amount, mpesaCode)
-		deliveryID, orderID, orderType, err := models.UpdateStkResponse(callback, "SUCCESS")
-		log.Printf("orderType: %s, deliveryID: %s, orderID: %s, err: %v", orderType, deliveryID, orderID, err)
-		if err != nil {
-			log.Printf("%v", err)
-		}
-		switch strings.ToLower(orderType) {
-		case "voucher":
-			//update delivery and order tables
-			err = models.UpdateVoucherOrderTables(orderID)
-			if err != nil {
-				log.Printf("%v", err)
-			}
-			utils.SendToUser(
-				"",
-				orderID,
-				"voucher_order",
-				map[string]interface{}{
-					"event":       "payment_success",
-					"message":     "Your payment was successful!",
-					"order_id":    orderID,
-					"delivery_id": nil,
-				},
-			)
-		default:
-			//update delivery and order tables
-			err = models.UpdateDeliveryOrderTables(deliveryID, orderID)
-			if err != nil {
-				log.Printf("%v", err)
-			}
-			utils.SendToUser(
-				"",
-				orderID,
-				deliveryID,
-				map[string]interface{}{
-					"event":       "payment_success",
-					"message":     "Your payment was successful!",
-					"order_id":    orderID,
-					"delivery_id": deliveryID,
-				},
-			)
-		}
-		// Respond OK
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Accepted"}`))
+		handleSuccessfulPayment(w, callback)
 		return
 	}
 
-	// Log failed payment
-	log.Printf("❌ FAILED PAYMENT:\n- Code: %d\n- Desc: %s\n", stk.ResultCode, stk.ResultDesc)
+	handleFailedPayment(w, stk.ResultCode, stk.ResultDesc)
+}
+
+// logCallbackInfo logs callback metadata
+func logCallbackInfo(checkoutID, resultDesc string) {
+	log.Printf("MPESA CALLBACK RECEIVED:\n- CheckoutRequestID: %s\n- Result: %s\n- Time: %s\n",
+		checkoutID, resultDesc, time.Now().Format(time.RFC3339))
+}
+
+// handleSuccessfulPayment processes successful Mpesa payments
+func handleSuccessfulPayment(w http.ResponseWriter, callback dtos.STKCallbackRequest) {
+	stk := callback.Body.StkCallback
+	amount, mpesaCode, phone := extractMetadata(stk.CallbackMetadata.Item)
+
+	log.Printf("SUCCESSFUL PAYMENT:\n- Phone: %s\n- Amount: %.2f\n- Code: %s\n", phone, amount, mpesaCode)
+
+	deliveryID, orderID, orderType, err := models.UpdateStkResponse(callback, "SUCCESS")
+	if err != nil {
+		log.Printf("error updating STK response: %v", err)
+	}
+
+	processOrderUpdate(orderType, deliveryID, orderID)
 
 	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Accepted"}`))
+}
+
+// handleFailedPayment logs failed payments and responds OK
+func handleFailedPayment(w http.ResponseWriter, resultCode int, resultDesc string) {
+	log.Printf("FAILED PAYMENT:\n- Code: %d\n- Desc: %s\n", resultCode, resultDesc)
+	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Callback received"}`))
+}
+
+// ✅ extractMetadata now matches the exact struct definition in your DTO
+func extractMetadata(items []struct {
+	Name  string      `json:"Name"`
+	Value interface{} `json:"Value"`
+}) (float64, string, string) {
+	var amount float64
+	var mpesaCode, phone string
+
+	for _, item := range items {
+		switch item.Name {
+		case "Amount":
+			if v, ok := item.Value.(float64); ok {
+				amount = v
+			}
+		case "MpesaReceiptNumber":
+			if v, ok := item.Value.(string); ok {
+				mpesaCode = v
+			}
+		case "PhoneNumber":
+			if v, ok := item.Value.(float64); ok {
+				phone = fmt.Sprintf("%.0f", v)
+			}
+		}
+	}
+	return amount, mpesaCode, phone
+}
+
+func processOrderUpdate(orderType, deliveryID, orderID string) {
+	var err error
+
+	switch strings.ToLower(orderType) {
+	case "voucher":
+		err = models.UpdateVoucherOrderTables(orderID)
+		if err != nil {
+			log.Printf("error updating voucher order: %v", err)
+		}
+		utils.SendToUser("", orderID, "voucher_order", buildPaymentSuccessPayload(orderID, nil))
+	default:
+		err = models.UpdateDeliveryOrderTables(deliveryID, orderID)
+		if err != nil {
+			log.Printf("error updating delivery order: %v", err)
+		}
+		utils.SendToUser("", orderID, deliveryID, buildPaymentSuccessPayload(orderID, deliveryID))
+	}
+}
+
+func buildPaymentSuccessPayload(orderID, deliveryID interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		"event":       "payment_success",
+		"message":     "Your payment was successful!",
+		"order_id":    orderID,
+		"delivery_id": deliveryID,
+	}
 }

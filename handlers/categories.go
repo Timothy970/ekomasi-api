@@ -11,7 +11,9 @@ import (
 	"github.com/gorilla/mux"
 )
 
-var noCategoryID = "Category ID is required"
+var (
+	categorySuccess = "Categories fetched successfully"
+)
 
 func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
@@ -25,7 +27,11 @@ func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 		categories, err = models.GetAllCategories()
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Categories",
+					Description: "Failed to fetch categories",
+					Code:        http.StatusNotFound,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -38,9 +44,13 @@ func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 		categories = cachedCategories
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Categories",
+			Description: "All categories fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   categories,
-		Message:   "Categories fetched successfully",
+		Message:   categorySuccess,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -65,21 +75,15 @@ func GetCategoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	id := mux.Vars(r)["id"]
-	if id == "" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   noCategoryID,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
 
 	category, err := models.GetCategoryByID(id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Categories",
+				Description: "Failed to fetch category with ID " + id,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "Failed to fetch category",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -90,7 +94,11 @@ func GetCategoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	if category == nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Categories",
+				Description: "Category with ID " + id + " not found",
+				Code:        http.StatusNotFound,
+			},
 			Message:   "Category not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -100,9 +108,13 @@ func GetCategoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Categories",
+			Description: "Category with ID " + id + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   category,
-		Message:   "Categories fetched successfully",
+		Message:   "Category fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -116,16 +128,20 @@ func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Categories"); !ok {
 		return
 	}
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	catgoryName := r.URL.Query().Get("category_name")
-	categories, pagination, err := models.GetAdminCategories(page, limit, catgoryName)
+	categoryName := r.URL.Query().Get("category_name")
+	categories, pagination, err := models.GetAdminCategories(page, limit, categoryName)
 	if err != nil {
 		log.Printf("Failed to get categories: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Categories",
+				Description: "Failed to get categories",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -135,7 +151,11 @@ func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Categories",
+			Description: categorySuccess,
+			Code:        http.StatusOK,
+		},
 		Payload:   map[string]any{"categories": categories, "pagination": pagination},
 		Message:   "Category fetched successfully",
 		TimeTaken: time.Since(start),
@@ -154,7 +174,11 @@ func GetCategoriesWithSubCategoriesHandler(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		log.Printf("Failed to get categories: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Categories",
+				Description: "Failed to get categories",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -164,9 +188,13 @@ func GetCategoriesWithSubCategoriesHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Categories",
+			Description: "Categories with subcategories fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   categories,
-		Message:   "Category fetched successfully",
+		Message:   categorySuccess,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

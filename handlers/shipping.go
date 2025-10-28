@@ -41,8 +41,12 @@ func GetShippingCostHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Server error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
-			Message:   "Failed to fetch delivery rates",
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Shipping",
+				Description: "Failed to fetch delivery rates",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -53,7 +57,11 @@ func GetShippingCostHandler(w http.ResponseWriter, r *http.Request) {
 	// Cache result in Redis
 	// _ = Redis.Set(context.Background(), cacheKey, charge, 24*time.Hour).Err()
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Shipping",
+			Description: "Delivery rates fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload: dtos.ShippingCostResponse{
 			Location: dbResult,
 			Charge:   charge,
@@ -79,7 +87,7 @@ func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Shipping")
 	if !ok {
 		return
 	}
@@ -88,14 +96,18 @@ func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Shipping") {
 		return
 	}
 	err := models.AddNewShippingRate(*req)
 	if err != nil {
 		log.Printf("Error adding new shipping rate: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Shipping",
+				Description: "Failed to add new shipping rate",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -106,7 +118,11 @@ func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("locations_")
 	utils.DeleteCacheByPrefix("locations_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Shipping",
+			Description: "Location added successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Location added successfully",
 		TimeTaken: time.Since(start),
@@ -136,7 +152,11 @@ func SubmitFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error adding new feed back: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to submit delivery feedback",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -145,7 +165,11 @@ func SubmitFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Feedback submitted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Feedback submitted successfully",
 		TimeTaken: time.Since(start),
@@ -174,7 +198,11 @@ func GetDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Users",
+					Description: "No delivery feedback found",
+					Code:        http.StatusNotFound,
+				},
 				Message:   "No delivery feedback found",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -183,7 +211,11 @@ func GetDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Printf("error getting feedback:::%v", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Users",
+					Description: "Error fetching feedback",
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   "Error fetching feedback",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -194,7 +226,11 @@ func GetDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Feedback fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   feedback,
 		Message:   "Feedback",
 		TimeTaken: time.Since(start),
@@ -222,7 +258,11 @@ func GetUserDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusNotFound,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Users",
+					Description: "Delivery feedback not found for user ID " + userID,
+					Code:        http.StatusNotFound,
+				},
 				Message:   "Delivery feedback not found",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -231,7 +271,11 @@ func GetUserDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Printf("error getting feedback:::%v", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Users",
+					Description: "Error fetching feedback for user ID " + userID,
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -242,7 +286,11 @@ func GetUserDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Feedback fetched successfully for user ID " + userID,
+			Code:        http.StatusOK,
+		},
 		Payload:   feedback,
 		Message:   "Feedback",
 		TimeTaken: time.Since(start),
@@ -269,7 +317,11 @@ func DecodeRequestBody[T any](r *http.Request, w http.ResponseWriter, requestSum
 		}
 
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Requests",
+				Description: msg,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   msg,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -310,7 +362,11 @@ func ListLocations(w http.ResponseWriter, r *http.Request) {
 		locations, pagination, err = models.ListLocations(page, size)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusBadRequest,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Shipping",
+					Description: "Failed to retrieve locations",
+					Code:        http.StatusBadRequest,
+				},
 				Message:   fmt.Sprintf("%s", err),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -331,7 +387,11 @@ func ListLocations(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Shipping",
+			Description: "Locations fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   response,
 		Message:   "Locations fetched successfully",
 		TimeTaken: time.Since(start),
@@ -359,7 +419,11 @@ func GetLocation(w http.ResponseWriter, r *http.Request) {
 	loc, err := models.GetLocationByID(id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Shipping",
+				Description: "Failed to fetch location details",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -368,7 +432,11 @@ func GetLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Shipping",
+			Description: "Location fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   loc,
 		Message:   "Location fetched sucessfully",
 		TimeTaken: time.Since(start),
@@ -392,7 +460,7 @@ func UpdateLocation(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	locationID := mux.Vars(r)["location_id"]
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Shipping")
 	if !ok {
 		return
 	}
@@ -401,13 +469,17 @@ func UpdateLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Shipping") {
 		return
 	}
 
 	if err := models.UpdateLocation(*req, locationID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Shipping",
+				Description: "Failed to update location with ID " + locationID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -418,7 +490,11 @@ func UpdateLocation(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("locations_")
 	utils.DeleteCacheByPrefix("locations_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Shipping",
+			Description: "Location with ID " + locationID + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Location updated sucessfully",
 		TimeTaken: time.Since(start),
@@ -442,14 +518,18 @@ func DeleteLocation(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	locationID := mux.Vars(r)["location_id"]
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Shipping")
 	if !ok {
 		return
 	}
 
 	if err := models.DeleteLocation(locationID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Shipping",
+				Description: "Failed to delete location with ID " + locationID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -460,7 +540,11 @@ func DeleteLocation(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("locations_")
 	utils.DeleteCacheByPrefix("locations_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Shipping",
+			Description: "Location with ID " + locationID + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Location deleted sucessfully",
 		TimeTaken: time.Since(start),
@@ -488,7 +572,11 @@ func DeleteFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Error adding new feed back: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to delete delivery feedback with ID " + feedbackID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -497,7 +585,11 @@ func DeleteFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Feedback with ID " + feedbackID + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Feedback deleted successfully",
 		TimeTaken: time.Since(start),

@@ -11,6 +11,11 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var (
+	accountWithID = "Account with id "
+	journalWithID = "Journal entry with id "
+)
+
 // Create an account
 // @Summary Create charts of account
 // @Description Create charts of account
@@ -23,7 +28,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
 	if !ok {
 		return
 	}
@@ -31,14 +36,18 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Accounts") {
 		return
 	}
 
 	_, err := models.CreateAccount(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to create account",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -49,7 +58,11 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("entries_")
 	utils.DeleteCacheByPrefix("entries_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusCreated,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Accounts",
+			Description: "Account created successfully",
+			Code:        http.StatusCreated,
+		},
 		Payload:   nil,
 		Message:   "Account created successfully",
 		TimeTaken: time.Since(start),
@@ -70,7 +83,7 @@ func ListAccounts(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts"); !ok {
 		return
 	}
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
@@ -87,7 +100,11 @@ func ListAccounts(w http.ResponseWriter, r *http.Request) {
 		accounts, meta, err = models.ListAccounts(page, size)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Accounts",
+					Description: "Failed to list accounts",
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -102,7 +119,11 @@ func ListAccounts(w http.ResponseWriter, r *http.Request) {
 		meta = cachedPagination
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Accounts",
+			Description: "All Accounts fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"accounts":   accounts,
 			"pagination": meta,
@@ -129,7 +150,11 @@ func GetAccount(w http.ResponseWriter, r *http.Request) {
 	acc, err := models.GetAccount(accountId)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to fetch account with id " + accountId,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -138,7 +163,11 @@ func GetAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Accounts",
+			Description: accountWithID + accountId + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   acc,
 		Message:   "Accounts fetched successfully",
 		TimeTaken: time.Since(start),
@@ -158,7 +187,7 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
 	if !ok {
 		return
 	}
@@ -167,13 +196,17 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Accounts") {
 		return
 	}
 	accountId := mux.Vars(r)["account_id"]
 	if err := models.UpdateAccount(accountId, *req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to update account with id " + accountId,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -184,7 +217,11 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("accounts_")
 	utils.DeleteCacheByPrefix("accounts_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Accounts",
+			Description: accountWithID + accountId + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Account updated successfully",
 		TimeTaken: time.Since(start),
@@ -204,14 +241,18 @@ func DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
 	if !ok {
 		return
 	}
 	accountId := mux.Vars(r)["account_id"]
 	if err := models.DeleteAccount(accountId); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to delete account with id " + accountId,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -222,7 +263,11 @@ func DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("accounts_")
 	utils.DeleteCacheByPrefix("accounts_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Accounts",
+			Description: accountWithID + accountId + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Account deleted successfully",
 		TimeTaken: time.Since(start),
@@ -244,7 +289,7 @@ func CreateEntry(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
 	if !ok {
 		return
 	}
@@ -252,14 +297,18 @@ func CreateEntry(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Accounts") {
 		return
 	}
 
 	_, err := models.CreateEntry(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to create journal entry",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -270,7 +319,11 @@ func CreateEntry(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("accounts_")
 	utils.DeleteCacheByPrefix("accounts_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Accounts",
+			Description: "Entry created successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Entry created successfully",
 		TimeTaken: time.Since(start),
@@ -290,7 +343,7 @@ func ListEntries(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts"); !ok {
 		return
 	}
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
@@ -307,7 +360,11 @@ func ListEntries(w http.ResponseWriter, r *http.Request) {
 		entries, meta, err = models.ListEntries(page, size)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusInternalServerError,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Accounts",
+					Description: "Failed to list journal entries",
+					Code:        http.StatusInternalServerError,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -322,7 +379,11 @@ func ListEntries(w http.ResponseWriter, r *http.Request) {
 		meta = cachedPagination
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Accounts",
+			Description: "Journal entries fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"accounts":   entries,
 			"pagination": meta,
@@ -348,7 +409,11 @@ func GetEntry(w http.ResponseWriter, r *http.Request) {
 	entry, err := models.GetEntry(entryId)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to fetch journal entry with id " + entryId,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -357,7 +422,11 @@ func GetEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Accounts",
+			Description: journalWithID + entryId + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   entry,
 		Message:   "Entry fetched successfully",
 		TimeTaken: time.Since(start),
@@ -377,7 +446,7 @@ func UpdateEntry(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
 	if !ok {
 		return
 	}
@@ -385,13 +454,17 @@ func UpdateEntry(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Accounts") {
 		return
 	}
 	entryId := mux.Vars(r)["entry_id"]
 	if err := models.UpdateEntry(entryId, *req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to update journal entry with id " + entryId,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -402,7 +475,11 @@ func UpdateEntry(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("entries_")
 	utils.DeleteCacheByPrefix("entries_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Accounts",
+			Description: journalWithID + entryId + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Entry updated successfully",
 		TimeTaken: time.Since(start),
@@ -422,14 +499,18 @@ func DeleteEntry(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
 	if !ok {
 		return
 	}
 	entryID := mux.Vars(r)["entry_id"]
 	if err := models.DeleteEntry(entryID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to delete journal entry with id " + entryID,
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -440,9 +521,13 @@ func DeleteEntry(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("entries_")
 	utils.DeleteCacheByPrefix("entries_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Accounts",
+			Description: journalWithID + entryID + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
-		Message:   "Entry fetched successfully",
+		Message:   "Entry deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

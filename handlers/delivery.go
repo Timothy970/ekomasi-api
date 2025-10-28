@@ -13,6 +13,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var deliveryWithID = "Delivery with ID "
+
 //	Create Delivery
 //
 // @Summary Create Delivery
@@ -28,7 +30,7 @@ func CreateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
 	if !ok {
 		return
 	}
@@ -37,14 +39,17 @@ func CreateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
 		return
 	}
 	err := models.CreateNewDelivery(*req)
 	if err != nil {
-		log.Printf("Error adding new shipping rate: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to create delivery",
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -55,7 +60,11 @@ func CreateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("deliveries_")
 	utils.DeleteCacheByPrefix("deliveries_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: "Delivery added successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Delivery added successfully",
 		TimeTaken: time.Since(start),
@@ -93,7 +102,11 @@ func ListDeliveriesHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("Error adding new shipping rate: %v", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusBadRequest,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Orders",
+					Description: "Failed to list deliveries",
+					Code:        http.StatusBadRequest,
+				},
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -112,7 +125,11 @@ func ListDeliveriesHandler(w http.ResponseWriter, r *http.Request) {
 		"pagination": pagination,
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: "Deliveries listed successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   response,
 		Message:   "Deliveries fetched successfully",
 		TimeTaken: time.Since(start),
@@ -143,7 +160,11 @@ func ListUserDeliveriesHandler(w http.ResponseWriter, r *http.Request) {
 	deliveries, err := models.ListDeliveriesByUserID(userID, page, size)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to list user deliveries for user ID " + userID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -152,7 +173,11 @@ func ListUserDeliveriesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: "User deliveries for user ID " + userID + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   deliveries,
 		Message:   "Deliveries fetched successfully",
 		TimeTaken: time.Since(start),
@@ -180,7 +205,11 @@ func GetDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	deliveries, err := models.GetDeliveryByID(deliveryID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to get delivery with ID " + deliveryID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -189,7 +218,11 @@ func GetDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: deliveryWithID + deliveryID + " fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   deliveries,
 		Message:   "Delivery fetched successfully",
 		TimeTaken: time.Since(start),
@@ -214,7 +247,7 @@ func UpdateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
 	if !ok {
 		return
 	}
@@ -223,14 +256,18 @@ func UpdateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
 		return
 	}
 	deliveryID := mux.Vars(r)["delivery_id"]
 	err := models.UpdateDelivery(req.Status, deliveryID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to update delivery with ID " + deliveryID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -241,7 +278,11 @@ func UpdateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("deliveries_")
 	utils.DeleteCacheByPrefix("deliveries_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: deliveryWithID + deliveryID + " updated successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Delivery updated successfully",
 		TimeTaken: time.Since(start),
@@ -266,7 +307,7 @@ func DeleteDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
 	if !ok {
 		return
 	}
@@ -274,7 +315,11 @@ func DeleteDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	err := models.DeleteDelivery(deliveryID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to delete delivery with ID " + deliveryID,
+				Code:        http.StatusBadRequest,
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -285,7 +330,11 @@ func DeleteDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("deliveries_")
 	utils.DeleteCacheByPrefix("deliveries_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: deliveryWithID + deliveryID + " deleted successfully",
+			Code:        http.StatusOK,
+		},
 		Payload:   nil,
 		Message:   "Delivery deleted successfully",
 		TimeTaken: time.Since(start),

@@ -133,6 +133,10 @@ go run . -migrate=true -action= -target=
 - DELETE `/wishlist`: Remove from wishlist (user).
 - GET `/wishlist`: Get all items in a user's wishlist.
 
+## run dump
+mysqldump -h {ip} -u root -p --no-create-info adenzo > dump.sql
+mysql -h {ip} -u root -p adenzo_new < dump.sql
+
 
 ## ContactInfo
 @timateo

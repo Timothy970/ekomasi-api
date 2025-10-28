@@ -123,7 +123,7 @@ func TestRegisterHandler(t *testing.T) {
 				mockUtils.On("GenerateOTP").Return("123456", nil)
 				mockUtils.On("GetCurrentFuncName").Return("RegisterHandler")
 				mockUtils.On("RespondWithJSON", mock.Anything, mock.MatchedBy(func(opts utils.SuccessJSONResponseOptions) bool {
-					return opts.Code == http.StatusCreated
+					return opts.CollectiveInfo.Code == http.StatusCreated
 				})).Once()
 
 				// Mock models.CreateUser database calls
@@ -148,7 +148,7 @@ func TestRegisterHandler(t *testing.T) {
 				mockUtils.On("ValidateStructAndRespond", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(true)
 				mockUtils.On("GetCurrentFuncName").Return("RegisterHandler")
 				mockUtils.On("RespondWithError", mock.Anything, mock.MatchedBy(func(opts utils.ErrorJSONResponseOptions) bool {
-					return opts.Code == http.StatusBadRequest && strings.Contains(opts.Message, "Phone number or email is required")
+					return opts.CollectiveInfo.Code == http.StatusBadRequest && strings.Contains(opts.Message, "Phone number or email is required")
 				})).Once()
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -156,7 +156,7 @@ func TestRegisterHandler(t *testing.T) {
 		{
 			name: "User already exists by email",
 			requestBody: dtos.RegisterRequest{
-				Email:     "existing@example.com",
+				Email:     "exist@example.com",
 				Firstname: "John",
 			},
 			setupMocks: func() {
@@ -169,7 +169,7 @@ func TestRegisterHandler(t *testing.T) {
 				mockUtils.On("ValidateStructAndRespond", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(true)
 				mockUtils.On("GetCurrentFuncName").Return("RegisterHandler")
 				mockUtils.On("RespondWithError", mock.Anything, mock.MatchedBy(func(opts utils.ErrorJSONResponseOptions) bool {
-					return opts.Code == http.StatusConflict && strings.Contains(opts.Message, "already exists")
+					return opts.CollectiveInfo.Code == http.StatusConflict && strings.Contains(opts.Message, "already exists")
 				})).Once()
 			},
 			expectedStatus: http.StatusConflict,

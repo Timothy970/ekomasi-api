@@ -73,7 +73,11 @@ func AdminSearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if !validSorts[searchParams.SortBy] {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusBadRequest,
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Invalid sort parameter provided for product search",
+					Code:        http.StatusBadRequest,
+				},
 				Message:   "Invalid sort parameter",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
@@ -88,7 +92,11 @@ func AdminSearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 	products, pagination, err := models.SearchProducts(searchParams, true)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusInternalServerError,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to search products",
+				Code:        http.StatusInternalServerError,
+			},
 			Message:   "Failed to search products: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -99,7 +107,11 @@ func AdminSearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code: http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Products fetched successfully",
+			Code:        http.StatusOK,
+		},
 		Payload: map[string]interface{}{
 			"products":   products,
 			"pagination": pagination,
