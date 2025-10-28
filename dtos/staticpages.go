@@ -9,9 +9,10 @@ package dtos
 // }
 
 type StaticPageRequest struct {
-	Title    string `json:"title" validate:"required"`
-	Slug     string `json:"slug" validate:"required"`
-	Content  string `json:"content" validate:"required"`
-	PageType string `json:"page_type" validate:"required"`
-	Status   string `json:"status" validate:"required"`
+	StaticPageID string `json:"static_page_id"`
+	Title        string `json:"title" validate:"required"`
+	Slug         string `json:"slug" validate:"required"`
+	Content      string `json:"content" validate:"required"`
+	PageType     string `json:"page_type" validate:"required"`
+	Status       string `json:"status" validate:"required"`
 }

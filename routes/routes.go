@@ -441,4 +441,13 @@ func SetupRoutes(router *mux.Router) {
 	admin.HandleFunc("/permissions", handlers.GetPermissionsHandler).Methods("GET")
 	admin.Handle("/permissions/{permission_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePermissionHandler))).Methods("PATCH")
 	admin.Handle("/permissions/{permission_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePermissionHandler))).Methods("DELETE")
+	//static pages endpoints
+	var staticPageID = "/static-pages/{page_id}"
+	admin.Handle("/static-pages", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateStaticPage))).Methods("POST")
+	admin.Handle(staticPageID, middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateStaticPage))).Methods("PATCH")
+	admin.Handle(staticPageID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteStaticPage))).Methods("DELETE")
+	api.HandleFunc("/static-pages", handlers.GetStaticPages).Methods("GET")
+	api.HandleFunc(staticPageID, handlers.GetStaticPageByID).Methods("GET")
+	//endpoint to upload an image
+	api.Handle("/upload-image", middleware.AuthenticateToken(http.HandlerFunc(handlers.UploadImageHandler))).Methods("POST")
 }
