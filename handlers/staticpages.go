@@ -14,7 +14,7 @@ func CreateStaticPage(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "HomePage")
 	if !ok {
 		return
 	}
@@ -22,13 +22,17 @@ func CreateStaticPage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "HomePage") {
 		return
 	}
 	err := models.CreateStaticPage(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "HomePage",
+				Code:        http.StatusNotFound,
+				Description: "Failed to create static page" + err.Error(),
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -38,7 +42,11 @@ func CreateStaticPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "HomePage",
+			Code:        http.StatusCreated,
+			Description: "Static page created successfully",
+		},
 		Payload:   nil,
 		Message:   "Static page created successfully",
 		TimeTaken: time.Since(start),
@@ -59,7 +67,11 @@ func GetStaticPages(w http.ResponseWriter, r *http.Request) {
 	staticPages, meta, err := models.GetStaticPages(slug, pageType, status, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "HomePage",
+				Code:        http.StatusNotFound,
+				Description: "Failed to fetch static pages" + err.Error(),
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -69,7 +81,11 @@ func GetStaticPages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "HomePage",
+			Code:        http.StatusOK,
+			Description: "Static pages fetched successfully",
+		},
 		Payload:   map[string]any{"static_pages": staticPages, "pagination": meta},
 		Message:   "Static pages fetched successfully",
 		TimeTaken: time.Since(start),
@@ -89,7 +105,11 @@ func GetStaticPageByID(w http.ResponseWriter, r *http.Request) {
 	staticPage, err := models.GetStaticPageByID(staticPageID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "HomePage",
+				Code:        http.StatusNotFound,
+				Description: "Failed to fetch static page with ID " + staticPageID + ": " + err.Error(),
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -99,7 +119,11 @@ func GetStaticPageByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "HomePage",
+			Code:        http.StatusOK,
+			Description: "Static page with ID" + staticPageID + " fetched successfully",
+		},
 		Payload:   staticPage,
 		Message:   "Static page fetched successfully",
 		TimeTaken: time.Since(start),
@@ -115,7 +139,7 @@ func DeleteStaticPage(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "HomePage")
 	if !ok {
 		return
 	}
@@ -123,7 +147,11 @@ func DeleteStaticPage(w http.ResponseWriter, r *http.Request) {
 	err := models.DeleteStaticPage(staticPageID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "HomePage",
+				Code:        http.StatusNotFound,
+				Description: "Failed to delete static page with ID " + staticPageID + ": " + err.Error(),
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -133,7 +161,11 @@ func DeleteStaticPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "HomePage",
+			Code:        http.StatusOK,
+			Description: "Static page with ID " + staticPageID + " deleted successfully",
+		},
 		Payload:   nil,
 		Message:   "Static page deleted successfully",
 		TimeTaken: time.Since(start),
@@ -149,7 +181,7 @@ func UpdateStaticPage(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "HomePage")
 	if !ok {
 		return
 	}
@@ -158,13 +190,17 @@ func UpdateStaticPage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "HomePage") {
 		return
 	}
 	staticPage, err := models.UpdateStaticPage(staticPageID, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusNotFound,
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "HomePage",
+				Code:        http.StatusNotFound,
+				Description: "Failed to update static page with ID " + staticPageID + ": " + err.Error(),
+			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -174,7 +210,11 @@ func UpdateStaticPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		Code:      http.StatusOK,
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "HomePage",
+			Code:        http.StatusOK,
+			Description: "Static page with ID " + staticPageID + " updated successfully",
+		},
 		Payload:   staticPage,
 		Message:   "Static page updated successfully",
 		TimeTaken: time.Since(start),

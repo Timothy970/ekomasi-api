@@ -67,7 +67,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Auth", "Auth") {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Auth") {
 		return
 	}
 	// Validate request
@@ -340,10 +340,10 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
-				Description: "Error retrieving OTP, the OTP may be invalid or expired",
+				Description: "Error retrieving OTP, the OTP may be invalid or expired : " + err.Error(),
 				Code:        http.StatusUnauthorized,
 			},
-			Message:   "Invalid or expired OTP",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -351,26 +351,7 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if storedOTP != req.OTP {
-		//use a hardcoded otp for testing
-		if req.OTP == "2025" {
-			storedOTP = "2025"
-		} else {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Auth",
-					Description: "Incorrect OTP provided for verification",
-					Code:        http.StatusUnauthorized,
-				},
-				Message:   "Incorrect OTP",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-	}
+
 	// Generate token
 	//define token expiration time to be 7 days
 	tokenExpirationTime := 7 * 24 * time.Hour

@@ -889,28 +889,32 @@ func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	url, err := utils.ParseAndUploadFile(r, "image", 20)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Homepage",
-				Description: "Failed to upload file when creating blog: " + err.Error(),
-				Code:        http.StatusBadRequest,
-			},
-			Message:   "Failed to upload file: " + err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-		})
+	// url, err := utils.ParseAndUploadFile(r, "image", 20)
+	// if err != nil {
+	// 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	// 		CollectiveInfo: utils.CollectiveInfo{
+	// 			Module:      "Homepage",
+	// 			Description: "Failed to upload file when creating blog: " + err.Error(),
+	// 			Code:        http.StatusBadRequest,
+	// 		},
+	// 		Message:   "Failed to upload file: " + err.Error(),
+	// 		TimeTaken: time.Since(start),
+	// 		Function:  utils.GetCurrentFuncName(),
+	// 		Request:   r,
+	// 	})
+	// 	return
+	// }
+	// author := r.FormValue("author")
+	// blog := &dtos.Blog{
+	// 	ImageURL: &url,
+	// 	Title:    r.FormValue("title"),
+	// 	Content:  r.FormValue("content"),
+	// 	Author:   &author,
+	// 	AuthorID: authUser.ID,
+	// }
+	blog, ok := DecodeRequestBody[dtos.BlogRequest](r, w, requestSummary, start)
+	if !ok {
 		return
-	}
-	author := r.FormValue("author")
-	blog := &dtos.Blog{
-		ImageURL: &url,
-		Title:    r.FormValue("title"),
-		Content:  r.FormValue("content"),
-		Author:   &author,
-		AuthorID: authUser.ID,
 	}
 	//Validate the request
 	if !utils.ValidateStructAndRespond(blog, w, r, requestSummary, start, "Homepage") {
