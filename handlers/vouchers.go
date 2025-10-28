@@ -71,7 +71,7 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 				Description: "Failed to upload image to GCS when creating voucher design: " + err.Error(),
 				Code:        http.StatusInternalServerError,
 			},
-			Message:   err.Error(),
+			Message:   uploadImageError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
