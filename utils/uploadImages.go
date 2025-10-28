@@ -90,7 +90,9 @@ func uploadMedia(mediaData []byte, mediaID, mimeType string) (string, error) {
 	ctx := context.Background()
 
 	// Create a new Google Cloud Storage client
-	serviceAccount := os.Getenv("SERVICE_ACCOUNT")
+	// serviceAccount := os.Getenv("SERVICE_ACCOUNT")
+	// commented out this so as to await infra team to set up bucket service to upload images
+	serviceAccount := ""
 	log.Println("Creating storage client")
 	client, err := storage.NewClient(ctx, option.WithCredentialsFile(serviceAccount))
 	if err != nil {
