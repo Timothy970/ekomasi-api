@@ -137,8 +137,13 @@ func SetupRoutes(router *mux.Router) {
 	//List Product variants
 	products.HandleFunc("/variants/{product_id}", handlers.ListProductVariants).Methods("GET")
 	//List Deals
+	dealWithID := "/deals/{deal_id}"
 	products.HandleFunc("/deals", handlers.GetDealsHandler).Methods("GET")
-	products.HandleFunc("/deals/{deal_id}", handlers.GetDealWithProductsHandler).Methods("GET")
+	products.HandleFunc(dealWithID, handlers.GetDealWithProductsHandler).Methods("GET")
+	//update deal
+	admin.Handle(dealWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateDealHandler))).Methods("PATCH")
+	//delete deal
+	admin.Handle(dealWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteDealHandler))).Methods("DELETE")
 	//Moderate a review
 	admin.Handle("/products/{product_id}/reviews/{review_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateReview))).Methods("PATCH")
 	//Delete a reviews

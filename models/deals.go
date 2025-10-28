@@ -76,6 +76,11 @@ func UpdateDeal(dealID string, deal dtos.Deal) error {
 	if err := isDealThere(dealID); err != nil {
 		return err
 	}
+	if deal.IsActive != nil {
+		_, err := DB.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ?, is_active = ? WHERE deal_id = ?`,
+			deal.Name, deal.StartDate, deal.EndDate, *deal.IsActive, dealID)
+		return err
+	}
 	_, err := DB.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ? WHERE deal_id = ?`,
 		deal.Name, deal.StartDate, deal.EndDate, dealID)
 	return err
