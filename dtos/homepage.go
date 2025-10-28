@@ -267,3 +267,47 @@ type MenuLinkRequest struct {
 	DisplayOrder int     `json:"display_order" validate:"required"`
 	ParentID     *string `json:"parent_id"`
 }
+type BlogRequest struct {
+	BlogID      string    `json:"blog_id"`
+	AuthorID    string    `json:"author_id"`
+	IsPublished bool      `json:"is_published"`
+	CreatedAt   string    `json:"created_at"`
+	UpdatedAt   string    `json:"updated_at"`
+	PublishedAt time.Time `json:"published_at"`
+	Status      *string   `json:"status"`
+	Author      struct {
+		Name   string  `json:"name" validate:"required"`
+		Avatar *string `json:"avatar"`
+	} `json:"author"`
+
+	ReadTimeMinutes int     `json:"read_time_minutes" validate:"required"`
+	Title           string  `json:"title" validate:"required"`
+	Description     *string `json:"description"`
+
+	Sections []struct {
+		Position   int         `json:"position" validate:"required"`
+		Banner     *BlogBanner `json:"banner"` // Pointer allows null values
+		Paragraphs []Paragraph `json:"paragraphs" dive:"required"`
+		Images     []BlogImage `json:"images"`
+	} `json:"sections"`
+
+	Tags *[]string `json:"tags"`
+}
+
+// type BlogBanner struct {
+// 	ImageURL string `json:"image_url"`
+// 	Alt      string `json:"alt"`
+// 	//other fields can be added as needed
+
+// }
+type BlogBanner map[string]any
+
+type Paragraph struct {
+	Text string `json:"text"`
+}
+
+//	type BlogImage struct {
+//		ImageURL string `json:"image_url"`
+//		Alt      string `json:"alt"`
+//	}
+type BlogImage map[string]any

@@ -287,34 +287,17 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate OTP
-	storedOTP, err := GetAndInvalidateOTP(user.ID)
+	err = validateOtp(user.ID, *req)
 	if err != nil {
-		log.Printf("Error retrieving OTP: %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusUnauthorized,
-			Message:   "Invalid or expired OTP",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
 			RawBody:   requestSummary,
 		})
 		return
-	}
-	if storedOTP != req.OTP {
-		//use a hardcoded otp for testing
-		if req.OTP == "2025" {
-			storedOTP = "2025"
-		} else {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				Code:      http.StatusUnauthorized,
-				Message:   "Incorrect OTP",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
 	}
 	// Generate token
 	//define token expiration time to be 7 days
@@ -354,6 +337,22 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary,
 	})
+}
+func validateOtp(userID string, req dtos.VerifyOTP) error {
+	storedOTP, err := GetAndInvalidateOTP(userID)
+	if err != nil {
+		log.Printf("Error retrieving OTP: %s", err)
+		return fmt.Errorf("invalid or expired OTP: %w", err)
+	}
+	if storedOTP != req.OTP {
+		//use a hardcoded otp for testing
+		if req.OTP == "2025" {
+			storedOTP = "2025"
+		} else {
+			return errors.New("incorrect OTP")
+		}
+	}
+	return nil
 }
 
 /*

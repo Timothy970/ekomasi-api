@@ -768,31 +768,23 @@ func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	url, err := utils.ParseAndUploadFile(r, "image", 20)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			Code:      http.StatusBadRequest,
-			Message:   "Failed to upload file: " + err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-		})
-		return
-	}
-	author := r.FormValue("author")
-	blog := &dtos.Blog{
-		ImageURL: &url,
-		Title:    r.FormValue("title"),
-		Content:  r.FormValue("content"),
-		Author:   &author,
-		AuthorID: authUser.ID,
-	}
+	// url, err := utils.ParseAndUploadFile(r, "image", 20)
+	// if err != nil {
+	// 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	// 		Code:      http.StatusBadRequest,
+	// 		Message:   "Failed to upload file: " + err.Error(),
+	// 		TimeTaken: time.Since(start),
+	// 		Function:  utils.GetCurrentFuncName(),
+	// 		Request:   r,
+	// 	})
+	// 	return
+	// }
+	blog, ok := DecodeRequestBody[dtos.BlogRequest](r, w, requestSummary, start)
 	//Validate the request
 	if !utils.ValidateStructAndRespond(blog, w, r, requestSummary, start) {
 		return
 	}
-	blog.PublishedAt = time.Now().Format("2006-01-02 15:04:05")
-	if err := models.CreateBlog(*blog); err != nil {
+	if err := models.CreateBlog(*blog, authUser.ID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
 			Message:   err.Error(),
@@ -863,7 +855,7 @@ func UpdateBlogHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	blog, ok := DecodeRequestBody[dtos.UpdateBlog](r, w, requestSummary, start)
+	blog, ok := DecodeRequestBody[dtos.BlogRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
@@ -873,7 +865,7 @@ func UpdateBlogHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	blogID := mux.Vars(r)["blog_id"]
-	if err := models.UpdateBlog(blog.IsPublished, blogID); err != nil {
+	if err := models.UpdateBlog(*blog, blogID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			Code:      http.StatusInternalServerError,
 			Message:   err.Error(),
@@ -942,19 +934,9 @@ func ListBlogsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	limit := 0
-	page := 1
-	pageStr := r.URL.Query().Get("page")
-	limitStr := r.URL.Query().Get("size")
-	if limitStr != "" {
-		limit, _ = strconv.Atoi(limitStr)
-	} else {
-		limit = 10
-	}
-	if pageStr != "" {
-		page, _ = strconv.Atoi(pageStr)
-	}
-	blogs, pagination, err := models.ListBlogs(page, limit)
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	status := r.URL.Query().Get("status")
+	blogs, pagination, err := models.ListBlogs(page, limit, status)
 	if err != nil {
 		log.Printf("blogs errrrrrrrrrrr#################%s", err)
 		if err == sql.ErrNoRows {

@@ -18,6 +18,8 @@ type Deal struct {
 	Name      string        `json:"name" validate:"required"`
 	StartDate time.Time     `json:"start_date"`
 	EndDate   time.Time     `json:"end_date"`
+	IsActive  bool          `json:"status"`
+	Link      string        `json:"link"`
 	Products  []DealProduct `json:"products"`
 }
 
@@ -26,6 +28,8 @@ type DealWithProducts struct {
 	Name      string        `json:"name"`
 	StartDate time.Time     `json:"start_date"`
 	EndDate   time.Time     `json:"end_date"`
+	IsActive  bool          `json:"status"`
+	Link      string        `json:"link"`
 	Products  []DealProduct `json:"products"`
 }
 

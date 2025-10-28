@@ -3,10 +3,10 @@ package models
 import (
 	"adenzo_backend/dtos"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
-	"math"
 	"strings"
 	"time"
 
@@ -555,7 +555,7 @@ func RemoveProductFromPromotion(req dtos.AttachProductToPromotion) error {
 	return nil
 }
 
-func CreateBlog(blog dtos.Blog) error {
+func CreateBlog(blog dtos.BlogRequest, authorID string) error {
 	exists, err := RecordExists("blogs", "title = ?", blog.Title)
 	if err != nil {
 		return fmt.Errorf("failed : %w", err)
@@ -564,35 +564,112 @@ func CreateBlog(blog dtos.Blog) error {
 		return fmt.Errorf("blog title already exists")
 	}
 	blogID, _ := shortid.Generate()
+	var publishedAt *string
+	isPublished := true
+	if blog.Status == nil {
+		blog.Status = new(string)
+		*blog.Status = "published"
+	}
+	if strings.ToLower(*blog.Status) == "draft" {
+		isPublished = false
+		publishedAt = nil // ← represents NULL in DB
+	} else {
+		now := time.Now().Format("2006-01-02 15:04:05")
+		publishedAt = &now
 
+	}
+	// marshal content to json
+	contentData, err := json.Marshal(blog.Sections)
+	if err != nil {
+		fmt.Println("Error converting to JSON:", err)
+		return err
+	}
+
+	authorData, err := json.Marshal(blog.Author)
+	if err != nil {
+		fmt.Println("Error converting author to JSON:", err)
+		return err
+	}
+	tagData, err := json.Marshal(blog.Tags)
+	if err != nil {
+		fmt.Println("Error converting tags to JSON:", err)
+		return err
+	}
 	query := `
-		INSERT INTO blogs (blog_id, title, content, author_id, published_at, is_published, image_url, author)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+		INSERT INTO blogs (blog_id, title, content, author_id, published_at, is_published, author, tags, description, read_time, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
-	_, err = DB.Exec(query, blogID, blog.Title, blog.Content, blog.AuthorID, blog.PublishedAt, blog.IsPublished, blog.ImageURL, blog.Author)
+	_, err = DB.Exec(query, blogID, blog.Title, contentData, authorID, publishedAt, isPublished, authorData, tagData, blog.Description, blog.ReadTimeMinutes, blog.Status)
 	return err
 }
-func GetBlogByID(blogID string) (*dtos.Blog, error) {
+func GetBlogByID(blogID string) (*dtos.BlogRequest, error) {
 	exists, err := RecordExists("blogs", fetchblog, blogID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to check blog existence: %w", err)
 	}
 	if !exists {
 		return nil, errors.New(noblog)
 	}
-	query := `SELECT blog_id, title, content, author_id, published_at, is_published, image_url, author FROM blogs WHERE blog_id = ?`
+
+	query := `
+		SELECT blog_id, title, content, author_id, published_at, is_published, 
+		       author, tags, description, read_time, status, created_at, updated_at
+		FROM blogs
+		WHERE blog_id = ?
+	`
+
+	var (
+		blog        dtos.BlogRequest
+		contentJSON sql.NullString
+		authorJSON  sql.NullString
+		tagsJSON    sql.NullString
+		publishedAt sql.NullTime
+		readTime    sql.NullInt64
+	)
 
 	row := DB.QueryRow(query, blogID)
+	if err := row.Scan(
+		&blog.BlogID, &blog.Title, &contentJSON, &blog.AuthorID,
+		&publishedAt, &blog.IsPublished, &authorJSON, &tagsJSON,
+		&blog.Description, &readTime, &blog.Status,
+		&blog.CreatedAt, &blog.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New(noblog)
+		}
+		return nil, fmt.Errorf("failed to scan blog: %w", err)
+	}
 
-	var blog dtos.Blog
-	err = row.Scan(&blog.BlogID, &blog.Title, &blog.Content, &blog.AuthorID, &blog.PublishedAt, &blog.IsPublished, &blog.ImageURL, &blog.Author)
-	if err != nil {
+	unmarshalJSONField := func(data sql.NullString, target interface{}, field string) error {
+		if data.Valid {
+			if err := json.Unmarshal([]byte(data.String), target); err != nil {
+				return fmt.Errorf("invalid %s JSON: %w", field, err)
+			}
+		}
+		return nil
+	}
+
+	if err := unmarshalJSONField(contentJSON, &blog.Sections, "content"); err != nil {
 		return nil, err
+	}
+	if err := unmarshalJSONField(authorJSON, &blog.Author, "author"); err != nil {
+		return nil, err
+	}
+	if err := unmarshalJSONField(tagsJSON, &blog.Tags, "tags"); err != nil {
+		return nil, err
+	}
+
+	if publishedAt.Valid {
+		blog.PublishedAt = publishedAt.Time
+	}
+	if readTime.Valid {
+		blog.ReadTimeMinutes = int(readTime.Int64)
 	}
 
 	return &blog, nil
 }
-func UpdateBlog(isPublished bool, blogID string) error {
+
+func UpdateBlog(blog dtos.BlogRequest, blogID string) error {
 	exists, err := RecordExists("blogs", fetchblog, blogID)
 	if err != nil {
 		return err
@@ -600,12 +677,42 @@ func UpdateBlog(isPublished bool, blogID string) error {
 	if !exists {
 		return errors.New(noblog)
 	}
+	var publishedAt *string
+	isPublished := true
+	if blog.Status == nil {
+		blog.Status = new(string)
+		*blog.Status = "published"
+	}
+	if strings.ToLower(*blog.Status) == "draft" {
+		isPublished = false
+		publishedAt = nil // ← represents NULL in DB
+	} else {
+		now := time.Now().Format("2006-01-02 15:04:05")
+		publishedAt = &now
+
+	}
+	// marshal content to json
+	contentData, err := json.Marshal(blog.Sections)
+	if err != nil {
+		fmt.Println("Error converting to JSON:", err)
+		return err
+	}
+
+	authorData, err := json.Marshal(blog.Author)
+	if err != nil {
+		fmt.Println("Error converting author to JSON:", err)
+		return err
+	}
+	tagData, err := json.Marshal(blog.Tags)
+	if err != nil {
+		fmt.Println("Error converting tags to JSON:", err)
+		return err
+	}
 	query := `
-		UPDATE blogs
-		SET is_published = ?
+		UPDATE blogs SET title = ?, content = ?, published_at = ?, is_published = ?, author = ?, tags = ?, description = ?, read_time = ?, status = ?
 		WHERE blog_id = ?`
 
-	_, err = DB.Exec(query, isPublished, blogID)
+	_, err = DB.Exec(query, blog.Title, contentData, publishedAt, isPublished, authorData, tagData, blog.Description, blog.ReadTimeMinutes, blog.Status, blogID)
 	return err
 }
 func DeleteBlog(blogID string) error {
@@ -620,53 +727,122 @@ func DeleteBlog(blogID string) error {
 	_, err = DB.Exec(query, blogID)
 	return err
 }
-func ListBlogs(page, limit int) ([]dtos.Blog, *dtos.PaginationMeta, error) {
+func ListBlogs(page, limit int, status string) ([]dtos.BlogRequest, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * limit
 
-	// 1. Count total items
-	var totalItems int
-	err := DB.QueryRow(`SELECT COUNT(*) FROM blogs`).Scan(&totalItems)
+	totalItems, err := countBlogs(status)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to count blogs: %w", err)
 	}
 
-	// 2. Fetch paginated data
-	query := `
-		SELECT blog_id, title, content, author_id, published_at, is_published, image_url, author
-		FROM blogs
-		ORDER BY published_at DESC
-		LIMIT ? OFFSET ?
-	`
-
-	rows, err := DB.Query(query, limit, offset)
+	rows, err := fetchBlogs(status, limit, offset)
 	if err != nil {
-
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to query blogs: %w", err)
 	}
 	defer rows.Close()
 
-	var blogs []dtos.Blog
+	blogs, err := scanBlogs(rows)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	meta := buildPagination(limit, offset, totalItems)
+	return blogs, meta, nil
+}
+func countBlogs(status string) (int, error) {
+	query := "SELECT COUNT(*) FROM blogs"
+	var args []interface{}
+
+	if status != "" {
+		query += " WHERE status = ?"
+		args = append(args, status)
+	}
+
+	var total int
+	if err := DB.QueryRow(query, args...).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+func fetchBlogs(status string, limit, offset int) (*sql.Rows, error) {
+	query := `
+		SELECT blog_id, title, content, author_id, published_at, is_published, 
+		       author, tags, description, read_time, status, created_at, updated_at
+		FROM blogs
+	`
+	var args []interface{}
+
+	if status != "" {
+		query += " WHERE status = ?"
+		args = append(args, status)
+	}
+	query += " ORDER BY published_at DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	return DB.Query(query, args...)
+}
+func scanBlogs(rows *sql.Rows) ([]dtos.BlogRequest, error) {
+	var blogs []dtos.BlogRequest
+
 	for rows.Next() {
-		var blog dtos.Blog
-		err := rows.Scan(&blog.BlogID, &blog.Title, &blog.Content, &blog.AuthorID, &blog.PublishedAt, &blog.IsPublished, &blog.ImageURL, &blog.Author)
-		if err != nil {
-			return nil, nil, err
+		var (
+			blog        dtos.BlogRequest
+			contentJSON sql.NullString
+			authorJSON  sql.NullString
+			tagsJSON    sql.NullString
+			publishedAt sql.NullTime
+			readTime    sql.NullInt64
+		)
+
+		if err := rows.Scan(
+			&blog.BlogID, &blog.Title, &contentJSON, &blog.AuthorID,
+			&publishedAt, &blog.IsPublished, &authorJSON, &tagsJSON,
+			&blog.Description, &readTime, &blog.Status,
+			&blog.CreatedAt, &blog.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan blog: %w", err)
 		}
+
+		if err := parseBlogFields(&blog, contentJSON, authorJSON, tagsJSON, publishedAt, readTime); err != nil {
+			return nil, err
+		}
+
 		blogs = append(blogs, blog)
 	}
-
-	// 3. Create pagination meta
-	totalPages := int(math.Ceil(float64(totalItems) / float64(limit)))
-	meta := &dtos.PaginationMeta{
-		Page:       page,
-		Size:       limit,
-		TotalItems: totalItems,
-		TotalPages: totalPages,
-		HasPrev:    page > 1,
-		HasNext:    page < totalPages,
+	return blogs, nil
+}
+func parseBlogFields(
+	blog *dtos.BlogRequest,
+	contentJSON, authorJSON, tagsJSON sql.NullString,
+	publishedAt sql.NullTime,
+	readTime sql.NullInt64,
+) error {
+	unmarshal := func(data sql.NullString, target interface{}, field string) error {
+		if data.Valid {
+			if err := json.Unmarshal([]byte(data.String), target); err != nil {
+				return fmt.Errorf("invalid %s JSON: %w", field, err)
+			}
+		}
+		return nil
 	}
 
-	return blogs, meta, nil
+	if err := unmarshal(contentJSON, &blog.Sections, "content"); err != nil {
+		return err
+	}
+	if err := unmarshal(authorJSON, &blog.Author, "author"); err != nil {
+		return err
+	}
+	if err := unmarshal(tagsJSON, &blog.Tags, "tags"); err != nil {
+		return err
+	}
+
+	if publishedAt.Valid {
+		blog.PublishedAt = publishedAt.Time
+	}
+	if readTime.Valid {
+		blog.ReadTimeMinutes = int(readTime.Int64)
+	}
+	return nil
 }
 
 func DeleteBanner(bannerID string) error {
