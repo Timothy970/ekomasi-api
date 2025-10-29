@@ -143,63 +143,48 @@ func generateUniqueID() string {
 func uploadMedia(mediaData []byte, mediaID, mimeType string) (string, error) {
 	log.Println("Starting upload to GCS")
 
-	// Load bucket name from environment or fallback
-	// bucketName := os.Getenv("BUCKET_NAME")
-	// if bucketName == "" {
-	bucketName := "ecommerce-api-images" // your new default
-	// }
+	// Bucket name from env or default
+	bucketName := "ecommerce-api-images"
 
-	// Derive file extension from MIME type
-	parts := strings.Split(mimeType, "/")
-	extension := "bin"
-	if len(parts) > 1 {
-		extension = parts[1]
+	// File extension from MIME type
+	ext := "bin"
+	if parts := strings.Split(mimeType, "/"); len(parts) > 1 {
+		ext = parts[1]
 	}
 
-	// Create object name inside a folder
-	objectName := fmt.Sprintf("attachments/%s_%s.%s", mediaID, generateUniqueID(), extension)
+	objectName := fmt.Sprintf("attachments/%s_%s.%s", mediaID, generateUniqueID(), ext)
 
 	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(ctx, 50*time.Second)
+	defer cancel()
 
-	log.Println("Creating storage client (Workload Identity)")
-	// 👇 No credentials file or manual key — uses GKE Workload Identity automatically
 	client, err := storage.NewClient(ctx)
 	if err != nil {
-		log.Printf("Failed to create storage client: %v", err)
-		return "", fmt.Errorf("failed to create storage client: %v", err)
+		return "", fmt.Errorf("storage.NewClient: %w", err)
 	}
 	defer client.Close()
 
-	// Prepare the bucket and object handles
-	bucket := client.Bucket(bucketName)
-	object := bucket.Object(objectName)
+	// Object handle with precondition: fails if object already exists
+	o := client.Bucket(bucketName).Object(objectName).If(storage.Conditions{DoesNotExist: true})
 
-	// Upload data
-	log.Println("Uploading media data")
-	wc := object.NewWriter(ctx)
+	// Use a bytes.Reader instead of a local file
+	wc := o.NewWriter(ctx)
 	if _, err := io.Copy(wc, bytes.NewReader(mediaData)); err != nil {
-		log.Printf("Failed to upload media data: %v", err)
-		return "", fmt.Errorf("failed to upload media data: %v", err)
+		return "", fmt.Errorf("io.Copy: %w", err)
 	}
 
 	if err := wc.Close(); err != nil {
-		log.Printf("Failed to close writer: %v", err)
-		return "", fmt.Errorf("failed to close writer: %v", err)
+		return "", fmt.Errorf("Writer.Close: %w", err)
 	}
 
-	// Optional: make public (if allowed by your infra policy)
-	// 👇 Only use if your GCP bucket policy allows setting object ACLs.
-	log.Println("Setting object ACL to public")
-	if err := object.ACL().Set(ctx, storage.AllUsers, storage.RoleReader); err != nil {
-		log.Printf("Failed to make object public: %v", err)
-		// You can decide to ignore this if your bucket uses uniform access
-		// return "", fmt.Errorf("failed to make object public: %v", err)
+	// Optional: public access (remove if using uniform bucket-level access)
+	if err := o.ACL().Set(ctx, storage.AllUsers, storage.RoleReader); err != nil {
+		log.Printf("Cannot set ACL: %v", err)
 	}
 
-	// Construct URL (adjust domain if you’re using a custom CDN domain)
-	url := fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucketName, objectName)
-	log.Printf("File uploaded to GCS and made public: %s", url)
-	return url, nil
+	publicURL := fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucketName, objectName)
+	log.Printf("Uploaded to %s", publicURL)
+	return publicURL, nil
 }
 
 func UploadMediaToGCSEndPoint(files []*multipart.FileHeader) (string, error) {
