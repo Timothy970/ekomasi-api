@@ -16,7 +16,7 @@ env:
   - name: ENVIRONMENT
     value: development
   - name: PORT
-    value: 8009
+    value: 8080
   - name: V2_URL
     value: https://api.v2.emalify.com/api
   - name: DB_NAME
@@ -43,3 +43,10 @@ secrets:
 requires:
   - mysql
   - redis
+
+migration_type: custom
+migration_command: ["/app/app", "-migrate=true"]
+migration_image_suffix: cli
+
+gcs_buckets:
+  - images
