@@ -249,7 +249,7 @@ func CreatePermissionHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
-	err := models.CreatePermission(req.Name, req.Description, req.Category)
+	err := models.CreatePermission(req.Name, req.Description, req.Category, req.Key)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -295,7 +295,7 @@ func UpdatePermissionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	permissionID := mux.Vars(r)["permission_id"]
-	err := models.UpdatePermission(req.Name, req.Description, permissionID)
+	err := models.UpdatePermission(req.Name, req.Description, permissionID, req.Category, req.Key)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
