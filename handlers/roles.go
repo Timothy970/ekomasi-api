@@ -249,7 +249,7 @@ func CreatePermissionHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
-	err := models.CreatePermission(req.Name, req.Description)
+	err := models.CreatePermission(req.Name, req.Description, req.Category)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -366,8 +366,8 @@ func DeletePermissionHandler(w http.ResponseWriter, r *http.Request) {
 func GetPermissionsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-
-	permissions, err := models.GetPermissions()
+	category := r.URL.Query().Get("category")
+	permissions, err := models.GetPermissions(category)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

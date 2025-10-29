@@ -21,6 +21,7 @@ type Permission struct {
 	ID          string  `json:"permission_id"`
 	Name        string  `json:"name" validate:"required"`
 	Description *string `json:"description"`
+	Category    string  `json:"category" validate:"required"`
 }
 type PermissionIDs struct {
 	PermissionIDs []string `json:"permission_ids" validate:"required,min=1,dive,required"`
