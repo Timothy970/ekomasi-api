@@ -16,6 +16,8 @@ import (
 	"google.golang.org/api/option"
 )
 
+var hardCodedImageURL = "https://bucket.emalify.com/attachments/1758009967529968860_1758009967530023950.png"
+
 // ParseAndUploadFile handles file extraction and upload to GCS.
 // formFieldName is the name of the form input (e.g., "image" or "file").
 // maxMemoryMB defines the maximum allowed memory for parsing multipart form data.
@@ -43,35 +45,36 @@ func ParseAndUploadFile(r *http.Request, formFieldName string, maxMemoryMB int64
 
 // UploadMediaToGCS uploads a single file to Google Cloud Storage and returns the public URL
 func UploadMediaToGCS(files []*multipart.FileHeader) (string, error) {
-	if len(files) == 0 {
-		return "", fmt.Errorf("no files provided")
-	}
+	// if len(files) == 0 {
+	// 	return "", fmt.Errorf("no files provided")
+	// }
 
-	fileHeader := files[0]
-	file, err := fileHeader.Open()
-	if err != nil {
-		log.Printf("Unable to open file: %v", err)
-		return "", fmt.Errorf("unable to open file: %v", err)
-	}
-	defer file.Close()
+	// fileHeader := files[0]
+	// file, err := fileHeader.Open()
+	// if err != nil {
+	// 	log.Printf("Unable to open file: %v", err)
+	// 	return "", fmt.Errorf("unable to open file: %v", err)
+	// }
+	// defer file.Close()
 
-	// Read the file content into a buffer
-	buf := new(bytes.Buffer)
-	if _, err := io.Copy(buf, file); err != nil {
-		log.Printf("Unable to read file: %v", err)
-		return "", fmt.Errorf("unable to read file: %v", err)
-	}
+	// // Read the file content into a buffer
+	// buf := new(bytes.Buffer)
+	// if _, err := io.Copy(buf, file); err != nil {
+	// 	log.Printf("Unable to read file: %v", err)
+	// 	return "", fmt.Errorf("unable to read file: %v", err)
+	// }
 
-	// Generate a unique ID for the media and upload it to GCS
-	mediaID := generateUniqueID()
-	mimeType := fileHeader.Header.Get("Content-Type")
+	// // Generate a unique ID for the media and upload it to GCS
+	// mediaID := generateUniqueID()
+	// mimeType := fileHeader.Header.Get("Content-Type")
 
-	url, err := uploadMedia(buf.Bytes(), mediaID, mimeType)
-	if err != nil {
-		log.Printf("Unable to upload file to GCS: %v", err)
-		return "", fmt.Errorf("unable to upload file to GCS: %v", err)
-	}
-
+	// url, err := uploadMedia(buf.Bytes(), mediaID, mimeType)
+	// if err != nil {
+	// 	log.Printf("Unable to upload file to GCS: %v", err)
+	// 	return "", fmt.Errorf("unable to upload file to GCS: %v", err)
+	// }
+	//since bucket service is not yet set up, returning hardcoded url
+	url := hardCodedImageURL
 	return url, nil
 }
 
@@ -90,7 +93,9 @@ func uploadMedia(mediaData []byte, mediaID, mimeType string) (string, error) {
 	ctx := context.Background()
 
 	// Create a new Google Cloud Storage client
-	serviceAccount := os.Getenv("SERVICE_ACCOUNT")
+	// serviceAccount := os.Getenv("SERVICE_ACCOUNT")
+	// commented out this so as to await infra team to set up bucket service to upload images
+	serviceAccount := ""
 	log.Println("Creating storage client")
 	client, err := storage.NewClient(ctx, option.WithCredentialsFile(serviceAccount))
 	if err != nil {

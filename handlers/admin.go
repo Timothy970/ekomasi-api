@@ -14,6 +14,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var uploadImageError = "Failed to upload image"
+
 // This provides the code for products admin, products categories, products reviews and product bundles functionalities that require admin authorization
 
 // Function for creating Products Categories ### POST /products/categories
@@ -133,6 +135,7 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 				Description: "Failed to parse form: " + err.Error(),
 				Code:        http.StatusBadRequest,
 			},
+			Message:   uploadImageError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -152,6 +155,7 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 					Description: "Failed to upload image: " + err.Error(),
 					Code:        http.StatusInternalServerError,
 				},
+				Message:   uploadImageError,
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
 				Request:   r,
@@ -537,7 +541,7 @@ func UploadImageHandler(w http.ResponseWriter, r *http.Request) {
 				Description: "Failed to upload image: " + err.Error(),
 				Code:        http.StatusBadRequest,
 			},
-			Message:   err.Error(),
+			Message:   uploadImageError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
