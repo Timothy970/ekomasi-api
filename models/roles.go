@@ -208,7 +208,7 @@ func CreatePermission(name string, description *string, category string, key str
 		return errors.New("permission already exists")
 	}
 	query := `
-		INSERT INTO permissions (permission_id, name, description, category, key)
+		INSERT INTO permissions (permission_id, name, description, category, permission_key)
 		VALUES (?, ?, ?, ?, ?)
 	`
 	_, err = DB.Exec(query, permissionID, name, description, category, key)
@@ -236,7 +236,7 @@ func UpdatePermission(name string, newDescription *string, permissionID string, 
 	}
 	query := `
 		UPDATE permissions
-		SET description = ?, name = ?, category = ?, key = ?
+		SET description = ?, name = ?, category = ?, permission_key = ?
 		WHERE permission_id = ?
 	`
 	_, err = DB.Exec(query, newDescription, name, permissionID, category, key)
@@ -258,13 +258,20 @@ func DeletePermission(permissionID string) error {
 }
 func GetPermissions(category string) ([]dtos.Permission, error) {
 	query := `
-		SELECT permission_id, name, description, category, key
-		FROM permissions 
+		SELECT permission_id, name, description, category, permission_key
+		FROM permissions
 	`
+
+	var rows *sql.Rows
+	var err error
+
 	if category != "" {
 		query += " WHERE LOWER(category) = LOWER(?)"
+		rows, err = DB.Query(query, category)
+	} else {
+		rows, err = DB.Query(query)
 	}
-	rows, err := DB.Query(query, category)
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return []dtos.Permission{}, nil
@@ -282,15 +289,20 @@ func GetPermissions(category string) ([]dtos.Permission, error) {
 		permissions = append(permissions, p)
 	}
 
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return permissions, nil
 }
+
 func GetPermissionByID(permissionID string) (*dtos.Permission, error) {
 	err := IsPermissionThere(permissionID)
 	if err != nil {
 		return nil, err
 	}
 	query := `
-		SELECT permission_id, name, description, category, key
+		SELECT permission_id, name, description, category, permission_key
 		FROM permissions
 		WHERE permission_id = ?
 	`
