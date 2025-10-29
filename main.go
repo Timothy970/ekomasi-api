@@ -55,10 +55,7 @@ const migrationDir = "migrations"
 func init() {
 	// Initialize database connection or other configurations here.
 	fmt.Println("Initializing server...")
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("No .env file found or error loading .env file, proceeding with environment variables")
-	}
+
 }
 
 func main() {

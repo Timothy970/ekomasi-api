@@ -197,7 +197,7 @@ func DeleteRole(roleID string) error {
 	return err
 }
 
-func CreatePermission(name string, description *string) error {
+func CreatePermission(name string, description *string, category string) error {
 	permissionID, _ := shortid.Generate()
 	//check id permission exists
 	exists, err := RecordExists("permissions", "LOWER(name) = LOWER(?)", name)
@@ -208,10 +208,10 @@ func CreatePermission(name string, description *string) error {
 		return errors.New("permission already exists")
 	}
 	query := `
-		INSERT INTO permissions (permission_id, name, description)
-		VALUES (?, ?, ?)
+		INSERT INTO permissions (permission_id, name, description, category)
+		VALUES (?, ?, ?, ?)
 	`
-	_, err = DB.Exec(query, permissionID, name, description)
+	_, err = DB.Exec(query, permissionID, name, description, category)
 	if err != nil {
 		return err
 	}
@@ -256,12 +256,15 @@ func DeletePermission(permissionID string) error {
 
 	return err
 }
-func GetPermissions() ([]dtos.Permission, error) {
+func GetPermissions(category string) ([]dtos.Permission, error) {
 	query := `
-		SELECT permission_id, name, description
+		SELECT permission_id, name, description, category
 		FROM permissions 
 	`
-	rows, err := DB.Query(query)
+	if category != "" {
+		query += " WHERE LOWER(category) = LOWER(?)"
+	}
+	rows, err := DB.Query(query, category)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return []dtos.Permission{}, nil
@@ -273,7 +276,7 @@ func GetPermissions() ([]dtos.Permission, error) {
 	var permissions []dtos.Permission
 	for rows.Next() {
 		var p dtos.Permission
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Category); err != nil {
 			return nil, err
 		}
 		permissions = append(permissions, p)
@@ -287,12 +290,12 @@ func GetPermissionByID(permissionID string) (*dtos.Permission, error) {
 		return nil, err
 	}
 	query := `
-		SELECT permission_id, name, description
+		SELECT permission_id, name, description, category
 		FROM permissions
 		WHERE permission_id = ?
 	`
 	var p dtos.Permission
-	err = DB.QueryRow(query, permissionID).Scan(&p.ID, &p.Name, &p.Description)
+	err = DB.QueryRow(query, permissionID).Scan(&p.ID, &p.Name, &p.Description, &p.Category)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
