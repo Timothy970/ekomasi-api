@@ -77,7 +77,7 @@ func UpdateDeal(dealID string, deal dtos.Deal) error {
 		return err
 	}
 
-	if deal.Image != "" {
+	if deal.Image != nil {
 		_, err := DB.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ?, is_active = ?, image = ? WHERE deal_id = ?`,
 			deal.Name, deal.StartDate, deal.EndDate, *deal.IsActive, deal.Image, dealID)
 		return err

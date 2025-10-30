@@ -22,7 +22,7 @@ type Deal struct {
 	IsActive  *bool         `json:"is_active" validate:"omitempty"`
 	Link      string        `json:"link"`
 	Products  []DealProduct `json:"products"`
-	Image     string        `json:"image"`
+	Image     *string       `json:"image"`
 }
 
 type DealWithProducts struct {
