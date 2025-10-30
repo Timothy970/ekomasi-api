@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS  `orders` (
    `total_amount` decimal(10,2) NOT NULL,
    `total_discount` decimal(10,2) NOT NULL DEFAULT '0.00',
    `status` varchar(100) NOT NULL DEFAULT 'cart',
-   `payment_status` varchar(100) DEFAULT 'PROCESSING'
+   `payment_status` varchar(100) DEFAULT 'PROCESSING',
    `delivery_id` char(36) NOT NULL,
    `is_guest_order` tinyint(1) NOT NULL DEFAULT '0',
    `payment_method` varchar(100) DEFAULT 'MPESA',
