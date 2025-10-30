@@ -11,10 +11,10 @@ type Order struct {
 	TotalDiscount        float64              `json:"total_discount"`
 	DeliveryID           string               `json:"delivery_id"`
 	OrderStatus          string               `json:"order_status"`
-	DeliveryStatus       string               `json:"delivery_status"`
+	DeliveryStatus       *string              `json:"delivery_status"`
 	PaymentMethod        string               `json:"payment_method"`
 	DeliveryCharge       string               `json:"delivery_charge"`
-	DeliveryAddress      string               `json:"delivery_address"`
+	DeliveryAddress      *string              `json:"delivery_address"`
 	GuestDeliveryAddress GuestDeliveryAddress `json:"guest_delivery_address"`
 	GuestPersonalDetails GuestPersonalDetails `json:"guest_personal_details"`
 	CreatedAt            time.Time            `json:"created_at"`

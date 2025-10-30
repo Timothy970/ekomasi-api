@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS  `deliveries` (
    `order_id` char(36) NOT NULL,
    `delivery_charge` varchar(255) NOT NULL,
    `status` varchar(100) NOT NULL DEFAULT 'pending',
+   `delivery_address` varchar(500) DEFAULT NULL,
    `courier_details` text,
    PRIMARY KEY (`delivery_id`),
    KEY `idx_deliveries_order_id` (`order_id`),
