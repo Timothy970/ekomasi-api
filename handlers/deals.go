@@ -153,7 +153,7 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 	// Continue even if no image was uploaded
 	req := &dtos.Deal{
 		Name:      r.FormValue("name"),
-		Image:     url, // empty string if no image
+		Image:     &url, // empty string if no image
 		StartDate: models.StringToTime(r.FormValue("start_date")),
 		EndDate:   models.StringToTime(r.FormValue("end_date")),
 		IsActive:  func(b bool) *bool { return &b }(models.StringToBool(r.FormValue("status"))),
