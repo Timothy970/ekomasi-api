@@ -197,7 +197,8 @@ func GenerateSecureTokenBase64(length int) (string, error) {
 	return token, nil
 }
 func IsValidKenyanPhone(phone string) bool {
-	re := regexp.MustCompile(`^(?:2547\d{8}|07\d{8})$`)
+	// added for numbers starting with 2541 or 01
+	re := regexp.MustCompile(`^(?:\+?2547\d{8}|\+?2541\d{8}|07\d{8}|01\d{8})$`)
 	return re.MatchString(phone)
 }
 func StringPtr(s string) *string {

@@ -19,10 +19,16 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
 		return
 	}
+	minimumOrderValue := models.StringToFloat64(r.FormValue("minimum_order_value"))
 
-	req, ok := DecodeRequestBody[dtos.PromoCodeRequest](r, w, requestSummary, start)
-	if !ok {
-		return
+	req := &dtos.PromoCodeRequest{
+		Discount_Code:     r.FormValue("discount_code"),
+		DiscountType:      r.FormValue("discount_type"),
+		DiscountValue:     models.StringToFloat64(r.FormValue("discount_value")),
+		ExpiresAt:         r.FormValue("expires_at"),
+		MinimumOrderValue: &minimumOrderValue,
+		MaximumUse:        int(models.StringToFloat64(r.FormValue("maximum_use"))),
+		IsActive:          models.StringToBool(r.FormValue("is_active")),
 	}
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
 		return
@@ -65,9 +71,15 @@ func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := mux.Vars(r)["promo_id"]
-	req, ok := DecodeRequestBody[dtos.PromoCodeRequest](r, w, requestSummary, start)
-	if !ok {
-		return
+	minimumOrderValue := models.StringToFloat64(r.FormValue("minimum_order_value"))
+	req := &dtos.PromoCodeRequest{
+		Discount_Code:     r.FormValue("discount_code"),
+		DiscountType:      r.FormValue("discount_type"),
+		DiscountValue:     models.StringToFloat64(r.FormValue("discount_value")),
+		ExpiresAt:         r.FormValue("expires_at"),
+		MinimumOrderValue: &minimumOrderValue,
+		MaximumUse:        int(models.StringToFloat64(r.FormValue("maximum_use"))),
+		IsActive:          models.StringToBool(r.FormValue("is_active")),
 	}
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
 		return

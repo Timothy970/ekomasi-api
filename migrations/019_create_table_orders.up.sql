@@ -1,12 +1,12 @@
 CREATE TABLE IF NOT EXISTS  `orders` (
    `order_id` char(36) NOT NULL,
    `user_id` char(36) DEFAULT NULL,
-   `guest_notification_channel` int DEFAULT NULL,
-   `guest_notification_details` varchar(255) DEFAULT NULL,
-   `guest_delivery_address` varchar(255) DEFAULT NULL,
+   `guest_personal_details` LONGTEXT,
+   `guest_delivery_address` LONGTEXT,
    `total_amount` decimal(10,2) NOT NULL,
    `total_discount` decimal(10,2) NOT NULL DEFAULT '0.00',
    `status` varchar(100) NOT NULL DEFAULT 'cart',
+   `payment_status` varchar(100) DEFAULT 'PROCESSING'
    `delivery_id` char(36) NOT NULL,
    `is_guest_order` tinyint(1) NOT NULL DEFAULT '0',
    `payment_method` varchar(100) DEFAULT 'MPESA',
