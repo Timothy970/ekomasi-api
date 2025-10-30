@@ -19,7 +19,7 @@ func CreateDeal(deal dtos.CreateDeal) (string, error) {
 		return "", fmt.Errorf("deal with name %s already exists", deal.Name)
 	}
 	dealID, _ := shortid.Generate()
-	_, err = DB.Exec(`INSERT INTO deals (deal_id, name, description, discount, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)`, dealID, deal.Name, deal.Description, deal.Discount, deal.StartDate, deal.EndDate)
+	_, err = DB.Exec(`INSERT INTO deals (deal_id, name, description, discount, start_date, end_date, image) VALUES (?, ?, ?, ?, ?, ?, ?)`, dealID, deal.Name, deal.Description, deal.Discount, deal.StartDate, deal.EndDate, deal.Image)
 	if err != nil {
 		return "", err
 	}
@@ -29,7 +29,7 @@ func GetAllDeals(page, size int) ([]dtos.Deal, *dtos.PaginationMeta, error) {
 	var countTotal int
 	err := DB.QueryRow(`SELECT COUNT(*) FROM deals`).Scan(&countTotal)
 	rows, err := DB.Query(`
-	SELECT deal_id, name, start_date, end_date, is_active
+	SELECT deal_id, name, start_date, end_date, is_active, image
 	FROM deals d
 	LIMIT ? OFFSET ?
 	`, size, (page-1)*size)
@@ -40,7 +40,7 @@ func GetAllDeals(page, size int) ([]dtos.Deal, *dtos.PaginationMeta, error) {
 	var deals []dtos.Deal
 	for rows.Next() {
 		var d dtos.Deal
-		if err := rows.Scan(&d.DealID, &d.Name, &d.StartDate, &d.EndDate, &d.IsActive); err != nil {
+		if err := rows.Scan(&d.DealID, &d.Name, &d.StartDate, &d.EndDate, &d.IsActive, &d.Image); err != nil {
 			return nil, nil, err
 		}
 		// get the deals products
@@ -134,7 +134,7 @@ func GetDealWithProducts(dealID string, page, limit int) (*dtos.DealWithProducts
 
 	query := `
 		SELECT 
-			d.deal_id, d.name, d.start_date, d.end_date, d.is_active
+			d.deal_id, d.name, d.start_date, d.end_date, d.is_active, d.image
 		FROM deals d
 		WHERE d.deal_id = ?
 	`
@@ -148,7 +148,7 @@ func GetDealWithProducts(dealID string, page, limit int) (*dtos.DealWithProducts
 		endDate   sql.NullTime
 	)
 
-	if err := row.Scan(&deal.DealID, &name, &startDate, &endDate, &deal.IsActive); err != nil {
+	if err := row.Scan(&deal.DealID, &name, &startDate, &endDate, &deal.IsActive, &deal.Image); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, dtos.PaginationMeta{}, fmt.Errorf("deal not found")
 		}

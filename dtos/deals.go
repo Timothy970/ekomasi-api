@@ -12,6 +12,7 @@ type CreateDeal struct {
 	Discount    *float64  `json:"discount"`
 	StartDate   time.Time `json:"start_date" validate:"required"`
 	EndDate     time.Time `json:"end_date" validate:"required"`
+	Image       string
 }
 type Deal struct {
 	DealID    string        `json:"deal_id"`
@@ -25,6 +26,7 @@ type Deal struct {
 }
 
 type DealWithProducts struct {
+	Image     *string       `json:"image"`
 	DealID    string        `json:"deal_id"`
 	Name      string        `json:"name"`
 	StartDate time.Time     `json:"start_date"`
