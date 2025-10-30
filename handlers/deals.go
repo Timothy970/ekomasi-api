@@ -395,7 +395,7 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dealID, err := createDeal(req.Title, startDate, endDate)
+	dealID, err := createDeal(req.Title, startDate, endDate, req.Image)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -501,11 +501,12 @@ func parseDuration(duration string) (time.Time, time.Time, error) {
 	}
 	return models.StringToTime(startStr), models.StringToTime(endStr), nil
 }
-func createDeal(title string, startDate, endDate time.Time) (string, error) {
+func createDeal(title string, startDate, endDate time.Time, image string) (string, error) {
 	dealData := dtos.CreateDeal{
 		Name:      title,
 		StartDate: startDate,
 		EndDate:   endDate,
+		Image:     image,
 	}
 	return models.CreateDeal(dealData)
 }

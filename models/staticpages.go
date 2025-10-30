@@ -2,6 +2,8 @@ package models
 
 import (
 	"adenzo_backend/dtos"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"log"
 	"strings"
@@ -11,11 +13,14 @@ import (
 
 func CreateStaticPage(req dtos.StaticPageRequest) error {
 	staticPageID, _ := shortid.Generate()
+	headerData, _ := json.Marshal(req.Content.Header)
+	bodyData, _ := json.Marshal(req.Content.Body)
+	footerData, _ := json.Marshal(req.Content.Footer)
 	query := `
-		INSERT INTO static_pages (static_page_id, title, slug, content, page_type, status)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO static_pages (static_page_id, title, slug, body_data, header_data, footer_data, page_type, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	_, err := DB.Exec(query, staticPageID, req.Title, req.Slug, req.Content, req.PageType, req.Status)
+	_, err := DB.Exec(query, staticPageID, req.Title, req.Slug, bodyData, headerData, footerData, req.PageType, req.Status)
 	return err
 }
 
@@ -53,7 +58,7 @@ func GetStaticPages(slug, pageType, status string, page, limit int) ([]dtos.Stat
 	var staticPages []dtos.StaticPageRequest
 
 	pageQuery := `
-	SELECT static_page_id, title, slug, content, page_type, status
+	SELECT static_page_id, title, slug, header_data, body_data, footer_data, page_type, status
 	FROM static_pages
 `
 	pageConditions := []string{}
@@ -92,10 +97,31 @@ func GetStaticPages(slug, pageType, status string, page, limit int) ([]dtos.Stat
 
 	for rows.Next() {
 		var sp dtos.StaticPageRequest
-		if err := rows.Scan(&sp.StaticPageID, &sp.Title, &sp.Slug, &sp.Content, &sp.PageType, &sp.Status); err != nil {
+		var (
+			headerData sql.NullString
+			bodyData   sql.NullString
+			footerData sql.NullString
+		)
+
+		if err := rows.Scan(&sp.StaticPageID, &sp.Title, &sp.Slug, &headerData, &bodyData, &footerData, &sp.PageType, &sp.Status); err != nil {
 			log.Printf("row scan error***%s", err)
 			return nil, nil, err
 		}
+
+		// Unmarshal JSON data into the content struct
+		if err := json.Unmarshal([]byte(headerData.String), &sp.Content.Header); err != nil {
+			log.Printf("header unmarshal error: %v", err)
+			return nil, nil, err
+		}
+		if err := json.Unmarshal([]byte(bodyData.String), &sp.Content.Body); err != nil {
+			log.Printf("body unmarshal error: %v", err)
+			return nil, nil, err
+		}
+		if err := json.Unmarshal([]byte(footerData.String), &sp.Content.Footer); err != nil {
+			log.Printf("footer unmarshal error: %v", err)
+			return nil, nil, err
+		}
+
 		staticPages = append(staticPages, sp)
 	}
 
@@ -110,14 +136,34 @@ func GetStaticPageByID(staticPageID string) (*dtos.StaticPageRequest, error) {
 		return nil, err
 	}
 	var sp dtos.StaticPageRequest
+	var (
+		headerData sql.NullString
+		bodyData   sql.NullString
+		footerData sql.NullString
+	)
 	err = DB.QueryRow(`
-		SELECT static_page_id, title, slug, content, page_type, status
+		SELECT static_page_id, title, slug, header_data, body_data, footer_data, page_type, status
 		FROM static_pages
 		WHERE static_page_id = ?
-	`, staticPageID).Scan(&sp.StaticPageID, &sp.Title, &sp.Slug, &sp.Content, &sp.PageType, &sp.Status)
+	`, staticPageID).Scan(&sp.StaticPageID, &sp.Title, &sp.Slug, &headerData, &bodyData, &footerData, &sp.PageType, &sp.Status)
 	if err != nil {
 		return nil, err
 	}
+
+	// Unmarshal JSON data into the content struct
+	if err := json.Unmarshal([]byte(headerData.String), &sp.Content.Header); err != nil {
+		log.Printf("header unmarshal error: %v", err)
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(bodyData.String), &sp.Content.Body); err != nil {
+		log.Printf("body unmarshal error: %v", err)
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(footerData.String), &sp.Content.Footer); err != nil {
+		log.Printf("footer unmarshal error: %v", err)
+		return nil, err
+	}
+
 	return &sp, nil
 }
 func UpdateStaticPage(staticPageID string, req dtos.StaticPageRequest) (*dtos.StaticPageRequest, error) {
