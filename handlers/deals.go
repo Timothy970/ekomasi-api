@@ -109,14 +109,60 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dealID := mux.Vars(r)["deal_id"]
-	req, ok := DecodeRequestBody[dtos.Deal](r, w, requestSummary, start)
-	if !ok {
+	file, header, err := r.FormFile("image")
+	var url string
+
+	if err == nil && header != nil {
+		// Remember to close the file if it exists
+		defer file.Close()
+
+		// Upload to GCS
+		url, err = utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Deals",
+					Description: err.Error(),
+					Code:        http.StatusInternalServerError,
+				},
+				Message:   "Failed to upload image",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+	} else if err != http.ErrMissingFile && err != nil {
+		// Handle any other unexpected error
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Error reading image file",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
 		return
 	}
+
+	// Continue even if no image was uploaded
+	req := &dtos.Deal{
+		Name:      r.FormValue("name"),
+		Image:     url, // empty string if no image
+		StartDate: models.StringToTime(r.FormValue("start_date")),
+		EndDate:   models.StringToTime(r.FormValue("end_date")),
+		IsActive:  func(b bool) *bool { return &b }(models.StringToBool(r.FormValue("status"))),
+	}
+
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
 		return
 	}
-	err := models.UpdateDeal(dealID, *req)
+	err = models.UpdateDeal(dealID, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

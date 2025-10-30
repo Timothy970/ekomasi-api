@@ -10,6 +10,7 @@ import (
 	"log"
 	"math"
 	"math/big"
+	"strconv"
 	"time"
 
 	"github.com/teris-io/shortid"
@@ -31,7 +32,16 @@ func StringToTime(str string) time.Time {
 	fmt.Println("Error parsing time:", str)
 	return time.Time{}
 }
-
+func StringToBool(str string) bool {
+	return str == "true" || str == "1"
+}
+func StringToFloat64(str string) float64 {
+	value, err := strconv.ParseFloat(str, 64)
+	if err != nil {
+		return 0
+	}
+	return value
+}
 func isVoucherThere(voucherID string) error {
 	exists, err := RecordExists("vouchers", "voucher_id = ?", voucherID)
 	if err != nil {

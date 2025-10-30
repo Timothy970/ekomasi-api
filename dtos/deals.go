@@ -16,11 +16,12 @@ type CreateDeal struct {
 type Deal struct {
 	DealID    string        `json:"deal_id"`
 	Name      string        `json:"name" validate:"required"`
-	StartDate time.Time     `json:"start_date"`
-	EndDate   time.Time     `json:"end_date"`
-	IsActive  *bool         `json:"status"`
+	StartDate time.Time     `json:"start_date" validate:"required"`
+	EndDate   time.Time     `json:"end_date" validate:"required"`
+	IsActive  *bool         `json:"is_active" validate:"omitempty"`
 	Link      string        `json:"link"`
 	Products  []DealProduct `json:"products"`
+	Image     string        `json:"image"`
 }
 
 type DealWithProducts struct {
