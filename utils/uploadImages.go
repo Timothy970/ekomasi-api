@@ -33,6 +33,27 @@ func ParseAndUploadFile(r *http.Request, formFieldName string, maxMemoryMB int64
 	defer file.Close()
 
 	// Upload to GCS
+	url, err := UploadMediaToGCS([]*multipart.FileHeader{header})
+	if err != nil {
+		return "", err
+	}
+
+	return url, nil
+}
+func ParseAndUploadFileEndpoint(r *http.Request, formFieldName string, maxMemoryMB int64) (string, error) {
+	// Parse multipart form
+	if err := r.ParseMultipartForm(maxMemoryMB << 20); err != nil {
+		return "", err
+	}
+
+	// Retrieve file
+	file, header, err := r.FormFile(formFieldName)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	// Upload to GCS
 	url, err := UploadMediaToGCSEndPoint([]*multipart.FileHeader{header})
 	if err != nil {
 		return "", err

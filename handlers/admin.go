@@ -45,7 +45,7 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Categories",
-				Description: "Failed to upload file: " + err.Error(),
+				Description: "Failed to upload image",
 				Code:        http.StatusBadRequest,
 			},
 			TimeTaken: time.Since(start),
@@ -533,7 +533,7 @@ func UploadImageHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	url, err := utils.ParseAndUploadFile(r, "image", 10)
+	url, err := utils.ParseAndUploadFileEndpoint(r, "image", 10)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
