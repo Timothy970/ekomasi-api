@@ -52,6 +52,7 @@ type Inventory struct {
 	Warranty          *string  `json:"warranty"`
 	PlacedOn          string   `json:"placed_on"`
 	BuyingPrice       float64  `json:"buying_price"`
+	StoreID           *string  `json:"store_id"`
 }
 
 type InventoryTurnoverRequest struct {

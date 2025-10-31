@@ -52,7 +52,7 @@ func ListInventory(page, size int, categoryID, stock, storeID string) ([]dtos.In
 		return nil, nil, err
 	}
 
-	query := `SELECT inv.inventory_id, prd.product_id, inv.variant_id, inv.quantity, inv.low_stock_threshold, prd.name, prd.description, prd.sku, prd.tag, prd.price, prd.category_id, cat.name, prd.stock_quantity, prd.search_vector
+	query := `SELECT inv.inventory_id, inv.warehouse_id, prd.product_id, inv.variant_id, inv.quantity, inv.low_stock_threshold, prd.name, prd.description, prd.sku, prd.tag, prd.price, prd.category_id, cat.name, prd.stock_quantity, prd.search_vector
         FROM inventory inv
         JOIN products prd ON inv.product_id = prd.product_id
         JOIN categories cat ON prd.category_id = cat.category_id`
@@ -70,7 +70,7 @@ func ListInventory(page, size int, categoryID, stock, storeID string) ([]dtos.In
 	var inventories []dtos.Inventory
 	for rows.Next() {
 		var inv dtos.Inventory
-		if err := rows.Scan(&inv.InventoryID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold, &inv.Name, &inv.Description, &inv.SKU, &inv.Tag, &inv.Price, &inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector); err != nil {
+		if err := rows.Scan(&inv.InventoryID, &inv.StoreID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold, &inv.Name, &inv.Description, &inv.SKU, &inv.Tag, &inv.Price, &inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector); err != nil {
 			return nil, nil, err
 		}
 		inv.Images, _ = fetchProductImages(inv.ProductID)
@@ -112,7 +112,7 @@ func GetInventory(inventoryID string) (*dtos.Inventory, error) {
 	}
 	query := `
 		SELECT 
-			inv.inventory_id, prd.product_id, inv.variant_id, inv.quantity, inv.low_stock_threshold,
+			inv.inventory_id, inv.warehouse_id, prd.product_id, inv.variant_id, inv.quantity, inv.low_stock_threshold,
 			prd.name, prd.description, prd.sku, prd.tag, prd.price,
 			prd.category_id, cat.name, prd.stock_quantity, prd.search_vector, invbatch.batch_number, invbatch.expiry_date, invbatch.manufacturing_date, prdWarranty.warranty_period, inv.last_updated, prd.buying_price
 		FROM inventory inv
@@ -128,7 +128,7 @@ func GetInventory(inventoryID string) (*dtos.Inventory, error) {
 
 	var inv dtos.Inventory
 	if err := row.Scan(
-		&inv.InventoryID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold,
+		&inv.InventoryID, &inv.StoreID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold,
 		&inv.Name, &inv.Description, &inv.SKU, &inv.Tag, &inv.Price,
 		&inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector, &inv.BatchNumber, &inv.ExpiryDate, &inv.ManufacturingDate, &inv.Warranty, &inv.PlacedOn, &inv.BuyingPrice,
 	); err != nil {
