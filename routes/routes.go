@@ -105,7 +105,7 @@ func SetupRoutes(router *mux.Router) {
 	cart.HandleFunc("/view/{cart_id}", handlers.ViewCartHandler).Methods("GET")
 	cart.HandleFunc("/update/{cart_id}", handlers.UpdateCartItemHandler).Methods("PATCH")
 	cart.HandleFunc("/remove/{cart_id}", handlers.RemoveFromCartHandler).Methods("DELETE")
-	cart.Handle("/apply-coupon", middleware.AuthenticateToken(http.HandlerFunc(handlers.ApplyCouponHandler))).Methods("POST")
+	cart.HandleFunc("/apply-coupon", handlers.ApplyCouponHandler).Methods("POST")
 
 	//get shipping fee
 	shipping := api.PathPrefix("/shipping").Subrouter()
