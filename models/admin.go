@@ -105,7 +105,7 @@ func ValidatePromoCode(voucherCode string, orderValue float64) (dtos.PromoCodeDa
 
 	err := DB.QueryRow(`
 		SELECT discount_type, expires_at, is_active, discount_value, minimum_order_value, maximum_use
-		FROM vouchers 
+		FROM promocodes 
 		WHERE code = ?
 	`, voucherCode).Scan(&promoCode.DiscountType, &expiry, &isActive, promoCode.DiscountValue, promoCode.MinimumOrderValue, promoCode.MaximumUse)
 
