@@ -66,10 +66,10 @@ func ValidateCoupon(couponCode string) (float64, error) {
 func ValidateVoucher(voucherCode string) (float64, error) {
 	var balance float64
 	var expiry time.Time
-	var isActive bool
+	var isActive string
 
 	err := DB.QueryRow(`
-		SELECT balance, expires_at, is_active
+		SELECT balance, expiry_date, status
 		FROM vouchers 
 		WHERE code = ?
 	`, voucherCode).Scan(&balance, &expiry, &isActive)
@@ -87,7 +87,7 @@ func ValidateVoucher(voucherCode string) (float64, error) {
 	}
 
 	// Check if active
-	if !isActive {
+	if isActive != "active" {
 		return 0, fmt.Errorf("voucher is inactive")
 	}
 
@@ -102,14 +102,21 @@ func ValidatePromoCode(voucherCode string, orderValue float64) (dtos.PromoCodeDa
 	var promoCode dtos.PromoCodeData
 	var expiry time.Time
 	var isActive bool
-
 	err := DB.QueryRow(`
-		SELECT discount_type, expires_at, is_active, discount_value, minimum_order_value, maximum_use
-		FROM promocodes 
-		WHERE code = ?
-	`, voucherCode).Scan(&promoCode.DiscountType, &expiry, &isActive, promoCode.DiscountValue, promoCode.MinimumOrderValue, promoCode.MaximumUse)
+	SELECT discount_type, expires_at, is_active, discount_value, minimum_order_value, maximum_use
+	FROM promocodes 
+	WHERE code = ?
+`, voucherCode).Scan(
+		&promoCode.DiscountType,
+		&expiry,
+		&isActive,
+		&promoCode.DiscountValue,
+		&promoCode.MinimumOrderValue,
+		&promoCode.MaximumUse,
+	)
 
 	if err != nil {
+		log.Println("Error querying promo code:", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			return dtos.PromoCodeData{}, fmt.Errorf("invalid promo code")
 		}
