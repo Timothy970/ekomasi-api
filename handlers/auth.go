@@ -267,7 +267,7 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
 				Description: "Email or phone number is required",
-				Code:        http.StatusUnauthorized,
+				Code:        http.StatusBadRequest,
 			},
 			Message:   "Email or phone number is required",
 			TimeTaken: time.Since(start),
@@ -282,7 +282,7 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
 				Description: "OTP cannot be empty and is required for verification",
-				Code:        http.StatusUnauthorized,
+				Code:        http.StatusBadRequest,
 			},
 			Message:   "OTP cannot be empty",
 			TimeTaken: time.Since(start),
@@ -341,7 +341,7 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
 				Description: "Error retrieving OTP, the OTP may be invalid or expired : " + err.Error(),
-				Code:        http.StatusUnauthorized,
+				Code:        http.StatusBadRequest,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
@@ -533,7 +533,7 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
 				Description: noUserFound,
-				Code:        http.StatusUnauthorized,
+				Code:        http.StatusBadRequest,
 			},
 			Message:   "User not found",
 			TimeTaken: time.Since(start),
@@ -946,7 +946,7 @@ func handleFailedLogin(w http.ResponseWriter, identifier string, start time.Time
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Auth",
 			Description: "Invalid credentials provided during login",
-			Code:        http.StatusUnauthorized,
+			Code:        http.StatusBadRequest,
 		},
 		Message:   "Invalid credentials",
 		TimeTaken: time.Since(start),
