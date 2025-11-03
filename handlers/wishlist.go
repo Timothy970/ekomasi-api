@@ -110,6 +110,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product added successfully to the wishlist for user with ID " + user.ID,
+			Code:        http.StatusOK,
 		},
 		Payload:   myWishlist,
 		Message:   "Product added successfully to the wishlist",

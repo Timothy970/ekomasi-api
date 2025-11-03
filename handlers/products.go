@@ -1098,10 +1098,10 @@ func validateSortParam(sortBy string, r *http.Request, w http.ResponseWriter, st
 	}
 
 	validSorts := map[string]bool{
-		"price_high_to_low":  true,
-		"price_low_to_high":  true,
-		"date_old_to_new":    true,
-		"date_new_to_old":    true,
+		"price:high_to_low":  true,
+		"price:low_to_high":  true,
+		"date:old_to_new":    true,
+		"date:new_to_old":    true,
 		"featured":           true,
 		"best_sellers":       true,
 		"alphabetically_a_z": true,

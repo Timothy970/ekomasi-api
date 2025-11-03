@@ -403,15 +403,10 @@ func validateOtp(userID string, req dtos.VerifyOTP) error {
 	storedOTP, err := GetAndInvalidateOTP(userID)
 	if err != nil {
 		log.Printf("Error retrieving OTP: %s", err)
-		return fmt.Errorf("invalid or expired OTP: %w", err)
+		return fmt.Errorf("invalid or expired OTP")
 	}
 	if storedOTP != req.OTP {
-		//use a hardcoded otp for testing
-		if req.OTP == "2025" {
-			storedOTP = "2025"
-		} else {
-			return errors.New("incorrect OTP")
-		}
+		return errors.New("incorrect OTP")
 	}
 	return nil
 }
@@ -459,7 +454,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
 				Description: noUserFound,
-				Code:        http.StatusUnauthorized,
+				Code:        http.StatusBadRequest,
 			},
 			Message:   "User not found",
 			TimeTaken: time.Since(start),
@@ -480,7 +475,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clearLoginAttempts(identifier)
-	dispatchOTP(user, otp)
+	dispatchOTP(user, otp, *req)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -669,10 +664,14 @@ Flow:
 func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Decode request body
 	req, ok := DecodeRequestBody[dtos.ResendOTP](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+
+	// Fetch user by email or phone
 	user, err := fetchUser(req.Email, req.Phone)
 	if err != nil {
 		log.Printf("ERR:::::::::::%v", err)
@@ -686,9 +685,11 @@ func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   requestSummary})
+			RawBody:   requestSummary,
+		})
 		return
 	}
+
 	if user == nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -700,46 +701,84 @@ func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   requestSummary})
+			RawBody:   requestSummary,
+		})
 		return
 	}
+
+	ctx := context.Background()
+	activityKey := fmt.Sprintf("otp_resend_activity:%s", user.ID)
+
+	// Check if resend was requested recently
+	if exists, _ := Redis.Exists(ctx, activityKey).Result(); exists > 0 {
+		ttl, err := Redis.TTL(ctx, activityKey).Result()
+		if err != nil {
+			log.Printf("Failed to fetch TTL for user %s: %v", user.ID, err)
+			ttl = 0
+		}
+
+		remainingSeconds := int(ttl.Seconds())
+		if remainingSeconds < 0 {
+			remainingSeconds = 0
+		}
+
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "OTP resend requested too soon for user with ID " + user.ID,
+				Code:        http.StatusTooManyRequests,
+			},
+			Message:   fmt.Sprintf("Please wait %d seconds before requesting a new OTP", remainingSeconds),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Generate new OTP
 	otp, err := utils.GenerateOTP()
 	if err != nil {
 		log.Println("Failed to generate OTP:", err)
+		respondInternalError(w, "Failed to generate OTP", start, r, requestSummary)
 		return
 	}
+
+	// Store OTP in Redis (valid for 5 minutes)
 	if err := StoreOTPInRedis(user.ID, otp, 5*time.Minute); err != nil {
 		log.Println("Failed to store OTP:", err)
 		respondInternalError(w, "Failed to store OTP", start, r, requestSummary)
 		return
 	}
+
+	// Send via email
 	if req.Email != "" {
 		htmlBody := utils.GenerateOTPEmailHTML(otp)
 		notification.SendEmail(user.Email, subject, htmlBody)
 	}
+
+	// Send via SMS
 	if user.Phone != "" {
 		notification.SendSmsMessages(user.Phone, fmt.Sprintf(message, otp))
-		phoneInt, err := strconv.Atoi(user.Phone)
-		if err != nil {
-			log.Println("Invalid phone number:", err)
-		} else {
-			log.Println("Phone as int:", phoneInt)
-		}
-		// notification.SendWhatsappMessages(phoneInt, otp, "Otp")
 	}
-	// Respond with success message
+
+	// Save resend activity limit (60 seconds)
+	Redis.Set(ctx, activityKey, time.Now().Unix(), 60*time.Second)
+
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Auth",
 			Description: "Resend OTP generated and resent successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   nil,
+		Payload:   map[string]interface{}{"expires_in_seconds": 60},
 		Message:   "OTP resent successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
-		RawBody:   requestSummary})
+		RawBody:   requestSummary,
+	})
 }
 
 // Helper functions
@@ -917,14 +956,14 @@ func handleFailedLogin(w http.ResponseWriter, identifier string, start time.Time
 	})
 }
 
-func dispatchOTP(user *dtos.User, otp string) {
+func dispatchOTP(user *dtos.User, otp string, req dtos.LoginRequest) {
 	message := fmt.Sprintf(message, otp)
 	htmlBody := utils.GenerateOTPEmailHTML(otp)
 	log.Printf("Dispatching OTP to user with email/phone %s ", user.Email+user.Phone)
-	if user.Email != "" {
+	if req.Email != "" {
 		notification.SendEmail(user.Email, "Adenzo, Here is your OTP", htmlBody)
 	}
-	if user.Phone != "" {
+	if req.Phone != "" {
 		notification.SendSmsMessages(user.Phone, message)
 		// if phoneInt, err := strconv.Atoi(user.Phone); err == nil {
 		// 	// notification.SendWhatsappMessages(phoneInt, otp, "Otp")

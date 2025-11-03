@@ -27,3 +27,18 @@ type Permission struct {
 type PermissionIDs struct {
 	PermissionIDs []string `json:"permission_ids" validate:"required,min=1,dive,required"`
 }
+
+type AvailablePermission struct {
+	Category    string `json:"category" validate:"required"`
+	Key         string `json:"key" validate:"required"`
+	Description string `json:"description" validate:"required"`
+}
+
+type UpdateAvailablePermission struct {
+	Category       string `json:"category" validate:"required"`
+	Key            string `json:"key" validate:"required"`
+	Description    string `json:"description" validate:"required"`
+	NewCategory    string `json:"new_category" validate:"required"`
+	NewKey         string `json:"new_key" validate:"required"`
+	NewDescription string `json:"new_description" validate:"required"`
+}

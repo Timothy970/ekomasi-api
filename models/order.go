@@ -94,10 +94,10 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
         WHERE o.order_id = ? AND o.user_id = ?`
 	var ord dtos.Order
 	var guestAddrStr, guestDetailsStr string
-
+	var totalAmount float64
 	err := DB.QueryRow(query, orderID, userID).Scan(
 		&ord.OrderID,
-		&ord.TotalAmount,
+		&totalAmount,
 		&ord.TotalDiscount,
 		&ord.DeliveryID,
 		&ord.OrderStatus,
@@ -115,7 +115,7 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 		}
 		return nil, err
 	}
-
+	ord.TotalAmount = totalAmount + *ord.DeliveryCharge
 	// Parse guest JSON fields
 	if guestAddrStr != "" {
 		_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
@@ -181,10 +181,10 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
 		var ord dtos.Order
 		var guestAddrStr, guestDetailsStr string
 		var userID sql.NullString // since it may be NULL for guests
-
+		var totalAmount float64
 		if err := rows.Scan(
 			&ord.OrderID,
-			&ord.TotalAmount,
+			&totalAmount,
 			&ord.TotalDiscount,
 			&ord.DeliveryID,
 			&ord.OrderStatus,
@@ -199,7 +199,7 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
 		); err != nil {
 			return nil, err
 		}
-
+		ord.TotalAmount = totalAmount + *ord.DeliveryCharge
 		// // Attach user_id if present
 		// if userID.Valid {
 		// 	ord.UserID = userID.String
@@ -263,10 +263,10 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 	for rows.Next() {
 		var ord dtos.Order
 		var guestAddrStr, guestDetailsStr string
-
+		var totalAmount float64
 		if err := rows.Scan(
 			&ord.OrderID,
-			&ord.TotalAmount,
+			&totalAmount,
 			&ord.TotalDiscount,
 			&ord.DeliveryID,
 			&ord.OrderStatus,
@@ -280,7 +280,7 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 		); err != nil {
 			return nil, nil, err
 		}
-
+		ord.TotalAmount = totalAmount + *ord.DeliveryCharge
 		// Parse guest JSON fields
 		if guestAddrStr != "" {
 			_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
@@ -337,10 +337,10 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 
 	var ord dtos.Order
 	var guestAddrStr, guestDetailsStr string
-
+	var totalAmount float64
 	err := DB.QueryRow(query, orderID, "%"+email+"%", "%"+phone+"%").Scan(
 		&ord.OrderID,
-		&ord.TotalAmount,
+		&totalAmount,
 		&ord.TotalDiscount,
 		&ord.DeliveryID,
 		&ord.OrderStatus,
@@ -358,7 +358,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 		}
 		return nil, err
 	}
-
+	ord.TotalAmount = totalAmount + *ord.DeliveryCharge
 	// Parse guest JSON fields
 	if guestAddrStr != "" {
 		_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
@@ -436,11 +436,12 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
         WHERE o.order_id = ?`
 
 	var ord dtos.Order
+	var totalAmount float64
 	var guestAddrStr, guestDetailsStr string
 
 	err := DB.QueryRow(query, orderID).Scan(
 		&ord.OrderID,
-		&ord.TotalAmount,
+		&totalAmount,
 		&ord.TotalDiscount,
 		&ord.DeliveryID,
 		&ord.OrderStatus,
@@ -452,6 +453,8 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 		&guestDetailsStr,
 		&ord.CreatedAt,
 	)
+
+	ord.TotalAmount = totalAmount + *ord.DeliveryCharge
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil

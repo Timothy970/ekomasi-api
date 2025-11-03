@@ -4,6 +4,7 @@ import (
 	"adenzo_backend/dtos"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/teris-io/shortid"
@@ -389,5 +390,82 @@ func RemovePermissionsFromRole(roleID string, permissionIDs []string) error {
 func removeRolePermission(roleID, permissionID string) error {
 	query := `DELETE FROM role_permissions WHERE role_id = ? AND permission_id = ?`
 	_, err := DB.Exec(query, roleID, permissionID)
+	return err
+}
+
+func GetAvailablePermissions(category string) ([]dtos.AvailablePermission, error) {
+	var permissions []dtos.AvailablePermission
+	query := `
+		SELECT category, permission_key, description
+		FROM permissions_master
+		WHERE is_available = 1
+	`
+	if category != "" {
+		query += " AND LOWER(category) = LOWER(?)"
+	}
+	rows, err := DB.Query(query, category)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var p dtos.AvailablePermission
+		if err := rows.Scan(&p.Category, &p.Key, &p.Description); err != nil {
+			return nil, err
+		}
+		permissions = append(permissions, p)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return permissions, nil
+}
+
+func AddAvailablePermission(category, key, description string) error {
+	permissionMasterID, _ := shortid.Generate()
+	query := `
+		INSERT INTO permissions_master (permission_master_id, category, permission_key, description, is_available)
+		VALUES (?, ?, ?, ?, 1)
+	`
+	_, err := DB.Exec(query, permissionMasterID, category, key, description)
+	return err
+}
+
+func RemoveAvailablePermission(category, key string) error {
+	err := IsAvailablePermissionThere(category, key)
+	if err != nil {
+		return err
+	}
+	query := `
+		DELETE FROM permissions_master
+		WHERE LOWER(category) = LOWER(?) AND LOWER(permission_key) = LOWER(?)
+	`
+	_, err = DB.Exec(query, category, key)
+	return err
+}
+func IsAvailablePermissionThere(category, key string) error {
+	exists, err := RecordExists("permissions_master", "LOWER(category) = LOWER(?) AND LOWER(permission_key) = LOWER(?) AND is_available = 1", category, key)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("permission not found")
+	}
+	return nil
+}
+func UpdateAvailablePermission(category, key, description, newDescription, newKey, newCategory string) error {
+	err := IsAvailablePermissionThere(category, key)
+	if err != nil {
+		return err
+	}
+	query := `
+		UPDATE permissions_master
+		SET category = ?, permission_key = ?, description = ?
+		WHERE LOWER(category) = LOWER(?) AND LOWER(permission_key) = LOWER(?)
+	`
+	_, err = DB.Exec(query, newCategory, newKey, newDescription, category, key)
 	return err
 }
