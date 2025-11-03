@@ -549,9 +549,9 @@ func validateCodeVoucher(req dtos.CouponRequest) (dtos.ViewCartResponse, error) 
 	case "coupon":
 		return applyCoupon(cartData, req.Code)
 	case "voucher":
-		return applyVoucher(cartData, req.Code)
+		return applyVoucher(cartData, req.Code, req.RequestType)
 	case "promo_code":
-		return applyPromoCode(cartData, req.Code)
+		return applyPromoCode(cartData, req.Code, req.RequestType)
 	default:
 		return dtos.ViewCartResponse{}, errors.New("invalid promo type")
 	}
@@ -570,7 +570,7 @@ func applyCoupon(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse
 	return cart, nil
 }
 
-func applyVoucher(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse, error) {
+func applyVoucher(cart dtos.ViewCartResponse, code string, requestType string) (dtos.ViewCartResponse, error) {
 	voucherBalance, err := models.ValidateVoucher(code)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
@@ -585,18 +585,19 @@ func applyVoucher(cart dtos.ViewCartResponse, code string) (dtos.ViewCartRespons
 		cart.Final -= voucherBalance
 	}
 	cart.Discount += discount
-
-	if err := models.UpdateVoucherBalance(code, voucherBalance-discount); err != nil {
-		return dtos.ViewCartResponse{}, err
-	}
-	//add cart history
-	if err := models.AddVoucherHistory(code, discount, cart.CartItems); err != nil {
-		return dtos.ViewCartResponse{}, err
+	if requestType == "apply" {
+		if err := models.UpdateVoucherBalance(code, voucherBalance-discount); err != nil {
+			return dtos.ViewCartResponse{}, err
+		}
+		//add cart history
+		if err := models.AddVoucherHistory(code, discount, cart.CartItems); err != nil {
+			return dtos.ViewCartResponse{}, err
+		}
 	}
 	return cart, nil
 }
 
-func applyPromoCode(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse, error) {
+func applyPromoCode(cart dtos.ViewCartResponse, code string, requestType string) (dtos.ViewCartResponse, error) {
 	promoData, err := models.ValidatePromoCode(code, cart.Final)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
@@ -621,8 +622,10 @@ func applyPromoCode(cart dtos.ViewCartResponse, code string) (dtos.ViewCartRespo
 	cart.Discount += discount
 	cart.Final -= discount
 	//update promo code usage count
-	if err := models.IncrementPromoCodeUsage(code); err != nil {
-		return dtos.ViewCartResponse{}, err
+	if requestType == "apply" {
+		if err := models.IncrementPromoCodeUsage(code); err != nil {
+			return dtos.ViewCartResponse{}, err
+		}
 	}
 	return cart, nil
 }

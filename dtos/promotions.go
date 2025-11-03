@@ -33,7 +33,7 @@ type PromoCodeRequest struct {
 	DiscountType      string   `json:"discount_type" validate:"required,oneof=PERCENTAGE FIXED"`
 	DiscountValue     float64  `json:"discount_value" validate:"required"`
 	ExpiresAt         string   `json:"expires_at" validate:"required"`
-	IsActive          bool     `json:"is_active" validate:"required"`
+	IsActive          bool     `json:"is_active"`
 	Discount_Code     string   `json:"discount_code"`
 	MinimumOrderValue *float64 `json:"minimum_order_value"`
 	MaximumUse        int      `json:"maximum_use"`
