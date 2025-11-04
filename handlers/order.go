@@ -139,14 +139,13 @@ func processOrderItems(items []dtos.OrderItemRequest) (totalAmount, totalDiscoun
 
 func createOrderItems(orderID string, items []dtos.OrderItemRequest) error {
 	for _, item := range items {
-		itemTotal := float64(item.Quantity) * item.UnitPrice
 		var variantID string
 		if item.VariantID != nil {
 			variantID = *item.VariantID
 		} else {
 			variantID = ""
 		}
-		if _, err := models.CreateOrderItem(orderID, item.ProductID, variantID, utils.ToString(itemTotal), utils.ToString(itemTotal)); err != nil {
+		if _, err := models.CreateOrderItem(orderID, item.ProductID, variantID, item.Quantity, item.UnitPrice); err != nil {
 			return err
 		}
 	}
@@ -1029,6 +1028,8 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 
 	finalAmount := totalAmount + order.DeliveryCharge - totalDiscount
 	//send sms and email notification
+	//store the order to order_notifications table for processing later
+	models.StoreOrderNotification(orderID)
 
 	//deduct stock quantities
 	err = deductStock(order.OrderItems)

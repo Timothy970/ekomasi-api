@@ -32,7 +32,7 @@ func CreateOrder(req dtos.OrderRequest, totalAmount, totalDiscount string) (stri
 	return orderID, deliveryID, nil
 }
 
-func CreateOrderItem(orderID, productID, variantID, quantity, unitPrice string) (string, error) {
+func CreateOrderItem(orderID, productID, variantID string, quantity int, unitPrice float64) (string, error) {
 	orderItemID, _ := shortid.Generate()
 	_, err := DB.Exec(`
 		INSERT INTO order_items (
@@ -423,6 +423,7 @@ func isOrderThere(id string) error {
 }
 
 func GetOrderByID(orderID string) (*dtos.Order, error) {
+	var userID sql.NullString
 	query := `
         SELECT 
             o.order_id,
@@ -436,7 +437,8 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
             d.delivery_address,
             o.guest_delivery_address,
             o.guest_personal_details,
-            o.created_at
+            o.created_at,
+            o.user_id
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
         WHERE o.order_id = ?`
@@ -458,6 +460,7 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 		&guestAddrStr,
 		&guestDetailsStr,
 		&ord.CreatedAt,
+		&userID,
 	)
 
 	ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
@@ -475,7 +478,15 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 	if guestDetailsStr != "" {
 		_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
 	}
+	if userID.Valid {
+		address, err := GetUserAddresses(userID.String)
+		if err != nil {
+			return nil, err
+		}
+		ord.UserAddress = &address
+		ord.UserID = &userID.String
 
+	}
 	// Fetch items for this order
 	items, err := getOrderProducts(orderID)
 	if err != nil {
@@ -495,7 +506,7 @@ func getOrderProducts(orderID string) ([]dtos.OrderProduct, error) {
             p.sku,
             oi.unit_price,
             p.category_id,
-            p.stock_quantity,
+            oi.quantity,
             p.search_vector,
             p.created_at,
             p.last_updated_at
@@ -825,5 +836,11 @@ func DeductProductStock(productID string, quantity int) error {
 		SET stock_quantity = stock_quantity - ?
 		WHERE product_id = ?`
 	_, err := DB.Exec(query, quantity, productID)
+	return err
+}
+
+func MarkOrderNotificationSent(orderID, status string) error {
+	query := `UPDATE order_notifications SET status = ? WHERE order_id = ?`
+	_, err := DB.Exec(query, status, orderID)
 	return err
 }

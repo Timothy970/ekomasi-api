@@ -13,3 +13,5 @@ CREATE TABLE IF NOT EXISTS `user_addresses` (
    KEY `idx_user_addresses_user_id` (`user_id`),
    CONSTRAINT `user_addresses_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
  );
+
+
