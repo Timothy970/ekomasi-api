@@ -167,7 +167,7 @@ type OrderItemRequest struct {
 }
 
 type OrderRequest struct {
-	UserID               *string            `json:"user_id,omitempty"`
+	UserID               *string            `json:"user_id"`
 	IsGuestOrder         *bool              `json:"is_guest_order"`
 	GuestPersonalDetails *json.RawMessage   `json:"guest_personal_details,omitempty"`
 	GuestDeliveryAddress *json.RawMessage   `json:"guest_delivery_address,omitempty"`
@@ -175,6 +175,17 @@ type OrderRequest struct {
 	OrderItems           []OrderItemRequest `json:"order_items" validate:"required,dive"`
 	DeliveryCharge       float64            `json:"delivery_charge" validate:"required"`
 	DeliveryAddress      string             `json:"delivery_address" validate:"required"`
+}
+type CreateOrderPayload struct {
+	IsGuestOrder         *bool              `json:"is_guest_order"`
+	GuestPersonalDetails *json.RawMessage   `json:"guest_personal_details,omitempty"`
+	GuestDeliveryAddress *json.RawMessage   `json:"guest_delivery_address,omitempty"`
+	OrderItems           []OrderItemPayload `json:"order_items" validate:"required,dive"`
+	DeliveryAddressID    int64              `json:"delivery_address_id" validate:"required"`
+}
+type OrderItemPayload struct {
+	ProductID string `json:"product_id" validate:"required"`
+	Quantity  int    `json:"quantity" validate:"required"`
 }
 
 type OrderStatusCount struct {
