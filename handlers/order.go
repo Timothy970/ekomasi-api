@@ -96,11 +96,26 @@ func CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary,
 	})
 }
+func checkStockAvailability(productID string, quantity int) error {
+	product, err := models.GetProductByID(productID)
+	if err != nil {
+		return err
+	}
+	//check if product stock is sufficient
+	if product.StockQuantity < quantity {
+		return fmt.Errorf("insufficient stock for product ID %s", productID)
+	}
+	return nil
+}
+
 func processOrderItems(items []dtos.OrderItemRequest) (totalAmount, totalDiscount float64, freeShipping bool, err error) {
 	for _, item := range items {
 		itemTotal := float64(item.Quantity) * item.UnitPrice
 		totalAmount += itemTotal
-
+		err := checkStockAvailability(item.ProductID, item.Quantity)
+		if err != nil {
+			return 0, 0, false, err
+		}
 		promo, err := models.GetProductPromotionData(item.ProductID)
 		if err != nil {
 			return 0, 0, false, err
@@ -890,4 +905,180 @@ func ReleaseOrderHandler(w http.ResponseWriter, r *http.Request) {
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
+}
+
+// New function to create a new order
+// CreateOrderHandler handles the creation of a new order
+// Removes the delivery charge from the payload for security purposes
+//Removed product price from the payload to avoid manipulation
+// @Summary      Create new order
+// @Description  Create a new order with order items and delivery details
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Param        body  body      dtos.CreateOrderPayload  true  "Order details"
+// @Success      201   {object}  dtos.GenericResponse
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      500   {object}  dtos.ErrorResponse
+// @Router       /api/orders/new [post]
+
+func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	//decode request body
+	req, ok := DecodeRequestBody[dtos.CreateOrderPayload](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
+		return
+	}
+	//get the order items using product ids from the payload
+	orderItems, err := getOrderItems(req.OrderItems)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to get order items",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	var userID *string
+	//if the order belong to user in the system , then get their id from the context
+	if req.IsGuestOrder == nil || !*req.IsGuestOrder {
+		authuser, ok := middleware.UserFromContext(r.Context())
+		if !ok {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Orders",
+					Description: "User not validated or authenticated",
+					Code:        http.StatusUnauthorized,
+				},
+				Message:   "User not validated",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		userID = &authuser.ID
+	}
+	// create new payload to create the order
+	var order dtos.OrderRequest
+	order.OrderItems = orderItems
+	order.IsGuestOrder = req.IsGuestOrder
+	order.GuestPersonalDetails = req.GuestPersonalDetails
+	order.GuestDeliveryAddress = req.GuestDeliveryAddress
+	order.UserID = userID
+	// find delivery charge using location id passed in the payload
+	location, err := models.GetLocationByID(int(req.DeliveryAddressID))
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to get delivery location with ID " + utils.ToString(req.DeliveryAddressID) + " with error " + err.Error(),
+				Code:        http.StatusUnauthorized,
+			},
+			Message:   "Failed to get delivery charge",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	order.DeliveryCharge = location.Charge
+	//process the order items, check for discounts , total amount , free shipping and stock availability
+	totalAmount, totalDiscount, applyFreeShipping, err := processOrderItems(order.OrderItems)
+	if err != nil {
+		log.Printf("Error processing order items: %v", err)
+		respondInternalServerError(w, r, requestSummary, start, err.Error())
+		return
+	}
+
+	if applyFreeShipping {
+		fmt.Println("Free shipping applied")
+		order.DeliveryCharge = 0
+	}
+	//create order and delivery records in the database
+	orderID, deliveryID, err := models.CreateOrder(order, utils.ToString(totalAmount), utils.ToString(totalDiscount))
+	if err != nil {
+		log.Printf("Error creating order:::%v", err)
+		respondInternalServerError(w, r, requestSummary, start, err.Error())
+		return
+	}
+
+	if err := createOrderItems(orderID, order.OrderItems); err != nil {
+		log.Printf("Error when creating order items:::%v", err)
+		respondInternalServerError(w, r, requestSummary, start, err.Error())
+		return
+	}
+
+	err = models.CreateDeliveries(orderID, deliveryID, order)
+	if err != nil {
+		log.Printf("Error when creating delivery:::%v", err)
+		respondInternalServerError(w, r, requestSummary, start, err.Error())
+		return
+	}
+
+	finalAmount := totalAmount + order.DeliveryCharge - totalDiscount
+	//send sms and email notification
+
+	//deduct stock quantities
+	err = deductStock(order.OrderItems)
+	if err != nil {
+		log.Printf("Error when deducting stock:::%v", err)
+		respondInternalServerError(w, r, requestSummary, start, err.Error())
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: orderWithID + orderID + " created successfully",
+			Code:        http.StatusCreated,
+		},
+		Payload: map[string]interface{}{
+			"order_id":    orderID,
+			"delivery_id": deliveryID,
+			"total":       finalAmount,
+		},
+		Message:   "Order created successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+func getOrderItems(items []dtos.OrderItemPayload) ([]dtos.OrderItemRequest, error) {
+	var orderItems []dtos.OrderItemRequest
+	for _, item := range items {
+		product, err := models.GetProductByID(item.ProductID)
+		if err != nil {
+			return nil, err
+		}
+		orderItems = append(orderItems, dtos.OrderItemRequest{
+			ProductID: product.ID,
+			// VariantID: product.VariantID,
+			Quantity:  item.Quantity,
+			UnitPrice: product.Price,
+		})
+	}
+	return orderItems, nil
+}
+
+func deductStock(orderItems []dtos.OrderItemRequest) error {
+	for _, item := range orderItems {
+		err := models.DeductProductStock(item.ProductID, item.Quantity)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

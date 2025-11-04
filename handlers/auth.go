@@ -13,7 +13,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -41,6 +40,7 @@ const (
 // Message templates for notifications
 var message = "Your verification code is %s. It will expire in 5 minutes. Adenzo."
 var subject = "Adenzo, Here is your OTP"
+var verificationRedisKey = "pending_signup:"
 
 // JWT secret key for token signing
 var jwtSecret = []byte("Q7wcj5g0cDNRxoknR5uu")
@@ -55,7 +55,7 @@ Flow:
 2. Checks if email/phone is provided
 3. Validates phone number format if provided
 4. Checks for existing user
-5. Creates user in database
+5. Stores user in redis temporarily
 6. Generates and stores OTP
 7. Sends OTP via email/SMS
 */
@@ -106,133 +106,88 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := models.CreateUser(*req)
-	if err != nil {
-		log.Printf("create user error : %s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Auth",
-				Description: "Error creating new user",
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   "Error creating user",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
-
 	otp, err := utils.GenerateOTP()
 	if err != nil {
 		log.Println("Failed to create OTP:", err)
 		return
 	}
-	// Store OTP in Redis with a TTL 5 minutes
-	if err := StoreOTPInRedis(user.ID, otp, 5*time.Minute); err != nil {
-		log.Printf("Failed to store OTP in Redis:%s", err)
+	// Store temporary registration info in Redis for 10 minutes
+	tempKey := getVerificationRedisKey(req.Email, req.Phonenumber)
+
+	tempData, _ := json.Marshal(map[string]interface{}{
+		"email":     req.Email,
+		"phone":     req.Phonenumber,
+		"firstname": req.Firstname,
+		"lastname":  req.Lastname,
+		"password":  req.Password,
+		"otp":       otp,
+	})
+
+	if err := Redis.Set(context.Background(), tempKey, tempData, 10*time.Minute).Err(); err != nil {
+		log.Printf("Failed to store temporary registration: %v", err)
 		return
 	}
-	handleSendingOtps(*req, otp, *user)
+	if req.Email != "" {
+		htmlBody := utils.GenerateOTPEmailHTML(otp)
+		notification.SendEmail(req.Email, subject, htmlBody)
+	}
+	if req.Phonenumber != "" {
+		notification.SendSmsMessages(req.Phonenumber, fmt.Sprintf(message, otp))
+	}
 	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Auth",
-			Description: "User created successfully and activation code sent",
+			Description: "",
 			Code:        http.StatusCreated,
 		},
 		Payload:   nil,
-		Message:   "User created, activation code sent",
+		Message:   "Verify using the OTP sent within 10 minutes to complete registration.",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
 }
-func handleSendingOtps(req dtos.RegisterRequest, otp string, user dtos.User) {
-	if req.Email != "" {
-		htmlBody := utils.GenerateOTPEmailHTML(otp)
-		notification.SendEmail(user.Email, subject, htmlBody)
+
+// getVerificationRedisKey returns the Redis key for verification based on email or phone.
+func getVerificationRedisKey(email, phone string) string {
+	if email != "" {
+		return fmt.Sprintf("%s%s", verificationRedisKey, email)
 	}
-	if req.Phonenumber != "" {
-		notification.SendSmsMessages(req.Phonenumber, fmt.Sprintf(message, otp))
-		phoneInt, err := strconv.Atoi(req.Phonenumber)
-		if err != nil {
-			log.Println("Invalid phoner:", err)
-		} else {
-			log.Println("Phone as int:", phoneInt)
-		}
-		// notification.SendWhatsappOtpMessages(phoneInt, otp)
-	}
+	return fmt.Sprintf("%s%s", verificationRedisKey, phone)
 }
 func CheckUserExistsByEmailOrPhone(w http.ResponseWriter, r *http.Request, req dtos.RegisterRequest, start time.Time, requestSummary string) bool {
-	if req.Email != "" {
-		existingUser, err := models.GetUserByEmail(req.Email)
-		if err != nil {
-			log.Printf("GetUserByEmail error: %s", err)
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Auth",
-					Description: "Error getting user by email: " + req.Email,
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   "Error checking email",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return false
-		}
-		if existingUser != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Auth",
-					Description: "User with this email " + req.Email + " already exists",
-					Code:        http.StatusConflict,
-				},
-				Message:   "User with this email already exists",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return false
-		}
-	}
+	existingUser, err := fetchUser(req.Email, req.Phonenumber)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Failed to check if user exists using email or phone number: " + err.Error(),
+				Code:        http.StatusConflict,
+			},
+			Message:   "Failed to check if user exists",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return false
 
-	if req.Phonenumber != "" {
-		existingUser, err := models.GetUserByPhone(req.Phonenumber)
-		if err != nil {
-			log.Printf("GetUserByPhone error: %s", err)
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Auth",
-					Description: "Error getting user by phone number: " + req.Phonenumber,
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   "Error checking phone number",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return false
-		}
-		if existingUser != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Auth",
-					Description: "User with this phone number " + req.Phonenumber + " already exists",
-					Code:        http.StatusConflict,
-				},
-				Message:   "User with this phone number already exists",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return false
-		}
+	}
+	if existingUser != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "User with this phone number " + req.Phonenumber + " already exists",
+				Code:        http.StatusConflict,
+			},
+			Message:   "User with this phone number already exists",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return false
 	}
 
 	return true
@@ -277,14 +232,21 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if req.OTP == "" {
+
+	var user *dtos.User
+	var err error
+
+	// Try fetching existing user
+	user, err = fetchUser(req.Email, req.Phone)
+	// If other error fetching user
+	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
-				Description: "OTP cannot be empty and is required for verification",
-				Code:        http.StatusBadRequest,
+				Description: "Error retrieving user for OTP verification: " + err.Error(),
+				Code:        http.StatusInternalServerError,
 			},
-			Message:   "OTP cannot be empty",
+			Message:   "Error retrieving user",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -293,81 +255,103 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Lookup user
-	var user *dtos.User
-	var err error
-
-	if req.Email != "" {
-		user, err = models.GetUserByEmail(req.Email)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Auth",
-					Description: "User not found with email: " + req.Email,
-					Code:        http.StatusNotFound,
-				},
-				Message:   noUserFound,
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-	} else if req.Phone != "" {
-		user, err = models.GetUserByPhone(req.Phone)
-		if err != nil {
-			log.Printf("GetUserByPhone error: %s", err)
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Auth",
-					Description: "Error when getting user with phone number: " + req.Phone,
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   "Error checking phone number",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
+	// If no user found → proceed to signup verification
+	if user == nil {
+		VerifySignUp(w, r, req, start, requestSummary)
+		return
 	}
 
-	// Validate OTP
-	err = validateOtp(user.ID, *req)
-	if err != nil {
+	// Otherwise → user exists → handle sign-in verification
+	verifySignIn(user, *req, w, r, start, requestSummary)
+}
+
+func verifySignIn(user *dtos.User, req dtos.VerifyOTP, w http.ResponseWriter, r *http.Request, start time.Time, requestSummary string) {
+	//first validate otp
+	if err := validateOtp(user.ID, req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
-				Description: "Error retrieving OTP, the OTP may be invalid or expired : " + err.Error(),
+				Description: "Invalid or expired OTP",
 				Code:        http.StatusBadRequest,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   requestSummary,
-		})
+			RawBody:   requestSummary})
 		return
 	}
-
-	// Generate token
-	//define token expiration time to be 7 days
-	tokenExpirationTime := 7 * 24 * time.Hour
-	// for admins to be  1 day
-	if user.Role == "admin" || user.Role == "superadmin" {
-		tokenExpirationTime = 24 * time.Hour
-	}
-	token, err := generateToken(user, "auth", tokenExpirationTime)
+	//get refresh token and token
+	token, refreshToken, err := issueTokens(user)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
-				Description: "Token failed to be generated after successful OTP verification",
+				Description: "Token generation failed: " + err.Error(),
 				Code:        http.StatusInternalServerError,
 			},
-			Message:   "Token generation was unsuccessful",
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	// update last login for user
+	models.UpdateLastLogin(user.ID)
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module: "Auth", Description: "Login verified", Code: http.StatusOK,
+		},
+		Payload: map[string]interface{}{
+			"token":                    token,
+			"refresh_token":            refreshToken,
+			"token_expires_in":         int((7 * 24 * time.Hour).Seconds()),
+			"refresh_token_expires_in": int((12 * time.Hour).Seconds()),
+		},
+		Message:   "Sign-in verification successful",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+func VerifySignUp(w http.ResponseWriter, r *http.Request, req *dtos.VerifyOTP, start time.Time, requestSummary string) {
+	ctx := context.Background()
+	//check if redis key for the email or phone exists for  a pending signup
+	tempKey := getVerificationRedisKey(req.Email, req.Phone)
+	val, err := Redis.Get(ctx, tempKey).Result()
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module: "Auth", Description: "Pending signup not found or expired", Code: http.StatusNotFound,
+			},
+			Message:   "Invalid or expired OTP",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	var pending struct {
+		Email     string `json:"email"`
+		Phone     string `json:"phone"`
+		Firstname string `json:"firstname"`
+		Lastname  string `json:"lastname"`
+		Password  string `json:"password"`
+		Otp       string `json:"otp"`
+	}
+	//get the user details from redis for the user pending verification
+	if err := json.Unmarshal([]byte(val), &pending); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Failed to read pending registration data",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   "Internal server error",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -375,30 +359,98 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	refreshToken, _ := generateToken(user, "refresh_token", 12*time.Hour)
-	// Update last login timestamp
-	models.UpdateLastLogin(user.ID)
 
-	// Return success response
+	if pending.Otp != req.OTP {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module: "Auth", Description: "Invalid OTP", Code: http.StatusBadRequest,
+			},
+			Message:   "Invalid OTP",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Create user now and store in DB
+	newUserReq := dtos.RegisterRequest{
+		Email:       pending.Email,
+		Phonenumber: pending.Phone,
+		Firstname:   pending.Firstname,
+		Lastname:    pending.Lastname,
+		Password:    pending.Password,
+	}
+	user, err := models.CreateUser(newUserReq)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Failed to create user after verification",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Remove pending record from Redis
+	Redis.Del(ctx, tempKey)
+
+	token, refreshToken, err := issueTokens(user)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Token generation failed after signup verification",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+
+	}
+
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Auth",
-			Description: "User successfully verified",
-			Code:        http.StatusOK,
+			Module: "Auth", Description: "User created and verified", Code: http.StatusOK,
 		},
 		Payload: map[string]interface{}{
 			"token":                    token,
-			"token_expires_in":         int(tokenExpirationTime.Seconds()),
 			"refresh_token":            refreshToken,
-			"refresh_token_expires_in": int(12 * time.Hour.Seconds()),
+			"token_expires_in":         int((7 * 24 * time.Hour).Seconds()),
+			"refresh_token_expires_in": int((12 * time.Hour).Seconds()),
 		},
-		Message:   "Verification successful",
+		Message:   "Signup verification successful",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
-		RawBody:   requestSummary,
-	})
+		RawBody:   requestSummary})
 }
+
+func issueTokens(user *dtos.User) (string, string, error) {
+	tokenExpiration := 7 * 24 * time.Hour
+	if user.Role == "admin" || user.Role == "superadmin" {
+		tokenExpiration = 24 * time.Hour
+	}
+
+	token, err := generateToken(user, "auth", tokenExpiration)
+	if err != nil {
+		return "", "", err
+	}
+	refreshToken, err := generateToken(user, "refresh_token", 12*time.Hour)
+	if err != nil {
+		return "", "", err
+	}
+	return token, refreshToken, nil
+}
+
 func validateOtp(userID string, req dtos.VerifyOTP) error {
 	storedOTP, err := GetAndInvalidateOTP(userID)
 	if err != nil {
@@ -928,6 +980,7 @@ func getIdentifier(req *dtos.LoginRequest) string {
 	return req.Phone
 }
 
+// trying fetching user by email or phone
 func fetchUser(email, phone string) (*dtos.User, error) {
 	if email != "" {
 		return models.GetUserByEmail(email)

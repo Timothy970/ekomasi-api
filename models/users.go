@@ -95,7 +95,8 @@ func GetUserAddresses(userID string) ([]dtos.UserAddress, error) {
 	rows, err := DB.Query(`
 		SELECT address_id, address, country,apartment,city,zip_code
 		FROM user_addresses
-		WHERE user_id = ?`, userID)
+		WHERE user_id = ?
+		ORDER BY created_at DESC`, userID)
 	if err != nil {
 		return nil, err
 	}

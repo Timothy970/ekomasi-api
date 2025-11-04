@@ -818,3 +818,12 @@ func ReleaseOrder(orderID string) error {
 	_, err := DB.Exec(query, orderID)
 	return err
 }
+
+func DeductProductStock(productID string, quantity int) error {
+	query := `
+		UPDATE products
+		SET stock_quantity = stock_quantity - ?
+		WHERE product_id = ?`
+	_, err := DB.Exec(query, quantity, productID)
+	return err
+}
