@@ -142,13 +142,7 @@ func UpdateUserAddress(addressID, userID string, req *dtos.UserAdress) error {
 	if !exists {
 		return fmt.Errorf("address provided does not belong to user")
 	}
-	exists, err = RecordExists("user_addresses", "user_id = ? AND address = ?", userID, req.Address)
-	if err != nil {
-		return fmt.Errorf("failed to check address existence: %w", err)
-	}
-	if exists {
-		return fmt.Errorf("address name already exists")
-	}
+
 	// Proceed with update
 	_, err = DB.Exec(`
 		UPDATE user_addresses
