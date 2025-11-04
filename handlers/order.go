@@ -907,10 +907,25 @@ func ReleaseOrderHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// New function to create a new order
+// CreateOrderHandler handles the creation of a new order
+// Removes the delivery charge from the payload for security purposes
+//Removed product price from the payload to avoid manipulation
+// @Summary      Create new order
+// @Description  Create a new order with order items and delivery details
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Param        body  body      dtos.CreateOrderPayload  true  "Order details"
+// @Success      201   {object}  dtos.GenericResponse
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      500   {object}  dtos.ErrorResponse
+// @Router       /api/orders/new [post]
+
 func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-
+	//decode request body
 	req, ok := DecodeRequestBody[dtos.CreateOrderPayload](r, w, requestSummary, start)
 	if !ok {
 		return
@@ -918,6 +933,7 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
 		return
 	}
+	//get the order items using product ids from the payload
 	orderItems, err := getOrderItems(req.OrderItems)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -934,6 +950,7 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var userID *string
+	//if the order belong to user in the system , then get their id from the context
 	if req.IsGuestOrder == nil || !*req.IsGuestOrder {
 		authuser, ok := middleware.UserFromContext(r.Context())
 		if !ok {
@@ -952,12 +969,14 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		userID = &authuser.ID
 	}
+	// create new payload to create the order
 	var order dtos.OrderRequest
 	order.OrderItems = orderItems
 	order.IsGuestOrder = req.IsGuestOrder
 	order.GuestPersonalDetails = req.GuestPersonalDetails
 	order.GuestDeliveryAddress = req.GuestDeliveryAddress
 	order.UserID = userID
+	// find delivery charge using location id passed in the payload
 	location, err := models.GetLocationByID(int(req.DeliveryAddressID))
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -975,7 +994,7 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	order.DeliveryCharge = location.Charge
-
+	//process the order items, check for discounts , total amount , free shipping and stock availability
 	totalAmount, totalDiscount, applyFreeShipping, err := processOrderItems(order.OrderItems)
 	if err != nil {
 		log.Printf("Error processing order items: %v", err)
@@ -987,7 +1006,7 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Free shipping applied")
 		order.DeliveryCharge = 0
 	}
-
+	//create order and delivery records in the database
 	orderID, deliveryID, err := models.CreateOrder(order, utils.ToString(totalAmount), utils.ToString(totalDiscount))
 	if err != nil {
 		log.Printf("Error creating order:::%v", err)
