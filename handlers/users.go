@@ -680,7 +680,7 @@ func UpdateAddress(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
 				Description: "Failed to update address for user with ID " + authUser.ID,
-				Code:        http.StatusInternalServerError,
+				Code:        http.StatusBadGateway,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),

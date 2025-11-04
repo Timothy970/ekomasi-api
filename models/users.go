@@ -117,20 +117,34 @@ func GetUserAddresses(userID string) ([]dtos.UserAddress, error) {
 
 	return addresses, nil
 }
+func isAddressThere(addressID string) error {
+	exists, err := RecordExists("user_addresses", "address_id = ?", addressID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("address not found")
+	}
+	return nil
+}
 
 // update user address
 func UpdateUserAddress(addressID, userID string, req *dtos.UserAdress) error {
-	//check if address exists
+	err := isAddressThere(addressID)
+	if err != nil {
+		return err
+	}
+	//check if address belongs to user
 	exists, err := RecordExists("user_addresses", "user_id = ? AND address_id = ?", userID, addressID)
 	if err != nil {
 		return fmt.Errorf("failed to check variant existence: %w", err)
 	}
 	if !exists {
-		return fmt.Errorf("address not found")
+		return fmt.Errorf("address provided does not belong to user")
 	}
 	exists, err = RecordExists("user_addresses", "user_id = ? AND address = ?", userID, req.Address)
 	if err != nil {
-		return fmt.Errorf("failed to existence: %w", err)
+		return fmt.Errorf("failed to check address existence: %w", err)
 	}
 	if exists {
 		return fmt.Errorf("address name already exists")

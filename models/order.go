@@ -115,7 +115,7 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 		}
 		return nil, err
 	}
-	ord.TotalAmount = totalAmount + *ord.DeliveryCharge
+	ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
 	// Parse guest JSON fields
 	if guestAddrStr != "" {
 		_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
@@ -199,7 +199,7 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
 		); err != nil {
 			return nil, err
 		}
-		ord.TotalAmount = totalAmount + *ord.DeliveryCharge
+		ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
 		// // Attach user_id if present
 		// if userID.Valid {
 		// 	ord.UserID = userID.String
@@ -280,7 +280,7 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 		); err != nil {
 			return nil, nil, err
 		}
-		ord.TotalAmount = totalAmount + *ord.DeliveryCharge
+		ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
 		// Parse guest JSON fields
 		if guestAddrStr != "" {
 			_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
@@ -312,6 +312,12 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 	}
 
 	return orders, pagination, nil
+}
+func ptrToFloat(v *float64) float64 {
+	if v == nil {
+		return 0
+	}
+	return *v
 }
 
 func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
@@ -358,7 +364,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 		}
 		return nil, err
 	}
-	ord.TotalAmount = totalAmount + *ord.DeliveryCharge
+	ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
 	// Parse guest JSON fields
 	if guestAddrStr != "" {
 		_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
@@ -384,10 +390,10 @@ func UpdateOrderStatus(orderID string, req dtos.UpdateOrderStatusRequest) error 
 	}
 
 	// Update with or without payment method
-	if req.PaymentMethod != nil {
+	if req.PaymentMethod != nil || req.PaymentStatus != nil {
 		_, err := DB.Exec(
-			`UPDATE orders SET status = ?, payment_method = ? WHERE order_id = ?`,
-			req.Status, *req.PaymentMethod, orderID,
+			`UPDATE orders SET status = ?, payment_status = ?, payment_method = ? WHERE order_id = ?`,
+			req.Status, req.PaymentStatus, *req.PaymentMethod, orderID,
 		)
 		if err != nil {
 			return err
@@ -454,7 +460,7 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 		&ord.CreatedAt,
 	)
 
-	ord.TotalAmount = totalAmount + *ord.DeliveryCharge
+	ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -800,4 +806,15 @@ func GetOrderCountsByStatus() ([]dtos.OrderStatusCount, error) {
 	})
 
 	return counts, nil
+}
+
+func HoldOrder(orderID string) error {
+	query := `INSERT INTO held_orders (order_id, held_at) VALUES (?, ?)`
+	_, err := DB.Exec(query, orderID, time.Now())
+	return err
+}
+func ReleaseOrder(orderID string) error {
+	query := `DELETE FROM held_orders WHERE order_id = ?`
+	_, err := DB.Exec(query, orderID)
+	return err
 }
