@@ -96,11 +96,26 @@ func CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary,
 	})
 }
+func checkStockAvailability(productID string, quantity int) error {
+	product, err := models.GetProductByID(productID)
+	if err != nil {
+		return err
+	}
+	//check if product stock is sufficient
+	if product.StockQuantity < quantity {
+		return fmt.Errorf("insufficient stock for product ID %s", productID)
+	}
+	return nil
+}
+
 func processOrderItems(items []dtos.OrderItemRequest) (totalAmount, totalDiscount float64, freeShipping bool, err error) {
 	for _, item := range items {
 		itemTotal := float64(item.Quantity) * item.UnitPrice
 		totalAmount += itemTotal
-
+		err := checkStockAvailability(item.ProductID, item.Quantity)
+		if err != nil {
+			return 0, 0, false, err
+		}
 		promo, err := models.GetProductPromotionData(item.ProductID)
 		if err != nil {
 			return 0, 0, false, err
