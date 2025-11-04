@@ -112,10 +112,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Store temporary registration info in Redis for 10 minutes
-	tempKey := fmt.Sprintf("%s%s", verificationRedisKey, req.Email)
-	if req.Email == "" {
-		tempKey = fmt.Sprintf("%s%s", verificationRedisKey, req.Phonenumber)
-	}
+	tempKey := getVerificationRedisKey(req.Email, req.Phonenumber)
 
 	tempData, _ := json.Marshal(map[string]interface{}{
 		"email":     req.Email,
@@ -152,6 +149,13 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// getVerificationRedisKey returns the Redis key for verification based on email or phone.
+func getVerificationRedisKey(email, phone string) string {
+	if email != "" {
+		return fmt.Sprintf("%s%s", verificationRedisKey, email)
+	}
+	return fmt.Sprintf("%s%s", verificationRedisKey, phone)
+}
 func CheckUserExistsByEmailOrPhone(w http.ResponseWriter, r *http.Request, req dtos.RegisterRequest, start time.Time, requestSummary string) bool {
 	if req.Email != "" {
 		existingUser, err := models.GetUserByEmail(req.Email)
@@ -355,11 +359,7 @@ func verifySignIn(user *dtos.User, req dtos.VerifyOTP, w http.ResponseWriter, r 
 
 func VerifySignUp(w http.ResponseWriter, r *http.Request, req *dtos.VerifyOTP, start time.Time, requestSummary string) {
 	ctx := context.Background()
-	tempKey := fmt.Sprintf("%s%s", verificationRedisKey, req.Email)
-	if req.Email == "" {
-		tempKey = fmt.Sprintf("%s%s", verificationRedisKey, req.Phone)
-	}
-
+	tempKey := getVerificationRedisKey(req.Email, req.Phone)
 	val, err := Redis.Get(ctx, tempKey).Result()
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
