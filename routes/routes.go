@@ -460,4 +460,13 @@ func SetupRoutes(router *mux.Router) {
 	api.HandleFunc(staticPageID, handlers.GetStaticPageByID).Methods("GET")
 	//endpoint to upload an image
 	api.Handle("/upload-image", middleware.AuthenticateToken(http.HandlerFunc(handlers.UploadImageHandler))).Methods("POST")
+	// pos endpoints
+	pos := api.PathPrefix("/pos/").Subrouter()
+	pos.Handle("scan/product", middleware.AuthenticateToken(http.HandlerFunc(handlers.ScanProductsHandler))).Methods("GET")
+	pos.Handle("cash/payment", middleware.AuthenticateToken(http.HandlerFunc(handlers.ProcessCashPaymentHandler))).Methods("POST")
+	pos.Handle("print/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.PrintReceiptHandler))).Methods("POST")
+	pos.Handle("download/receipt/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DownloadReceiptHandler))).Methods("GET")
+	pos.Handle("hold/order/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.HoldOrderHandler))).Methods("POST")
+	pos.Handle("hold/order/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.ReleaseOrderHandler))).Methods("GET")
+
 }

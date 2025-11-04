@@ -806,3 +806,88 @@ func GetOrderCountsByStatus(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+func HoldOrderHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	orderID := mux.Vars(r)["order_id"]
+	err := models.HoldOrder(orderID)
+	if err != nil {
+		log.Printf("%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: fmt.Sprintf("Failed to hold order: %s", err.Error()),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: "Order held successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "Order held successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+func ReleaseOrderHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	orderID := mux.Vars(r)["order_id"]
+	err := models.ReleaseOrder(orderID)
+	if err != nil {
+		log.Printf("%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: fmt.Sprintf("Failed to release order: %s", err.Error()),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	order, err := models.GetOrderByID(orderID)
+	if err != nil {
+		log.Printf("%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: fmt.Sprintf("Failed to fetch order after release: %s", err.Error()),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: "Order released successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   order,
+		Message:   "Order recalled successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
