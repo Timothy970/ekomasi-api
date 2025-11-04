@@ -20,6 +20,7 @@ type Order struct {
 	CreatedAt            time.Time            `json:"created_at"`
 	Items                []OrderProduct       `json:"items"`
 	UserAddress          *[]UserAddress       `json:"user_address"`
+	UserID               *string              `json:"user_id,omitempty"`
 }
 type AdminOrder struct {
 	OrderID              string               `json:"order_id"`
@@ -181,7 +182,7 @@ type CreateOrderPayload struct {
 	GuestPersonalDetails *json.RawMessage   `json:"guest_personal_details,omitempty"`
 	GuestDeliveryAddress *json.RawMessage   `json:"guest_delivery_address,omitempty"`
 	OrderItems           []OrderItemPayload `json:"order_items" validate:"required,dive"`
-	DeliveryAddressID    int64              `json:"delivery_address_id" validate:"required"`
+	DeliveryAddressID    int64              `json:"location_id" validate:"required"`
 }
 type OrderItemPayload struct {
 	ProductID string `json:"product_id" validate:"required"`
@@ -192,4 +193,22 @@ type OrderStatusCount struct {
 	Status      string  `json:"status"`
 	Count       int     `json:"count"`
 	TotalAmount float64 `json:"total_amount"`
+}
+
+type OrderNotificationItemRequest struct {
+	ProductName string  `json:"product_name"`
+	Quantity    int     `json:"quantity" validate:"required"`
+	UnitPrice   float64 `json:"unit_price" validate:"required"`
+}
+
+type OrderEmailData struct {
+	OrderID         string
+	CustomerName    string
+	OrderDate       string
+	OrderItems      []OrderNotificationItemRequest
+	Subtotal        float64
+	ShippingFee     float64
+	Discount        float64
+	TotalAmount     float64
+	DeliveryAddress string
 }

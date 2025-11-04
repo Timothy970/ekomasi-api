@@ -507,3 +507,36 @@ func GetEstimatedTax() (float64, error) {
 
 	return tax, nil
 }
+
+func StoreOrderNotification(orderID string) error {
+	query := `
+		INSERT INTO order_notifications (order_id, status, created_at)
+		VALUES (?, 'pending', NOW())
+	`
+	_, err := DB.Exec(query, orderID)
+	return err
+}
+
+func GetPendingOrderNotifications() ([]string, error) {
+	query := `
+		SELECT order_id
+		FROM order_notifications
+		WHERE status = 'pending'
+	`
+	rows, err := DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var orderIDs []string
+	for rows.Next() {
+		var orderID string
+		if err := rows.Scan(&orderID); err != nil {
+			return nil, err
+		}
+		orderIDs = append(orderIDs, orderID)
+	}
+
+	return orderIDs, nil
+}

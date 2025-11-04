@@ -729,7 +729,6 @@ func StartVoucherEmailScheduler(interval time.Duration, repeat int) {
 		defer ticker.Stop()
 
 		for range ticker.C {
-			fmt.Println("Running voucher email scheduler...")
 			SendBoughtForVoucherEmails()
 
 			if repeat > 0 {
@@ -748,7 +747,6 @@ func SendBoughtForVoucherEmails() {
 		fmt.Printf("error fetching users with unsent voucher emails: %v", err)
 		return
 	}
-	fmt.Printf("Found users with unsent voucher emails %v\n", users)
 	for _, u := range users {
 		// notify.SendEmail
 		if u.ToEmail != "" {
