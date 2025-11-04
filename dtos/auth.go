@@ -43,7 +43,7 @@ type LoginInput struct {
 type VerifyOTP struct {
 	Email string `json:"email"`
 	Phone string `json:"phone_number"`
-	OTP   string `json:"otp"`
+	OTP   string `json:"otp" validate:"required"`
 }
 type ResendOTP struct {
 	Email string `json:"email"`
