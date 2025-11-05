@@ -167,11 +167,14 @@ func main() {
 	// handlers.StartCartReminderScheduler(24*time.Hour, 3)
 	// handlers.StartCartReminderScheduler(1*time.Minute, 1)
 	//scheduler to send bought for voucher emails
-	handlers.StartVoucherEmailScheduler(time.Minute, 0) //every minute for testing
+	handlers.StartVoucherEmailScheduler(10*time.Minute, 0) //every 10 minutes for testing
 	// Run abandoned checkout reminders every 24 hours
 	// Run wishlist reminders every 7 days
 	// handlers.StartWishlistReminderScheduler(1*time.Minute, 1)
 	// handlers.StartWishlistReminderScheduler(24*time.Hour, 7)
+
+	//order notifications scheduler that runs every 5 minutes
+	handlers.StartOrderNotificationScheduler(5 * time.Minute)
 	// Define routes
 	routes.SetupRoutes(router)
 

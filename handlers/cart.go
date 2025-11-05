@@ -297,7 +297,7 @@ func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
 	estimatedTaxValue := (estimatedTax * total) / 100
 	res := dtos.ViewCartResponse{
 		CartItems:    items,
-		Total:        total - discount,
+		Total:        total - discount - estimatedTaxValue,
 		Final:        total,
 		Discount:     discount,
 		EstimatedTax: estimatedTaxValue,

@@ -719,7 +719,7 @@ func writeOrdersBatch(writer *csv.Writer, orders []dtos.AdminOrder) error {
 		if order.DeliveryStatus != nil {
 			deliveryStatus = *order.DeliveryStatus
 		}
-		deliveryCharge := ""
+		deliveryCharge := 0.0
 		if order.DeliveryCharge != nil {
 			deliveryCharge = *order.DeliveryCharge
 		}
@@ -733,7 +733,7 @@ func writeOrdersBatch(writer *csv.Writer, orders []dtos.AdminOrder) error {
 			order.OrderStatus,
 			deliveryStatus,
 			order.PaymentMethod,
-			deliveryCharge,
+			fmt.Sprintf("%.2f", deliveryCharge),
 			deliveryAddress,
 			customerName,
 			customerEmail,
@@ -1027,9 +1027,6 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	finalAmount := totalAmount + order.DeliveryCharge - totalDiscount
-	//send sms and email notification
-	//store the order to order_notifications table for processing later
-	models.StoreOrderNotification(orderID)
 
 	//deduct stock quantities
 	err = deductStock(order.OrderItems)

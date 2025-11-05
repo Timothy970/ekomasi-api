@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"html/template"
 	"log"
 	"math"
 	"math/big"
@@ -433,7 +432,7 @@ func SendVoucherEmail(data dtos.VoucherEmailInfo) (string, string) {
 }
 
 // Body for order placements Email
-// GenerateOrderConfirmationHTML generates a purple-themed order confirmation email
+// GenerateOrderConfirmationHTML generates a styled HTML email for order confirmation.
 func GenerateOrderConfirmationHTML(data dtos.OrderEmailData) string {
 	// Calculate totals if not provided
 	if data.Subtotal == 0 {
@@ -443,333 +442,209 @@ func GenerateOrderConfirmationHTML(data dtos.OrderEmailData) string {
 		data.TotalAmount = data.Subtotal + data.ShippingFee - data.Discount
 	}
 
-	template := `
+	const template = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Confirmation</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background-color: #f8f9fa;
-        }
-        
-        .email-container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: #ffffff;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        
-        .header {
-            background: linear-gradient(135deg, #8B5FBF 0%, #6A3093 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-        
-        .header h1 {
-            font-size: 28px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-        
-        .header p {
-            font-size: 16px;
-            opacity: 0.9;
-        }
-        
-        .content {
-            padding: 30px;
-        }
-        
-        .order-info {
-            background: #f8f5ff;
-            border-left: 4px solid #8B5FBF;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 25px;
-        }
-        
-        .order-info h2 {
-            color: #6A3093;
-            font-size: 18px;
-            margin-bottom: 15px;
-        }
-        
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-        
-        .info-item {
-            margin-bottom: 8px;
-        }
-        
-        .info-label {
-            font-weight: 600;
-            color: #6A3093;
-            font-size: 14px;
-        }
-        
-        .info-value {
-            color: #555;
-            font-size: 14px;
-        }
-        
-        .order-items {
-            margin: 25px 0;
-        }
-        
-        .items-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: #fff;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
-        
-        .items-table th {
-            background: #8B5FBF;
-            color: white;
-            padding: 15px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        
-        .items-table td {
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .items-table tr:last-child td {
-            border-bottom: none;
-        }
-        
-        .items-table tr:hover {
-            background: #f8f5ff;
-        }
-        
-        .product-name {
-            font-weight: 600;
-            color: #333;
-        }
-        
-        .quantity {
-            text-align: center;
-            color: #666;
-        }
-        
-        .price {
-            text-align: right;
-            color: #6A3093;
-            font-weight: 600;
-        }
-        
-        .totals {
-            background: #f8f5ff;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 25px 0;
-        }
-        
-        .total-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #e9ecef;
-        }
-        
-        .total-row:last-child {
-            border-bottom: none;
-            font-weight: 700;
-            font-size: 18px;
-            color: #6A3093;
-        }
-        
-        .total-label {
-            color: #555;
-        }
-        
-        .total-value {
-            font-weight: 600;
-        }
-        
-        .delivery-address {
-            background: #f8f5ff;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 25px 0;
-        }
-        
-        .delivery-address h3 {
-            color: #6A3093;
-            margin-bottom: 10px;
-            font-size: 16px;
-        }
-        
-        .footer {
-            background: #f8f9fa;
-            padding: 25px;
-            text-align: center;
-            color: #666;
-            font-size: 14px;
-        }
-        
-        .footer a {
-            color: #8B5FBF;
-            text-decoration: none;
-        }
-        
-        .thank-you {
-            text-align: center;
-            margin: 25px 0;
-            color: #6A3093;
-            font-size: 18px;
-            font-weight: 600;
-        }
-        
-        @media (max-width: 600px) {
-            .content {
-                padding: 20px;
-            }
-            
-            .info-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .items-table th,
-            .items-table td {
-                padding: 10px;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Confirmation</title>
+<style>
+	body {
+		font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+		line-height: 1.6;
+		color: #333;
+		background-color: #f8f9fa;
+		margin: 0;
+		padding: 0;
+	}
+	.email-container {
+		max-width: 800px;
+		margin: 0 auto;
+		background: #fff;
+		border-radius: 12px;
+		box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+		overflow: hidden;
+	}
+	.header {
+		background: linear-gradient(135deg, #8B5FBF 0%, #6A3093 100%);
+		color: white;
+		text-align: center;
+		padding: 30px;
+	}
+	.header h1 { font-size: 28px; margin-bottom: 8px; }
+	.content { padding: 30px; }
+	.order-info, .totals, .delivery-address {
+		background: #f8f5ff;
+		padding: 20px;
+		border-radius: 8px;
+		margin: 25px 0;
+	}
+	.order-info h2, .delivery-address h3 { color: #6A3093; }
+	.info-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 15px;
+	}
+	.info-label { font-weight: 600; color: #6A3093; font-size: 14px; }
+	.info-value { font-size: 14px; color: #555; }
+	.items-table {
+		width: 100%;
+		border-collapse: collapse;
+		box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+	}
+	.items-table th {
+		background: #8B5FBF;
+		color: white;
+		padding: 15px;
+		text-align: left;
+	}
+	.items-table td { padding: 15px; border-bottom: 1px solid #eee; }
+	.items-table tr:hover { background: #f8f5ff; }
+	.price { text-align: right; color: #6A3093; font-weight: 600; }
+	.totals .total-row {
+		display: flex;
+		justify-content: space-between;
+		padding: 8px 0;
+		border-bottom: 1px solid #e9ecef;
+	}
+	.totals .total-row:last-child {
+		font-weight: 700;
+		font-size: 18px;
+		color: #6A3093;
+		border-bottom: none;
+	}
+	.footer {
+		text-align: center;
+		padding: 25px;
+		background: #f8f9fa;
+		font-size: 14px;
+		color: #666;
+	}
+	.footer a { color: #8B5FBF; text-decoration: none; }
+	.thank-you {
+		text-align: center;
+		color: #6A3093;
+		font-size: 18px;
+		font-weight: 600;
+		margin: 25px 0;
+	}
+	@media (max-width: 600px) {
+		.info-grid { grid-template-columns: 1fr; }
+	}
+</style>
 </head>
 <body>
-    <div class="email-container">
-        <div class="header">
-            <h1>🎉 Order Confirmed!</h1>
-            <p>Thank you for your purchase</p>
-        </div>
-        
-        <div class="content">
-            <div class="thank-you">
-                Thank you for shopping with us, {{.CustomerName}}!
-            </div>
-            
-            <div class="order-info">
-                <h2>Order Details</h2>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-label">Order ID</div>
-                        <div class="info-value">{{.OrderID}}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Order Date</div>
-                        <div class="info-value">{{.OrderDate}}</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="order-items">
-                <h2 style="color: #6A3093; margin-bottom: 15px;">Order Items</h2>
-                <table class="items-table">
-                    <thead>
-                        <tr>
-                            <th>Product</th>
-                            <th style="text-align: center;">Qty</th>
-                            <th style="text-align: right;">Price</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {{range .OrderItems}}
-                        <tr>
-                            <td class="product-name">{{.ProductName}}</td>
-                            <td class="quantity">{{.Quantity}}</td>
-                            <td class="price">KES {{printf "%.2f" .UnitPrice}}</td>
-                        </tr>
-                        {{end}}
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="totals">
-                <div class="total-row">
-                    <span class="total-label">Subtotal</span>
-                    <span class="total-value">KES {{printf "%.2f" .Subtotal}}</span>
-                </div>
-                <div class="total-row">
-                    <span class="total-label">Shipping</span>
-                    <span class="total-value">KES {{printf "%.2f" .ShippingFee}}</span>
-                </div>
-                <div class="total-row">
-                    <span class="total-label">Discount</span>
-                    <span class="total-value">-KES {{printf "%.2f" .Discount}}</span>
-                </div>
-                <div class="total-row">
-                    <span class="total-label">Total Amount</span>
-                    <span class="total-value">KES {{printf "%.2f" .TotalAmount}}</span>
-                </div>
-            </div>
-            
-            <div class="delivery-address">
-                <h3>Delivery Address</h3>
-                <p>{{.DeliveryAddress}}</p>
-            </div>
-        </div>
-        
-        <div class="footer">
-            <p>If you have any questions, please contact our <a href="mailto:support@example.com">customer support</a>.</p>
-            <p>© 2025 Your Company Name. All rights reserved.</p>
-        </div>
-    </div>
+	<div class="email-container">
+		<div class="header">
+			<h1>🎉 Order Confirmed!</h1>
+			<p>Thank you for your purchase</p>
+		</div>
+
+		<div class="content">
+			<div class="thank-you">
+				Thank you for shopping with us, {{.CustomerName}}!
+			</div>
+
+			<div class="order-info">
+				<h2>Order Details</h2>
+				<div class="info-grid">
+					<div>
+						<div class="info-label">Order ID</div>
+						<div class="info-value">{{.OrderID}}</div>
+					</div>
+					<div>
+						<div class="info-label">Order Date</div>
+						<div class="info-value">{{.OrderDate}}</div>
+					</div>
+				</div>
+			</div>
+
+			<h2 style="color:#6A3093;margin-bottom:15px;">Order Items</h2>
+			<table class="items-table">
+				<thead>
+					<tr>
+						<th>Product</th>
+						<th style="text-align:center;">Qty</th>
+						<th style="text-align:right;">Price</th>
+					</tr>
+				</thead>
+				<tbody>
+					{{range .OrderItems}}
+					<tr>
+						<td>{{.ProductName}}</td>
+						<td style="text-align:center;">{{.Quantity}}</td>
+						<td class="price">KES {{printf "%.2f" .UnitPrice}}</td>
+					</tr>
+					{{end}}
+				</tbody>
+			</table>
+
+			<div class="totals">
+				<div class="total-row"><span>Subtotal</span><span>KES {{printf "%.2f" .Subtotal}}</span></div>
+				<div class="total-row"><span>Shipping</span><span>KES {{printf "%.2f" .ShippingFee}}</span></div>
+				<div class="total-row"><span>Discount</span><span>-KES {{printf "%.2f" .Discount}}</span></div>
+				<div class="total-row"><span>Total Amount</span><span>KES {{printf "%.2f" .TotalAmount}}</span></div>
+			</div>
+
+			<div class="delivery-address">
+				<h3>Delivery Address</h3>
+				<p>{{.DeliveryAddress}}</p>
+			</div>
+		</div>
+
+		<div class="footer">
+			<p>If you have any questions, contact our <a href="mailto:support@example.com">customer support</a>.</p>
+			<p>© 2025 Your Company Name. All rights reserved.</p>
+		</div>
+	</div>
 </body>
 </html>`
 
-	// Simple template execution (you might want to use html/template for production)
-	html := strings.ReplaceAll(template, "{{.CustomerName}}", data.CustomerName)
-	html = strings.ReplaceAll(html, "{{.OrderID}}", data.OrderID)
-	html = strings.ReplaceAll(html, "{{.OrderDate}}", data.OrderDate)
-	html = strings.ReplaceAll(html, "{{.DeliveryAddress}}", data.DeliveryAddress)
+	// Build HTML manually (for production, prefer html/template)
+	html := strings.NewReplacer(
+		"{{.CustomerName}}", data.CustomerName,
+		"{{.OrderID}}", data.OrderID,
+		"{{.OrderDate}}", data.OrderDate,
+		"{{.DeliveryAddress}}", data.DeliveryAddress,
+	).Replace(template)
 
-	// Format currency values
-	html = strings.ReplaceAll(html, "{{printf \"%.2f\" .Subtotal}}", fmt.Sprintf("%.2f", data.Subtotal))
-	html = strings.ReplaceAll(html, "{{printf \"%.2f\" .ShippingFee}}", fmt.Sprintf("%.2f", data.ShippingFee))
-	html = strings.ReplaceAll(html, "{{printf \"%.2f\" .Discount}}", fmt.Sprintf("%.2f", data.Discount))
-	html = strings.ReplaceAll(html, "{{printf \"%.2f\" .TotalAmount}}", fmt.Sprintf("%.2f", data.TotalAmount))
+	// Replace totals
+	html = strings.NewReplacer(
+		"{{printf \"%.2f\" .Subtotal}}", fmt.Sprintf("%.2f", data.Subtotal),
+		"{{printf \"%.2f\" .ShippingFee}}", fmt.Sprintf("%.2f", data.ShippingFee),
+		"{{printf \"%.2f\" .Discount}}", fmt.Sprintf("%.2f", data.Discount),
+		"{{printf \"%.2f\" .TotalAmount}}", fmt.Sprintf("%.2f", data.TotalAmount),
+	).Replace(html)
 
-	// Generate order items rows
-	itemsHTML := ""
+	// Build order items HTML
+	var itemsHTML strings.Builder
 	for _, item := range data.OrderItems {
-		itemsHTML += fmt.Sprintf(`
-                        <tr>
-                            <td class="product-name">%s</td>
-                            <td class="quantity">%d</td>
-                            <td class="price">$%.2f</td>
-                        </tr>`,
-			item.ProductName, item.Quantity, item.UnitPrice)
+		itemsHTML.WriteString(fmt.Sprintf(`
+			<tr>
+				<td>%s</td>
+				<td style="text-align:center;">%d</td>
+				<td class="price">KES %.2f</td>
+			</tr>`,
+			item.ProductName, item.Quantity, item.UnitPrice))
 	}
-	html = strings.ReplaceAll(html, "{{range .OrderItems}}\n                        <tr>\n                            <td class=\"product-name\">{{.ProductName}}</td>\n                            <td class=\"quantity\">{{.Quantity}}</td>\n                            <td class=\"price\">${{printf \"%.2f\" .UnitPrice}}</td>\n                        </tr>\n                        {{end}}", itemsHTML)
+
+	// Inject items into template
+	html = strings.ReplaceAll(html,
+		`{{range .OrderItems}}
+					<tr>
+						<td>{{.ProductName}}</td>
+						<td style="text-align:center;">{{.Quantity}}</td>
+						<td class="price">KES {{printf "%.2f" .UnitPrice}}</td>
+					</tr>
+					{{end}}`,
+		itemsHTML.String(),
+	)
 
 	return html
 }
 
-// calculateSubtotal calculates the total from order items
+// calculateSubtotal computes subtotal from order items.
 func calculateSubtotal(items []dtos.OrderNotificationItemRequest) float64 {
 	var subtotal float64
 	for _, item := range items {
@@ -777,19 +652,3 @@ func calculateSubtotal(items []dtos.OrderNotificationItemRequest) float64 {
 	}
 	return subtotal
 }
-
-// Alternative version using html/template for better security and maintainability
-func GenerateOrderConfirmationHTMLAdvanced(data dtos.OrderEmailData) (string, error) {
-	tmpl := template.Must(template.New("email").Parse(emailTemplate))
-
-	var buf strings.Builder
-	err := tmpl.Execute(&buf, data)
-	if err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
-}
-
-// Template string for the advanced version
-const emailTemplate = `...` // (same template string as above)

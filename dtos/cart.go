@@ -27,9 +27,9 @@ type AddToCartResponse struct {
 
 type ViewCartResponse struct {
 	CartItems     []CartItem `json:"cart_items"`
-	Total         float64    `json:"total"`
+	Total         float64    `json:"sub_total"`
 	Discount      float64    `json:"discount"`
-	Final         float64    `json:"final"`
+	Final         float64    `json:"total"`
 	EstimatedTax  float64    `json:"estimated_tax"`
 	DeliverCharge float64    `json:"delivery_charge"`
 }
