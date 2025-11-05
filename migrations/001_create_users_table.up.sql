@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     `first_name` varchar(100) DEFAULT NULL,
     `last_name` varchar(100) DEFAULT NULL,
     `role` varchar(100) NOT NULL DEFAULT 'customer',
+    `role_id` char(36) DEFAULT NULL,
     `status` varchar(20) DEFAULT 'active',
     `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

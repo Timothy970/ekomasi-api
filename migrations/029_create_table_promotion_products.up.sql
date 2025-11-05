@@ -1,8 +1,9 @@
-CREATE TABLE IF NOT EXISTS  `promotion_products` (
+CREATE TABLE IF NOT EXISTS `promotion_products` (
    `promotion_product_id` char(36) NOT NULL,
    `promotion_id` char(36) NOT NULL,
    `product_id` char(36) NOT NULL,
-   `discount_percentage` decimal(5,2) NOT NULL,
+   `discount` decimal(10,2) DEFAULT NULL,
+   `discount_type` varchar(100) DEFAULT NULL,
    PRIMARY KEY (`promotion_product_id`),
    KEY `idx_promotion_products_promotion_id` (`promotion_id`),
    KEY `idx_promotion_products_product_id` (`product_id`),

@@ -30,7 +30,7 @@ func SetupRoutes(router *mux.Router) {
 	auth.HandleFunc("/verify-otp", handlers.VerifySignupOTPHandler).Methods("POST")
 	auth.Handle("/logout", middleware.AuthenticateToken(http.HandlerFunc(handlers.LogoutHandler))).Methods("POST")
 
-	//Home details enpoints
+	//Home details endpoints
 	home := api.PathPrefix("/home/").Subrouter()
 	home.HandleFunc("/data", handlers.HomePageData).Methods("GET")
 	home.HandleFunc("/sliders", handlers.GetSliderData).Methods("GET")
@@ -105,7 +105,7 @@ func SetupRoutes(router *mux.Router) {
 	cart.HandleFunc("/view/{cart_id}", handlers.ViewCartHandler).Methods("GET")
 	cart.HandleFunc("/update/{cart_id}", handlers.UpdateCartItemHandler).Methods("PATCH")
 	cart.HandleFunc("/remove/{cart_id}", handlers.RemoveFromCartHandler).Methods("DELETE")
-	cart.HandleFunc("/apply-coupon", handlers.ApplyCouponHandler).Methods("POST")
+	api.HandleFunc("order/apply-discount", handlers.ApplyDiscountHandler).Methods("POST")
 
 	//get shipping fee
 	shipping := api.PathPrefix("/shipping").Subrouter()

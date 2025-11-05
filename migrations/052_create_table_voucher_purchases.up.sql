@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS voucher_purchases (
     delivery_time     DATETIME,
     sent_at           DATETIME NULL,
     status            ENUM('PENDING', 'SENT', 'FAILED') DEFAULT 'PENDING',
+    notes             LONGTEXT,
     created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
