@@ -105,7 +105,7 @@ func SetupRoutes(router *mux.Router) {
 	cart.HandleFunc("/view/{cart_id}", handlers.ViewCartHandler).Methods("GET")
 	cart.HandleFunc("/update/{cart_id}", handlers.UpdateCartItemHandler).Methods("PATCH")
 	cart.HandleFunc("/remove/{cart_id}", handlers.RemoveFromCartHandler).Methods("DELETE")
-	api.HandleFunc("order/apply-discount", handlers.ApplyDiscountHandler).Methods("POST")
+	api.HandleFunc("/order/apply-discount", handlers.ApplyDiscountHandler).Methods("POST")
 
 	//get shipping fee
 	shipping := api.PathPrefix("/shipping").Subrouter()
@@ -463,11 +463,11 @@ func SetupRoutes(router *mux.Router) {
 	api.Handle("/upload-image", middleware.AuthenticateToken(http.HandlerFunc(handlers.UploadImageHandler))).Methods("POST")
 	// pos endpoints
 	pos := api.PathPrefix("/pos/").Subrouter()
-	pos.Handle("scan/product", middleware.AuthenticateToken(http.HandlerFunc(handlers.ScanProductsHandler))).Methods("GET")
-	pos.Handle("cash/payment", middleware.AuthenticateToken(http.HandlerFunc(handlers.ProcessCashPaymentHandler))).Methods("POST")
-	pos.Handle("print/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.PrintReceiptHandler))).Methods("POST")
-	pos.Handle("download/receipt/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DownloadReceiptHandler))).Methods("GET")
-	pos.Handle("hold/order/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.HoldOrderHandler))).Methods("POST")
-	pos.Handle("hold/order/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.ReleaseOrderHandler))).Methods("GET")
+	pos.Handle("/scan/product", middleware.AuthenticateToken(http.HandlerFunc(handlers.ScanProductsHandler))).Methods("GET")
+	pos.Handle("/cash/payment", middleware.AuthenticateToken(http.HandlerFunc(handlers.ProcessCashPaymentHandler))).Methods("POST")
+	pos.Handle("/print/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.PrintReceiptHandler))).Methods("POST")
+	pos.Handle("/download/receipt/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DownloadReceiptHandler))).Methods("POST")
+	pos.Handle("/hold/order/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.HoldOrderHandler))).Methods("POST")
+	pos.Handle("/hold/order/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.ReleaseOrderHandler))).Methods("GET")
 
 }

@@ -215,3 +215,55 @@ func IsUserTokenPassed(r *http.Request) (*AuthenticatedUser, bool) {
 
 	return user, true
 }
+func GetTokenAndAuthenticatedUser(w http.ResponseWriter, r *http.Request) (bool, *AuthenticatedUser) {
+	authHeader := r.Header.Get("Authorization")
+	tokenString := ""
+	if strings.HasPrefix(authHeader, bearer) {
+		tokenString = strings.TrimPrefix(authHeader, bearer)
+	}
+
+	if tokenString == "" {
+		sendErrorResponse(w, http.StatusUnauthorized, "Token missing")
+		return false, nil
+	}
+
+	// Check if token is blacklisted
+	val, err := dtos.Redis.Get(r.Context(), "blacklist:"+tokenString).Result()
+	if err == nil && val == "1" {
+		sendErrorResponse(w, http.StatusForbidden, "Token has been invalidated")
+		return false, nil
+	}
+
+	// Parse and validate JWT
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return []byte(os.Getenv("JWT_SECRET")), nil
+	})
+	if err != nil || !token.Valid {
+		sendErrorResponse(w, http.StatusForbidden, "Invalid or expired token")
+		return false, nil
+	}
+
+	// Extract claims
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		sendErrorResponse(w, http.StatusForbidden, "Invalid token claims")
+		return false, nil
+	}
+
+	// Ensure it's a refresh token
+	if tokenType, ok := claims["type"].(string); !ok || tokenType != "auth" {
+		sendErrorResponse(w, http.StatusForbidden, "Invalid token type")
+		return false, nil
+	}
+
+	// (Optional) attach claims to context
+	user := AuthenticatedUser{
+		ID:        fmt.Sprintf("%v", claims["id"]),
+		Email:     fmt.Sprintf("%v", claims["email"]),
+		FirstName: fmt.Sprintf("%v", claims["first_name"]),
+		LastName:  fmt.Sprintf("%v", claims["last_name"]),
+		Role:      fmt.Sprintf("%v", claims["role"]),
+		Phone:     fmt.Sprintf("%v", claims["phone_number"]),
+	}
+	return true, &user
+}

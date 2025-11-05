@@ -951,19 +951,8 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	var userID *string
 	//if the order belong to user in the system , then get their id from the context
 	if req.IsGuestOrder == nil || !*req.IsGuestOrder {
-		authuser, ok := middleware.UserFromContext(r.Context())
+		ok, authuser := middleware.GetTokenAndAuthenticatedUser(w, r)
 		if !ok {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Orders",
-					Description: "User not validated or authenticated",
-					Code:        http.StatusUnauthorized,
-				},
-				Message:   "User not validated",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
 			return
 		}
 		userID = &authuser.ID
@@ -976,7 +965,8 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	order.GuestDeliveryAddress = req.GuestDeliveryAddress
 	order.UserID = userID
 	// find delivery charge using location id passed in the payload
-	location, err := models.GetLocationByID(int(req.DeliveryAddressID))
+
+	order.DeliveryCharge, err = getOrderDeliveryCharge(int(req.DeliveryAddressID))
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -992,7 +982,6 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order.DeliveryCharge = location.Charge
 	//process the order items, check for discounts , total amount , free shipping and stock availability
 	totalAmount, totalDiscount, applyFreeShipping, err := processOrderItems(order.OrderItems)
 	if err != nil {
@@ -1052,6 +1041,17 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary,
 	})
+}
+func getOrderDeliveryCharge(locationID int) (float64, error) {
+	//assume for at store pickup location id is 111111
+	if locationID == 111111 {
+		return 0, nil
+	}
+	location, err := models.GetLocationByID(locationID)
+	if err != nil {
+		return 0, err
+	}
+	return location.Charge, nil
 }
 
 func getOrderItems(items []dtos.OrderItemPayload) ([]dtos.OrderItemRequest, error) {

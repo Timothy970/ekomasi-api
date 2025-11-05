@@ -868,3 +868,9 @@ func MarkOrderNotificationSent(orderID, status string) error {
 	_, err := DB.Exec(query, status, orderID)
 	return err
 }
+
+func UpdateOrderTotals(order *dtos.Order) error {
+	query := `UPDATE orders SET total_amount = ?, total_discount = ? WHERE order_id = ?`
+	_, err := DB.Exec(query, order.TotalAmount, order.TotalDiscount, order.OrderID)
+	return err
+}

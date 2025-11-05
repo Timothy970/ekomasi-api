@@ -8,6 +8,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -165,8 +166,10 @@ func uploadMedia(mediaData []byte, mediaID, mimeType string) (string, error) {
 	log.Println("Starting upload to GCS")
 
 	// Bucket name from env or default
-	bucketName := "ecommerce-api-images"
-
+	bucketName := os.Getenv("BUCKET_NAME")
+	if bucketName == "" {
+		bucketName = "development-ecommerce-api-images"
+	}
 	// File extension from MIME type
 	ext := "bin"
 	if parts := strings.Split(mimeType, "/"); len(parts) > 1 {
