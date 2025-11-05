@@ -38,6 +38,7 @@ secrets:
   # - SERVICE_ACCOUNT
   - SMSAPIKEY
   - SMSPARTNERID
+  - BUCKET_NAME
   
 
 requires:
