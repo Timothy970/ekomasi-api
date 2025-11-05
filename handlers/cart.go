@@ -531,6 +531,22 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	//update order with new totals in the database
+	if err := models.UpdateOrderTotals(items); err != nil {
+		log.Printf("Error updating order totals: %v", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: "Failed to update order totals for Order ID " + req.OrderID,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
