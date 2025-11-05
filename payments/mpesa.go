@@ -5,6 +5,7 @@ import (
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -36,7 +37,27 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
+	order, err := models.GetOrderByID(req.OrderID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "Failed to get order for MPESA payment",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	log.Printf("order found %v", order)
+	req.Amount = int(order.TotalAmount) - int(order.TotalDiscount)
+	req.DeliveryID = order.DeliveryID
+	req.Reference = randString(12)
+	req.Description = fmt.Sprintf("Payment for order %s", order.OrderID)
 	client, err := NewMpesaClient()
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -252,7 +273,9 @@ func handleSuccessfulPayment(w http.ResponseWriter, callback dtos.STKCallbackReq
 	}
 
 	processOrderUpdate(orderType, deliveryID, orderID)
-
+	//send sms and email notification
+	//store the order to order_notifications table for processing later
+	models.StoreOrderNotification(orderID)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Accepted"}`))
 }
@@ -317,4 +340,20 @@ func buildPaymentSuccessPayload(orderID, deliveryID interface{}) map[string]inte
 		"order_id":    orderID,
 		"delivery_id": deliveryID,
 	}
+}
+
+// randString generates a random alphanumeric string of the given length.
+func randString(n int) string {
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		for i := range b {
+			b[i] = letters[i%len(letters)]
+		}
+		return string(b)
+	}
+	for i := range b {
+		b[i] = letters[int(b[i])%len(letters)]
+	}
+	return string(b)
 }

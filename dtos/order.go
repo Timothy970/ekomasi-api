@@ -9,6 +9,8 @@ type Order struct {
 	OrderID              string               `json:"order_id"`
 	TotalAmount          float64              `json:"total_amount"`
 	TotalDiscount        float64              `json:"total_discount"`
+	SubTotal             float64              `json:"sub_total"`
+	IsGuestOrder         bool                 `json:"is_guest_order"`
 	DeliveryID           string               `json:"delivery_id"`
 	OrderStatus          *string              `json:"order_status"`
 	DeliveryStatus       *string              `json:"delivery_status"`
@@ -26,12 +28,14 @@ type AdminOrder struct {
 	OrderID              string               `json:"order_id"`
 	TotalAmount          float64              `json:"total_amount"`
 	TotalDiscount        float64              `json:"total_discount"`
+	SubTotal             float64              `json:"sub_total"`
+	IsGuestOrder         bool                 `json:"is_guest_order"`
 	DeliveryID           string               `json:"delivery_id"`
 	OrderStatus          string               `json:"order_status"`
 	PaymentStatus        string               `json:"payment_status"`
 	DeliveryStatus       *string              `json:"delivery_status"`
 	PaymentMethod        string               `json:"payment_method"`
-	DeliveryCharge       *string              `json:"delivery_charge"`
+	DeliveryCharge       *float64             `json:"delivery_charge"`
 	DeliveryAddress      *string              `json:"delivery_address"`
 	GuestDeliveryAddress GuestDeliveryAddress `json:"guest_delivery_address"`
 	GuestPersonalDetails GuestPersonalDetails `json:"guest_personal_details"`

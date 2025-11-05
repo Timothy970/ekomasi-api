@@ -88,7 +88,8 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
             d.delivery_address,
             o.guest_delivery_address,
             o.guest_personal_details,
-            o.created_at
+            o.created_at,
+            o.is_guest_order
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
         WHERE o.order_id = ? AND o.user_id = ?`
@@ -108,6 +109,7 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 		&guestAddrStr,
 		&guestDetailsStr,
 		&ord.CreatedAt,
+		&ord.IsGuestOrder,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -116,6 +118,7 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 		return nil, err
 	}
 	ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
+	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
 	// Parse guest JSON fields
 	if guestAddrStr != "" {
 		_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
@@ -160,7 +163,8 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
             o.guest_delivery_address,
             o.guest_personal_details,
             o.created_at,
-            o.user_id
+            o.user_id,
+			o.is_guest_order
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id`
 	if status != nil {
@@ -196,10 +200,12 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
 			&guestDetailsStr,
 			&ord.CreatedAt,
 			&userID,
+			&ord.IsGuestOrder,
 		); err != nil {
 			return nil, err
 		}
 		ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
+		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
 		// // Attach user_id if present
 		// if userID.Valid {
 		// 	ord.UserID = userID.String
@@ -246,7 +252,8 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
             d.delivery_address,
             o.guest_delivery_address,
             o.guest_personal_details,
-            o.created_at
+            o.created_at,
+			o.is_guest_order
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
         WHERE o.user_id = ?
@@ -277,10 +284,12 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 			&guestAddrStr,
 			&guestDetailsStr,
 			&ord.CreatedAt,
+			&ord.IsGuestOrder,
 		); err != nil {
 			return nil, nil, err
 		}
 		ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
+		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
 		// Parse guest JSON fields
 		if guestAddrStr != "" {
 			_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
@@ -334,7 +343,8 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
             d.delivery_address,
             o.guest_delivery_address,
             o.guest_personal_details,
-            o.created_at
+            o.created_at,
+			o.is_guest_order
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
         WHERE o.order_id = ?
@@ -357,6 +367,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 		&guestAddrStr,
 		&guestDetailsStr,
 		&ord.CreatedAt,
+		&ord.IsGuestOrder,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -365,6 +376,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 		return nil, err
 	}
 	ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
+	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
 	// Parse guest JSON fields
 	if guestAddrStr != "" {
 		_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
@@ -423,6 +435,10 @@ func isOrderThere(id string) error {
 }
 
 func GetOrderByID(orderID string) (*dtos.Order, error) {
+	err := isOrderThere(orderID)
+	if err != nil {
+		return nil, err
+	}
 	var userID sql.NullString
 	query := `
         SELECT 
@@ -438,7 +454,8 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
             o.guest_delivery_address,
             o.guest_personal_details,
             o.created_at,
-            o.user_id
+            o.user_id,
+			o.is_guest_order
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
         WHERE o.order_id = ?`
@@ -447,7 +464,7 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 	var totalAmount float64
 	var guestAddrStr, guestDetailsStr string
 
-	err := DB.QueryRow(query, orderID).Scan(
+	err = DB.QueryRow(query, orderID).Scan(
 		&ord.OrderID,
 		&totalAmount,
 		&ord.TotalDiscount,
@@ -461,9 +478,11 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 		&guestDetailsStr,
 		&ord.CreatedAt,
 		&userID,
+		&ord.IsGuestOrder,
 	)
 
 	ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
+	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -695,7 +714,8 @@ func buildAdminOrderQuery(conds OrderConditions, limit, offset int) (string, []i
 			d.delivery_address,
 			o.guest_delivery_address,
 			o.guest_personal_details,
-			o.created_at
+			o.created_at,
+			o.is_guest_order
 		FROM orders o
 		LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id`
 	if conds.JoinUsers {
@@ -745,9 +765,13 @@ func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
 			&guestAddrStr,
 			&guestDetailsStr,
 			&ord.CreatedAt,
+			&ord.IsGuestOrder,
 		); err != nil {
 			return nil, err
 		}
+		ord.TotalAmount = ord.TotalAmount + ptrToFloat(ord.DeliveryCharge)
+		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
+		// Parse guest JSON fields
 		if guestAddrStr != "" {
 			_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
 		}

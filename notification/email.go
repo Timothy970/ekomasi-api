@@ -45,7 +45,6 @@ func sendSingleEmail(data map[string]interface{}) (string, error) {
 	}
 
 	payload := strings.NewReader(string(payloadBytes))
-	log.Printf("send to v2: %v", payload)
 
 	client := &http.Client{}
 	req, err := http.NewRequest(method, url, payload)

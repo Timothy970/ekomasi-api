@@ -175,13 +175,17 @@ func CheckUserExistsByEmailOrPhone(w http.ResponseWriter, r *http.Request, req d
 
 	}
 	if existingUser != nil {
+		message := "User with this email already exists"
+		if req.Email == "" {
+			message = "User with this phone number  already exists"
+		}
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
-				Description: "User with this phone number " + req.Phonenumber + " already exists",
+				Description: "User with this phone number or email " + req.Phonenumber + " or " + req.Email + " already exists",
 				Code:        http.StatusConflict,
 			},
-			Message:   "User with this phone number already exists",
+			Message:   message,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
