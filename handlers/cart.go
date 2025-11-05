@@ -304,6 +304,13 @@ func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
 	}
 	return res, nil
 }
+func getOrderItemsByOrderID(orderID string) (*dtos.Order, error) {
+	items, err := models.GetOrderByID(orderID)
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartItem) (float64, error) {
 	switch promo.Type {
 	case "Percentage":
@@ -496,7 +503,7 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 // @Security BearerAuth
 // @Router /api/cart/apply-coupon [post]
 // to do: refine this
-func ApplyCouponHandler(w http.ResponseWriter, r *http.Request) {
+func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
@@ -514,7 +521,7 @@ func ApplyCouponHandler(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
-				Description: failedToGetCartItems + req.CartID,
+				Description: "Failed to apply discount to order ID " + req.OrderID,
 				Code:        http.StatusInternalServerError,
 			},
 			Message:   err.Error(),
@@ -528,104 +535,104 @@ func ApplyCouponHandler(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
-			Description: "Coupon applied successfully to Cart ID " + req.CartID,
+			Description: "Discount applied successfully to Order ID " + req.OrderID,
 			Code:        http.StatusOK,
 		},
 		Payload:   items,
-		Message:   "Coupon applied successfully",
+		Message:   "Discount applied successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
 }
 
-func validateCodeVoucher(req dtos.CouponRequest) (dtos.ViewCartResponse, error) {
-	cartData, err := getCartItemsByCartID(req.CartID)
+func validateCodeVoucher(req dtos.CouponRequest) (*dtos.Order, error) {
+	orderData, err := getOrderItemsByOrderID(req.OrderID)
 	if err != nil {
-		return dtos.ViewCartResponse{}, err
+		return nil, err
 	}
 
-	switch req.Type {
+	switch req.DiscountType {
 	case "coupon":
-		return applyCoupon(cartData, req.Code)
+		return applyCoupon(orderData, req.Code)
 	case "voucher":
-		return applyVoucher(cartData, req.Code, req.RequestType)
+		return applyVoucher(orderData, req.Code, req.RequestType)
 	case "promo_code":
-		return applyPromoCode(cartData, req.Code, req.RequestType)
+		return applyPromoCode(orderData, req.Code, req.RequestType)
 	default:
-		return dtos.ViewCartResponse{}, errors.New("invalid promo type")
+		return nil, errors.New("invalid promo type")
 	}
 }
-func applyCoupon(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse, error) {
+func applyCoupon(order *dtos.Order, code string) (*dtos.Order, error) {
 	discount, err := models.ValidateCoupon(code)
 	if err != nil {
-		return dtos.ViewCartResponse{}, err
+		return nil, err
 	}
 
-	if discount > cart.Final {
-		discount = cart.Final
+	if discount > order.TotalAmount {
+		discount = order.TotalAmount
 	}
-	cart.Discount += discount
-	cart.Final -= discount
-	return cart, nil
+	order.TotalDiscount += discount
+	order.TotalAmount -= discount
+	return order, nil
 }
 
-func applyVoucher(cart dtos.ViewCartResponse, code string, requestType string) (dtos.ViewCartResponse, error) {
+func applyVoucher(order *dtos.Order, code string, requestType string) (*dtos.Order, error) {
 	voucherBalance, err := models.ValidateVoucher(code)
 	if err != nil {
-		return dtos.ViewCartResponse{}, err
+		return nil, err
 	}
 
 	var discount float64
-	if voucherBalance >= cart.Final {
-		discount = cart.Final
-		cart.Final = 0
+	if voucherBalance >= order.TotalAmount {
+		discount = order.TotalAmount
+		order.TotalAmount = 0
 	} else {
 		discount = voucherBalance
-		cart.Final -= voucherBalance
+		order.TotalAmount -= voucherBalance
 	}
-	cart.Discount += discount
+	order.TotalDiscount += discount
 	if requestType == "apply" {
 		if err := models.UpdateVoucherBalance(code, voucherBalance-discount); err != nil {
-			return dtos.ViewCartResponse{}, err
+			return nil, err
 		}
 		//add cart history
-		if err := models.AddVoucherHistory(code, discount, cart.CartItems); err != nil {
-			return dtos.ViewCartResponse{}, err
+		if err := models.AddVoucherHistory(code, discount, order.Items); err != nil {
+			return nil, err
 		}
 	}
-	return cart, nil
+	return order, nil
 }
 
-func applyPromoCode(cart dtos.ViewCartResponse, code string, requestType string) (dtos.ViewCartResponse, error) {
-	promoData, err := models.ValidatePromoCode(code, cart.Final)
+func applyPromoCode(order *dtos.Order, code string, requestType string) (*dtos.Order, error) {
+	promoData, err := models.ValidatePromoCode(code, order.TotalAmount)
 	if err != nil {
-		return dtos.ViewCartResponse{}, err
+		return nil, err
 	}
 
 	var discount float64
 	switch promoData.DiscountType {
 	case "FIXED":
 		discount = promoData.DiscountValue
-		if discount > cart.Final {
-			discount = cart.Final
+		if discount > order.TotalAmount {
+			discount = order.TotalAmount
 		}
 	case "PERCENTAGE":
-		discount = (cart.Final * promoData.DiscountValue) / 100
-		if discount > cart.Final {
-			discount = cart.Final
+		discount = (order.TotalAmount * promoData.DiscountValue) / 100
+		if discount > order.TotalAmount {
+			discount = order.TotalAmount
 		}
 	default:
-		return dtos.ViewCartResponse{}, fmt.Errorf("unsupported discount type")
+		return nil, fmt.Errorf("unsupported discount type")
 	}
 
-	cart.Discount += discount
-	cart.Final -= discount
+	order.TotalDiscount += discount
+	order.TotalAmount -= discount
 	//update promo code usage count
 	if requestType == "apply" {
 		if err := models.IncrementPromoCodeUsage(code); err != nil {
-			return dtos.ViewCartResponse{}, err
+			return nil, err
 		}
 	}
-	return cart, nil
+	return order, nil
 }

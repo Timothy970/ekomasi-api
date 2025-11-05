@@ -359,7 +359,7 @@ func GetRefundByID(id int) (*dtos.Refund, error) {
 	}
 	return &refund, nil
 }
-func AddVoucherHistory(code string, amount float64, itemsLog []dtos.CartItem) error {
+func AddVoucherHistory(code string, amount float64, itemsLog []dtos.OrderProduct) error {
 	historyID, _ := shortid.Generate()
 	jsonData, err := json.Marshal(itemsLog)
 	if err != nil {
