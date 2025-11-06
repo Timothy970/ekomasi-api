@@ -2,6 +2,9 @@ name: Build & Deploy Development
 
 on:
   push:
+    paths-ignore:
+      - env/staging.yaml
+      - env/production.yaml
     branches:
       - main
       - master
