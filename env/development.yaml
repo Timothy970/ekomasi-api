@@ -51,3 +51,4 @@ migration_image_suffix: cli
 
 gcs_buckets:
   - images
+  
