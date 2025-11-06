@@ -924,110 +924,130 @@ func ReleaseOrderHandler(w http.ResponseWriter, r *http.Request) {
 func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	//decode request body
+	module := "Orders"
+
+	// Decode request body
 	req, ok := DecodeRequestBody[dtos.CreateOrderPayload](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
+
+	// Validate request payload
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, module) {
 		return
 	}
-	//get the order items using product ids from the payload
+
+	// Fetch order items using product IDs
 	orderItems, err := getOrderItems(req.OrderItems)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Orders",
-				Description: "Failed to get order items",
+				Module:      module,
+				Description: "Failed to retrieve order items",
 				Code:        http.StatusInternalServerError,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   requestSummary})
+			RawBody:   requestSummary,
+		})
 		return
 	}
+
+	// Determine user ID (guest or authenticated)
 	var userID *string
-	//if the order belong to user in the system , then get their id from the context
 	if req.IsGuestOrder == nil || !*req.IsGuestOrder {
-		ok, authuser := middleware.GetTokenAndAuthenticatedUser(w, r)
+		ok, authUser := middleware.GetTokenAndAuthenticatedUser(w, r)
 		if !ok {
 			return
 		}
-		userID = &authuser.ID
+		userID = &authUser.ID
 	}
-	// create new payload to create the order
-	var order dtos.OrderRequest
-	order.OrderItems = orderItems
-	order.IsGuestOrder = req.IsGuestOrder
-	order.GuestPersonalDetails = req.GuestPersonalDetails
-	order.GuestDeliveryAddress = req.GuestDeliveryAddress
-	order.UserID = userID
-	// find delivery charge using location id passed in the payload
 
+	// Build order payload
+	order := dtos.OrderRequest{
+		OrderItems:           orderItems,
+		IsGuestOrder:         req.IsGuestOrder,
+		GuestPersonalDetails: req.GuestPersonalDetails,
+		GuestDeliveryAddress: req.GuestDeliveryAddress,
+		UserID:               userID,
+	}
+
+	// Fetch delivery charge
 	order.DeliveryCharge, err = getOrderDeliveryCharge(int(req.DeliveryAddressID))
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Orders",
-				Description: "Failed to get delivery location with ID " + utils.ToString(req.DeliveryAddressID) + " with error " + err.Error(),
+				Module:      module,
+				Description: fmt.Sprintf("Failed to get delivery charge for ID %d: %v", req.DeliveryAddressID, err),
 				Code:        http.StatusUnauthorized,
 			},
 			Message:   "Failed to get delivery charge",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   requestSummary})
+			RawBody:   requestSummary,
+		})
 		return
 	}
 
-	//process the order items, check for discounts , total amount , free shipping and stock availability
-	totalAmount, totalDiscount, applyFreeShipping, err := processOrderItems(order.OrderItems)
+	// Process order items: discounts, totals, and stock checks
+	totalAmount, totalDiscount, freeShipping, err := processOrderItems(order.OrderItems)
 	if err != nil {
-		log.Printf("Error processing order items: %v", err)
+		log.Printf("[%s] Error processing order items: %v", module, err)
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
-
-	if applyFreeShipping {
-		fmt.Println("Free shipping applied")
+	if freeShipping {
 		order.DeliveryCharge = 0
 	}
-	//create order and delivery records in the database
+	totalAmount += order.DeliveryCharge
+
+	// Apply promo code if present
+	if req.PromoCode != nil && *req.PromoCode != "" {
+		totalAmount, totalDiscount, err = applyPromoCodeToOrder(totalAmount, totalDiscount, *req.PromoCode)
+		if err != nil {
+			log.Printf("[%s] Error applying promo code: %v", module, err)
+			respondInternalServerError(w, r, requestSummary, start, err.Error())
+			return
+		}
+	}
+
+	// Create order and delivery records
 	orderID, deliveryID, err := models.CreateOrder(order, utils.ToString(totalAmount), utils.ToString(totalDiscount))
 	if err != nil {
-		log.Printf("Error creating order:::%v", err)
+		log.Printf("[%s] Error creating order: %v", module, err)
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
 
 	if err := createOrderItems(orderID, order.OrderItems); err != nil {
-		log.Printf("Error when creating order items:::%v", err)
+		log.Printf("[%s] Error creating order items: %v", module, err)
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
 
-	err = models.CreateDeliveries(orderID, deliveryID, order)
-	if err != nil {
-		log.Printf("Error when creating delivery:::%v", err)
+	if err := models.CreateDeliveries(orderID, deliveryID, order); err != nil {
+		log.Printf("[%s] Error creating delivery: %v", module, err)
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
 
-	finalAmount := totalAmount + order.DeliveryCharge - totalDiscount
-
-	//deduct stock quantities
-	err = deductStock(order.OrderItems)
-	if err != nil {
-		log.Printf("Error when deducting stock:::%v", err)
+	// Deduct stock quantities
+	if err := deductStock(order.OrderItems); err != nil {
+		log.Printf("[%s] Error deducting stock: %v", module, err)
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
+
+	finalAmount := totalAmount - totalDiscount
+
+	// Success response
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Orders",
-			Description: orderWithID + orderID + " created successfully",
+			Module:      module,
+			Description: fmt.Sprintf("Order with ID %s created successfully", orderID),
 			Code:        http.StatusCreated,
 		},
 		Payload: map[string]interface{}{
@@ -1042,6 +1062,7 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary,
 	})
 }
+
 func getOrderDeliveryCharge(locationID int) (float64, error) {
 	//assume for at store pickup location id is 111111
 	if locationID == 111111 {

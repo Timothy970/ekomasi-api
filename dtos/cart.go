@@ -54,8 +54,8 @@ type RemoveFromCartResponse struct {
 type CouponRequest struct {
 	DiscountType string `json:"discount_type" validate:"required"`
 	Code         string `json:"code" validate:"required"`
-	OrderID      string `json:"order_id" validate:"required"`
-	RequestType  string `json:"request_type" validate:"required,oneof=validate apply"`
+	CartID       string `json:"cart_id" validate:"required"`
+	LocationID   *int   `json:"location_id,omitempty"`
 }
 type PromotionData struct {
 	Type  string
