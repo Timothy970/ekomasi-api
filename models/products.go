@@ -421,6 +421,30 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 	p.ProductVariants = variants
 	return &p, nil
 }
+func IsSkuThere(sku string) error {
+	skuExists, err := RecordExists("products", "sku = ?", sku)
+	if err != nil {
+		return err
+	}
+	if skuExists {
+		return fmt.Errorf("duplicate SKU found: %s", sku)
+	}
+	return nil
+}
+func IsCategoryParent(categoryID string) error {
+	var parentID *string
+	err := DB.QueryRow("SELECT parent_category_id FROM categories WHERE category_id = ?", categoryID).Scan(&parentID)
+	if err != nil {
+		return err
+	}
+
+	// 3. Prevent adding product to parent category
+	if parentID == nil {
+		return fmt.Errorf("cannot add product to a parent category with ID %s, choose a subcategory instead", categoryID)
+	}
+	return nil
+
+}
 func AddNewProduct(input dtos.CreateProduct, userID string) (*dtos.CreateProduct, error) {
 	skuExists, err := RecordExists("products", "sku = ?", input.SKU)
 	if err != nil {
@@ -434,15 +458,9 @@ func AddNewProduct(input dtos.CreateProduct, userID string) (*dtos.CreateProduct
 		return nil, err
 	}
 
-	var parentID *string
-	err = DB.QueryRow("SELECT parent_category_id FROM categories WHERE category_id = ?", input.CategoryID).Scan(&parentID)
+	err = IsCategoryParent(input.CategoryID)
 	if err != nil {
 		return nil, err
-	}
-
-	// 3. Prevent adding product to parent category
-	if parentID == nil {
-		return nil, fmt.Errorf("cannot add product to a parent category, choose a subcategory instead")
 	}
 	productID, _ := shortid.Generate()
 	sellWhenOOs := false
@@ -454,9 +472,9 @@ func AddNewProduct(input dtos.CreateProduct, userID string) (*dtos.CreateProduct
 		showStock = *input.ShowStock
 	}
 	_, err = DB.Exec(`
-		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, created_by_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, sellWhenOOs, showStock, userID,
+		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, created_by_id, buying_price)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, sellWhenOOs, showStock, userID, input.BuyingPrice,
 	)
 	if err != nil {
 		return nil, err

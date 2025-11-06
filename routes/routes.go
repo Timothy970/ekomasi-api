@@ -470,4 +470,7 @@ func SetupRoutes(router *mux.Router) {
 	pos.Handle("/hold/order/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.HoldOrderHandler))).Methods("POST")
 	pos.Handle("/hold/order/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.ReleaseOrderHandler))).Methods("GET")
 
+	api.Handle("/products/bulk-upload", middleware.AuthenticateToken(http.HandlerFunc(handlers.BulkUploadProductsHandler))).Methods("POST")
+	api.HandleFunc("/products/sample-csv", handlers.DownloadSampleCSVHandler).Methods("GET")
+
 }

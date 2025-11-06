@@ -170,6 +170,7 @@ func uploadMedia(mediaData []byte, mediaID, mimeType string) (string, error) {
 	if bucketName == "" {
 		bucketName = "development-ecommerce-api-images"
 	}
+	log.Printf("Using bucket name:::: %s", bucketName)
 	// File extension from MIME type
 	ext := "bin"
 	if parts := strings.Split(mimeType, "/"); len(parts) > 1 {

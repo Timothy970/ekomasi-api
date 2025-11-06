@@ -3,18 +3,19 @@ package dtos
 import "time"
 
 type CreateProduct struct {
-	ID            string  `json:"product_id,omitempty"`
-	Name          string  `json:"name" validate:"required"`
-	Description   string  `json:"description" validate:"required"`
-	SKU           string  `json:"sku" validate:"required"`
-	Price         float64 `json:"price" validate:"required,gt=0"`
-	CategoryID    string  `json:"category_id" validate:"required"`
-	StockQuantity int     `json:"stock_quantity" validate:"required,gte=0"`
-	SearchVector  string  `json:"search_vector" validate:"required"`
-	Tag           *string `json:"tag,omitempty"`
-	LowStockAlert int     `json:"low_stock_quantity_warning" validate:"gte=0"`
-	SellWhenOOS   *bool   `json:"sell_when_out_of_stock"`
-	ShowStock     *bool   `json:"show_stock_quantity"`
+	ID            string   `json:"product_id,omitempty"`
+	Name          string   `json:"name" validate:"required"`
+	Description   string   `json:"description" validate:"required"`
+	SKU           string   `json:"sku" validate:"required"`
+	Price         float64  `json:"price" validate:"required,gt=0"`
+	CategoryID    string   `json:"category_id" validate:"required"`
+	StockQuantity int      `json:"stock_quantity" validate:"required,gte=0"`
+	SearchVector  string   `json:"search_vector" validate:"required"`
+	Tag           *string  `json:"tag,omitempty"`
+	LowStockAlert int      `json:"low_stock_quantity_warning" validate:"gte=0"`
+	SellWhenOOS   *bool    `json:"sell_when_out_of_stock"`
+	ShowStock     *bool    `json:"show_stock_quantity"`
+	BuyingPrice   *float64 `json:"buying_price"`
 }
 
 // AddToCartWithVariantsRequest represents the request to add item with specific variants to cart
@@ -226,4 +227,22 @@ type ProductSpecs struct {
 	WeightLimit  int    `json:"weight_limit"`
 	Dimensions   string `json:"dimensions"`
 	Manufacturer string `json:"manufacturer"`
+}
+
+type BulkUploadProduct struct {
+	ProductID               string  `json:"product_id"`
+	Name                    string  `json:"name"`
+	Description             string  `json:"description"`
+	SKU                     string  `json:"sku"`
+	Price                   float64 `json:"price"`
+	CategoryID              string  `json:"category_id"`
+	StockQuantity           int     `json:"stock_quantity"`
+	SearchVector            string  `json:"search_vector"`
+	Tag                     string  `json:"tag"`
+	LowStockQuantityWarning int     `json:"low_stock_quantity_warning"`
+	SellWhenOutOfStock      bool    `json:"sell_when_out_of_stock"`
+	ShowStockQuantity       bool    `json:"show_stock_quantity"`
+	CreatedByID             string  `json:"created_by_id"`
+	BuyingPrice             float64 `json:"buying_price"`
+	Image                   string  `json:"image"`
 }
