@@ -540,3 +540,22 @@ func GetPendingOrderNotifications() ([]string, error) {
 
 	return orderIDs, nil
 }
+
+func GetDiscountCodeType(code string) string {
+	var discountType string
+	//select if the code is in coupons,promocodes or vouchers
+	query := `
+		SELECT CASE
+			WHEN EXISTS (SELECT 1 FROM coupons WHERE code = ?) THEN 'coupon'
+			WHEN EXISTS (SELECT 1 FROM promo_codes WHERE code = ?) THEN 'promo_code'
+			WHEN EXISTS (SELECT 1 FROM vouchers WHERE code = ?) THEN 'voucher'
+			ELSE 'promo_code'
+		END
+	`
+	err := DB.QueryRow(query, code, code, code).Scan(&discountType)
+	//default to promo_code
+	if err != nil {
+		return "promo_code"
+	}
+	return discountType
+}

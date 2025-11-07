@@ -569,6 +569,7 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	req.DiscountType = models.GetDiscountCodeType(req.Code)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Cart") {
 		return
 	}
@@ -716,33 +717,60 @@ func applyPromoCode(cart dtos.ViewCartResponse, code string) (dtos.ViewCartRespo
 	// }
 	return cart, nil
 }
-func applyPromoCodeToOrder(totalAmount, totalDiscount float64, code string) (float64, float64, error) {
-	promoData, err := models.ValidatePromoCode(code, totalAmount)
-	if err != nil {
-		return 0, 0, err
-	}
+func applyPromoCodeToOrder(totalAmount, totalDiscount float64, code string, promoCodeType string) (float64, float64, error) {
+	switch promoCodeType {
+	case "promo_code":
+		promoData, err := models.ValidatePromoCode(code, totalAmount)
+		if err != nil {
+			return 0, 0, err
+		}
 
-	var discount float64
-	switch promoData.DiscountType {
-	case "FIXED":
-		discount = promoData.DiscountValue
+		var discount float64
+		switch promoData.DiscountType {
+		case "FIXED":
+			discount = promoData.DiscountValue
+			if discount > totalAmount {
+				discount = totalAmount
+			}
+		case "PERCENTAGE":
+			discount = (totalAmount * promoData.DiscountValue) / 100
+			if discount > totalAmount {
+				discount = totalAmount
+			}
+		default:
+			return 0, 0, fmt.Errorf("unsupported discount type")
+		}
+
+		totalDiscount += discount
+		//update promo code usage count
+		if err := models.IncrementPromoCodeUsage(code); err != nil {
+			return 0, 0, err
+		}
+
+		return totalAmount, totalDiscount, nil
+	case "coupon":
+		discount, err := models.ValidateCoupon(code)
+		if err != nil {
+			return 0, 0, err
+		}
 		if discount > totalAmount {
 			discount = totalAmount
 		}
-	case "PERCENTAGE":
-		discount = (totalAmount * promoData.DiscountValue) / 100
-		if discount > totalAmount {
-			discount = totalAmount
+		totalDiscount += discount
+		totalAmount -= discount
+		return totalAmount, totalDiscount, nil
+	case "voucher":
+		voucherBalance, err := models.ValidateVoucher(code)
+		if err != nil {
+			return 0, 0, err
 		}
+		if voucherBalance > totalAmount {
+			voucherBalance = totalAmount
+		}
+		totalDiscount += voucherBalance
+		totalAmount -= voucherBalance
+		return totalAmount, totalDiscount, nil
 	default:
-		return 0, 0, fmt.Errorf("unsupported discount type")
+		return totalAmount, totalDiscount, fmt.Errorf("invalid discount type for order")
 	}
-
-	totalDiscount += discount
-	//update promo code usage count
-	if err := models.IncrementPromoCodeUsage(code); err != nil {
-		return 0, 0, err
-	}
-
-	return totalAmount, totalDiscount, nil
 }
