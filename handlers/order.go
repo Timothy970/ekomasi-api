@@ -936,7 +936,6 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, module) {
 		return
 	}
-
 	// Fetch order items using product IDs
 	orderItems, err := getOrderItems(req.OrderItems)
 	if err != nil {
@@ -1006,7 +1005,9 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Apply promo code if present
 	if req.PromoCode != nil && *req.PromoCode != "" {
-		totalAmount, totalDiscount, err = applyPromoCodeToOrder(totalAmount, totalDiscount, *req.PromoCode)
+		promoCodeType := models.GetDiscountCodeType(*req.PromoCode)
+
+		totalAmount, totalDiscount, err = applyPromoCodeToOrder(totalAmount, totalDiscount, *req.PromoCode, promoCodeType)
 		if err != nil {
 			log.Printf("[%s] Error applying promo code: %v", module, err)
 			respondInternalServerError(w, r, requestSummary, start, err.Error())
