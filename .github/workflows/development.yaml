@@ -5,6 +5,7 @@ on:
     paths-ignore:
       - env/staging.yaml
       - env/production.yaml
+      - .github/**
     branches:
       - main
       - master
