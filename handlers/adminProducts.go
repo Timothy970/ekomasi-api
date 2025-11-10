@@ -52,6 +52,8 @@ func AdminSearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 		SortBy:       query.Get("sort_by"),
 		SKU:          query.Get("sku"),
 		Tag:          query.Get("tag"),
+		MaxPrice:     getFloatQueryParam(query, "maxPrice"),
+		MinPrice:     getFloatQueryParam(query, "minPrice"),
 	}
 	log.Printf("search params: %+v", searchParams)
 	// Parse pagination

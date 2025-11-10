@@ -1167,6 +1167,10 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 				"product_name":  searchParams.ProductName,
 				"variants":      searchParams.Variants, // Now shows all variants
 				"sort_by":       searchParams.SortBy,
+				"maxPrice":      searchParams.MaxPrice,
+				"minPrice":      searchParams.MinPrice,
+				"sku":           searchParams.SKU,
+				"tag":           searchParams.Tag,
 			},
 		},
 		Message:   "Products fetched successfully",
