@@ -581,7 +581,7 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: "Failed to apply discount to cart ID " + req.CartID,
-				Code:        http.StatusInternalServerError,
+				Code:        http.StatusBadRequest,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
@@ -599,7 +599,7 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 					CollectiveInfo: utils.CollectiveInfo{
 						Module:      "Cart",
 						Description: "Failed to fetch location with ID " + strconv.Itoa(locationIDInt),
-						Code:        http.StatusInternalServerError,
+						Code:        http.StatusBadRequest,
 					},
 					Message:   err.Error(),
 					TimeTaken: time.Since(start),

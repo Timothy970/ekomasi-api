@@ -395,15 +395,22 @@ func removeRolePermission(roleID, permissionID string) error {
 
 func GetAvailablePermissions(category string) ([]dtos.AvailablePermission, error) {
 	var permissions []dtos.AvailablePermission
-	query := `
+
+	baseQuery := `
 		SELECT category, permission_key, description
 		FROM permissions_master
-		WHERE is_available = 1
 	`
+
+	var rows *sql.Rows
+	var err error
+
 	if category != "" {
-		query += " AND LOWER(category) = LOWER(?)"
+		baseQuery += " WHERE LOWER(category) = LOWER(?)"
+		rows, err = DB.Query(baseQuery, category)
+	} else {
+		rows, err = DB.Query(baseQuery)
 	}
-	rows, err := DB.Query(query, category)
+
 	if err != nil {
 		return nil, err
 	}
@@ -427,8 +434,8 @@ func GetAvailablePermissions(category string) ([]dtos.AvailablePermission, error
 func AddAvailablePermission(category, key, description string) error {
 	permissionMasterID, _ := shortid.Generate()
 	query := `
-		INSERT INTO permissions_master (permission_master_id, category, permission_key, description, is_available)
-		VALUES (?, ?, ?, ?, 1)
+		INSERT INTO permissions_master (permission_master_id, category, permission_key, description)
+		VALUES (?, ?, ?, ?)
 	`
 	_, err := DB.Exec(query, permissionMasterID, category, key, description)
 	return err
@@ -447,7 +454,7 @@ func RemoveAvailablePermission(category, key string) error {
 	return err
 }
 func IsAvailablePermissionThere(category, key string) error {
-	exists, err := RecordExists("permissions_master", "LOWER(category) = LOWER(?) AND LOWER(permission_key) = LOWER(?) AND is_available = 1", category, key)
+	exists, err := RecordExists("permissions_master", "LOWER(category) = LOWER(?) AND LOWER(permission_key) = LOWER(?)", category, key)
 	if err != nil {
 		return err
 	}

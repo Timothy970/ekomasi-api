@@ -555,13 +555,7 @@ func RemovePermissionsFromRoleHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-type AvailablePermission struct {
-	Category    string `json:"category"`
-	Key         string `json:"key"`
-	Description string `json:"description"`
-}
-
-var supportedPermissions = []AvailablePermission{
+var supportedPermissions = []dtos.AvailablePermission{
 	// INVENTORY
 	{Category: "Inventory", Key: "inventory.create", Description: "Add new inventory item"},
 	{Category: "Inventory", Key: "inventory.view", Description: "View inventory list and details"},
@@ -646,6 +640,9 @@ func GetAvailablePermissions(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// availablePermissions = supportedPermissions
 		availablePermissions, err = models.GetAvailablePermissions(category)
+		if availablePermissions == nil {
+			availablePermissions = supportedPermissions
+		}
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
