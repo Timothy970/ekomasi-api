@@ -1465,7 +1465,7 @@ func buildProductFilters(params dtos.SearchParams) (string, []interface{}) {
 		args = append(args, strings.ToLower(params.Tag))
 	}
 
-	if params.MinPrice > 0 && params.MaxPrice > 0 {
+	if params.MinPrice >= 0 && params.MaxPrice > 0 {
 		conditions = append(conditions, "p.price BETWEEN ? AND ?")
 		args = append(args, params.MinPrice, params.MaxPrice)
 	}
@@ -1578,7 +1578,7 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 		query += " AND LOWER(p.tag) = ?"
 		args = append(args, strings.ToLower(params.Tag))
 	}
-	if params.MinPrice > 0 && params.MaxPrice > 0 {
+	if params.MinPrice >= 0 && params.MaxPrice > 0 {
 		query += " AND p.price BETWEEN ? AND ?"
 		args = append(args, params.MinPrice, params.MaxPrice)
 	}
@@ -1653,7 +1653,7 @@ func buildCountQuerySearch(params dtos.SearchParams) (string, []interface{}) {
 		query += " AND LOWER(p.tag) = ?"
 		args = append(args, strings.ToLower(params.Tag))
 	}
-	if params.MinPrice > 0 && params.MaxPrice > 0 {
+	if params.MinPrice >= 0 && params.MaxPrice > 0 {
 		query += " AND p.price BETWEEN ? AND ?"
 		args = append(args, params.MinPrice, params.MaxPrice)
 	}
