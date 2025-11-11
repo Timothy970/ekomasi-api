@@ -123,6 +123,8 @@ func AdminSearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 				"product_name":  searchParams.ProductName,
 				"variants":      searchParams.Variants, // Now shows all variants
 				"sort_by":       searchParams.SortBy,
+				"maxPrice":      searchParams.MaxPrice,
+				"minPrice":      searchParams.MinPrice,
 			},
 		},
 		Message:   "Products fetched successfully",
