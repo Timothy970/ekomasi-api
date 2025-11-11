@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -273,9 +274,22 @@ func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
 	}
+	estimatedTax, _ := models.GetEstimatedTax()
+	if estimatedTax <= 0 {
+		estimatedTax = 16.0
+	}
 	discount := 0.0
+	subtotal := 0.0
 	total := 0.0
 	for _, item := range items {
+		//product price including VAT
+		priceIncVAT := float64(item.Quantity) * item.Product.Price
+		//product price excluding VAT
+		priceExclVAT := priceIncVAT / (1 + estimatedTax/100)
+		//Calculate subtotal (sum of prices before VAT)
+		subtotal += priceExclVAT
+		//total should be price including VAT
+		total += priceIncVAT
 		//check if any product has a discount
 		productDiscount, err := models.GetProductPromotionData(item.Product.ID)
 		if err != nil {
@@ -290,15 +304,18 @@ func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
 				discount += discountAmount
 			}
 		}
-		total += float64(item.Quantity) * item.Product.Price
 	}
 	//get estimated tax
-	estimatedTax, err := models.GetEstimatedTax()
-	estimatedTaxValue := (estimatedTax * total) / 100
+	estimatedTaxValue := total - subtotal
+	// Round up values to the next whole number
+	subtotal = math.Ceil(subtotal)
+	total = math.Ceil(total)
+	discount = math.Ceil(discount)
+	estimatedTaxValue = math.Ceil(estimatedTaxValue)
 	res := dtos.ViewCartResponse{
 		CartItems:    items,
-		Total:        total - discount - estimatedTaxValue,
-		Final:        total,
+		Total:        subtotal,         //this is the subtotal
+		Final:        total - discount, //this is the total, should be less the discount
 		Discount:     discount,
 		EstimatedTax: estimatedTaxValue,
 	}
