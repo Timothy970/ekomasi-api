@@ -1277,24 +1277,30 @@ func GetCategoriesWithSubcategoriesAndProducts(
 func getMainCategories(filterCategoryID string, params dtos.SearchParams) ([]dtos.CategoryResponse, error) {
 	var (
 		query = `
-			SELECT category_id, name, parent_category_id, image, description
-			FROM categories
-			WHERE parent_category_id IS NULL`
+            SELECT c.category_id, c.name, c.parent_category_id, c.image, c.description
+            FROM categories c
+            WHERE c.parent_category_id IS NULL
+            AND EXISTS (
+                SELECT 1 FROM categories sub
+                LEFT JOIN products p ON sub.category_id = p.category_id
+                WHERE sub.parent_category_id = c.category_id
+                AND p.product_id IS NOT NULL
+            )`
 		args []interface{}
 	)
 
 	if filterCategoryID != "" {
-		query += " AND category_id = ?"
+		query += " AND c.category_id = ?"
 		args = append(args, filterCategoryID)
 	}
 
 	if params.Q != "" {
-		query += " AND LOWER(name) LIKE ?"
+		query += lowerPname
 		args = append(args, "%"+strings.ToLower(params.Q)+"%")
 	}
 
 	if params.CategoryName != "" {
-		query += " AND LOWER(name) LIKE ?"
+		query += lowerCname
 		args = append(args, "%"+strings.ToLower(params.CategoryName)+"%")
 	}
 
@@ -1322,9 +1328,12 @@ func getMainCategories(filterCategoryID string, params dtos.SearchParams) ([]dto
 
 func getSubcategoriesWithParentID(parentID string) ([]dtos.SubcategoryResponse, []string, error) {
 	rows, err := DB.Query(`
-		SELECT category_id, name, parent_category_id, image, description
-		FROM categories
-		WHERE parent_category_id = ?`, parentID)
+        SELECT c.category_id, c.name, c.parent_category_id, c.image, c.description
+        FROM categories c
+        LEFT JOIN products p ON c.category_id = p.category_id
+        WHERE c.parent_category_id = ?
+        AND p.product_id IS NOT NULL
+        GROUP BY c.category_id, c.name, c.parent_category_id, c.image, c.description`, parentID)
 	if err != nil {
 		return nil, nil, err
 	}
