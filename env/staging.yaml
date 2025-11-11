@@ -12,9 +12,9 @@ env:
   - name: APP_ENV
     value: development
   - name: BASE_URL
-    value: https://api.ecom.development.roamtech.whitemire-technologies.com/api/
+    value: https://api.ecom.staging.roamtech.whitemire-technologies.com/api/
   - name: ENVIRONMENT
-    value: development
+    value: staging
   - name: PORT
     value: 8080
   - name: V2_URL
@@ -51,4 +51,3 @@ migration_image_suffix: cli
 
 gcs_buckets:
   - images
-  
