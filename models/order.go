@@ -117,7 +117,7 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 		}
 		return nil, err
 	}
-	ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
+	ord.TotalAmount = totalAmount
 	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
 	// Parse guest JSON fields
 	if guestAddrStr != "" {
@@ -204,7 +204,7 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
 		); err != nil {
 			return nil, err
 		}
-		ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
+		ord.TotalAmount = totalAmount
 		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
 		// // Attach user_id if present
 		// if userID.Valid {
@@ -288,7 +288,7 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 		); err != nil {
 			return nil, nil, err
 		}
-		ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
+		ord.TotalAmount = totalAmount
 		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
 		// Parse guest JSON fields
 		if guestAddrStr != "" {
@@ -375,7 +375,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 		}
 		return nil, err
 	}
-	ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
+	ord.TotalAmount = totalAmount
 	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
 	// Parse guest JSON fields
 	if guestAddrStr != "" {
@@ -481,7 +481,7 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 		&ord.IsGuestOrder,
 	)
 
-	ord.TotalAmount = totalAmount + ptrToFloat(ord.DeliveryCharge)
+	ord.TotalAmount = totalAmount
 	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -769,7 +769,7 @@ func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
 		); err != nil {
 			return nil, err
 		}
-		ord.TotalAmount = ord.TotalAmount + ptrToFloat(ord.DeliveryCharge)
+
 		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
 		// Parse guest JSON fields
 		if guestAddrStr != "" {
