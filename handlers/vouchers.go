@@ -852,7 +852,7 @@ func DeleteVoucherDesign(w http.ResponseWriter, r *http.Request) {
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Vouchers"); !ok {
 		return
 	}
-	designID := mux.Vars(r)["design_id"]
+	designID := mux.Vars(r)["voucher_id"]
 	// Insert category into DB
 	err := models.DeleteVoucherDesign(designID)
 	if err != nil {
