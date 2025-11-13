@@ -87,11 +87,25 @@ type SingleVoucherData struct {
 	VoucherHistory []map[string]any `json:"voucher_history"`
 }
 type VoucherDataUpdate struct {
+	DesignID      string  `json:"design_id" validate:"required"`
 	Amount        float64 `json:"amount" validate:"required"`
 	Status        *string `json:"status"`
 	ExpiryDate    string  `json:"expiry_date" validate:"required"`
 	ToName        string  `json:"to_name" validate:"required"`
 	ToEmail       string  `json:"to_email" validate:"required"`
+	FromName      string  `json:"from_name" validate:"required"`
+	DeliveryTime  string  `json:"delivery_time" validate:"required"`
+	Message       string  `json:"message" validate:"required"`
+	InternalNotes string  `json:"internal_notes"`
+}
+type VoucherDataCreate struct {
+	DesignID      string  `json:"design_id" validate:"required"`
+	Amount        float64 `json:"amount" validate:"required"`
+	Status        *string `json:"status"`
+	IsToExpire    bool    `json:"is_to_expire"`
+	ExpiryDate    string  `json:"expiry_date" validate:"required"`
+	ToName        string  `json:"to_name" validate:"required"`
+	ToEmail       string  `json:"to_email" validate:"required,email"`
 	FromName      string  `json:"from_name" validate:"required"`
 	DeliveryTime  string  `json:"delivery_time" validate:"required"`
 	Message       string  `json:"message" validate:"required"`
@@ -159,4 +173,18 @@ type VoucherEmailInfo struct {
 	Message         string  `json:"message"`
 	ExpiryDate      string  `json:"expiry_date"`
 	Code            string  `json:"code"`
+}
+
+type VoucherPurchaseData struct {
+	VoucherID string     `json:"voucher_id"`
+	Code      string     `json:"code"`
+	Amount    float64    `json:"amount"`
+	Balance   float64    `json:"balance"`
+	FromName  *string    `json:"from_name"`
+	ToName    *string    `json:"to_name"`
+	ToEmail   *string    `json:"to_email"`
+	FromEmail *string    `json:"from_email"`
+	Message   *string    `json:"message"`
+	DesignURL *string    `json:"design_url"`
+	CreatedAt *time.Time `json:"created_at"`
 }

@@ -11,7 +11,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -78,8 +77,18 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	name := r.FormValue("name")
+	status := r.FormValue("status")
+	req := dtos.VoucherDesign{
+		URL:    url,
+		Name:   &name,
+		Status: &status,
+	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
+		return
+	}
 	// Insert category into DB
-	_, err = models.CreateVoucherDesign(url)
+	_, err = models.CreateVoucherDesign(url, name, status)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -144,43 +153,22 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	err := r.ParseMultipartForm(20 << 20) // 20 MB
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Vouchers",
-				Description: "Failed to parse form: " + err.Error(),
-				Code:        http.StatusBadRequest,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
+	req, ok := DecodeRequestBody[dtos.VoucherDataCreate](r, w, requestSummary, start)
+	if !ok {
 		return
 	}
-
-	req := dtos.Voucher{
-		Amount: func() float64 {
-			cp, _ := strconv.ParseFloat(r.FormValue("amount"), 64)
-			if cp == 0 {
-				return 0.0
-			}
-			return cp
-		}(),
-		ToName:       r.FormValue("to_name"),
-		ToEmail:      r.FormValue("to_email"),
-		FromName:     r.FormValue("from_name"),
-		DeliveryTime: r.FormValue("delivery_time"),
-		Message:      r.FormValue("message"),
-		ExpiryDate:   r.FormValue("expiry_date"),
-		// ParentID:    utils.StringPtr(r.FormValue("parent_id")),
+	if req.IsToExpire {
+		//set expiry date to 90 days from now if is_to_expire is true
+		req.ExpiryDate = time.Now().Add(90 * 24 * time.Hour).Format("2006-01-02")
+	} else {
+		//set expiry date to 30 years from now if is_to_expire is false
+		req.ExpiryDate = time.Now().Add(30 * 365 * 24 * time.Hour).Format("2006-01-02")
 	}
 	//Validate the request
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
 		return
 	}
-	voucherID, err := models.AddNewVoucher(req, authuser.ID)
+	voucherID, err := models.CreateNewVoucher(*req, authuser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -823,7 +811,7 @@ func EditVoucherDesign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Insert category into DB
-	err = models.EditVoucherDesign(designID, url)
+	err = models.EditVoucherDesign(designID, url, r.FormValue("name"), r.FormValue("status"))
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -901,8 +889,8 @@ func DeleteVoucherDesign(w http.ResponseWriter, r *http.Request) {
 func GetAllVoucherDesigns(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	// Insert category into DB
-	designs, err := models.GetAllVoucherDesigns()
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	designs, pagination, err := models.GetAllVoucherDesigns(page, size)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -926,11 +914,56 @@ func GetAllVoucherDesigns(w http.ResponseWriter, r *http.Request) {
 			Description: "Voucher designs fetched successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   designs,
+		Payload:   map[string]any{"designs": designs, "pagination": pagination},
 		Message:   "Voucher designs fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary,
 	})
+}
+
+func ListVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	//check if user is admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Vouchers")
+	if !ok {
+		return
+	}
+	customerName := r.URL.Query().Get("name")
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	vouchers, pagination, err := models.ListVoucherPurchases(page, size, customerName)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Vouchers",
+				Description: "Failed to fetch vouchers",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Vouchers",
+			Description: "Vouchers purchases fetched successfully",
+			Code:        http.StatusOK,
+		},
+		Payload: map[string]interface{}{
+			"vouchers":   vouchers,
+			"pagination": pagination,
+		},
+		Message:   "Vouchers purchases fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+
 }

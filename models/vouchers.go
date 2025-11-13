@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -475,35 +476,35 @@ func MarkVoucherEmailAsSent(voucherID string) error {
 	return err
 }
 
-func CreateVoucherDesign(url string) (string, error) {
+func CreateVoucherDesign(url, name, status string) (string, error) {
 	designID, _ := shortid.Generate()
 	// generate unique code
 	query := `
-		INSERT INTO voucher_designs (design_id, url)
-		VALUES (?, ?)
+		INSERT INTO voucher_designs (design_id, url, name, status)
+		VALUES (?, ?, ?, ?)
 	`
-	_, err := DB.Exec(query, designID, url)
+	_, err := DB.Exec(query, designID, url, name, status)
 	if err != nil {
 		return "", err
 	}
 	return designID, nil
 }
 
-func GetVoucherDesign(designID string) (string, error) {
-	var url string
-	query := `SELECT url FROM voucher_designs WHERE design_id = ? LIMIT 1`
-	err := DB.QueryRow(query, designID).Scan(&url)
+func GetVoucherDesign(designID string) (dtos.VoucherDesign, error) {
+	var design dtos.VoucherDesign
+	query := `SELECT url, name, status, created_at FROM voucher_designs WHERE design_id = ? LIMIT 1`
+	err := DB.QueryRow(query, designID).Scan(&design.URL, &design.Name, &design.Status, &design.Created_At)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", fmt.Errorf("design not found")
+			return dtos.VoucherDesign{}, fmt.Errorf("design not found")
 		}
-		return "", err
+		return dtos.VoucherDesign{}, err
 	}
-	return url, nil
+	return design, nil
 }
-func EditVoucherDesign(designID, newURL string) error {
-	query := `UPDATE voucher_designs SET url = ? WHERE design_id = ?`
-	res, err := DB.Exec(query, newURL, designID)
+func EditVoucherDesign(designID, newURL, newName, newStatus string) error {
+	query := `UPDATE voucher_designs SET url = ?, name = ?, status = ? WHERE design_id = ?`
+	res, err := DB.Exec(query, newURL, newName, newStatus, designID)
 	if err != nil {
 		return err
 	}
@@ -528,28 +529,37 @@ func DeleteVoucherDesign(designID string) error {
 	return nil
 }
 
-type VoucherDesign struct {
-	DesignID string `json:"design_id"`
-	URL      string `json:"url"`
-}
-
-func GetAllVoucherDesigns() ([]VoucherDesign, error) {
-	query := `SELECT design_id, url FROM voucher_designs`
-	rows, err := DB.Query(query)
+func GetAllVoucherDesigns(page, size int) ([]dtos.VoucherDesign, *dtos.PaginationMeta, error) {
+	var total int
+	countQuery := `SELECT COUNT(*) FROM voucher_designs`
+	if err := DB.QueryRow(countQuery).Scan(&total); err != nil {
+		return nil, nil, err
+	}
+	query := `SELECT design_id, url, created_at, name, status FROM voucher_designs LIMIT ?, ? ORDER BY created_at DESC`
+	rows, err := DB.Query(query, (page-1)*size, size)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
-	var designs []VoucherDesign
+	var designs []dtos.VoucherDesign
 	for rows.Next() {
-		var d VoucherDesign
-		if err := rows.Scan(&d.DesignID, &d.URL); err != nil {
-			return nil, err
+		var d dtos.VoucherDesign
+		if err := rows.Scan(&d.DesignID, &d.URL, &d.Created_At, &d.Name, &d.Status); err != nil {
+			return nil, nil, err
 		}
 		designs = append(designs, d)
 	}
-	return designs, nil
+	meta := &dtos.PaginationMeta{
+		Page:       page,
+		Size:       size,
+		TotalItems: total,
+		TotalPages: (total + size - 1) / size,
+		HasPrev:    page > 1,
+		HasNext:    page*size < total,
+	}
+
+	return designs, meta, nil
 }
 
 func GetVoucherHistoryByVoucherID(voucherID string) ([]map[string]any, error) {
@@ -579,12 +589,20 @@ func GetVoucherHistoryByVoucherID(voucherID string) ([]map[string]any, error) {
 		if err := rows.Scan(&historyID, &redeemedDate, &amountRedeemed, &itemsLog); err != nil {
 			return nil, err
 		}
+		//convert itemsLog from json string to map[string]any
+		var itemsLogSlice []map[string]any
+		if itemsLog != "" {
+			itemsLogSlice = make([]map[string]any, 0)
+			if err := json.Unmarshal([]byte(itemsLog), &itemsLogSlice); err != nil {
+				return nil, err
+			}
+		}
 
 		history := map[string]any{
 			"history_id":      historyID,
 			"redeemed_date":   redeemedDate,
 			"amount_redeemed": amountRedeemed,
-			"items_log":       itemsLog,
+			"items_log":       itemsLogSlice,
 		}
 
 		histories = append(histories, history)
@@ -595,4 +613,143 @@ func GetVoucherHistoryByVoucherID(voucherID string) ([]map[string]any, error) {
 	}
 
 	return histories, nil
+}
+func isVoucherDesignThere(designID string) error {
+	exists, err := RecordExists("voucher_designs", "design_id = ?", designID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("voucher design not found")
+	}
+	return nil
+}
+
+func CreateNewVoucher(v dtos.VoucherDataCreate, userID string) (string, error) {
+	err := isVoucherDesignThere(v.DesignID)
+	if err != nil {
+		return "", err
+	}
+	// Generate a new voucher ID
+	voucherID, _ := shortid.Generate()
+	code, _ := GenerateVoucherCode()
+	// Insert the new voucher into the database
+	query := `
+		INSERT INTO vouchers (voucher_id, design_id, user_id, code, balance, original_value, expiry_date, status, is_redeemed, notes)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+	_, err = DB.Exec(query, voucherID, v.DesignID, userID, code, v.Amount, v.Amount, StringToTime(v.ExpiryDate), "active", false, v.InternalNotes)
+	if err != nil {
+		return "", err
+	}
+	deliveryTime := StringToTime(v.DeliveryTime)
+	//insert into voucher_purchases table
+	err = InsertIntoVoucherPurchases(dtos.BuyVoucherData{
+		DesignID:     v.DesignID,
+		Amount:       v.Amount,
+		FromName:     v.FromName,
+		ToName:       v.ToName,
+		ToEmail:      v.ToEmail,
+		Message:      v.Message,
+		DeliveryTime: deliveryTime.Format("2006-01-02 15:04:05"),
+	}, userID, voucherID)
+	return voucherID, nil
+}
+
+func ListVoucherPurchases(page, size int, name string) ([]dtos.VoucherPurchaseData, *dtos.PaginationMeta, error) {
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 {
+		size = 10
+	}
+	offset := (page - 1) * size
+
+	baseQuery := `
+		FROM voucher_purchases vp
+		JOIN vouchers v ON vp.voucher_id = v.voucher_id
+		LEFT JOIN voucher_designs vd ON v.design_id = vd.design_id
+		WHERE 1=1
+	`
+	args := []interface{}{}
+
+	if name != "" {
+		baseQuery += " AND (vp.from_name LIKE ? OR vp.to_name LIKE ? OR vp.to_email LIKE ?)"
+		nameLike := "%" + name + "%"
+		args = append(args, nameLike, nameLike, nameLike)
+	}
+
+	countQuery := "SELECT COUNT(*) " + baseQuery
+	var total int
+	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		return nil, nil, fmt.Errorf("failed to count voucher purchases: %w", err)
+	}
+
+	selectQuery := `
+		SELECT 
+			v.voucher_id, v.code, v.balance, v.original_value, 
+			vp.from_name, vp.to_name, vp.to_email, vp.personalized_msg, vp.from_user_id, vd.url,
+			vp.created_at
+	` + baseQuery + `
+		ORDER BY vp.created_at DESC
+		LIMIT ? OFFSET ?
+	`
+	args = append(args, size, offset)
+
+	rows, err := DB.Query(selectQuery, args...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to query voucher purchases: %w", err)
+	}
+	defer rows.Close()
+
+	var vouchers []dtos.VoucherPurchaseData
+	for rows.Next() {
+		var v dtos.VoucherPurchaseData
+		var personalizedMsg sql.NullString
+		var designURL sql.NullString
+		var createdAt time.Time
+		var fromUserID string
+		if err := rows.Scan(
+			&v.VoucherID,
+			&v.Code,
+			&v.Balance,
+			&v.Amount,
+			&v.FromName,
+			&v.ToName,
+			&v.ToEmail,
+			&personalizedMsg,
+			&fromUserID,
+			&designURL,
+			&createdAt,
+		); err != nil {
+			return nil, nil, fmt.Errorf("failed to scan voucher purchase row: %w", err)
+		}
+		if personalizedMsg.Valid {
+			personalizedMsgStr := personalizedMsg.String
+			v.Message = &personalizedMsgStr
+		}
+		if designURL.Valid {
+			designURLStr := designURL.String
+			v.DesignURL = &designURLStr
+		}
+		v.CreatedAt = &createdAt
+
+		v.FromEmail, _, err = getVoucherParticipants(v.VoucherID, fromUserID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get voucher participants: %w", err)
+		}
+
+		vouchers = append(vouchers, v)
+	}
+
+	meta := dtos.PaginationMeta{
+		Page:       page,
+		Size:       size,
+		TotalItems: total,
+		TotalPages: (total + size - 1) / size,
+		HasPrev:    page > 1,
+		HasNext:    page*size < total,
+	}
+
+	return vouchers, &meta, nil
 }

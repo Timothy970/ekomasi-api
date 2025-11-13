@@ -246,3 +246,10 @@ type BulkUploadProduct struct {
 	BuyingPrice             float64 `json:"buying_price"`
 	Image                   string  `json:"image"`
 }
+type VoucherDesign struct {
+	DesignID   string  `json:"design_id"`
+	URL        string  `json:"url" validate:"required"`
+	Created_At string  `json:"created_at"`
+	Name       *string `json:"name"  validate:"required"`
+	Status     *string `json:"status" validate:"required"`
+}
