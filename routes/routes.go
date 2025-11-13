@@ -299,7 +299,7 @@ func SetupRoutes(router *mux.Router) {
 	// Stock Transfers
 	adminstockTransfers := admin.PathPrefix("/stock_transfers").Subrouter()
 	stockTransfers := api.PathPrefix("/stock_transfers").Subrouter()
-	stockTransfers.HandleFunc("", handlers.ListStockTransfers).Methods("GET")
+	stockTransfers.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListStockTransfers))).Methods("GET")
 	adminstockTransfers.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateStockTransfer))).Methods("POST")
 	stockTransfers.HandleFunc("/{transfer_id}", handlers.GetStockTransfer).Methods("GET")
 	adminstockTransfers.Handle("/{transfer_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateStockTransfer))).Methods("PATCH")
