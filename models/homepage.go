@@ -596,10 +596,10 @@ func CreateBlog(blog dtos.BlogRequest, authorID string) error {
 		return err
 	}
 	query := `
-		INSERT INTO blogs (blog_id, title, content, author_id, published_at, is_published, author, tags, description, read_time, status)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		INSERT INTO blogs (blog_id, title, content, author_id, published_at, is_published, author, tags, description, read_time, status, banner_image_url)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
-	_, err = DB.Exec(query, blogID, blog.Title, contentData, authorID, publishedAt, isPublished, authorData, tagData, blog.Description, blog.ReadTimeMinutes, blog.Status)
+	_, err = DB.Exec(query, blogID, blog.Title, contentData, authorID, publishedAt, isPublished, authorData, tagData, blog.Description, blog.ReadTimeMinutes, blog.Status, blog.BannerImageUrl)
 	return err
 }
 func GetBlogByID(blogID string) (*dtos.BlogRequest, error) {
@@ -613,7 +613,7 @@ func GetBlogByID(blogID string) (*dtos.BlogRequest, error) {
 
 	query := `
 		SELECT blog_id, title, content, author_id, published_at, is_published, 
-		       author, tags, description, read_time, status, created_at, updated_at
+		       author, tags, description, read_time, status, created_at, updated_at, banner_image_url
 		FROM blogs
 		WHERE blog_id = ?
 	`
@@ -632,7 +632,7 @@ func GetBlogByID(blogID string) (*dtos.BlogRequest, error) {
 		&blog.BlogID, &blog.Title, &contentJSON, &blog.AuthorID,
 		&publishedAt, &blog.IsPublished, &authorJSON, &tagsJSON,
 		&blog.Description, &readTime, &blog.Status,
-		&blog.CreatedAt, &blog.UpdatedAt,
+		&blog.CreatedAt, &blog.UpdatedAt, &blog.BannerImageUrl,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(noblog)
@@ -709,10 +709,10 @@ func UpdateBlog(blog dtos.BlogRequest, blogID string) error {
 		return err
 	}
 	query := `
-		UPDATE blogs SET title = ?, content = ?, published_at = ?, is_published = ?, author = ?, tags = ?, description = ?, read_time = ?, status = ?
+		UPDATE blogs SET title = ?, content = ?, published_at = ?, is_published = ?, author = ?, tags = ?, description = ?, read_time = ?, status = ?, banner_image_url = ?
 		WHERE blog_id = ?`
 
-	_, err = DB.Exec(query, blog.Title, contentData, publishedAt, isPublished, authorData, tagData, blog.Description, blog.ReadTimeMinutes, blog.Status, blogID)
+	_, err = DB.Exec(query, blog.Title, contentData, publishedAt, isPublished, authorData, tagData, blog.Description, blog.ReadTimeMinutes, blog.Status, blog.BannerImageUrl, blogID)
 	return err
 }
 func DeleteBlog(blogID string) error {
@@ -767,7 +767,7 @@ func countBlogs(status string) (int, error) {
 func fetchBlogs(status string, limit, offset int) (*sql.Rows, error) {
 	query := `
 		SELECT blog_id, title, content, author_id, published_at, is_published, 
-		       author, tags, description, read_time, status, created_at, updated_at
+		       author, tags, description, read_time, status, created_at, updated_at, banner_image_url
 		FROM blogs
 	`
 	var args []interface{}
@@ -798,7 +798,7 @@ func scanBlogs(rows *sql.Rows) ([]dtos.BlogRequest, error) {
 			&blog.BlogID, &blog.Title, &contentJSON, &blog.AuthorID,
 			&publishedAt, &blog.IsPublished, &authorJSON, &tagsJSON,
 			&blog.Description, &readTime, &blog.Status,
-			&blog.CreatedAt, &blog.UpdatedAt,
+			&blog.CreatedAt, &blog.UpdatedAt, &blog.BannerImageUrl,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan blog: %w", err)
 		}
