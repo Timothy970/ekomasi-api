@@ -219,13 +219,16 @@ func SetupRoutes(router *mux.Router) {
 	api.HandleFunc("/refunds", handlers.ListRefundsHandler).Methods("GET")
 	api.HandleFunc("/refunds/{refund_id}", handlers.GetRefundByIDHandler).Methods("GET")
 	vouchers := api.PathPrefix(vouchersPath).Subrouter()
-	voucherWithID := "/vouchers/{voucher_id}"
+	voucherWithID := "/vouchers/designs/{voucher_id}"
 	admin.Handle(vouchersPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateVoucherDesign))).Methods("POST")
 	admin.Handle(voucherWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.EditVoucherDesign))).Methods("PATCH")
 	admin.Handle(vouchersPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.ListVouchersHandler))).Methods("GET")
+	admin.Handle(vouchersPath+"/purchases", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListVoucherPurchasesHandler))).Methods("GET")
 	admin.Handle(voucherWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteVoucherDesign))).Methods("DELETE")
 	admin.Handle(voucherWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.GetVoucherHandler))).Methods("GET")
 	api.HandleFunc("/vouchers/designs", handlers.GetAllVoucherDesigns).Methods("GET")
+	//admin to create vouchers
+	admin.Handle(vouchersPath+"/create", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateVoucherHandlerTest))).Methods("POST")
 	//user vouchers
 	vouchers.Handle("/me/{voucher_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserVoucherHandler))).Methods("GET")
 	vouchers.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListUserVoucherHandler))).Methods("GET")
@@ -329,8 +332,9 @@ func SetupRoutes(router *mux.Router) {
 	api.HandleFunc("/blogs/{blog_id}", handlers.GetBlogHandler).Methods("GET")
 	//payments routes
 	payment := api.PathPrefix("/payment").Subrouter()
-	payment.HandleFunc("/mpesa/callback", payments.HandleMpesaCallback).Methods("POST")
+	payment.HandleFunc("/callback", payments.HandleMpesaCallback).Methods("POST")
 	payment.HandleFunc("/pay", payments.HandleMpesaPayment).Methods("POST")
+	payment.HandleFunc("/mpesa/register-url", payments.RegisterMpesaRoutesHandler).Methods("POST")
 
 	//orders endpointsProduct
 	order := api.PathPrefix("/order").Subrouter()

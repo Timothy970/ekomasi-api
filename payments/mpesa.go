@@ -121,6 +121,18 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary,
 	})
 }
+func RegisterMpesaRoutesHandler(w http.ResponseWriter, r *http.Request) {
+	client, err := NewMpesaClient()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := client.RegisterURLs(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write([]byte("M-Pesa URLs registered successfully"))
+}
 
 type MpesaClient struct {
 	ConsumerKey    string
@@ -228,8 +240,37 @@ func (m *MpesaClient) LipaNaMpesaOnline(paymentRequest dtos.MpesaRequest) (map[s
 	return result, nil
 }
 
+func (m *MpesaClient) RegisterURLs() error {
+	url := fmt.Sprintf("%smpesa/c2b/v1/registerurl", m.MpesaURL)
+
+	payload := map[string]string{
+		"ShortCode":       m.ShortCode,
+		"ResponseType":    "Completed",
+		"ConfirmationURL": m.CallbackURL,
+		"ValidationURL":   m.CallbackURL,
+	}
+	jsonData, _ := json.Marshal(payload)
+
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req.Header.Set("Authorization", "Bearer "+m.AccessToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	body, _ := io.ReadAll(res.Body)
+	log.Println("RegisterURL response:", string(body))
+	return nil
+}
+
 // Handler for the MPesa callback
 func HandleMpesaCallback(w http.ResponseWriter, r *http.Request) {
+	//log the IP address of the caller
+	log.Printf("MPESA CALLBACK FROM IP: %s", r.RemoteAddr)
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "failed to read body", http.StatusBadRequest)
