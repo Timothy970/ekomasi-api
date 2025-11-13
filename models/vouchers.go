@@ -503,29 +503,30 @@ func GetVoucherDesign(designID string) (dtos.VoucherDesign, error) {
 	return design, nil
 }
 func EditVoucherDesign(designID, newURL, newName, newStatus string) error {
+	err := isVoucherDesignThere(designID)
+	if err != nil {
+		return err
+	}
 	query := `UPDATE voucher_designs SET url = ?, name = ?, status = ? WHERE design_id = ?`
-	res, err := DB.Exec(query, newURL, newName, newStatus, designID)
+	_, err = DB.Exec(query, newURL, newName, newStatus, designID)
 	if err != nil {
 		return err
 	}
 
-	rowsAffected, _ := res.RowsAffected()
-	if rowsAffected == 0 {
-		return fmt.Errorf("no design found with ID %s", designID)
-	}
 	return nil
 }
+
 func DeleteVoucherDesign(designID string) error {
+	err := isVoucherDesignThere(designID)
+	if err != nil {
+		return err
+	}
 	query := `DELETE FROM voucher_designs WHERE design_id = ?`
-	res, err := DB.Exec(query, designID)
+	_, err = DB.Exec(query, designID)
 	if err != nil {
 		return err
 	}
 
-	rowsAffected, _ := res.RowsAffected()
-	if rowsAffected == 0 {
-		return fmt.Errorf("no design found with ID %s", designID)
-	}
 	return nil
 }
 
@@ -535,7 +536,11 @@ func GetAllVoucherDesigns(page, size int) ([]dtos.VoucherDesign, *dtos.Paginatio
 	if err := DB.QueryRow(countQuery).Scan(&total); err != nil {
 		return nil, nil, err
 	}
-	query := `SELECT design_id, url, created_at, name, status FROM voucher_designs LIMIT ?, ? ORDER BY created_at DESC`
+	query := `SELECT design_id, url, created_at, name, status
+		FROM voucher_designs
+		ORDER BY created_at DESC
+		LIMIT ?, ?
+	`
 	rows, err := DB.Query(query, (page-1)*size, size)
 	if err != nil {
 		return nil, nil, err

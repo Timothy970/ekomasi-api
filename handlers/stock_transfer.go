@@ -4,7 +4,6 @@ import (
 	"adenzo_backend/dtos"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -98,46 +97,30 @@ func ListStockTransfers(w http.ResponseWriter, r *http.Request) {
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse"); !ok {
 		return
 	}
+	q := r.URL.Query().Get("q")
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	cacheKeyTransfer := fmt.Sprintf("transfers_%d_size_%d", page, size)
-	cacheKeyPagination := fmt.Sprintf("transfers_pagination_%d_size_%d", page, size)
-	var transfers []dtos.StockTransferDTO
-	var cachedTransfers []dtos.StockTransferDTO
-	var meta *dtos.PaginationMeta
-	var cachedPagination *dtos.PaginationMeta
-	_ = utils.GetCache(cacheKeyTransfer, &cachedTransfers)
-	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
-	if cachedTransfers == nil {
-		var err error
-		transfers, meta, err = models.ListStockTransfers(page, size)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Warehouse",
-					Description: "Failed to list stock transfers",
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
-		}
-		_ = utils.SetCache(cacheKeyTransfer, cachedTransfers)
-		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
-	} else {
-		transfers = cachedTransfers
-		meta = cachedPagination
+	transfers, meta, err := models.ListStockTransfers(page, size, q)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Warehouse",
+				Description: "Failed to list stock transfers",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
 	}
-
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Warehouse",
 			Description: "Stock transfers fetched successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   dtos.StockTransferListResponse{Meta: *meta, StockTransfers: transfers},
+		Payload:   map[string]any{"stock_transfers": transfers, "pagination": meta},
 		Message:   "Stock transfers fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),

@@ -49,37 +49,95 @@ func isWarehouseThere(id, from string) error {
 	}
 	return nil
 }
-func ListStockTransfers(page, size int) ([]dtos.StockTransferDTO, *dtos.PaginationMeta, error) {
-	offset := (page - 1) * size
-	var total int
 
-	err := DB.QueryRow("SELECT COUNT(*) FROM stock_transfers").Scan(&total)
-	if err != nil {
+func ListStockTransfers(page, size int, searchParam string) ([]dtos.StockTransferResponseDTO, *dtos.PaginationMeta, error) {
+	offset := (page - 1) * size
+
+	// Arguments for count query
+	var countArgs []interface{}
+	countQuery := `
+		SELECT COUNT(*)
+		FROM stock_transfers st
+		JOIN products p ON st.product_id = p.product_id
+		JOIN warehouses fw ON st.from_warehouse_id = fw.warehouse_id
+		JOIN warehouses tw ON st.to_warehouse_id = tw.warehouse_id
+	`
+
+	// Arguments for select query
+	var selectArgs []interface{}
+	selectQuery := `
+		SELECT 
+			st.transfer_id,
+			st.product_id,
+			st.variant_id,
+			st.from_warehouse_id,
+			st.to_warehouse_id,
+			st.quantity,
+			st.transfer_date,
+			st.transfer_details,
+			p.name AS product_name,
+			fw.name AS from_warehouse_name,
+			tw.name AS to_warehouse_name
+		FROM stock_transfers st
+		JOIN products p ON st.product_id = p.product_id
+		JOIN warehouses fw ON st.from_warehouse_id = fw.warehouse_id
+		JOIN warehouses tw ON st.to_warehouse_id = tw.warehouse_id
+	`
+
+	if searchParam != "" {
+		searchLike := "%" + searchParam + "%"
+		countQuery += `
+			WHERE p.name LIKE ? OR fw.name LIKE ? OR tw.name LIKE ?
+		`
+		selectQuery += `
+			WHERE p.name LIKE ? OR fw.name LIKE ? OR tw.name LIKE ?
+		`
+		// Add search parameters to both argument slices separately
+		countArgs = append(countArgs, searchLike, searchLike, searchLike)
+		selectArgs = append(selectArgs, searchLike, searchLike, searchLike)
+	}
+
+	selectQuery += `
+		ORDER BY st.transfer_date DESC
+		LIMIT ? OFFSET ?
+	`
+	selectArgs = append(selectArgs, size, offset)
+
+	// Run count query
+	var total int
+	if err := DB.QueryRow(countQuery, countArgs...).Scan(&total); err != nil {
 		return nil, nil, err
 	}
 
-	rows, err := DB.Query(`
-		SELECT transfer_id, product_id, variant_id, from_warehouse_id, to_warehouse_id, quantity, transfer_date, transfer_details
-		FROM stock_transfers
-		ORDER BY transfer_date DESC
-		LIMIT ? OFFSET ?`, size, offset)
+	// Run select query
+	rows, err := DB.Query(selectQuery, selectArgs...)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
 
-	var transfers []dtos.StockTransferDTO
+	var transfers []dtos.StockTransferResponseDTO
 	for rows.Next() {
-		var st dtos.StockTransferDTO
+		var st dtos.StockTransferResponseDTO
 		if err := rows.Scan(
-			&st.TransferID, &st.ProductID, &st.VariantID, &st.FromWarehouseID, &st.ToWarehouseID, &st.Quantity, &st.TransferDate, &st.TransferDetails,
+			&st.TransferID,
+			&st.ProductID,
+			&st.VariantID,
+			&st.FromWarehouseID,
+			&st.ToWarehouseID,
+			&st.Quantity,
+			&st.TransferDate,
+			&st.TransferDetails,
+			&st.ProductName,
+			&st.FromWarehouseName,
+			&st.ToWarehouseName,
 		); err != nil {
 			return nil, nil, err
 		}
 		transfers = append(transfers, st)
 	}
 
-	meta := dtos.PaginationMeta{
+	meta := &dtos.PaginationMeta{
 		Page:       page,
 		Size:       size,
 		TotalItems: total,
@@ -87,7 +145,8 @@ func ListStockTransfers(page, size int) ([]dtos.StockTransferDTO, *dtos.Paginati
 		HasPrev:    page > 1,
 		HasNext:    page < int(math.Ceil(float64(total)/float64(size))),
 	}
-	return transfers, &meta, nil
+
+	return transfers, meta, nil
 }
 
 func GetStockTransferByID(id string) (*dtos.StockTransferDTO, error) {
