@@ -268,13 +268,14 @@ type MenuLinkRequest struct {
 	ParentID     *string `json:"parent_id"`
 }
 type BlogRequest struct {
-	BlogID      string    `json:"blog_id"`
-	AuthorID    string    `json:"author_id"`
-	IsPublished bool      `json:"is_published"`
-	CreatedAt   string    `json:"created_at"`
-	UpdatedAt   string    `json:"updated_at"`
-	PublishedAt time.Time `json:"published_at"`
-	Status      *string   `json:"status"`
+	BlogID         string    `json:"blog_id"`
+	AuthorID       string    `json:"author_id"`
+	IsPublished    bool      `json:"is_published"`
+	BannerImageUrl string    `json:"banner_image_url"`
+	CreatedAt      string    `json:"created_at"`
+	UpdatedAt      string    `json:"updated_at"`
+	PublishedAt    time.Time `json:"published_at"`
+	Status         *string   `json:"status"`
 	// Author      struct {
 	// 	Name   string  `json:"name" validate:"required"`
 	// 	Avatar *string `json:"avatar"`
