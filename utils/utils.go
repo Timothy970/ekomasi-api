@@ -664,7 +664,6 @@ type WishlistItem struct {
 
 type wishlistTemplateData struct {
 	WishlistName string
-	SenderName   string
 	PersonalNote string
 	ShareURL     string
 	Items        []WishlistItem
@@ -673,7 +672,7 @@ type wishlistTemplateData struct {
 	HasMore      bool
 }
 
-func GenerateWishlistEmailHTML(wishlistName, senderName, personalMessage, shareURL string, items []WishlistItem) (string, error) {
+func GenerateWishlistEmailHTML(wishlistName, personalMessage, shareURL string, items []WishlistItem) (string, error) {
 	const maxPreview = 3
 	showCount := len(items)
 	hasMore := false
@@ -684,7 +683,6 @@ func GenerateWishlistEmailHTML(wishlistName, senderName, personalMessage, shareU
 
 	data := wishlistTemplateData{
 		WishlistName: wishlistName,
-		SenderName:   senderName,
 		PersonalNote: personalMessage,
 		ShareURL:     shareURL,
 		Items:        items[:showCount],
@@ -702,143 +700,198 @@ func GenerateWishlistEmailHTML(wishlistName, senderName, personalMessage, shareU
 }
 
 const emailTemplate = `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{.WishlistName}} — Shared Wishlist</title>
-  <style>
-    body, table, td {
-      font-family: 'Helvetica Neue', Arial, sans-serif;
-      font-size: 16px;
-      color: #333;
-    }
-    body {
-      margin: 0;
-      padding: 0;
-      background-color: #faf8ff;
-    }
-    a {
-      color: #7c3aed;
-      text-decoration: none;
-    }
-    .btn {
-      background: linear-gradient(135deg, #7c3aed, #a78bfa);
-      color: #fff !important;
-      padding: 14px 28px;
-      border-radius: 12px;
-      display: inline-block;
-      font-weight: 600;
-      margin-top: 24px;
-      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
-    }
-    .header {
-      background: linear-gradient(135deg, #7c3aed, #a78bfa);
-      color: white;
-      padding: 32px 24px;
-      border-radius: 16px 16px 0 0;
-      text-align: center;
-    }
-    .header h1 {
-      margin: 0;
-      font-size: 28px;
-      font-weight: 700;
-    }
-    .header p {
-      margin: 8px 0 0 0;
-      opacity: 0.95;
-      font-size: 15px;
-    }
-    .card {
-      background: #fff;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 12px;
-      border: 1px solid #e9d5ff;
-      transition: transform 0.2s;
-    }
-    .price {
-      font-weight: 700;
-      color: #7c3aed;
-      font-size: 18px;
-    }
-    img {
-      border-radius: 8px;
-      width: 100%;
-      height: auto;
-      display: block;
-    }
-    .footer {
-      text-align: center;
-      color: #9ca3af;
-      font-size: 13px;
-      margin-top: 32px;
-      padding-top: 24px;
-      border-top: 1px solid #e9d5ff;
-    }
-    .greeting {
-      font-size: 18px;
-      color: #1f2937;
-      line-height: 1.6;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{.WishlistName}} — Shared Wishlist</title>
+<style>
+	body {
+		font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+		line-height: 1.6;
+		color: #333;
+		background-color: #f8f9fa;
+		margin: 0;
+		padding: 0;
+	}
+	.email-container {
+		max-width: 800px;
+		margin: 0 auto;
+		background: #fff;
+		border-radius: 12px;
+		box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+		overflow: hidden;
+	}
+	.header {
+		background: linear-gradient(135deg, #8B5FBF 0%, #6A3093 100%);
+		color: white;
+		text-align: center;
+		padding: 30px;
+	}
+	.header h1 { font-size: 28px; margin-bottom: 8px; }
+	.content { padding: 30px; }
+	.wishlist-info {
+		background: #f8f5ff;
+		padding: 20px;
+		border-radius: 8px;
+		margin: 25px 0;
+	}
+	.wishlist-info h2 { color: #6A3093; margin-top: 0; }
+	.personal-note {
+		font-style: italic;
+		color: #555;
+		margin-top: 15px;
+		padding: 15px;
+		background: #fff;
+		border-left: 4px solid #8B5FBF;
+		border-radius: 4px;
+	}
+	.items-table {
+		width: 100%;
+		border-collapse: collapse;
+		box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+		margin: 25px 0;
+	}
+	.items-table th {
+		background: #8B5FBF;
+		color: white;
+		padding: 15px;
+		text-align: left;
+	}
+	.items-table td { 
+		padding: 15px; 
+		border-bottom: 1px solid #eee;
+		vertical-align: middle;
+	}
+	.items-table tr:hover { background: #f8f5ff; }
+	.item-image {
+		width: 80px;
+		height: 80px;
+		border-radius: 8px;
+		object-fit: cover;
+	}
+	.no-image {
+		width: 80px;
+		height: 80px;
+		background: linear-gradient(135deg, #fae8ff, #e9d5ff);
+		border-radius: 8px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #a855f7;
+		font-size: 12px;
+		text-align: center;
+	}
+	.price { 
+		text-align: right; 
+		color: #6A3093; 
+		font-weight: 600;
+		font-size: 16px;
+	}
+	.view-button-container {
+		text-align: center;
+		margin: 30px 0;
+	}
+	.view-button {
+		display: inline-block;
+		background: linear-gradient(135deg, #8B5FBF 0%, #6A3093 100%);
+		color: white;
+		padding: 15px 40px;
+		border-radius: 8px;
+		text-decoration: none;
+		font-weight: 600;
+		font-size: 16px;
+		box-shadow: 0 4px 12px rgba(106, 48, 147, 0.3);
+	}
+	.more-items {
+		text-align: center;
+		color: #666;
+		font-style: italic;
+		margin: 20px 0;
+	}
+	.footer {
+		text-align: center;
+		padding: 25px;
+		background: #f8f9fa;
+		font-size: 14px;
+		color: #666;
+	}
+	.footer a { color: #8B5FBF; text-decoration: none; }
+	.thank-you {
+		text-align: center;
+		color: #6A3093;
+		font-size: 18px;
+		font-weight: 600;
+		margin: 25px 0;
+	}
+	@media (max-width: 600px) {
+		.item-image, .no-image { width: 60px; height: 60px; }
+	}
+</style>
 </head>
 <body>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-    <tr>
-      <td align="center" style="padding: 0;">
-        <table role="presentation" style="max-width: 600px; width: 100%;">
-          <tr>
-            <td class="header">
-              <h1>{{.WishlistName}}</h1>
-              <p>A special collection just for you</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="background: #fff; padding: 32px 24px; border-radius: 0 0 16px 16px;">
-              <p class="greeting" style="margin-top: 0;">{{.SenderName}} thought you would love these picks!{{if .PersonalNote}}<br><br><em style="color: #6b7280;">"{{.PersonalNote}}"</em>{{end}}</p>
+	<div class="email-container">
+		<div class="header">
+			<h1>{{.WishlistName}}</h1>
+			<p>A special collection shared with you</p>
+		</div>
 
-              <div style="margin-top: 32px;">
-                {{range .Items}}
-                <div class="card">
-                  <table role="presentation" width="100%">
-                    <tr>
-                      <td style="width: 100px; vertical-align: top;">
-                        {{if .ImageURL}}
-                        <a href="{{.ProductURL}}" target="_blank">
-                          <img src="{{.ImageURL}}" alt="{{.Title}}" style="width: 100px; height: 100px; object-fit: cover;">
-                        </a>
-                        {{else}}
-                        <div style="width: 100px; height: 100px; background: linear-gradient(135deg, #fae8ff, #e9d5ff); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #a855f7; font-size: 12px;">No image</div>
-                        {{end}}
-                      </td>
-                      <td style="padding-left: 16px; vertical-align: top;">
-                        <a href="{{.ProductURL}}" target="_blank" style="font-weight: 600; color: #111827; font-size: 16px; display: block; margin-bottom: 8px;">{{.Title}}</a>
-                        <p class="price" style="margin: 0;">{{.Price}}</p>
-                      </td>
-                    </tr>
-                  </table>
-                </div>
-                {{end}}
-              </div>
+		<div class="content">
+			<div class="thank-you">
+				Would you love these picks?
+			</div>
 
-              {{if .HasMore}}
-              <p style="text-align: center; color: #9ca3af; margin-top: 20px; font-style: italic;">Plus more amazing items waiting for you...</p>
-              {{end}}
+			{{if .PersonalNote}}
+			<div class="personal-note">
+				"{{.PersonalNote}}"
+			</div>
+			{{end}}
 
-              <div style="text-align: center;">
-                <a href="{{.ShareURL}}" class="btn" target="_blank">View Full Wishlist</a>
-              </div>
+			<h2 style="color:#6A3093;margin-bottom:15px;">Wishlist Items</h2>
+			<table class="items-table">
+				<thead>
+					<tr>
+						<th style="width:100px;">Image</th>
+						<th>Product</th>
+						<th style="text-align:right;">Price</th>
+					</tr>
+				</thead>
+				<tbody>
+					{{range .Items}}
+					<tr>
+						<td>
+							{{if .ImageURL}}
+							<a href="{{.ProductURL}}" target="_blank">
+								<img src="{{.ImageURL}}" alt="{{.Title}}" class="item-image">
+							</a>
+							{{else}}
+							<div class="no-image">No image</div>
+							{{end}}
+						</td>
+						<td>
+							<a href="{{.ProductURL}}" target="_blank" style="color:#333;text-decoration:none;font-weight:600;">{{.Title}}</a>
+						</td>
+						<td class="price">{{.Price}}</td>
+					</tr>
+					{{end}}
+				</tbody>
+			</table>
 
-              <div class="footer">
-                <p style="margin: 0;">Shared with love on {{.GeneratedAt}}</p>
-                <p style="margin: 8px 0 0 0;"><a href="{{.ShareURL}}" target="_blank" style="color: #a78bfa;">Open in browser</a></p>
-              </div>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+			{{if .HasMore}}
+			<div class="more-items">
+				Plus more amazing items waiting for you...
+			</div>
+			{{end}}
+
+			<div class="view-button-container">
+				<a href="{{.ShareURL}}" class="view-button" target="_blank">View Full Wishlist</a>
+			</div>
+		</div>
+
+		<div class="footer">
+			<p>Shared on {{.GeneratedAt}} • <a href="{{.ShareURL}}" target="_blank">Open in browser</a></p>
+			<p>© 2025 Your Company Name. All rights reserved.</p>
+		</div>
+	</div>
 </body>
 </html>`
