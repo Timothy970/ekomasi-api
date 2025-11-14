@@ -26,3 +26,7 @@ type CreateWishlistItem struct {
 type ShareWishlistRequest struct {
 	WishlistID string `json:"wishlist_id"`
 }
+
+type ShareWishlistPayload struct {
+	Email string `json:"email" validate:"required,email"`
+}
