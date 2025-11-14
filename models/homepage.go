@@ -556,13 +556,6 @@ func RemoveProductFromPromotion(req dtos.AttachProductToPromotion) error {
 }
 
 func CreateBlog(blog dtos.BlogRequest, authorID string) error {
-	exists, err := RecordExists("blogs", "title = ?", blog.Title)
-	if err != nil {
-		return fmt.Errorf("failed : %w", err)
-	}
-	if exists {
-		return fmt.Errorf("blog title already exists")
-	}
 	blogID, _ := shortid.Generate()
 	var publishedAt *string
 	isPublished := true
