@@ -1,15 +1,18 @@
-CREATE TABLE IF NOT EXISTS vouchers (
-    voucher_id      char(36) PRIMARY KEY,
-    user_id         char(36) DEFAULT NULL,
-    code            VARCHAR(50) UNIQUE NOT NULL,
-    balance         DECIMAL(10,2) DEFAULT 0.0, 
-    original_value  DECIMAL(10,2) NOT NULL DEFAULT 0.0,     
-    expiry_date     DATETIME NOT NULL,
-    status VARCHAR(20) DEFAULT "inactive",
-    is_redeemed       BOOLEAN DEFAULT FALSE,
-    design_id char(36) DEFAULT NULL,
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT v_user FOREIGN KEY (user_id) REFERENCES users(user_id)
-        ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS `vouchers` (
+  `voucher_id` char(36) NOT NULL,
+  `user_id` char(36) DEFAULT NULL,
+  `code` varchar(50) NOT NULL,
+  `balance` decimal(10,2) DEFAULT '0.00',
+  `original_value` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `expiry_date` datetime NOT NULL,
+  `status` varchar(20) DEFAULT 'inactive',
+  `is_redeemed` tinyint(1) DEFAULT '0',
+  `notes` longtext,
+  `design_id` char(36) DEFAULT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`voucher_id`),
+  UNIQUE KEY `code` (`code`),
+  KEY `v_user` (`user_id`),
+  CONSTRAINT `v_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
 );
