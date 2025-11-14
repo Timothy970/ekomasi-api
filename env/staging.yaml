@@ -13,6 +13,8 @@ env:
     value: development
   - name: BASE_URL
     value: https://api.ecom.staging.roamtech.whitemire-technologies.com/api/
+  - name: FRONT_END_BASE_URL
+    value: https://adenzo-app.ecom.staging.roamtech.whitemire-technologies.com/
   - name: ENVIRONMENT
     value: staging
   - name: PORT
