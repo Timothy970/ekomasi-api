@@ -12,12 +12,20 @@ import (
 
 // CreateRole inserts a new role record
 func CreateRole(name, description string, permissionIDs []string) error {
+	//check if role exists
+	exists, err := RecordExists("roles", "LOWER(name) = LOWER(?)", name)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("role " + name + " already exists")
+	}
 	roleID, _ := shortid.Generate()
 	query := `
 		INSERT INTO roles (role_id,name, description)
 		VALUES (?, ?, ?)
 	`
-	_, err := DB.Exec(query, roleID, name, description)
+	_, err = DB.Exec(query, roleID, name, description)
 	if err != nil {
 		return err
 	}

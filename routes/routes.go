@@ -24,6 +24,7 @@ func SetupRoutes(router *mux.Router) {
 	auth.HandleFunc("/whatsappwehbook/signup", handlers.WhatsAppWebhookHandler).Methods("POST")
 	api.HandleFunc("/verify-whatsapp", handlers.VerifyWhatsAppHandler).Methods("GET")
 	auth.HandleFunc("/signin", handlers.LoginHandler).Methods("POST")
+	auth.HandleFunc("/admin/signin", handlers.AdminLoginHandler).Methods("POST")
 	auth.HandleFunc("/resend-otp", handlers.ResendOptHandler).Methods("POST")
 	auth.Handle("/refresh-token", middleware.AuthenticateRefreshToken(http.HandlerFunc(handlers.RefreshTokenHandler))).Methods("POST")
 	auth.HandleFunc("/decode-token", handlers.DecodeTokenHandler).Methods("GET")
