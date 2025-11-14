@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"adenzo_backend/dtos"
 	"adenzo_backend/middleware"
 	"adenzo_backend/models"
+	"adenzo_backend/notification"
 	"adenzo_backend/utils"
 
 	"github.com/gorilla/mux"
@@ -385,6 +387,13 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	req, ok := DecodeRequestBody[dtos.ShareWishlistPayload](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Auth") {
+		return
+	}
 	// Check if wishlist exists and is public
 	wishlists, err := models.GetMyWishlistItems(user.ID)
 
@@ -418,17 +427,35 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	baseURL := os.Getenv("BASE_URL")
-	encodedID := base64.URLEncoding.EncodeToString([]byte(wishlists.WishlistID))
-	shareLink := fmt.Sprintf("%swishlist/share/%s", baseURL, encodedID)
+	encodedID := base64.URLEncoding.EncodeToString([]byte(wishlists.WishlistID + ":" + user.ID))
+	shareLink := fmt.Sprintf("%sshared-wishlist/%s", baseURL, encodedID)
+	//send using email
+	subject := "Check out my wishlist!"
+	wishlistItems := []utils.WishlistItem{}
+	for _, product := range wishlists.Products {
+		item := utils.WishlistItem{
+			Title:      product.Name,
+			ImageURL:   product.Images[0].URL,
+			Price:      fmt.Sprintf("$%.2f", product.Price),
+			ProductURL: fmt.Sprintf("%sproducts/%s", baseURL, product.ID),
+		}
+		wishlistItems = append(wishlistItems, item)
+	}
+	htmlBody, err := utils.GenerateWishlistEmailHTML("My Wishlist", "Timothy", "", shareLink, wishlistItems)
+	if err != nil {
+		log.Printf("failed to generate email HTML: %v", err)
+		return
+	}
+	notification.SendEmail(req.Email, subject, htmlBody)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
-			Description: "Share link generated successfully",
+			Description: "Share link generated successfully" + shareLink,
 			Code:        http.StatusOK,
 		},
-		Payload:   shareLink,
-		Message:   "Share link",
+		Payload:   nil,
+		Message:   "Wishlist shared successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -453,6 +480,16 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 
 	decodedBytes, err := base64.URLEncoding.DecodeString(encodedID)
 	if err != nil {
+		// handle error
+	}
+	decoded := string(decodedBytes)
+	parts := strings.SplitN(decoded, ":", 2)
+	if len(parts) != 2 {
+		// handle invalid format
+	}
+	wishlistID := parts[0]
+	// userID := parts[1]
+	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
@@ -466,7 +503,6 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	wishlistID := string(decodedBytes)
 
 	wishlists, err := models.GetWishlistByID(wishlistID)
 

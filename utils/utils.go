@@ -2,10 +2,12 @@ package utils
 
 import (
 	"adenzo_backend/dtos"
+	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"html/template"
 	"log"
 	"math"
 	"math/big"
@@ -652,3 +654,191 @@ func calculateSubtotal(items []dtos.OrderNotificationItemRequest) float64 {
 	}
 	return subtotal
 }
+
+type WishlistItem struct {
+	Title      string
+	ImageURL   string
+	Price      string // e.g. "$29.99"
+	ProductURL string
+}
+
+type wishlistTemplateData struct {
+	WishlistName string
+	SenderName   string
+	PersonalNote string
+	ShareURL     string
+	Items        []WishlistItem
+	ShowCount    int
+	GeneratedAt  string
+	HasMore      bool
+}
+
+func GenerateWishlistEmailHTML(wishlistName, senderName, personalMessage, shareURL string, items []WishlistItem) (string, error) {
+	const maxPreview = 3
+	showCount := len(items)
+	hasMore := false
+	if len(items) > maxPreview {
+		showCount = maxPreview
+		hasMore = true
+	}
+
+	data := wishlistTemplateData{
+		WishlistName: wishlistName,
+		SenderName:   senderName,
+		PersonalNote: personalMessage,
+		ShareURL:     shareURL,
+		Items:        items[:showCount],
+		ShowCount:    showCount,
+		HasMore:      hasMore,
+		GeneratedAt:  time.Now().Format("January 2, 2006"),
+	}
+
+	tpl := template.Must(template.New("wishlistEmail").Parse(emailTemplate))
+	var buf bytes.Buffer
+	if err := tpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+const emailTemplate = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.WishlistName}} — Shared Wishlist</title>
+  <style>
+    body, table, td {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-size: 16px;
+      color: #333;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #faf8ff;
+    }
+    a {
+      color: #7c3aed;
+      text-decoration: none;
+    }
+    .btn {
+      background: linear-gradient(135deg, #7c3aed, #a78bfa);
+      color: #fff !important;
+      padding: 14px 28px;
+      border-radius: 12px;
+      display: inline-block;
+      font-weight: 600;
+      margin-top: 24px;
+      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+    }
+    .header {
+      background: linear-gradient(135deg, #7c3aed, #a78bfa);
+      color: white;
+      padding: 32px 24px;
+      border-radius: 16px 16px 0 0;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .header p {
+      margin: 8px 0 0 0;
+      opacity: 0.95;
+      font-size: 15px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border: 1px solid #e9d5ff;
+      transition: transform 0.2s;
+    }
+    .price {
+      font-weight: 700;
+      color: #7c3aed;
+      font-size: 18px;
+    }
+    img {
+      border-radius: 8px;
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .footer {
+      text-align: center;
+      color: #9ca3af;
+      font-size: 13px;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid #e9d5ff;
+    }
+    .greeting {
+      font-size: 18px;
+      color: #1f2937;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding: 0;">
+        <table role="presentation" style="max-width: 600px; width: 100%;">
+          <tr>
+            <td class="header">
+              <h1>{{.WishlistName}}</h1>
+              <p>A special collection just for you</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background: #fff; padding: 32px 24px; border-radius: 0 0 16px 16px;">
+              <p class="greeting" style="margin-top: 0;">{{.SenderName}} thought you would love these picks!{{if .PersonalNote}}<br><br><em style="color: #6b7280;">"{{.PersonalNote}}"</em>{{end}}</p>
+
+              <div style="margin-top: 32px;">
+                {{range .Items}}
+                <div class="card">
+                  <table role="presentation" width="100%">
+                    <tr>
+                      <td style="width: 100px; vertical-align: top;">
+                        {{if .ImageURL}}
+                        <a href="{{.ProductURL}}" target="_blank">
+                          <img src="{{.ImageURL}}" alt="{{.Title}}" style="width: 100px; height: 100px; object-fit: cover;">
+                        </a>
+                        {{else}}
+                        <div style="width: 100px; height: 100px; background: linear-gradient(135deg, #fae8ff, #e9d5ff); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #a855f7; font-size: 12px;">No image</div>
+                        {{end}}
+                      </td>
+                      <td style="padding-left: 16px; vertical-align: top;">
+                        <a href="{{.ProductURL}}" target="_blank" style="font-weight: 600; color: #111827; font-size: 16px; display: block; margin-bottom: 8px;">{{.Title}}</a>
+                        <p class="price" style="margin: 0;">{{.Price}}</p>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+                {{end}}
+              </div>
+
+              {{if .HasMore}}
+              <p style="text-align: center; color: #9ca3af; margin-top: 20px; font-style: italic;">Plus more amazing items waiting for you...</p>
+              {{end}}
+
+              <div style="text-align: center;">
+                <a href="{{.ShareURL}}" class="btn" target="_blank">View Full Wishlist</a>
+              </div>
+
+              <div class="footer">
+                <p style="margin: 0;">Shared with love on {{.GeneratedAt}}</p>
+                <p style="margin: 8px 0 0 0;"><a href="{{.ShareURL}}" target="_blank" style="color: #a78bfa;">Open in browser</a></p>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`

@@ -84,6 +84,10 @@ func CreateRoleHandler(w http.ResponseWriter, r *http.Request) {
 func GetRolesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
+		return
+	}
 	name := r.URL.Query().Get("name")
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
@@ -203,6 +207,10 @@ func UpdateRoleHandler(w http.ResponseWriter, r *http.Request) {
 func DeleteRoleHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
+		return
+	}
 	params := mux.Vars(r)
 	roleID := params["role_id"]
 
@@ -366,6 +374,10 @@ func DeletePermissionHandler(w http.ResponseWriter, r *http.Request) {
 func GetPermissionsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
+		return
+	}
 	category := r.URL.Query().Get("category")
 	permissions, err := models.GetPermissions(category)
 	if err != nil {
@@ -399,6 +411,10 @@ func GetPermissionsHandler(w http.ResponseWriter, r *http.Request) {
 func GetPermissionByIDHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
+		return
+	}
 	permissionID := mux.Vars(r)["permission_id"]
 	permission, err := models.GetPermissionByID(permissionID)
 	if err != nil {

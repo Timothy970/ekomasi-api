@@ -271,7 +271,7 @@ type BlogRequest struct {
 	BlogID         string    `json:"blog_id"`
 	AuthorID       string    `json:"author_id"`
 	IsPublished    bool      `json:"is_published"`
-	BannerImageUrl string    `json:"banner_image_url"`
+	BannerImageUrl *string   `json:"banner_image_url"`
 	CreatedAt      string    `json:"created_at"`
 	UpdatedAt      string    `json:"updated_at"`
 	PublishedAt    time.Time `json:"published_at"`
