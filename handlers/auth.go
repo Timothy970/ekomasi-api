@@ -485,6 +485,75 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeLoginRequest(r)
 	if err != nil {
+		respondBadRequest(w, "Invalid Payload", start, r, requestSummary)
+		return
+	}
+	if err := validateLoginRequest(req); err != nil {
+		respondBadRequest(w, err.Error(), start, r, requestSummary)
+		return
+	}
+
+	identifier := getIdentifier(req)
+	if jailed, _ := isUserJailed(identifier); jailed {
+		respondTooManyAttempts(w, start, r, requestSummary)
+		return
+	}
+
+	user, err := fetchUser(req.Email, req.Phone)
+	if err != nil {
+		log.Printf("%v", err)
+		handleFailedLogin(w, identifier, start, r, requestSummary)
+		return
+	}
+	if user == nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: noUserFound,
+				Code:        http.StatusBadRequest,
+			},
+			Message:   noUserFound,
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	otp, err := utils.GenerateOTP()
+	if err != nil {
+		log.Println("Failed to generate:", err)
+		return
+	}
+	if err := StoreOTPInRedis(user.ID, otp, 5*time.Minute); err != nil {
+		log.Println("Failed to store:", err)
+		respondInternalError(w, "Failed to generate OTP", start, r, requestSummary)
+		return
+	}
+
+	clearLoginAttempts(identifier)
+	dispatchOTP(user, otp, *req)
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Auth",
+			Description: "OTP sent successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "OTP sent",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	req, err := decodeLoginRequest(r)
+	if err != nil {
 		respondBadRequest(w, "Invalid request", start, r, requestSummary)
 		return
 	}
@@ -512,7 +581,21 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 				Description: noUserFound,
 				Code:        http.StatusBadRequest,
 			},
-			Message:   "User not found",
+			Message:   noUserFound,
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	if user.Role != "admin" && user.Role != "superadmin" {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Unauthorized access",
+				Code:        http.StatusUnauthorized,
+			},
+			Message:   "Unauthorized access",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -521,11 +604,11 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	otp, err := utils.GenerateOTP()
 	if err != nil {
-		log.Println("Failed to generate OTP:", err)
+		log.Println("Failed to generate one time password:", err)
 		return
 	}
 	if err := StoreOTPInRedis(user.ID, otp, 5*time.Minute); err != nil {
-		log.Println("Failed to store OTP:", err)
+		log.Println("Failed to store one time password:", err)
 		respondInternalError(w, "Failed to store OTP", start, r, requestSummary)
 		return
 	}
