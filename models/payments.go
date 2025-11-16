@@ -365,7 +365,7 @@ func AddVoucherHistory(code string, amount float64, itemsLog []dtos.OrderProduct
 	if err != nil {
 		return err
 	}
-	err = isVoucherThereByCode(code)
+	err = IsVoucherThereByCode(code)
 	if err != nil {
 		return err
 	}

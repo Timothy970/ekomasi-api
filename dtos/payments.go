@@ -44,6 +44,7 @@ type Voucher struct {
 	Message      string    `json:"message" validate:"required"`
 	Status       *string   `json:"status"`
 	CreatedAt    time.Time `json:"created_at"`
+	DesignID     *string   `json:"design_id"`
 	ExpiryDate   string    `json:"expiry_date" validate:"required"`
 }
 type BuyVoucher struct {
@@ -53,14 +54,17 @@ type BuyVoucher struct {
 	ExpiryDate time.Time `json:"expiry_date" validate:"required"`
 }
 type BuyVoucherData struct {
-	DesignID     string  `json:"design_id" validate:"required"`
-	Amount       float64 `json:"amount" validate:"required"`
-	FromName     string  `json:"from_name" validate:"required"`
-	ToName       string  `json:"to_name" validate:"required"`
-	ToEmail      string  `json:"to_email" validate:"required"`
-	Message      string  `json:"message" validate:"required"`
-	DeliveryTime string  `json:"delivery_time" validate:"required"`
+	DesignID      string  `json:"design_id" validate:"required"`
+	Amount        float64 `json:"amount"`
+	FromName      string  `json:"from_name" validate:"required"`
+	ToName        string  `json:"to_name" validate:"required"`
+	ToEmail       string  `json:"to_email" validate:"required"`
+	Message       string  `json:"message" validate:"required"`
+	DeliveryTime  string  `json:"delivery_time" validate:"required"`
+	PhoneNumber   string  `json:"phone_number"`
+	PaymentMethod string  `json:"payment_method" `
 }
+
 type VoucherData struct {
 	VoucherID  string    `json:"voucher_id"`
 	Code       string    `json:"code"`
@@ -176,15 +180,16 @@ type VoucherEmailInfo struct {
 }
 
 type VoucherPurchaseData struct {
-	VoucherID string     `json:"voucher_id"`
-	Code      string     `json:"code"`
-	Amount    float64    `json:"amount"`
-	Balance   float64    `json:"balance"`
-	FromName  *string    `json:"from_name"`
-	ToName    *string    `json:"to_name"`
-	ToEmail   *string    `json:"to_email"`
-	FromEmail *string    `json:"from_email"`
-	Message   *string    `json:"message"`
-	DesignURL *string    `json:"design_url"`
-	CreatedAt *time.Time `json:"created_at"`
+	VoucherID    string     `json:"voucher_id"`
+	Code         string     `json:"code"`
+	Amount       float64    `json:"amount"`
+	Balance      float64    `json:"balance"`
+	FromName     *string    `json:"from_name"`
+	ToName       *string    `json:"to_name"`
+	ToEmail      *string    `json:"to_email"`
+	FromEmail    *string    `json:"from_email"`
+	Message      *string    `json:"message"`
+	DesignURL    *string    `json:"design_url"`
+	CreatedAt    *time.Time `json:"created_at"`
+	DeliveryTime *string    `json:"delivery_time,omitempty"`
 }
