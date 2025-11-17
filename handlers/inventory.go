@@ -35,43 +35,22 @@ func ListInventory(w http.ResponseWriter, r *http.Request) {
 	categoryID := r.URL.Query().Get("category_id")
 	stock := r.URL.Query().Get("stock")
 	storeID := r.URL.Query().Get("store_id")
-	useCached := categoryID == "" && stock == "" && storeID == ""
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	cacheKeyInventories := fmt.Sprintf("inventories_%d_size_%d", page, size)
-	var inventories []dtos.Inventory
-	var cachedInventories []dtos.Inventory
-	var pagination *dtos.PaginationMeta
-	var cachedPagination *dtos.PaginationMeta
-	cacheKeyPagination := fmt.Sprintf("inventories_pagination_%d_size_%d", page, size)
-	if useCached {
-
-		_ = utils.GetCache(cacheKeyInventories, &cachedInventories)
-		_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
-	}
-	if cachedInventories == nil {
-		var err error
-		inventories, pagination, err = models.ListInventory(page, size, categoryID, stock, storeID)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Inventory",
-					Description: "Failed to list inventory",
-					Code:        http.StatusBadRequest,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
-		}
-		if useCached {
-			_ = utils.SetCache(cacheKeyInventories, cachedInventories)
-			_ = utils.SetCache(cacheKeyPagination, cachedPagination)
-		}
-	} else {
-		inventories = cachedInventories
-		pagination = cachedPagination
+	q := r.URL.Query().Get("q")
+	inventories, pagination, err := models.ListInventory(page, size, categoryID, stock, storeID, q)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to list inventory",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
 	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
