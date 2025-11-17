@@ -616,3 +616,203 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+func CreatePaybillHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	//check if user is admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Payments")
+	if !ok {
+		return
+	}
+	req, ok := DecodeRequestBody[dtos.MpesaPaybill](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	//Validate the request
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Payments") {
+		return
+	}
+	err := models.CreateMpesaPaybill(*req)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "Failed to create paybill",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Payments",
+			Description: "Paybill created successfully",
+			Code:        http.StatusCreated,
+		},
+		Payload:   nil,
+		Message:   "Paybill created successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+func ListPayBillsHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	q := r.URL.Query().Get("q")
+	payBills, pagination, err := models.ListMpesaPaybills(q, page, size)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "Failed to list pay bills",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Payments",
+			Description: "Pay bills fetched successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   map[string]any{"paybills": payBills, "meta": pagination},
+		Message:   "Pay bills fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+func GetPaybillByIDHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	payBillID := mux.Vars(r)["paybill_id"]
+	paybill, err := models.GetMpesaPaybillByID(payBillID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "Failed to get paybill by ID " + payBillID,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Payments",
+			Description: "Paybill with ID " + payBillID + " got successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   paybill,
+		Message:   "Paybill fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+func UpdatePayBillHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Payments")
+	if !ok {
+		return
+	}
+	req, ok := DecodeRequestBody[dtos.MpesaPaybillUpdate](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	//Validate the request
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Payments") {
+		return
+	}
+	payBillID := mux.Vars(r)["paybill_id"]
+	if err := models.UpdateMpesaPaybill(payBillID, *req); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "Failed to update paybill with ID " + payBillID,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Payments",
+			Description: "payBill With ID" + payBillID + " was updated successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "Paybill updated successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+func DeletePayBillHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Payments")
+	if !ok {
+		return
+	}
+
+	payBillID := mux.Vars(r)["paybill_id"]
+	if err := models.DeleteMpesaPaybill(payBillID); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "Failed to delete paybill with ID " + payBillID,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Payments",
+			Description: "payBill With ID" + payBillID + " was deleted successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "Paybill deleted successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}

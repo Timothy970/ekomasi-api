@@ -193,3 +193,17 @@ type VoucherPurchaseData struct {
 	CreatedAt    *time.Time `json:"created_at"`
 	DeliveryTime *string    `json:"delivery_time,omitempty"`
 }
+
+type MpesaPaybill struct {
+	ID               string  `json:"id"`
+	PaybillNumber    string  `json:"paybill_number" validate:"required"`
+	AccountReference *string `json:"account_reference,omitempty"`
+	Status           string  `json:"status"`
+	CreatedAt        string  `json:"created_at"`
+}
+
+type MpesaPaybillUpdate struct {
+	PaybillNumber    string  `json:"paybill_number" validate:"required"`
+	AccountReference *string `json:"account_reference,omitempty"`
+	Status           string  `json:"status" validate:"required,oneof=active inactive"`
+}
