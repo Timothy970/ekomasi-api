@@ -382,3 +382,113 @@ func AddVoucherHistory(code string, amount float64, itemsLog []dtos.OrderProduct
 
 	return nil
 }
+
+func CreateMpesaPaybill(paybill dtos.MpesaPaybill) error {
+	paybillID, _ := shortid.Generate()
+	query := `
+		INSERT INTO mpesa_paybills (id, paybill_number, account_reference)
+		VALUES (?, ?, ?)`
+	_, err := DB.Exec(query, paybillID, paybill.PaybillNumber, paybill.AccountReference)
+	return err
+}
+
+func ListMpesaPaybills(searchParam string, page, size int) ([]dtos.MpesaPaybill, *dtos.PaginationMeta, error) {
+	offset := (page - 1) * size
+
+	countQuery := `SELECT COUNT(*) FROM mpesa_paybills`
+	var countArgs []interface{}
+
+	if searchParam != "" {
+		countQuery += " WHERE paybill_number LIKE ?"
+		countArgs = append(countArgs, "%"+searchParam+"%")
+	}
+
+	var totalItems int
+	if err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
+		return nil, nil, err
+	}
+	query := `
+		SELECT id, paybill_number, account_reference, status, created_at
+		FROM mpesa_paybills
+	`
+	var queryArgs []interface{}
+
+	if searchParam != "" {
+		query += " WHERE paybill_number LIKE ?"
+		queryArgs = append(queryArgs, "%"+searchParam+"%")
+	}
+
+	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	queryArgs = append(queryArgs, size, offset)
+
+	rows, err := DB.Query(query, queryArgs...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	var paybills []dtos.MpesaPaybill
+	for rows.Next() {
+		var p dtos.MpesaPaybill
+		if err := rows.Scan(&p.ID, &p.PaybillNumber, &p.AccountReference, &p.Status, &p.CreatedAt); err != nil {
+			return nil, nil, err
+		}
+		paybills = append(paybills, p)
+	}
+	meta := dtos.PaginationMeta{
+		Page:       page,
+		Size:       size,
+		TotalItems: totalItems,
+		TotalPages: int(math.Ceil(float64(totalItems) / float64(size))),
+		HasPrev:    page > 1,
+		HasNext:    page*size < totalItems,
+	}
+
+	return paybills, &meta, nil
+}
+
+func isPayBillThere(id string) error {
+	exists, err := RecordExists("mpesa_paybills", "id = ?", id)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("mpesa paybill not found")
+	}
+	return nil
+}
+func GetMpesaPaybillByID(id string) (*dtos.MpesaPaybill, error) {
+	err := isPayBillThere(id)
+	if err != nil {
+		return nil, err
+	}
+	var p dtos.MpesaPaybill
+	err = DB.QueryRow(`SELECT id, paybill_number, account_reference, status, created_at
+		FROM mpesa_paybills WHERE id = ?`, id).Scan(&p.ID, &p.PaybillNumber, &p.AccountReference, &p.Status, &p.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func UpdateMpesaPaybill(id string, paybill dtos.MpesaPaybillUpdate) error {
+	err := isPayBillThere(id)
+	if err != nil {
+		return err
+	}
+	query := `
+		UPDATE mpesa_paybills
+		SET paybill_number = ?, account_reference = ?, status = ?
+		WHERE id = ?`
+	_, err = DB.Exec(query, paybill.PaybillNumber, paybill.AccountReference, paybill.Status, id)
+	return err
+}
+
+func DeleteMpesaPaybill(id string) error {
+	err := isPayBillThere(id)
+	if err != nil {
+		return err
+	}
+	query := `DELETE FROM mpesa_paybills WHERE id = ?`
+	_, err = DB.Exec(query, id)
+	return err
+}

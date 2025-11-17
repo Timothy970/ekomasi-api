@@ -337,6 +337,8 @@ func SetupRoutes(router *mux.Router) {
 	//payments routes
 	payment := api.PathPrefix("/payment").Subrouter()
 	payment.HandleFunc("/callback", payments.HandleMpesaCallback).Methods("POST")
+	payment.HandleFunc("/balance", payments.HandleMpesaBalance).Methods("GET")
+	payment.HandleFunc("/balance/callback", payments.HandleMpesaBalanceCallback).Methods("POST")
 	payment.HandleFunc("/pay", payments.HandleMpesaPayment).Methods("POST")
 	payment.HandleFunc("/mpesa/register-url", payments.RegisterMpesaRoutesHandler).Methods("POST")
 
@@ -481,5 +483,12 @@ func SetupRoutes(router *mux.Router) {
 
 	api.Handle("/products/bulk-upload", middleware.AuthenticateToken(http.HandlerFunc(handlers.BulkUploadProductsHandler))).Methods("POST")
 	api.HandleFunc("/products/sample-csv", handlers.DownloadSampleCSVHandler).Methods("GET")
+	//paybill crud endpoints
+	payBillID := "/paybills/{paybill_id}"
+	admin.Handle(payBillID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePayBillHandler))).Methods("DELETE")
+	admin.Handle(payBillID, middleware.AuthenticateToken(http.HandlerFunc(handlers.GetPaybillByIDHandler))).Methods("GET")
+	admin.Handle("/paybills", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListPayBillsHandler))).Methods("GET")
+	admin.Handle(payBillID, middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePayBillHandler))).Methods("PATCH")
+	admin.Handle("/paybills", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreatePaybillHandler))).Methods("POST")
 
 }

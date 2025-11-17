@@ -145,6 +145,7 @@ type MpesaClient struct {
 	ShortCode      string
 	Passkey        string
 	CallbackURL    string
+	BalanceURL     string
 	AccessToken    string
 	MpesaURL       string
 }
@@ -156,6 +157,7 @@ func NewMpesaClient() (*MpesaClient, error) {
 		ShortCode:      os.Getenv("MPESA_SHORTCODE"),
 		Passkey:        os.Getenv("MPESA_PASSKEY"),
 		CallbackURL:    os.Getenv("MPESA_CALLBACK_URL"),
+		BalanceURL:     os.Getenv("MPESA_BALANCE_URL"),
 		MpesaURL:       os.Getenv("MPESA_SEND_URL"),
 	}
 	err := client.generateToken()
@@ -429,4 +431,109 @@ func HandleMpesaVoucherPayment(orderID, phoneNumber string, amount float64) erro
 		return err
 	}
 	return nil
+}
+
+func (m *MpesaClient) FetchPayBillBalance() (map[string]any, error) {
+	timestamp := time.Now().Format("20060102150405")
+	password := base64.StdEncoding.EncodeToString([]byte(m.ShortCode + m.Passkey + timestamp))
+
+	payload := map[string]interface{}{
+		"Initiator":          "testapi",
+		"SecurityCredential": password,
+		"CommandID":          "AccountBalance",
+		"PartyA":             m.ShortCode,
+		"IdentifierType":     "4",
+		"Remarks":            "balance",
+		"QueueTimeOutURL":    m.BalanceURL,
+		"ResultURL":          m.BalanceURL,
+	}
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Error json payload %s", err)
+		return map[string]any{}, err
+	}
+
+	url := fmt.Sprintf("%s/mpesa/accountbalance/v1/query", m.MpesaURL)
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("Error creating request %s", err)
+		return map[string]any{}, err
+	}
+	req.Header.Set("Authorization", "Bearer "+m.AccessToken)
+	req.Header.Set(content, contentTypeJSON)
+
+	client := &http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		log.Printf("Error making request %s", err)
+		return map[string]any{}, err
+	}
+	defer res.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		log.Printf("Error decoding response %s", err)
+		return map[string]any{}, err
+	}
+	return result, nil
+
+}
+
+// Handler for the MPesa callback
+func HandleMpesaBalance(w http.ResponseWriter, r *http.Request) {
+	log.Printf("MPESA CALLBACK FROM IP: %s", r.RemoteAddr)
+
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	client, err := NewMpesaClient()
+	if err != nil {
+		http.Error(w, "failed to create mpesa client", http.StatusInternalServerError)
+		return
+	}
+	result, err := client.FetchPayBillBalance()
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+
+				Module:      "Payments",
+				Description: "Failed to fetch MPESA PayBill balance",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   fmt.Sprintf("Failed to fetch MPESA PayBill balance %s", err),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	resultJSON, _ := json.Marshal(result)
+	log.Printf("callback body:::::%v", string(resultJSON))
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Payments",
+			Description: "MPESA PayBill balance fetched successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   result,
+		Message:   "PayBill balance fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+func HandleMpesaBalanceCallback(w http.ResponseWriter, r *http.Request) {
+	log.Printf("MPESA BALANCE CALLBACK FROM IP: %s", r.RemoteAddr)
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+	log.Printf("balance callback body:::::%v", string(bodyBytes))
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Accepted"}`))
 }
