@@ -302,24 +302,34 @@ func UpdateLastLogin(userID string) error {
 	_, err := DB.Exec("UPDATE users SET last_login = ? WHERE user_id = ?", time.Now(), userID)
 	return err
 }
+func isEmailAndPhoneThere(email, phone, userID string) error {
+	if email != "" {
+		if exists, _ := EmailExistsForOtherUser(userID, email); exists {
+			return errors.New("email already exists for another user")
+		}
+	}
+	if phone != "" {
+		if exists, _ := PhoneExistsForOtherUser(userID, phone); exists {
+			return errors.New("phone number already exists for another user")
+		}
+	}
+	return nil
+}
 
 func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, error) {
-	log.Printf("user id***%s", userID)
 	// Check if user exists
 	err := isUserThere(userID)
 	if err != nil {
 		return nil, err
 	}
-	//check if email and phone number exists for other users
-	if input.Email != "" {
-		if exists, _ := EmailExistsForOtherUser(userID, input.Email); exists {
-			return nil, errors.New("email already exists for another user")
-		}
+	err = isRoleThere(input.RoleID)
+	if err != nil {
+		return nil, err
 	}
-	if input.Phonenumber != "" {
-		if exists, _ := PhoneExistsForOtherUser(userID, input.Phonenumber); exists {
-			return nil, errors.New("phone number already exists for another user")
-		}
+	//check if email and phone number exists for other users
+	err = isEmailAndPhoneThere(input.Email, input.Phonenumber, userID)
+	if err != nil {
+		return nil, err
 	}
 	// Build SET clause dynamically
 	setClauses := []string{}
