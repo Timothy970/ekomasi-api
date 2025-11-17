@@ -5,6 +5,7 @@ import (
 	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/notification"
+	"adenzo_backend/payments"
 	"adenzo_backend/utils"
 	"fmt"
 	"log"
@@ -242,13 +243,15 @@ func ListVouchersHandler(w http.ResponseWriter, r *http.Request) {
 	isRedeemed := r.URL.Query().Get("is_redeemed")
 	status := r.URL.Query().Get("status")
 	r.URL.Query().Get("page")
+	code := r.URL.Query().Get("code")
+	customer := r.URL.Query().Get("customer")
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	vouchers, pagination, err := models.ListVouchers(page, size, isRedeemed, status)
+	vouchers, pagination, err := models.ListVouchers(page, size, isRedeemed, status, code, customer)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
-				Description: "Failed to fetch vouchers",
+				Description: "Failed to fetch vouchers list: " + err.Error(),
 				Code:        http.StatusInternalServerError,
 			},
 			Message:   err.Error(),
@@ -569,7 +572,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
-				Description: "User not validated or unauthorized",
+				Description: noUserFound,
 				Code:        http.StatusInternalServerError,
 			},
 			Message:   noUser,
@@ -590,6 +593,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	// create voucher data
 	var voucher dtos.Voucher
 	voucher.Amount = req.Amount
+	voucher.DesignID = &req.DesignID
 	active := "scheduled"
 	voucher.Status = &active
 
@@ -628,9 +632,53 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	//insert into voucher purchases
+	err = models.InsertIntoVoucherPurchases(*req, authuser.ID, voucherID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Vouchers",
+				Description: "Failed to record voucher purchase",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 	//create voucher order
-	voucherOrderID, err := models.CreateVoucherOrder(req.Amount, voucherID)
-
+	voucherOrderID, err := models.CreateVoucherOrder(req.Amount, voucherID, req.PaymentMethod)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Vouchers",
+				Description: "Failed to create voucher order",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	err = voucherPaymentProcessor(req.PaymentMethod, voucherOrderID, req.PhoneNumber, req.Amount)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Vouchers",
+				Description: "Failed to process voucher payment",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 	utils.DeleteCacheByPrefix("vouchers_")
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -647,6 +695,127 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
+}
+func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+
+	req, ok := DecodeRequestBody[dtos.BuyVoucherData](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	//Validate the request
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
+		return
+	}
+	voucherID := mux.Vars(r)["voucher_id"]
+	// create voucher data
+	amount := req.Amount
+	status := "scheduled"
+
+	deliveryTime := models.StringToTime(req.DeliveryTime)
+	now := time.Now()
+
+	// If delivery time is in the past, mark as active
+	if deliveryTime.Before(now) {
+		status = "active"
+	}
+	if req.Amount > 0 {
+		err := models.UpdateVoucher(voucherID, amount, status, req.DesignID)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Vouchers",
+					Description: "Failed to update voucher",
+					Code:        http.StatusBadRequest,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+	}
+	//insert into voucher purchases
+	err := models.UpdateVoucherPurchases(*req, voucherID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Vouchers",
+				Description: "Failed to update voucher purchase",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//create voucher order
+	voucherOrderID, err := models.UpdateVoucherPurchaseAmount(req.Amount, voucherID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Vouchers",
+				Description: "Failed to update voucher purchase amount",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	if req.Amount > 0 || req.PaymentMethod != "none" {
+		err = voucherPaymentProcessor(req.PaymentMethod, voucherOrderID, req.PhoneNumber, req.Amount)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Vouchers",
+					Description: "Failed to process voucher payment",
+					Code:        http.StatusBadRequest,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+	}
+	utils.DeleteCacheByPrefix("vouchers_")
+	utils.DeleteCacheByPrefix("vouchers_pagination_")
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Vouchers",
+			Description: "Voucher updated and added successfully",
+			Code:        http.StatusOK,
+		},
+		Payload: map[string]interface{}{
+			"voucher_order_id": voucherOrderID,
+		},
+		Message:   "Voucher updated successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+func voucherPaymentProcessor(paymentMethod string, voucherOrderID, phoneNumber string, amount float64) error {
+	switch paymentMethod {
+	case "mpesa":
+		// Initiate Mpesa payment
+		err := payments.HandleMpesaVoucherPayment(voucherOrderID, phoneNumber, amount)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported payment method: %s", paymentMethod)
+	}
+	return nil
 }
 
 // Handler to make voucher mine(redeem to my account)
@@ -889,8 +1058,9 @@ func DeleteVoucherDesign(w http.ResponseWriter, r *http.Request) {
 func GetAllVoucherDesigns(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
+	name := r.URL.Query().Get("name")
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	designs, pagination, err := models.GetAllVoucherDesigns(page, size)
+	designs, pagination, err := models.GetAllVoucherDesigns(page, size, name)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -953,7 +1123,7 @@ func ListVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
-			Description: "Vouchers purchases fetched successfully",
+			Description: "Vouchers purchases fetched successfully for all users",
 			Code:        http.StatusOK,
 		},
 		Payload: map[string]interface{}{
@@ -961,6 +1131,46 @@ func ListVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
 			"pagination": pagination,
 		},
 		Message:   "Vouchers purchases fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+
+}
+func GetVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	//check if user is admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Vouchers")
+	if !ok {
+		return
+	}
+	voucherID := mux.Vars(r)["purchase_id"]
+	vouchers, err := models.GetVoucherPurchases(voucherID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Vouchers",
+				Description: "Failed to fetch vouchers",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Vouchers",
+			Description: "Vouchers purchase fetched successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   vouchers,
+		Message:   "Vouchers purchase fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

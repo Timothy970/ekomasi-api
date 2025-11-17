@@ -220,12 +220,14 @@ func SetupRoutes(router *mux.Router) {
 	api.HandleFunc("/refunds", handlers.ListRefundsHandler).Methods("GET")
 	api.HandleFunc("/refunds/{refund_id}", handlers.GetRefundByIDHandler).Methods("GET")
 	vouchers := api.PathPrefix(vouchersPath).Subrouter()
-	voucherWithID := "/vouchers/designs/{voucher_id}"
+	voucherWithID := "/vouchers/{voucher_id}"
+	voucherDesignWithID := "/vouchers/designs/{voucher_id}"
 	admin.Handle(vouchersPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateVoucherDesign))).Methods("POST")
-	admin.Handle(voucherWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.EditVoucherDesign))).Methods("PATCH")
+	admin.Handle(voucherDesignWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.EditVoucherDesign))).Methods("PATCH")
 	admin.Handle(vouchersPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.ListVouchersHandler))).Methods("GET")
 	admin.Handle(vouchersPath+"/purchases", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListVoucherPurchasesHandler))).Methods("GET")
-	admin.Handle(voucherWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteVoucherDesign))).Methods("DELETE")
+	admin.Handle(vouchersPath+"/purchases/{purchase_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetVoucherPurchasesHandler))).Methods("GET")
+	admin.Handle(voucherDesignWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteVoucherDesign))).Methods("DELETE")
 	admin.Handle(voucherWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.GetVoucherHandler))).Methods("GET")
 	api.HandleFunc("/vouchers/designs", handlers.GetAllVoucherDesigns).Methods("GET")
 	//admin to create vouchers
@@ -239,6 +241,7 @@ func SetupRoutes(router *mux.Router) {
 	adminvoucher.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteVoucherHandler))).Methods("DELETE")
 	// endpoint for users to buy a voucher
 	vouchers.Handle("/buy-voucher", middleware.AuthenticateToken(http.HandlerFunc(handlers.BuyVoucherHandler))).Methods("POST")
+	vouchers.Handle("/buy-voucher/{voucher_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.BuyVoucherUpdateHandler))).Methods("PATCH")
 	// adminvoucher.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetVoucherHandler))).Methods("GET")
 	//endpoint for users to redeem a voucher
 	vouchers.Handle("/redeem", middleware.AuthenticateToken(http.HandlerFunc(handlers.RedeemVoucherHandler))).Methods("POST")

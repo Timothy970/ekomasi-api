@@ -9,3 +9,5 @@ storage/logs/adenzo.*
 service.json
 /.idea
 docker
+go.mod
+go.sum

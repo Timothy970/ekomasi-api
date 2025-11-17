@@ -16,16 +16,26 @@ import (
 
 var noinventory = "inventory not found"
 
-func ListInventory(page, size int, categoryID, stock, storeID string) ([]dtos.Inventory, *dtos.PaginationMeta, error) {
+func ListInventory(page, size int, categoryID, stock, storeID, search string) ([]dtos.Inventory, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * size
-	countQuery := `SELECT COUNT(*) FROM inventory inv JOIN products prd ON inv.product_id = prd.product_id`
+
+	baseCount := `
+		SELECT COUNT(*) 
+		FROM inventory inv
+		JOIN products prd ON inv.product_id = prd.product_id
+		JOIN categories cat ON prd.category_id = cat.category_id
+	`
+
 	var filters []string
 	var args []interface{}
 
+	// Filter by category
 	if categoryID != "" {
 		filters = append(filters, "prd.category_id = ?")
 		args = append(args, categoryID)
 	}
+
+	// Filter by stock level
 	if stock != "" {
 		switch strings.ToLower(stock) {
 		case "in":
@@ -36,47 +46,76 @@ func ListInventory(page, size int, categoryID, stock, storeID string) ([]dtos.In
 			filters = append(filters, "inv.quantity <= inv.low_stock_threshold")
 		}
 	}
+
+	// Filter by warehouse
 	if storeID != "" {
 		filters = append(filters, "inv.warehouse_id = ?")
 		args = append(args, storeID)
 	}
 
-	// Only add WHERE if there are filters
-	countSQL := countQuery
+	// Search field
+	if search != "" {
+		filters = append(filters, "(prd.name LIKE ? OR cat.name LIKE ? OR inv.inventory_id LIKE ?)")
+		args = append(args, "%"+search+"%", "%"+search+"%", "%"+search+"%")
+	}
+
+	// Build COUNT query
+	countSQL := baseCount
 	if len(filters) > 0 {
 		countSQL += " WHERE " + strings.Join(filters, " AND ")
 	}
+
 	var totalItems int
-	err := DB.QueryRow(countSQL, args...).Scan(&totalItems)
-	if err != nil {
+	if err := DB.QueryRow(countSQL, args...).Scan(&totalItems); err != nil {
 		return nil, nil, err
 	}
 
-	query := `SELECT inv.inventory_id, inv.warehouse_id, prd.product_id, inv.variant_id, inv.quantity, inv.low_stock_threshold, prd.name, prd.description, prd.sku, prd.tag, prd.price, prd.category_id, cat.name, prd.stock_quantity, prd.search_vector
-        FROM inventory inv
-        JOIN products prd ON inv.product_id = prd.product_id
-        JOIN categories cat ON prd.category_id = cat.category_id`
-	if len(filters) > 0 {
-		query += " WHERE " + strings.Join(filters, " AND ")
-	}
-	query += " ORDER BY inv.last_updated DESC LIMIT ? OFFSET ?"
+	// Build SELECT query
+	selectSQL := `
+		SELECT 
+			inv.inventory_id, inv.warehouse_id, prd.product_id, inv.variant_id,
+			inv.quantity, inv.low_stock_threshold, prd.name, prd.description,
+			prd.sku, prd.tag, prd.price, prd.category_id, 
+			cat.name, prd.stock_quantity, prd.search_vector
+		FROM inventory inv
+		JOIN products prd ON inv.product_id = prd.product_id
+		JOIN categories cat ON prd.category_id = cat.category_id
+	`
 
-	rows, err := DB.Query(query, append(args, size, offset)...)
+	if len(filters) > 0 {
+		selectSQL += " WHERE " + strings.Join(filters, " AND ")
+	}
+
+	selectSQL += " ORDER BY inv.last_updated DESC LIMIT ? OFFSET ?"
+
+	rows, err := DB.Query(selectSQL, append(args, size, offset)...)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
 
 	var inventories []dtos.Inventory
+
 	for rows.Next() {
 		var inv dtos.Inventory
-		if err := rows.Scan(&inv.InventoryID, &inv.StoreID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold, &inv.Name, &inv.Description, &inv.SKU, &inv.Tag, &inv.Price, &inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector); err != nil {
+		err := rows.Scan(
+			&inv.InventoryID, &inv.StoreID, &inv.ProductID, &inv.VariantID,
+			&inv.Quantity, &inv.LowStockThreshold, &inv.Name, &inv.Description,
+			&inv.SKU, &inv.Tag, &inv.Price, &inv.CategoryID,
+			&inv.CategoryName, &inv.StockQuantity, &inv.SearchVector,
+		)
+		if err != nil {
 			return nil, nil, err
 		}
+
 		inv.Images, _ = fetchProductImages(inv.ProductID)
+		inv.SupplierInfo, _ = fetchSupplierByInventoryID(inv.InventoryID)
+
 		inventories = append(inventories, inv)
 	}
+
 	totalPages := int(math.Ceil(float64(totalItems) / float64(size)))
+
 	meta := dtos.PaginationMeta{
 		Page:       page,
 		Size:       size,
@@ -85,6 +124,7 @@ func ListInventory(page, size int, categoryID, stock, storeID string) ([]dtos.In
 		HasPrev:    page > 1,
 		HasNext:    page < totalPages,
 	}
+
 	return inventories, &meta, nil
 }
 

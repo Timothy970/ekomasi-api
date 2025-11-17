@@ -17,6 +17,11 @@ import (
 	"time"
 )
 
+var (
+	contentTypeJSON = "application/json"
+	content         = "Content-Type"
+)
+
 func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -165,7 +170,7 @@ func (m *MpesaClient) generateToken() error {
 		return err
 	}
 	req.SetBasicAuth(m.ConsumerKey, m.ConsumerSecret)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(content, contentTypeJSON)
 
 	client := &http.Client{}
 	res, err := client.Do(req)
@@ -223,7 +228,7 @@ func (m *MpesaClient) LipaNaMpesaOnline(paymentRequest dtos.MpesaRequest) (map[s
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+m.AccessToken)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(content, contentTypeJSON)
 
 	client := &http.Client{}
 	res, err := client.Do(req)
@@ -253,7 +258,7 @@ func (m *MpesaClient) RegisterURLs() error {
 
 	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	req.Header.Set("Authorization", "Bearer "+m.AccessToken)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(content, contentTypeJSON)
 
 	client := &http.Client{}
 	res, err := client.Do(req)
@@ -397,4 +402,31 @@ func randString(n int) string {
 		b[i] = letters[int(b[i])%len(letters)]
 	}
 	return string(b)
+}
+
+func HandleMpesaVoucherPayment(orderID, phoneNumber string, amount float64) error {
+
+	req := &dtos.MpesaRequest{
+		OrderID: orderID,
+		Phone:   phoneNumber,
+		// Amount:      int(amount),
+		Amount:      1,
+		DeliveryID:  "",
+		Reference:   randString(12),
+		Description: fmt.Sprintf("Payment for voucher order %s", orderID),
+		Type:        "VOUCHER",
+	}
+	client, err := NewMpesaClient()
+	if err != nil {
+		return err
+	}
+	response, err := client.LipaNaMpesaOnline(*req)
+	if err != nil {
+		return err
+	}
+	err = models.StoreStkResponse(response, *req)
+	if err != nil {
+		return err
+	}
+	return nil
 }

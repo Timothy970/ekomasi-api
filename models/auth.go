@@ -221,15 +221,45 @@ func CreateUser(input dtos.RegisterRequest) (*dtos.User, error) {
 	if err := isRoleThere(roleID); err != nil {
 		return nil, err
 	}
-
-	// Build dynamic insert query
-	if err := insertUser(userID, roleID, input); err != nil {
-		return nil, err
-	}
-
 	// Fetch role name for response
 	role, err := GetRoleNameByID(roleID)
 	if err != nil {
+		return nil, err
+	}
+
+	// Build dynamic insert query
+	if err := insertUser(userID, roleID, input, role); err != nil {
+		return nil, err
+	}
+
+	// Return created user
+	return &dtos.User{
+		ID:        userID,
+		FirstName: input.Firstname,
+		LastName:  input.Lastname,
+		Email:     input.Email,
+		Role:      role,
+	}, nil
+}
+func AddUser(input dtos.RegisterRequest) (*dtos.User, error) {
+	// Validate unique email and phone
+	if err := validateUniqueUserIdentifiers(input.Email, input.Phonenumber); err != nil {
+		return nil, err
+	}
+	err := isRoleThere(input.RoleID)
+	if err != nil {
+		return nil, err
+	}
+	// Generate user ID
+	userID, _ := shortid.Generate()
+	// Fetch role name for response
+	role, err := GetRoleNameByID(input.RoleID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build dynamic insert query
+	if err := insertUser(userID, input.RoleID, input, role); err != nil {
 		return nil, err
 	}
 
@@ -272,9 +302,9 @@ func resolveRoleID(inputRoleID string) (string, error) {
 
 	return roleID, nil
 }
-func insertUser(userID, roleID string, input dtos.RegisterRequest) error {
-	columns := []string{"user_id", "role_id"}
-	values := []interface{}{userID, roleID}
+func insertUser(userID, roleID string, input dtos.RegisterRequest, role string) error {
+	columns := []string{"user_id", "role_id", "role"}
+	values := []interface{}{userID, roleID, role}
 
 	addIfNotEmpty := func(field string, value string) {
 		if value != "" {
@@ -302,24 +332,34 @@ func UpdateLastLogin(userID string) error {
 	_, err := DB.Exec("UPDATE users SET last_login = ? WHERE user_id = ?", time.Now(), userID)
 	return err
 }
+func isEmailAndPhoneThere(email, phone, userID string) error {
+	if email != "" {
+		if exists, _ := EmailExistsForOtherUser(userID, email); exists {
+			return errors.New("email already exists for another user")
+		}
+	}
+	if phone != "" {
+		if exists, _ := PhoneExistsForOtherUser(userID, phone); exists {
+			return errors.New("phone number already exists for another user")
+		}
+	}
+	return nil
+}
 
 func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, error) {
-	log.Printf("user id***%s", userID)
 	// Check if user exists
 	err := isUserThere(userID)
 	if err != nil {
 		return nil, err
 	}
-	//check if email and phone number exists for other users
-	if input.Email != "" {
-		if exists, _ := EmailExistsForOtherUser(userID, input.Email); exists {
-			return nil, errors.New("email already exists for another user")
-		}
+	err = isRoleThere(input.RoleID)
+	if err != nil {
+		return nil, err
 	}
-	if input.Phonenumber != "" {
-		if exists, _ := PhoneExistsForOtherUser(userID, input.Phonenumber); exists {
-			return nil, errors.New("phone number already exists for another user")
-		}
+	//check if email and phone number exists for other users
+	err = isEmailAndPhoneThere(input.Email, input.Phonenumber, userID)
+	if err != nil {
+		return nil, err
 	}
 	// Build SET clause dynamically
 	setClauses := []string{}

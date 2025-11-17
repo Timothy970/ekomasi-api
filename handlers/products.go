@@ -546,7 +546,6 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		Description: r.FormValue("bundle_description"),
 		Price:       func() float64 { p, _ := strconv.ParseFloat(r.FormValue("bundle_price"), 64); return p }(),
 		Image:       url,
-		CategoryID:  r.FormValue("category_id"),
 		Products: func() []dtos.BundleProducts {
 			productsStr := r.FormValue("products")
 			if productsStr == "" {
@@ -669,7 +668,6 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		Description: r.FormValue("bundle_description"),
 		Price:       func() float64 { p, _ := strconv.ParseFloat(r.FormValue("bundle_price"), 64); return p }(),
 		Image:       &imageURL,
-		CategoryID:  r.FormValue("category_id"),
 		KeepSelling: func() *bool {
 			ks := strings.ToLower(r.FormValue("keep_selling"))
 			switch ks {

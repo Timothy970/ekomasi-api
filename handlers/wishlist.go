@@ -426,7 +426,7 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	baseURL := os.Getenv("BASE_URL")
+	baseURL := os.Getenv("FRONT_END_BASE_URL")
 	encodedID := base64.URLEncoding.EncodeToString([]byte(wishlists.WishlistID + ":" + user.ID))
 	shareLink := fmt.Sprintf("%sshared-wishlist/%s", baseURL, encodedID)
 	//send using email
@@ -542,7 +542,7 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 			Description: "Shared wishlist fetched successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   wishlist.Products,
+		Payload:   wishlist,
 		Message:   "Shared wishlist",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),

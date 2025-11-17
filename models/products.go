@@ -748,8 +748,7 @@ func GetBundleProducts(bundleID string, limit, page int) ([]dtos.GetBundleReques
 	// Fetch paginated bundles
 	query := `
 		SELECT 
-			bundle_id, name, description, bundle_price, bundle_image, 
-			category_id, compare_at_price, keep_selling_when_out_of_stock
+			bundle_id, name, description, bundle_price, bundle_image, compare_at_price, keep_selling_when_out_of_stock
 		FROM product_bundles
 	`
 	if bundleID != "" {
@@ -771,7 +770,7 @@ func GetBundleProducts(bundleID string, limit, page int) ([]dtos.GetBundleReques
 
 		if err := rows.Scan(
 			&b.BundleID, &b.BundleName, &b.BundleDescription, &b.BundlePrice,
-			&b.BundleImage, &b.CategoryID, &compareAtPrice, &keepSelling,
+			&b.BundleImage, &compareAtPrice, &keepSelling,
 		); err != nil {
 			return nil, nil, err
 		}
@@ -831,30 +830,14 @@ func getProductsForBundle(bundleID string) ([]dtos.Product, error) {
 
 // create bundle
 func CreateBundle(req dtos.Bundle) error {
-	err := isCategoryThere(req.CategoryID)
-	if err != nil {
-		return err
-	}
-	var parentID *string
-	err = DB.QueryRow("SELECT parent_category_id FROM categories WHERE category_id = ?", req.CategoryID).Scan(&parentID)
-	if err != nil {
-		return err
-	}
-
-	// 3. Prevent adding product to parent category
-	if parentID == nil {
-		return fmt.Errorf("cannot create bundle in a parent category, choose a subcategory instead")
-	}
-
 	bundleID, _ := shortid.Generate()
-	_, err = DB.Exec(`
-		INSERT INTO product_bundles (bundle_id, name, description, bundle_price, bundle_image, category_id, compare_at_price, keep_selling_when_out_of_stock)
-		VALUES (?,?,?,?,?,?,?,?)
-	`, bundleID, req.Name, req.Description, req.Price, req.Image, req.CategoryID, req.CompareAtPrice, req.KeepSelling)
+	_, err := DB.Exec(`
+		INSERT INTO product_bundles (bundle_id, name, description, bundle_price, bundle_image, compare_at_price, keep_selling_when_out_of_stock)
+		VALUES (?,?,?,?,?,?,?)
+	`, bundleID, req.Name, req.Description, req.Price, req.Image, req.CompareAtPrice, req.KeepSelling)
 	if err != nil {
 		return err
 	}
-	log.Printf("already addedd bundle")
 	//add products to bundle
 	if len(req.Products) > 0 {
 		err = AddProductsToBundle(req.Products, bundleID)
@@ -893,14 +876,6 @@ func UpdateBundle(req dtos.UpdateBundle) error {
 	if req.Image != nil {
 		updates = append(updates, "bundle_image = ?")
 		args = append(args, req.Image)
-	}
-	if req.CategoryID != "" {
-		err = isCategoryThere(req.CategoryID)
-		if err != nil {
-			return err
-		}
-		updates = append(updates, "category_id = ?")
-		args = append(args, req.CategoryID)
 	}
 	if req.KeepSelling != nil {
 		updates = append(updates, "keep_selling_when_out_of_stock = ?")
