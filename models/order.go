@@ -397,7 +397,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 
 func UpdateOrderStatus(orderID string, req dtos.UpdateOrderStatusRequest) error {
 	// Check if order exists
-	if err := isOrderThere(orderID); err != nil {
+	if err := IsOrderThere(orderID); err != nil {
 		return err
 	}
 
@@ -423,7 +423,7 @@ func UpdateOrderStatus(orderID string, req dtos.UpdateOrderStatusRequest) error 
 	return nil
 }
 
-func isOrderThere(id string) error {
+func IsOrderThere(id string) error {
 	exists, err := RecordExists("orders", "order_id = ?", id)
 	if err != nil {
 		return err
@@ -435,7 +435,7 @@ func isOrderThere(id string) error {
 }
 
 func GetOrderByID(orderID string) (*dtos.Order, error) {
-	err := isOrderThere(orderID)
+	err := IsOrderThere(orderID)
 	if err != nil {
 		return nil, err
 	}
