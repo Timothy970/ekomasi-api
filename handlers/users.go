@@ -41,14 +41,28 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if (input.Email == "" || input.Phonenumber == "") && input.RoleID == "" {
+	if input.RoleID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
-				Description: "Missing mandatory fields email, phone number or role ID",
+				Description: "Missing mandatory field role ID",
 				Code:        http.StatusBadRequest,
 			},
-			Message:   mandatory,
+			Message:   "Role ID is mandatory",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	if input.Email == "" && input.Phonenumber == "" {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Missing mandatory fields, email or phone number",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Missing mandatory fields, email or phone number",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,

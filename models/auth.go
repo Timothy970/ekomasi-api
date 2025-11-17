@@ -221,15 +221,45 @@ func CreateUser(input dtos.RegisterRequest) (*dtos.User, error) {
 	if err := isRoleThere(roleID); err != nil {
 		return nil, err
 	}
-
-	// Build dynamic insert query
-	if err := insertUser(userID, roleID, input); err != nil {
-		return nil, err
-	}
-
 	// Fetch role name for response
 	role, err := GetRoleNameByID(roleID)
 	if err != nil {
+		return nil, err
+	}
+
+	// Build dynamic insert query
+	if err := insertUser(userID, roleID, input, role); err != nil {
+		return nil, err
+	}
+
+	// Return created user
+	return &dtos.User{
+		ID:        userID,
+		FirstName: input.Firstname,
+		LastName:  input.Lastname,
+		Email:     input.Email,
+		Role:      role,
+	}, nil
+}
+func AddUser(input dtos.RegisterRequest) (*dtos.User, error) {
+	// Validate unique email and phone
+	if err := validateUniqueUserIdentifiers(input.Email, input.Phonenumber); err != nil {
+		return nil, err
+	}
+	err := isRoleThere(input.RoleID)
+	if err != nil {
+		return nil, err
+	}
+	// Generate user ID
+	userID, _ := shortid.Generate()
+	// Fetch role name for response
+	role, err := GetRoleNameByID(input.RoleID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build dynamic insert query
+	if err := insertUser(userID, input.RoleID, input, role); err != nil {
 		return nil, err
 	}
 
@@ -272,9 +302,9 @@ func resolveRoleID(inputRoleID string) (string, error) {
 
 	return roleID, nil
 }
-func insertUser(userID, roleID string, input dtos.RegisterRequest) error {
-	columns := []string{"user_id", "role_id"}
-	values := []interface{}{userID, roleID}
+func insertUser(userID, roleID string, input dtos.RegisterRequest, role string) error {
+	columns := []string{"user_id", "role_id", "role"}
+	values := []interface{}{userID, roleID, role}
 
 	addIfNotEmpty := func(field string, value string) {
 		if value != "" {
