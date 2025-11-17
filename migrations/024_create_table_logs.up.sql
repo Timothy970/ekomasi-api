@@ -11,5 +11,8 @@ CREATE TABLE IF NOT EXISTS `logs` (
    KEY `idx_logs_user_id` (`user_id`),
    KEY `idx_logs_level` (`level`),
 
-   KEY `idx_logs_userid_timestamp` (`user_id`, `timestamp` DESC)
+   KEY `idx_logs_userid_timestamp` (`user_id`, `timestamp` DESC),
+   KEY `idx_logs2_timestamp` (`timestamp` DESC)
 );
+
+
