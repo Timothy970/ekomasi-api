@@ -650,6 +650,20 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	//create voucher order
 	voucherOrderID, err := models.CreateVoucherOrder(req.Amount, voucherID, req.PaymentMethod)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Vouchers",
+				Description: "Failed to create voucher order",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 	err = voucherPaymentProcessor(req.PaymentMethod, voucherOrderID, req.PhoneNumber, req.Amount)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -687,21 +701,6 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 
-	// authuser, ok := middleware.UserFromContext(r.Context())
-	// if !ok {
-	// 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-	// 		CollectiveInfo: utils.CollectiveInfo{
-	// 			Module:      "Vouchers",
-	// 			Description: "User not validated or unauthorized",
-	// 			Code:        http.StatusInternalServerError,
-	// 		},
-	// 		Message:   noUser,
-	// 		TimeTaken: time.Since(start),
-	// 		Function:  utils.GetCurrentFuncName(),
-	// 		Request:   r,
-	// 		RawBody:   requestSummary})
-	// 	return
-	// }
 	req, ok := DecodeRequestBody[dtos.BuyVoucherData](r, w, requestSummary, start)
 	if !ok {
 		return

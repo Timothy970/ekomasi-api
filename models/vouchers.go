@@ -742,11 +742,12 @@ func ListVoucherPurchases(page, size int, name string) ([]dtos.VoucherPurchaseDa
 		return nil, nil, fmt.Errorf("failed to count voucher purchases: %w", err)
 	}
 
+	var voucherUpdateTime time.Time
 	selectQuery := `
 		SELECT 
 			v.voucher_id, v.code, v.balance, v.original_value, 
 			vp.from_name, vp.to_name, vp.to_email, vp.personalized_msg, vp.from_user_id, vd.url,
-			vp.created_at
+			vp.created_at, v.updated_at
 	` + baseQuery + `
 		ORDER BY v.updated_at DESC
 		LIMIT ? OFFSET ?
@@ -778,6 +779,7 @@ func ListVoucherPurchases(page, size int, name string) ([]dtos.VoucherPurchaseDa
 			&fromUserID,
 			&designURL,
 			&createdAt,
+			&voucherUpdateTime,
 		); err != nil {
 			return nil, nil, fmt.Errorf("failed to scan voucher purchase row: %w", err)
 		}
