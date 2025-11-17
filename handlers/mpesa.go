@@ -155,6 +155,7 @@ type MpesaClient struct {
 	InitiatorPassword  string
 	CertificatePath    string
 	SecurityCredential string
+	ReturnURL          string
 }
 
 func NewMpesaClient() (*MpesaClient, error) {
@@ -181,6 +182,7 @@ func NewMpesaClient() (*MpesaClient, error) {
 		InitiatorPassword:  InitiatorPassword,
 		CertificatePath:    CertificatePath,
 		SecurityCredential: securityCredential,
+		ReturnURL:          os.Getenv("MPESA_RETURN_URL"),
 	}
 	err = client.generateToken()
 	return client, err
@@ -588,6 +590,18 @@ type MpesaMoneyReturnRequest struct {
 	PhoneNumber string `json:"phone_number" validate:"required"`
 }
 
+func HandleMpesaReturnCallback(w http.ResponseWriter, r *http.Request) {
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+	log.Printf("balance callback body:::::%v", string(bodyBytes))
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Accepted"}`))
+}
+
 func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -695,8 +709,8 @@ func (m *MpesaClient) HandleMoneyReturn(amount float64, phoneNumber string) (Mpe
 		"PartyA":                   m.ShortCode,
 		"PartyB":                   phoneNumber,
 		"Remarks":                  "Payment Return for order to phone number " + phoneNumber,
-		"QueueTimeOutURL":          m.BalanceURL,
-		"ResultURL":                m.BalanceURL,
+		"QueueTimeOutURL":          m.ReturnURL,
+		"ResultURL":                m.ReturnURL,
 		"Occasion":                 "",
 	}
 	jsonData, err := json.Marshal(payload)
