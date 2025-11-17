@@ -584,7 +584,8 @@ func HandleMpesaBalanceCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 type MpesaMoneyReturnRequest struct {
-	OrderID string `json:"order_id" validate:"required"`
+	OrderID     string `json:"order_id" validate:"required"`
+	PhoneNumber string `json:"phone_number" validate:"required"`
 }
 
 func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
@@ -602,7 +603,7 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Accounts") {
 		return
 	}
-	err := models.IsOrderThere(req.OrderID)
+	order, err := models.GetOrderByID(req.OrderID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -621,7 +622,7 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := client.HandleMoneyReturn()
+	result, err := client.HandleMoneyReturn(order.TotalAmount, req.PhoneNumber)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -653,7 +654,7 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//mark the order as refunded and restock items
-	err = models.HandleMpesaMoneyReturnRefunds(req.OrderID)
+	err = models.HandleMpesaMoneyReturnRefunds(*order)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -684,16 +685,16 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (m *MpesaClient) HandleMoneyReturn() (MpesaMoneyReturnResponse, error) {
+func (m *MpesaClient) HandleMoneyReturn(amount float64, phoneNumber string) (MpesaMoneyReturnResponse, error) {
 	payload := map[string]interface{}{
 		"OriginatorConversationID": randString(24),
 		"InitiatorName":            m.InitiatorName,
 		"SecurityCredential":       m.SecurityCredential,
 		"CommandID":                "BusinessPayment",
-		"Amount":                   10,
-		"PartyA":                   600986,
-		"PartyB":                   254746166343,
-		"Remarks":                  "Test remarks",
+		"Amount":                   amount,
+		"PartyA":                   m.ShortCode,
+		"PartyB":                   phoneNumber,
+		"Remarks":                  "Payment Return for order to phone number " + phoneNumber,
 		"QueueTimeOutURL":          m.BalanceURL,
 		"ResultURL":                m.BalanceURL,
 		"Occasion":                 "",
