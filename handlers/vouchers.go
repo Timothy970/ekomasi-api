@@ -5,7 +5,6 @@ import (
 	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/notification"
-	"adenzo_backend/payments"
 	"adenzo_backend/utils"
 	"fmt"
 	"log"
@@ -808,7 +807,7 @@ func voucherPaymentProcessor(paymentMethod string, voucherOrderID, phoneNumber s
 	switch paymentMethod {
 	case "mpesa":
 		// Initiate Mpesa payment
-		err := payments.HandleMpesaVoucherPayment(voucherOrderID, phoneNumber, amount)
+		err := HandleMpesaVoucherPayment(voucherOrderID, phoneNumber, amount)
 		if err != nil {
 			return err
 		}

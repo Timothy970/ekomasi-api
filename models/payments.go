@@ -142,7 +142,7 @@ func SetVoucherAsRedeemed(code string) error {
 }
 
 func CreatePayment(p dtos.Payment) error {
-	err := isOrderThere(p.OrderID)
+	err := IsOrderThere(p.OrderID)
 	if err != nil {
 		return err
 	}

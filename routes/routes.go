@@ -7,7 +7,6 @@ import (
 
 	"adenzo_backend/handlers"
 	"adenzo_backend/middleware"
-	"adenzo_backend/payments"
 	"adenzo_backend/utils"
 )
 
@@ -336,11 +335,13 @@ func SetupRoutes(router *mux.Router) {
 	api.HandleFunc("/blogs/{blog_id}", handlers.GetBlogHandler).Methods("GET")
 	//payments routes
 	payment := api.PathPrefix("/payment").Subrouter()
-	payment.HandleFunc("/callback", payments.HandleMpesaCallback).Methods("POST")
-	payment.HandleFunc("/balance", payments.HandleMpesaBalance).Methods("GET")
-	payment.HandleFunc("/balance/callback", payments.HandleMpesaBalanceCallback).Methods("POST")
-	payment.HandleFunc("/pay", payments.HandleMpesaPayment).Methods("POST")
-	payment.HandleFunc("/mpesa/register-url", payments.RegisterMpesaRoutesHandler).Methods("POST")
+	payment.HandleFunc("/callback", handlers.HandleMpesaCallback).Methods("POST")
+	payment.HandleFunc("/balance", handlers.HandleMpesaBalance).Methods("GET")
+	payment.HandleFunc("/return", handlers.HandleMpesaMoneyReturn).Methods("GET")
+	payment.HandleFunc("/return/callback", handlers.HandleMpesaReturnCallback).Methods("GET")
+	payment.HandleFunc("/balance/callback", handlers.HandleMpesaBalanceCallback).Methods("POST")
+	payment.HandleFunc("/pay", handlers.HandleMpesaPayment).Methods("POST")
+	payment.HandleFunc("/mpesa/register-url", handlers.RegisterMpesaRoutesHandler).Methods("POST")
 
 	//orders endpointsProduct
 	order := api.PathPrefix("/order").Subrouter()

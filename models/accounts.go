@@ -133,7 +133,7 @@ var CreateEntry = func(req dtos.CreateJournalEntryRequest) (string, error) {
 		return "", errors.New(noAccount)
 	}
 	if req.OrderID != nil {
-		err := isOrderThere(*req.OrderID)
+		err := IsOrderThere(*req.OrderID)
 		if err != nil {
 			return "", err
 		}
