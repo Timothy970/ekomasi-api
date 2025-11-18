@@ -303,7 +303,8 @@ func verifySignIn(user *dtos.User, req dtos.VerifyOTP, w http.ResponseWriter, r 
 	}
 	// update last login for user
 	models.UpdateLastLogin(user.ID)
-
+	//invalidate otp after successful login
+	InvalidateOTP(user.ID)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module: "Auth", Description: "Login verified", Code: http.StatusOK,
@@ -456,7 +457,7 @@ func issueTokens(user *dtos.User) (string, string, error) {
 }
 
 func validateOtp(userID string, req dtos.VerifyOTP) error {
-	storedOTP, err := GetAndInvalidateOTP(userID)
+	storedOTP, err := GetOTP(userID)
 	if err != nil {
 		log.Printf("Error retrieving OTP: %s", err)
 		return fmt.Errorf("invalid or expired OTP")
@@ -949,8 +950,8 @@ func StoreOTPInRedis(userID string, otp string, ttl time.Duration) error {
 	return nil
 }
 
-// GetAndInvalidateOTP retrieves and immediately invalidates an OTP
-func GetAndInvalidateOTP(userID string) (string, error) {
+// Get OTP
+func GetOTP(userID string) (string, error) {
 	ctx := context.Background()
 	key := fmt.Sprintf("otp:%s", userID)
 
@@ -959,13 +960,14 @@ func GetAndInvalidateOTP(userID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get OTP: %w", err)
 	}
-
-	// Invalidate the OTP
-	if err := Redis.Del(ctx, key).Err(); err != nil {
-		log.Printf("Warning: failed to delete OTP after retrieval for user %s: %v", userID, err)
-	}
-
 	return otp, nil
+}
+
+// Invalidate otp without retrieval
+func InvalidateOTP(userID string) error {
+	ctx := context.Background()
+	key := fmt.Sprintf("otp:%s", userID)
+	return Redis.Del(ctx, key).Err()
 }
 
 // DecodeTokenHandler decodes and returns JWT claims without validation
