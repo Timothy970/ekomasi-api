@@ -166,7 +166,7 @@ func GetSalesOverview(w http.ResponseWriter, r *http.Request) {
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Sales overview retrieved successfully",
-			Code:        http.StatusCreated,
+			Code:        http.StatusOK,
 		},
 		Payload:   data,
 		Message:   "Sales overview retrieved successfully",
