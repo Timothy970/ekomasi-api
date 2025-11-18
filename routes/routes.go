@@ -409,6 +409,16 @@ func SetupRoutes(router *mux.Router) {
 
 	reports.HandleFunc("/customer/segmentation", handlers.GetCustomerSegmentation).Methods("GET")
 	reports.HandleFunc("/sales/segmentation", handlers.GetSalesByRegion).Methods("GET")
+	//get top selling products
+	reports.Handle("/products/top-selling", middleware.AuthenticateToken(http.HandlerFunc(handlers.TopSellingProductsReport))).Methods("GET")
+	//get sales overview
+	reports.Handle("/sales/overview", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetSalesOverview))).Methods("GET")
+	// get orders vs sales report
+	reports.Handle("/sales/orders-vs-sales", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetSalesVsOrdersPerMonth))).Methods("GET")
+	//get revenue vs expenses report
+	reports.Handle("/sales/revenue-vs-expenses", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetRevenueVsExpenses))).Methods("GET")
+	//get revenue,customers,orders overview
+	reports.Handle("/sales/revenue-customers-orders", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetRevenueCustomersOrdersOverview))).Methods("GET")
 	api.HandleFunc("/updateimages", handlers.MigrateImageURLs).Methods("GET")
 	//add subscription
 	api.HandleFunc("/subscribe", handlers.AddSubscriber).Methods("POST")

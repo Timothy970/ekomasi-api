@@ -390,3 +390,114 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID string
 
 	return rows.Err()
 }
+
+func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct, *dtos.PaginationMeta, error) {
+	var totalCount int
+	now := time.Now()
+
+	// DATE FILTER
+	dateFilter := ""
+	switch timeRange {
+	case "daily":
+		dateFilter = "DATE(o.created_at) = DATE(?)"
+	case "weekly":
+		dateFilter = "YEAR(o.created_at) = ? AND WEEK(o.created_at, 1) = ?"
+	case "monthly":
+		dateFilter = "YEAR(o.created_at) = ? AND MONTH(o.created_at) = ?"
+	case "yearly":
+		dateFilter = "YEAR(o.created_at) = ?"
+	}
+
+	// PAGINATION
+	offset := (page - 1) * size
+
+	// COUNT QUERY
+	countQuery := `
+		SELECT COUNT(DISTINCT oi.product_id)
+		FROM order_items oi
+		JOIN orders o ON oi.order_id = o.order_id
+	`
+	if dateFilter != "" {
+		countQuery += " WHERE " + dateFilter
+	}
+
+	// APPLY DATE ARGS
+	err := DB.QueryRow(countQuery, getDateFilterArgs(timeRange, now)...).Scan(&totalCount)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// MAIN QUERY
+	query := `
+		SELECT 
+			p.product_id,
+			p.name AS product_name, 
+			SUM(oi.quantity) AS total_quantity,
+			MIN(pi.url) AS product_image,   -- returns one image
+			SUM(oi.quantity * oi.unit_price) AS total_revenue
+		FROM order_items oi
+		JOIN products p ON oi.product_id = p.product_id
+		JOIN orders o ON oi.order_id = o.order_id
+		LEFT JOIN product_images pi ON pi.product_id = p.product_id
+	`
+
+	if dateFilter != "" {
+		query += " WHERE " + dateFilter
+	}
+
+	query += `
+		GROUP BY p.product_id, p.name
+		ORDER BY total_quantity DESC
+		LIMIT ? OFFSET ?
+	`
+
+	// COMPLETE ARGS: date args + limit + offset
+	args := append(getDateFilterArgs(timeRange, now), size, offset)
+
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var results []dtos.TopProduct
+	for rows.Next() {
+		var tp dtos.TopProduct
+		if err := rows.Scan(
+			&tp.ProductID,
+			&tp.ProductName,
+			&tp.TotalQuantity,
+			&tp.ProductImage,
+			&tp.TotalRevenue,
+		); err != nil {
+			return nil, nil, err
+		}
+		results = append(results, tp)
+	}
+
+	meta := &dtos.PaginationMeta{
+		TotalItems: totalCount,
+		Page:       page,
+		Size:       size,
+		TotalPages: (totalCount + size - 1) / size,
+		HasPrev:    page > 1,
+		HasNext:    offset+size < totalCount,
+	}
+
+	return results, meta, nil
+}
+func getDateFilterArgs(timeRange string, now time.Time) []interface{} {
+	switch timeRange {
+	case "daily":
+		return []interface{}{now}
+	case "weekly":
+		year, week := now.ISOWeek()
+		return []interface{}{year, week}
+	case "monthly":
+		return []interface{}{now.Year(), int(now.Month())}
+	case "yearly":
+		return []interface{}{now.Year()}
+	default:
+		return []interface{}{}
+	}
+}

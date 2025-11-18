@@ -499,3 +499,50 @@ func ExportJournalEntriesCSVHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 	}
 }
+
+// Report to get Top Selling Products
+func TopSellingProductsReport(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	//check if user is admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Reports")
+	if !ok {
+		return
+	}
+	timeRange := r.URL.Query().Get("time_range") // e.g., "last_7_days", "last_30_days", "this_month", etc.
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+
+	products, pagination, err := models.GetTopSellingProducts(timeRange, page, limit)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to generate top selling products report",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Reports",
+			Description: "Top selling products report generated successfully",
+			Code:        http.StatusOK,
+		},
+		Payload: map[string]any{
+			"products":   products,
+			"pagination": pagination,
+		},
+		Message:   "Top selling products report",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+//Report to get Low Stock Products
