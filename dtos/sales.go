@@ -32,4 +32,5 @@ type RegionSales struct {
 	TotalSales    float64 `json:"total_sales"`
 	AvgOrderValue float64 `json:"avg_order_value"`
 	Transactions  int     `json:"transactions"`
+	Percentage    float64 `json:"percentage"`
 }

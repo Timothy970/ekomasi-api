@@ -107,3 +107,11 @@ type LedgerResponse struct {
 	ClosingBalance float64        `json:"closing_balance"`
 	Meta           PaginationMeta `json:"meta"`
 }
+
+type TopProduct struct {
+	ProductID     string  `json:"product_id"`
+	ProductName   string  `json:"product_name"`
+	TotalQuantity int     `json:"total_quantity"`
+	TotalRevenue  float64 `json:"total_revenue"`
+	ProductImage  string  `json:"product_image"`
+}
