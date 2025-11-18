@@ -10,6 +10,7 @@ type Order struct {
 	TotalAmount          float64              `json:"total_amount"`
 	TotalDiscount        float64              `json:"total_discount"`
 	SubTotal             float64              `json:"sub_total"`
+	EstimatedTax         float64              `json:"estimated_tax"`
 	IsGuestOrder         bool                 `json:"is_guest_order"`
 	DeliveryID           string               `json:"delivery_id"`
 	OrderStatus          *string              `json:"order_status"`
@@ -28,6 +29,7 @@ type AdminOrder struct {
 	OrderID              string               `json:"order_id"`
 	TotalAmount          float64              `json:"total_amount"`
 	TotalDiscount        float64              `json:"total_discount"`
+	EstimatedTax         float64              `json:"estimated_tax"`
 	SubTotal             float64              `json:"sub_total"`
 	IsGuestOrder         bool                 `json:"is_guest_order"`
 	DeliveryID           string               `json:"delivery_id"`
