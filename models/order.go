@@ -119,6 +119,8 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 	}
 	ord.TotalAmount = totalAmount
 	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
+	estimatedTax, _ := GetEstimatedTax()
+	ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 	// Parse guest JSON fields
 	if guestAddrStr != "" {
 		_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
@@ -206,6 +208,8 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
 		}
 		ord.TotalAmount = totalAmount
 		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
+		estimatedTax, _ := GetEstimatedTax()
+		ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 		// // Attach user_id if present
 		// if userID.Valid {
 		// 	ord.UserID = userID.String
@@ -290,6 +294,8 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 		}
 		ord.TotalAmount = totalAmount
 		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
+		estimatedTax, _ := GetEstimatedTax()
+		ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 		// Parse guest JSON fields
 		if guestAddrStr != "" {
 			_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
@@ -377,6 +383,8 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 	}
 	ord.TotalAmount = totalAmount
 	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
+	estimatedTax, _ := GetEstimatedTax()
+	ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 	// Parse guest JSON fields
 	if guestAddrStr != "" {
 		_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
@@ -483,6 +491,8 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 
 	ord.TotalAmount = totalAmount
 	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
+	estimatedTax, _ := GetEstimatedTax()
+	ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -771,6 +781,8 @@ func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
 		}
 
 		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge)
+		estimatedTax, _ := GetEstimatedTax()
+		ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 		// Parse guest JSON fields
 		if guestAddrStr != "" {
 			_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
