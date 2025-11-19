@@ -495,11 +495,18 @@ func SetupRoutes(router *mux.Router) {
 	api.Handle("/products/bulk-upload", middleware.AuthenticateToken(http.HandlerFunc(handlers.BulkUploadProductsHandler))).Methods("POST")
 	api.HandleFunc("/products/sample-csv", handlers.DownloadSampleCSVHandler).Methods("GET")
 	//paybill crud endpoints
-	payBillID := "/paybills/{paybill_id}"
+	payBillID := "/payment-options/{paybill_id}"
 	admin.Handle(payBillID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePayBillHandler))).Methods("DELETE")
 	admin.Handle(payBillID, middleware.AuthenticateToken(http.HandlerFunc(handlers.GetPaybillByIDHandler))).Methods("GET")
-	admin.Handle("/paybills", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListPayBillsHandler))).Methods("GET")
+	admin.Handle("/payment-options", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListPayBillsHandler))).Methods("GET")
 	admin.Handle(payBillID, middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePayBillHandler))).Methods("PATCH")
-	admin.Handle("/paybills", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreatePaybillHandler))).Methods("POST")
-
+	admin.Handle("/payment-options", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreatePaybillHandler))).Methods("POST")
+	//returns endpoints
+	returnsPath := api.PathPrefix("/returns/").Subrouter()
+	returnsPathWithID := api.PathPrefix("/returns/{return_id}").Subrouter()
+	returnsPath.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateReturnsHandler))).Methods("POST")
+	// returnsPath.HandleFunc("{return_id}", handlers.GetReturnByIDHandler).Methods("GET")
+	returnsPathWithID.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetReturnByIDHandler))).Methods("GET")
+	returnsPathWithID.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateReturnStatusHandler))).Methods("PATCH")
+	returnsPath.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListAllReturnsHandler))).Methods("GET")
 }

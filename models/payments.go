@@ -386,20 +386,20 @@ func AddVoucherHistory(code string, amount float64, itemsLog []dtos.OrderProduct
 func CreateMpesaPaybill(paybill dtos.MpesaPaybill) error {
 	paybillID, _ := shortid.Generate()
 	query := `
-		INSERT INTO mpesa_paybills (id, paybill_number, account_reference)
-		VALUES (?, ?, ?)`
-	_, err := DB.Exec(query, paybillID, paybill.PaybillNumber, paybill.AccountReference)
+		INSERT INTO payment_options (id, name, type, config_json, is_active)
+		VALUES (?, ?, ?, ?, ?)`
+	_, err := DB.Exec(query, paybillID, paybill.Name, paybill.Type, paybill.Configs, paybill.Status)
 	return err
 }
 
 func ListMpesaPaybills(searchParam string, page, size int) ([]dtos.MpesaPaybill, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * size
 
-	countQuery := `SELECT COUNT(*) FROM mpesa_paybills`
+	countQuery := `SELECT COUNT(*) FROM payment_options`
 	var countArgs []interface{}
 
 	if searchParam != "" {
-		countQuery += " WHERE paybill_number LIKE ?"
+		countQuery += " WHERE name LIKE ?"
 		countArgs = append(countArgs, "%"+searchParam+"%")
 	}
 
@@ -408,13 +408,13 @@ func ListMpesaPaybills(searchParam string, page, size int) ([]dtos.MpesaPaybill,
 		return nil, nil, err
 	}
 	query := `
-		SELECT id, paybill_number, account_reference, status, created_at
-		FROM mpesa_paybills
+		SELECT id, name, type, config_json, is_active, created_at
+		FROM payment_options
 	`
 	var queryArgs []interface{}
 
 	if searchParam != "" {
-		query += " WHERE paybill_number LIKE ?"
+		query += " WHERE name LIKE ?"
 		queryArgs = append(queryArgs, "%"+searchParam+"%")
 	}
 
@@ -429,7 +429,7 @@ func ListMpesaPaybills(searchParam string, page, size int) ([]dtos.MpesaPaybill,
 	var paybills []dtos.MpesaPaybill
 	for rows.Next() {
 		var p dtos.MpesaPaybill
-		if err := rows.Scan(&p.ID, &p.PaybillNumber, &p.AccountReference, &p.Status, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Type, &p.Configs, &p.Status, &p.CreatedAt); err != nil {
 			return nil, nil, err
 		}
 		paybills = append(paybills, p)
@@ -446,24 +446,24 @@ func ListMpesaPaybills(searchParam string, page, size int) ([]dtos.MpesaPaybill,
 	return paybills, &meta, nil
 }
 
-func isPayBillThere(id string) error {
-	exists, err := RecordExists("mpesa_paybills", "id = ?", id)
+func isPaymentOptionThere(id string) error {
+	exists, err := RecordExists("payment_options", "id = ?", id)
 	if err != nil {
 		return err
 	}
 	if !exists {
-		return errors.New("mpesa paybill not found")
+		return errors.New("payment option not found")
 	}
 	return nil
 }
 func GetMpesaPaybillByID(id string) (*dtos.MpesaPaybill, error) {
-	err := isPayBillThere(id)
+	err := isPaymentOptionThere(id)
 	if err != nil {
 		return nil, err
 	}
 	var p dtos.MpesaPaybill
-	err = DB.QueryRow(`SELECT id, paybill_number, account_reference, status, created_at
-		FROM mpesa_paybills WHERE id = ?`, id).Scan(&p.ID, &p.PaybillNumber, &p.AccountReference, &p.Status, &p.CreatedAt)
+	err = DB.QueryRow(`SELECT id, name, type, config_json, is_active, created_at
+		FROM payment_options WHERE id = ?`, id).Scan(&p.ID, &p.Name, &p.Type, &p.Configs, &p.Status, &p.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -471,24 +471,33 @@ func GetMpesaPaybillByID(id string) (*dtos.MpesaPaybill, error) {
 }
 
 func UpdateMpesaPaybill(id string, paybill dtos.MpesaPaybillUpdate) error {
-	err := isPayBillThere(id)
+	err := isPaymentOptionThere(id)
 	if err != nil {
 		return err
 	}
+	// The update statement always sets name, type, and status.
+	// The configs field is only updated if paybill.Configs is not nil.
 	query := `
-		UPDATE mpesa_paybills
-		SET paybill_number = ?, account_reference = ?, status = ?
-		WHERE id = ?`
-	_, err = DB.Exec(query, paybill.PaybillNumber, paybill.AccountReference, paybill.Status, id)
+		UPDATE payment_options
+		SET name = ?, type = ?, is_active = ?`
+	var args []interface{}
+	args = append(args, paybill.Name, paybill.Type, paybill.Status)
+	if paybill.Configs != nil {
+		query += `, config_json = ?`
+		args = append(args, paybill.Configs)
+	}
+	query += ` WHERE id = ?`
+	args = append(args, id)
+	_, err = DB.Exec(query, args...)
 	return err
 }
 
 func DeleteMpesaPaybill(id string) error {
-	err := isPayBillThere(id)
+	err := isPaymentOptionThere(id)
 	if err != nil {
 		return err
 	}
-	query := `DELETE FROM mpesa_paybills WHERE id = ?`
+	query := `DELETE FROM payment_options WHERE id = ?`
 	_, err = DB.Exec(query, id)
 	return err
 }
