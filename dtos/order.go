@@ -188,7 +188,7 @@ type CreateOrderPayload struct {
 	GuestPersonalDetails *json.RawMessage   `json:"guest_personal_details,omitempty"`
 	GuestDeliveryAddress *json.RawMessage   `json:"guest_delivery_address,omitempty"`
 	OrderItems           []OrderItemPayload `json:"order_items" validate:"required,dive"`
-	DeliveryAddressID    int64              `json:"location_id" validate:"required"`
+	DeliveryAddressID    *int64             `json:"location_id,omitempty"`
 	PromoCode            *string            `json:"promo_code,omitempty"`
 }
 type OrderItemPayload struct {
