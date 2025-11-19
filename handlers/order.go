@@ -974,23 +974,26 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch delivery charge
-	order.DeliveryCharge, err = getOrderDeliveryCharge(int(req.DeliveryAddressID))
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      module,
-				Description: fmt.Sprintf("Failed to get delivery charge for ID %d: %v", req.DeliveryAddressID, err),
-				Code:        http.StatusUnauthorized,
-			},
-			Message:   "Failed to get delivery charge",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary,
-		})
-		return
+	if req.DeliveryAddressID != nil && *req.DeliveryAddressID != 0 {
+		order.DeliveryCharge, err = getOrderDeliveryCharge(int(*req.DeliveryAddressID))
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      module,
+					Description: fmt.Sprintf("Failed to get delivery charge for ID %d: %v", req.DeliveryAddressID, err),
+					Code:        http.StatusUnauthorized,
+				},
+				Message:   "Failed to get delivery charge",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+	} else {
+		order.DeliveryCharge = 0
 	}
-
 	// Process order items: discounts, totals, and stock checks
 	totalAmount, totalDiscount, freeShipping, err := processOrderItems(order.OrderItems)
 	if err != nil {

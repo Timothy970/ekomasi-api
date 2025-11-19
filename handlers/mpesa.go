@@ -143,19 +143,20 @@ func RegisterMpesaRoutesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type MpesaClient struct {
-	ConsumerKey        string
-	ConsumerSecret     string
-	ShortCode          string
-	Passkey            string
-	CallbackURL        string
-	BalanceURL         string
-	AccessToken        string
-	MpesaURL           string
-	InitiatorName      string
-	InitiatorPassword  string
-	CertificatePath    string
+	ConsumerKey       string
+	ConsumerSecret    string
+	ShortCode         string
+	Passkey           string
+	CallbackURL       string
+	BalanceURL        string
+	AccessToken       string
+	MpesaURL          string
+	InitiatorName     string
+	InitiatorPassword string
+	// CertificatePath    string
 	SecurityCredential string
 	ReturnURL          string
+	HeadOffice         string
 }
 
 func NewMpesaClient() (*MpesaClient, error) {
@@ -180,9 +181,9 @@ func NewMpesaClient() (*MpesaClient, error) {
 		MpesaURL:           os.Getenv("MPESA_SEND_URL"),
 		InitiatorName:      os.Getenv("MPESA_INITIATOR_NAME"),
 		InitiatorPassword:  InitiatorPassword,
-		CertificatePath:    CertificatePath,
 		SecurityCredential: securityCredential,
 		ReturnURL:          os.Getenv("MPESA_RETURN_URL"),
+		HeadOffice:         os.Getenv("MPESA_HEAD_OFFICE"),
 	}
 	err = client.generateToken()
 	return client, err
@@ -226,13 +227,13 @@ func (m *MpesaClient) generateToken() error {
 
 func (m *MpesaClient) LipaNaMpesaOnline(paymentRequest dtos.MpesaRequest) (map[string]interface{}, error) {
 	timestamp := time.Now().Format("20060102150405")
-	password := base64.StdEncoding.EncodeToString([]byte(m.ShortCode + m.Passkey + timestamp))
+	password := base64.StdEncoding.EncodeToString([]byte(m.HeadOffice + m.Passkey + timestamp))
 
 	payload := map[string]interface{}{
-		"BusinessShortCode": m.ShortCode,
+		"BusinessShortCode": m.HeadOffice,
 		"Password":          password,
 		"Timestamp":         timestamp,
-		"TransactionType":   "CustomerPayBillOnline", // or CustomerPayBillOnline
+		"TransactionType":   "CustomerBuyGoodsOnline",
 		"Amount":            paymentRequest.Amount,
 		"PartyA":            paymentRequest.Phone,
 		"PartyB":            m.ShortCode,
@@ -275,7 +276,7 @@ func (m *MpesaClient) RegisterURLs() error {
 	url := fmt.Sprintf("%smpesa/c2b/v1/registerurl", m.MpesaURL)
 
 	payload := map[string]string{
-		"ShortCode":       m.ShortCode,
+		"ShortCode":       m.HeadOffice,
 		"ResponseType":    "Completed",
 		"ConfirmationURL": m.CallbackURL,
 		"ValidationURL":   m.CallbackURL,
