@@ -25,7 +25,7 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
-				Description: "Failed to register retun " + err.Error(),
+				Description: "Failed to register return " + err.Error(),
 				Code:        http.StatusBadRequest,
 			},
 			Message:   err.Error(),

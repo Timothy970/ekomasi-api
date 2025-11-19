@@ -26,12 +26,12 @@ func CreateReturns(req dtos.ReturnRequest) error {
 }
 
 func insertIntoReturnProducts(returnID string, req dtos.ReturnRequest) error {
-	returnProductID, _ := shortid.Generate()
 	query := `
 		INSERT INTO return_products (return_product_id, return_id, product_id, quantity)
 		VALUES (?, ?, ?, ?)
 	`
 	for _, productID := range req.Products {
+		returnProductID, _ := shortid.Generate()
 		_, err := DB.Exec(query, returnProductID, returnID, productID, req.Quantity)
 		if err != nil {
 			return err
