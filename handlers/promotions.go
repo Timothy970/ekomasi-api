@@ -116,6 +116,9 @@ func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 func GetPromoCodeByIDHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
+		return
+	}
 	id := mux.Vars(r)["promo_id"]
 	promo, err := models.GetPromoCodeByID(id)
 	if err != nil {
@@ -147,6 +150,9 @@ func GetPromoCodeByIDHandler(w http.ResponseWriter, r *http.Request) {
 func GetAllPromoCodesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
+		return
+	}
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	promos, pagination, err := models.GetAllPromoCodes(page, limit)
 	if err != nil {

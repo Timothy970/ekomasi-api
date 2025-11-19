@@ -195,15 +195,17 @@ type VoucherPurchaseData struct {
 }
 
 type MpesaPaybill struct {
-	ID               string  `json:"id"`
-	PaybillNumber    string  `json:"paybill_number" validate:"required"`
-	AccountReference *string `json:"account_reference,omitempty"`
-	Status           string  `json:"status"`
-	CreatedAt        string  `json:"created_at"`
+	ID        string          `json:"id"`
+	Name      string          `json:"name" validate:"required"`
+	Type      string          `json:"type" validate:"required"`
+	Configs   *map[string]any `json:"configs,omitempty" `
+	Status    *bool           `json:"status" validate:"required"`
+	CreatedAt string          `json:"created_at"`
 }
 
 type MpesaPaybillUpdate struct {
-	PaybillNumber    string  `json:"paybill_number" validate:"required"`
-	AccountReference *string `json:"account_reference,omitempty"`
-	Status           string  `json:"status" validate:"required,oneof=active inactive"`
+	Name    string          `json:"name" validate:"required"`
+	Type    string          `json:"type" validate:"required"`
+	Configs *map[string]any `json:"configs,omitempty"`
+	Status  *bool           `json:"status" validate:"required"`
 }

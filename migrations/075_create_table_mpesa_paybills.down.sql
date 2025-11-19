@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS `mpesa_paybills`;
+DROP TABLE IF EXISTS `payment_options`;

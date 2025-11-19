@@ -212,8 +212,22 @@ func GetComparison(promotionID string, baselineStart, baselineEnd time.Time) (*d
 		BaselineRev:    baseRev,
 	}, nil
 }
-
+func isPromoCodeTaken(code string) error {
+	var exists bool
+	err := DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM promocodes WHERE code = ?)`, code).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("promo code " + code + " already exists")
+	}
+	return nil
+}
 func AddPromoCode(input dtos.PromoCodeRequest) (*dtos.PromoCodeRequest, error) {
+	err := isPromoCodeTaken(input.Discount_Code)
+	if err != nil {
+		return nil, err
+	}
 	id, _ := shortid.Generate()
 	code, err := secureRandomString(8)
 	if input.Discount_Code != "" {
