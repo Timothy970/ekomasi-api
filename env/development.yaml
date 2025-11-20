@@ -25,6 +25,8 @@ env:
     value: adenzo
   - name: SHORTCODE
     value: Emalify
+  - name: BUCKET_NAME
+    value: development-ecommerce-public-api-images
 
 secrets:
   - MPESA_CONSUMER_KEY
@@ -40,7 +42,6 @@ secrets:
   # - SERVICE_ACCOUNT
   - SMSAPIKEY
   - SMSPARTNERID
-  - BUCKET_NAME
   
 
 requires:
