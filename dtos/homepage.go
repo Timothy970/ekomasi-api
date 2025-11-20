@@ -169,6 +169,8 @@ type Product struct {
 	Images           []Image           `json:"urls,omitempty"`
 	ProductVariants  []ProductVariants `json:"product_variants"`
 	InWishlist       *bool             `json:"liked_by_user,omitempty"`
+	Details          []string          `json:"details,omitempty"`
+	Features         []ProductFeature  `json:"features,omitempty"`
 }
 type DealProduct struct {
 	ID               string            `json:"product_id"`
