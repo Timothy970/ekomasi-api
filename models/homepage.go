@@ -354,6 +354,28 @@ func fetchProductImages(productID string) ([]dtos.Image, error) {
 	}
 	return images, nil
 }
+func fetchProductFeatures(productID string) ([]dtos.ProductFeature, error) {
+	query := `
+		SELECT feature_id, product_id, header, image, description, image_position
+		FROM product_features
+		WHERE product_id = ?
+		ORDER BY created_at ASC`
+	rows, err := DB.Query(query, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var features []dtos.ProductFeature
+	for rows.Next() {
+		var feature dtos.ProductFeature
+		if err := rows.Scan(&feature.ID, &feature.ProductID, &feature.Header, &feature.Image, &feature.Description, &feature.ImagePosition); err != nil {
+			return nil, err
+		}
+		features = append(features, feature)
+	}
+	return features, nil
+}
 
 func InsertBannerDetails(url string, req dtos.BannerInfo) error {
 	query := `INSERT INTO banners (image_url, text, heading, button_text, button_url, display_order, is_active, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`

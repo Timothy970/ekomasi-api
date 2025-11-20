@@ -16,6 +16,7 @@ type CreateProduct struct {
 	SellWhenOOS   *bool    `json:"sell_when_out_of_stock"`
 	ShowStock     *bool    `json:"show_stock_quantity"`
 	BuyingPrice   *float64 `json:"buying_price"`
+	Details       []string `json:"details,omitempty"`
 }
 
 // AddToCartWithVariantsRequest represents the request to add item with specific variants to cart
@@ -156,7 +157,9 @@ type CategoryProduct struct {
 	Images          []Image           `json:"urls"`
 	ProductVariants []ProductVariants `json:"products_variants"`
 	//only visible when user is authenticated
-	InWishlist *bool `json:"liked_by_user,omitempty"`
+	InWishlist *bool            `json:"liked_by_user,omitempty"`
+	Details    []string         `json:"details,omitempty"`
+	Features   []ProductFeature `json:"features,omitempty"`
 }
 
 // SearchParams represents the search parameters

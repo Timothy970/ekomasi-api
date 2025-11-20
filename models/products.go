@@ -3,6 +3,7 @@ package models
 import (
 	"adenzo_backend/dtos"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -202,7 +203,6 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
 	return query, args
 }
 
-// Alternative approach: split into two separate queries
 func buildProductQuery(categoryFilter, productFilter, categoryID string, page, limit int) (string, []interface{}) {
 	query := `
 		SELECT 
@@ -323,6 +323,11 @@ func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Pr
 		return category, nil, err
 	}
 	product.Images = images
+	features, err := fetchProductFeatures(product.ID)
+	if err != nil {
+		return category, nil, err
+	}
+	product.Features = features
 	variants, err := getProductVariants(product.ID)
 	if err != nil {
 		return category, nil, err
@@ -393,20 +398,31 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 	query := `
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag, p.details
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
 		WHERE product_id = ?
 	`
 
-	var p dtos.Product
+	var (
+		p           dtos.Product
+		detailsData []byte
+	)
 	err := DB.QueryRow(query, productID).Scan(
 		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
 		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
-		&p.CategoryName, &p.Tag,
+		&p.CategoryName, &p.Tag, &detailsData,
 	)
 	if err != nil {
 		return nil, err
+	}
+	if len(detailsData) > 0 {
+		err := json.Unmarshal(detailsData, &p.Details)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		p.Details = []string{}
 	}
 	// Fetch product images
 	images, err := fetchProductImages(p.ID)
@@ -414,6 +430,11 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 		return nil, err
 	}
 	p.Images = images
+	features, err := fetchProductFeatures(p.ID)
+	if err != nil {
+		return nil, err
+	}
+	p.Features = features
 	variants, err := getProductVariants(p.ID)
 	if err != nil {
 		return nil, err
@@ -471,10 +492,20 @@ func AddNewProduct(input dtos.CreateProduct, userID string) (*dtos.CreateProduct
 	if input.ShowStock != nil {
 		showStock = *input.ShowStock
 	}
+	var detailsJSON []byte
+
+	if input.Details != nil {
+		detailsJSON, err = json.Marshal(input.Details)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		detailsJSON = nil
+	}
 	_, err = DB.Exec(`
-		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, created_by_id, buying_price)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, sellWhenOOs, showStock, userID, input.BuyingPrice,
+		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, created_by_id, buying_price, details)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, sellWhenOOs, showStock, userID, input.BuyingPrice, detailsJSON,
 	)
 	if err != nil {
 		return nil, err
@@ -702,6 +733,11 @@ func scanRelatedProduct(rows *sql.Rows) (dtos.Product, error) {
 		return product, err
 	}
 	product.Images = images
+	features, err := fetchProductFeatures(product.ID)
+	if err != nil {
+		return product, err
+	}
+	product.Features = features
 	variants, err := getProductVariants(product.ID)
 	if err != nil {
 		return product, err
@@ -1111,7 +1147,7 @@ func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.Subca
 	rows, err := DB.Query(`
 		SELECT 
 			product_id, name, description, sku, price, category_id, 
-			stock_quantity, search_vector, created_at, last_updated_at, tag
+			stock_quantity, search_vector, created_at, last_updated_at, tag, details
 		FROM products
 		WHERE category_id = ?
 		ORDER BY created_at DESC
@@ -1123,13 +1159,25 @@ func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.Subca
 
 	var products []dtos.Product
 	for rows.Next() {
-		var p dtos.Product
+		var (
+			p           dtos.Product
+			detailsData []byte
+		)
 		if err := rows.Scan(
 			&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price,
 			&p.CategoryID, &p.StockQuantity, &p.SearchVector,
-			&p.CreatedAt, &p.LastUpdated, &p.Tag,
+			&p.CreatedAt, &p.LastUpdated, &p.Tag, &detailsData,
 		); err != nil {
 			return nil, nil, err
+		}
+
+		if len(detailsData) > 0 {
+			err := json.Unmarshal(detailsData, &p.Details)
+			if err != nil {
+				return nil, nil, err
+			}
+		} else {
+			p.Details = []string{}
 		}
 
 		// fetch product images (reusable helper)
@@ -1138,6 +1186,11 @@ func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.Subca
 			return nil, nil, err
 		}
 		p.Images = images
+		features, err := fetchProductFeatures(p.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		p.Features = features
 		variants, err := getProductVariants(p.ID)
 		if err != nil {
 			return nil, nil, err
@@ -1371,7 +1424,7 @@ func getProductsForSubcategories(subIDs []string, page, size int, params dtos.Se
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price,
 			p.category_id, c.parent_category_id, p.stock_quantity,
-			p.search_vector, p.created_at, p.last_updated_at, p.tag
+			p.search_vector, p.created_at, p.last_updated_at, p.tag, p.details
 		%s
 		ORDER BY %s
 		LIMIT ? OFFSET ?`, whereClause, sortClause)
@@ -1388,11 +1441,12 @@ func getProductsForSubcategories(subIDs []string, page, size int, params dtos.Se
 	for rows.Next() {
 		var pr dtos.CategoryProduct
 		var subcategoryID, parentCategoryID string
+		var detailsData []byte
 
 		if err := rows.Scan(
 			&pr.ID, &pr.Name, &pr.Description, &pr.SKU, &pr.Price,
 			&subcategoryID, &parentCategoryID, &pr.StockQuantity,
-			&pr.SearchVector, &pr.CreatedAt, &pr.LastUpdated, &pr.Tag,
+			&pr.SearchVector, &pr.CreatedAt, &pr.LastUpdated, &pr.Tag, &detailsData,
 		); err != nil {
 			return nil, nil, err
 		}
@@ -1400,8 +1454,20 @@ func getProductsForSubcategories(subIDs []string, page, size int, params dtos.Se
 		pr.CategoryID = parentCategoryID
 		pr.SubcategoryID = subcategoryID
 
+		if len(detailsData) > 0 {
+			err := json.Unmarshal(detailsData, &pr.Details)
+			if err != nil {
+				return nil, nil, err
+			}
+		} else {
+			pr.Details = []string{}
+		}
+
 		// Fetch related images and variants
 		if pr.Images, err = fetchProductImages(pr.ID); err != nil {
+			return nil, nil, err
+		}
+		if pr.Features, err = fetchProductFeatures(pr.ID); err != nil {
 			return nil, nil, err
 		}
 		if pr.ProductVariants, err = getProductVariants(pr.ID); err != nil {
@@ -1770,7 +1836,11 @@ func scanProduct(rows *sql.Rows, isAdmin bool) (dtos.Product, error) {
 		return product, err
 	}
 	product.Images = images
-
+	features, err := fetchProductFeatures(product.ID)
+	if err != nil {
+		return product, err
+	}
+	product.Features = features
 	variants, err := getProductVariants(product.ID)
 	if err != nil {
 		return product, err
@@ -1964,7 +2034,9 @@ func getProductByPriceType(priceType string) (*dtos.Product, error) {
 	if p.Images, err = fetchProductImages(p.ID); err != nil {
 		return nil, err
 	}
-
+	if p.Features, err = fetchProductFeatures(p.ID); err != nil {
+		return nil, err
+	}
 	// Fetch product variants
 	if p.ProductVariants, err = getProductVariants(p.ID); err != nil {
 		return nil, err
