@@ -208,7 +208,7 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 		SELECT 
 			c.category_id, c.name, c.parent_category_id, c.description,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, p.tag,
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, p.tag
 		FROM categories c
 		LEFT JOIN products p ON c.category_id = p.category_id
 		WHERE 1=1`
@@ -422,7 +422,7 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 			return nil, err
 		}
 	} else {
-		p.Details = []string{} // or nil depending on your preference
+		p.Details = []string{}
 	}
 	// Fetch product images
 	images, err := fetchProductImages(p.ID)
@@ -503,7 +503,7 @@ func AddNewProduct(input dtos.CreateProduct, userID string) (*dtos.CreateProduct
 		detailsJSON = nil
 	}
 	_, err = DB.Exec(`
-		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, created_by_id, buying_price,details)
+		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, created_by_id, buying_price, details)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, sellWhenOOs, showStock, userID, input.BuyingPrice, detailsJSON,
 	)
@@ -1177,7 +1177,7 @@ func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.Subca
 				return nil, nil, err
 			}
 		} else {
-			p.Details = []string{} // or nil depending on your preference
+			p.Details = []string{}
 		}
 
 		// fetch product images (reusable helper)
@@ -1460,7 +1460,7 @@ func getProductsForSubcategories(subIDs []string, page, size int, params dtos.Se
 				return nil, nil, err
 			}
 		} else {
-			pr.Details = []string{} // or nil depending on your preference
+			pr.Details = []string{}
 		}
 
 		// Fetch related images and variants
