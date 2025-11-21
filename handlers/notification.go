@@ -545,3 +545,60 @@ func buildEmailData(order *dtos.Order, customerName string) dtos.OrderEmailData 
 		OrderItems:      orderItems,
 	}
 }
+
+func StartLowStockEmailScheduler(interval time.Duration, hourOfDay int) {
+	ticker := time.NewTicker(interval)
+	go func() {
+		for range ticker.C {
+			log.Println("Low stock email scheduler tick")
+			currentHour := time.Now().Hour()
+			if currentHour == hourOfDay {
+				processLowStockEmails()
+			}
+		}
+	}()
+}
+
+// func StartLowStockEmailScheduler(interval time.Duration) {
+// 	log.Printf("Low stock scheduler working at interval %v....", interval)
+// 	ticker := time.NewTicker(interval)
+// 	go func() {
+// 		for range ticker.C {
+// 			log.Println("Low stock email scheduler tick - processing low stock emails")
+// 			processLowStockEmails()
+// 		}
+// 	}()
+// }
+
+// processLowStockEmails checks for low stock products and sends email notifications.
+func processLowStockEmails() {
+	lowStockProducts, err := models.GetLowStockProducts()
+	if err != nil {
+		log.Printf("CRITICAL: Failed to fetch low stock products: %v", err)
+		return
+	}
+	if len(lowStockProducts) == 0 {
+		log.Printf("No low stock products found.")
+		return
+	}
+	log.Printf("Preparing to send low stock alert emails for ...")
+	storeName := "Adenzo Store"
+	emailData := dtos.LowStockEmailData{
+		StoreName: storeName,
+		AlertDate: time.Now().Format("2006-01-02"),
+		Products:  lowStockProducts,
+	}
+	htmlBody := utils.GenerateLowStockAlertHTML(emailData)
+	subject := "Low Stock Alert"
+	emails := []string{
+		"timothy.kimani@roamtech.com",
+		"mbithe.taabu@roamtech.com",
+	}
+	for _, email := range emails {
+		if err := notification.SendEmail(email, subject, htmlBody); err != nil {
+			log.Printf("ERROR: Failed to send low stock email to %s: %v", email, err)
+		} else {
+			log.Printf("Low stock email sent successfully to %s", email)
+		}
+	}
+}

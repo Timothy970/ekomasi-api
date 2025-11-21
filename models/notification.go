@@ -170,3 +170,28 @@ func ListLogs(page, limit int) ([]dtos.Log, *dtos.PaginationMeta, error) {
 
 	return logs, meta, nil
 }
+
+func GetLowStockProducts() ([]dtos.Product, error) {
+	selectQuery := ` 
+	SELECT product_id from products where stock_quantity <= low_stock_quantity_warning
+	LIMIT 30
+`
+	rows, err := DB.Query(selectQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var products []dtos.Product
+	for rows.Next() {
+		var productID string
+		if err := rows.Scan(&productID); err != nil {
+			return nil, err
+		}
+		product, err := GetProductByID(productID)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, *product)
+	}
+	return products, nil
+}

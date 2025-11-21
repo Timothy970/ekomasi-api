@@ -253,3 +253,8 @@ type VoucherDesign struct {
 	Name       *string `json:"name"  validate:"required"`
 	Status     *string `json:"status" validate:"required"`
 }
+type LowStockEmailData struct {
+	StoreName string
+	AlertDate string
+	Products  []Product
+}

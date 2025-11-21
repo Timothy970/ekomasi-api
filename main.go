@@ -175,6 +175,9 @@ func main() {
 
 	//order notifications scheduler that runs every 5 minutes
 	handlers.StartOrderNotificationScheduler(5 * time.Minute)
+	//low stock email scheduler that runs every day in the morning at 7am
+	handlers.StartLowStockEmailScheduler(24*time.Hour, 7)
+
 	// Define routes
 	routes.SetupRoutes(router)
 
