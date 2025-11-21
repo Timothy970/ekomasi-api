@@ -646,6 +646,170 @@ func GenerateOrderConfirmationHTML(data dtos.OrderEmailData) string {
 	return html
 }
 
+// generate low stock alert body
+func GenerateLowStockAlertHTML(data dtos.LowStockEmailData) string {
+	const template = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Low Stock Alert</title>
+<style>
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f8f9fa;
+        margin: 0; padding: 0;
+        color: #333;
+    }
+    .email-container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    .header {
+        background: linear-gradient(135deg, #D7263D 0%, #8A0F23 100%);
+        color: white;
+        text-align: center;
+        padding: 30px;
+    }
+    .header h1 { margin: 0; font-size: 28px; }
+    .content { padding: 30px; }
+    .alert-box {
+        background: #fff4f4;
+        border-left: 6px solid #D7263D;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 30px;
+    }
+    .alert-text {
+        color: #8A0F23;
+        font-size: 18px;
+        font-weight: 600;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    th {
+        background: #D7263D;
+        color: white;
+        padding: 14px;
+        text-align: left;
+    }
+    td {
+        padding: 14px;
+        border-bottom: 1px solid #eee;
+        vertical-align: middle;
+    }
+    .product-img {
+        width: 55px;
+        height: 55px;
+        border-radius: 6px;
+        object-fit: cover;
+        border: 1px solid #ddd;
+    }
+    tr:hover { background: #fff4f4; }
+    .footer {
+        text-align: center;
+        padding: 20px;
+        background: #f8f9fa;
+        font-size: 14px;
+        color: #666;
+    }
+</style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>⚠️ Low Stock Alert</h1>
+            <p>{{.StoreName}} — {{.AlertDate}}</p>
+        </div>
+
+        <div class="content">
+
+            <div class="alert-box">
+                <div class="alert-text">
+                    The following products are running low on stock:
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Image</th>
+                        <th>Product</th>
+                        <th>SKU</th>
+                        <th style="text-align:center;">Stock Available</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Products}}
+                    <tr>
+                        <td><img src="{{.ImageURL}}" class="product-img"/></td>
+                        <td>{{.Name}}</td>
+                        <td>{{.SKU}}</td>
+                        <td style="text-align:center;">{{.StockQuantity}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+
+        </div>
+
+        <div class="footer">
+            <p>Please restock soon to avoid stockouts.</p>
+            <p>© 2025 Your Company Name. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`
+
+	// Inject store name and date
+	html := strings.NewReplacer(
+		"{{.StoreName}}", data.StoreName,
+		"{{.AlertDate}}", data.AlertDate,
+	).Replace(template)
+
+	// Build rows
+	var itemsHTML strings.Builder
+	for _, p := range data.Products {
+		imageURL := ""
+		if len(p.Images) > 0 {
+			imageURL = p.Images[0].URL // First product URL
+		}
+
+		itemsHTML.WriteString(fmt.Sprintf(`
+                    <tr>
+                        <td><img src="%s" class="product-img"/></td>
+                        <td>%s</td>
+                        <td>%s</td>
+                        <td style="text-align:center;">%d</td>
+                    </tr>`,
+			imageURL, p.Name, p.SKU, p.StockQuantity))
+	}
+
+	// Replace exact block (must match template indentation exactly)
+	block := `
+                    {{range .Products}}
+                    <tr>
+                        <td><img src="{{.ImageURL}}" class="product-img"/></td>
+                        <td>{{.Name}}</td>
+                        <td>{{.SKU}}</td>
+                        <td style="text-align:center;">{{.StockQuantity}}</td>
+                    </tr>
+                    {{end}}`
+
+	html = strings.Replace(html, block, itemsHTML.String(), 1)
+
+	return html
+}
+
 // calculateSubtotal computes subtotal from order items.
 func calculateSubtotal(items []dtos.OrderNotificationItemRequest) float64 {
 	var subtotal float64

@@ -617,7 +617,7 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-func CreatePaybillHandler(w http.ResponseWriter, r *http.Request) {
+func CreatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
@@ -626,7 +626,7 @@ func CreatePaybillHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.MpesaPaybill](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.PaymentOption](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
@@ -634,12 +634,12 @@ func CreatePaybillHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Payments") {
 		return
 	}
-	err := models.CreateMpesaPaybill(*req)
+	err := models.CreatePaymentOption(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
-				Description: "Failed to create paybill",
+				Description: "Failed to create payment option",
 				Code:        http.StatusInternalServerError,
 			},
 			Message:   err.Error(),
@@ -652,23 +652,23 @@ func CreatePaybillHandler(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
-			Description: "Paybill created successfully",
+			Description: "Payment option created successfully",
 			Code:        http.StatusCreated,
 		},
 		Payload:   nil,
-		Message:   "Paybill created successfully",
+		Message:   "Payment option created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
 }
-func ListPayBillsHandler(w http.ResponseWriter, r *http.Request) {
+func ListPaymentOptionsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	q := r.URL.Query().Get("q")
-	payBills, pagination, err := models.ListMpesaPaybills(q, page, size)
+	paymentOptions, pagination, err := models.ListPaymentOptions(q, page, size)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -690,25 +690,25 @@ func ListPayBillsHandler(w http.ResponseWriter, r *http.Request) {
 			Description: "Pay bills fetched successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   map[string]any{"paybills": payBills, "meta": pagination},
-		Message:   "Pay bills fetched successfully",
+		Payload:   map[string]any{"payment_options": paymentOptions, "meta": pagination},
+		Message:   "Payment options fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
 }
 
-func GetPaybillByIDHandler(w http.ResponseWriter, r *http.Request) {
+func GetPaymentOptionByIDHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	payBillID := mux.Vars(r)["paybill_id"]
-	paybill, err := models.GetMpesaPaybillByID(payBillID)
+	paymentOptionID := mux.Vars(r)["payment_option_id"]
+	paymentOption, err := models.GetPaymentOptionByID(paymentOptionID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
-				Description: "Failed to get paybill by ID " + payBillID,
+				Description: "Failed to get payment option by ID " + paymentOptionID,
 				Code:        http.StatusInternalServerError,
 			},
 			Message:   err.Error(),
@@ -722,18 +722,18 @@ func GetPaybillByIDHandler(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
-			Description: "Paybill with ID " + payBillID + " got successfully",
+			Description: "Payment option with ID " + paymentOptionID + " got successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   paybill,
-		Message:   "Paybill fetched successfully",
+		Payload:   paymentOption,
+		Message:   "Payment option fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
 }
 
-func UpdatePayBillHandler(w http.ResponseWriter, r *http.Request) {
+func UpdatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
@@ -741,7 +741,7 @@ func UpdatePayBillHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.MpesaPaybillUpdate](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.PaymentOptionUpdate](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
@@ -749,12 +749,12 @@ func UpdatePayBillHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Payments") {
 		return
 	}
-	payBillID := mux.Vars(r)["paybill_id"]
-	if err := models.UpdateMpesaPaybill(payBillID, *req); err != nil {
+	paymentOptionID := mux.Vars(r)["payment_option_id"]
+	if err := models.UpdatePaymentOption(paymentOptionID, *req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
-				Description: "Failed to update paybill with ID " + payBillID,
+				Description: "Failed to update payment option with ID " + paymentOptionID,
 				Code:        http.StatusInternalServerError,
 			},
 			Message:   err.Error(),
@@ -768,17 +768,17 @@ func UpdatePayBillHandler(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
-			Description: "payBill With ID" + payBillID + " was updated successfully",
+			Description: "payment option With ID" + paymentOptionID + " was updated successfully",
 			Code:        http.StatusOK,
 		},
 		Payload:   nil,
-		Message:   "Paybill updated successfully",
+		Message:   "Payment option updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
 }
-func DeletePayBillHandler(w http.ResponseWriter, r *http.Request) {
+func DeletePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
@@ -787,12 +787,12 @@ func DeletePayBillHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payBillID := mux.Vars(r)["paybill_id"]
-	if err := models.DeleteMpesaPaybill(payBillID); err != nil {
+	paymentOptionID := mux.Vars(r)["payment_option_id"]
+	if err := models.DeletePaymentOption(paymentOptionID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
-				Description: "Failed to delete paybill with ID " + payBillID,
+				Description: "Failed to delete payment option with ID " + paymentOptionID,
 				Code:        http.StatusInternalServerError,
 			},
 			Message:   err.Error(),
@@ -806,11 +806,11 @@ func DeletePayBillHandler(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
-			Description: "payBill With ID" + payBillID + " was deleted successfully",
+			Description: "payment option With ID" + paymentOptionID + " was deleted successfully",
 			Code:        http.StatusOK,
 		},
 		Payload:   nil,
-		Message:   "Paybill deleted successfully",
+		Message:   "Payment option deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

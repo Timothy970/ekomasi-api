@@ -194,7 +194,7 @@ type VoucherPurchaseData struct {
 	DeliveryTime *string    `json:"delivery_time,omitempty"`
 }
 
-type MpesaPaybill struct {
+type PaymentOption struct {
 	ID        string          `json:"id"`
 	Name      string          `json:"name" validate:"required"`
 	Type      string          `json:"type" validate:"required"`
@@ -203,7 +203,7 @@ type MpesaPaybill struct {
 	CreatedAt string          `json:"created_at"`
 }
 
-type MpesaPaybillUpdate struct {
+type PaymentOptionUpdate struct {
 	Name    string          `json:"name" validate:"required"`
 	Type    string          `json:"type" validate:"required"`
 	Configs *map[string]any `json:"configs,omitempty"`

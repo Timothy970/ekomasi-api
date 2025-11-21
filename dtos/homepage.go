@@ -160,7 +160,7 @@ type Product struct {
 	CategoryID       string            `json:"category_id"`
 	CategoryName     string            `json:"category_name"`
 	StockQuantity    int               `json:"stock_quantity"`
-	MaxStockQuantity int               `json:"max_stock_quantiy"`
+	MaxStockQuantity int               `json:"max_stock_quantity"`
 	SearchVector     string            `json:"search_vector"`
 	IsInTodaysDeals  bool              `json:"in_today_deal"`
 	CreatedBy        string            `json:"created_by"`
