@@ -175,6 +175,8 @@ type SearchParams struct {
 	Tag          string
 	MaxPrice     float64
 	MinPrice     float64
+	StartDate    string
+	EndDate      string
 }
 
 type VariantFilter struct {
