@@ -14,7 +14,7 @@ func isChargeThere(id string) error {
 		return err
 	}
 	if !exists {
-		return errors.New("charge not found")
+		return errors.New("tax with ID " + id + " not found")
 	}
 	return nil
 }

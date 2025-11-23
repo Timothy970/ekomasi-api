@@ -1632,6 +1632,10 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 		query += " AND p.price BETWEEN ? AND ?"
 		args = append(args, params.MinPrice, params.MaxPrice)
 	}
+	if params.StartDate != "" && params.EndDate != "" {
+		query += " AND DATE(p.created_at) BETWEEN ? AND ?"
+		args = append(args, params.StartDate, params.EndDate)
+	}
 	// Apply multiple variant filters
 	if len(params.Variants) > 0 {
 		variantSubquery := `
@@ -1706,6 +1710,10 @@ func buildCountQuerySearch(params dtos.SearchParams) (string, []interface{}) {
 	if params.MinPrice >= 0 && params.MaxPrice > 0 {
 		query += " AND p.price BETWEEN ? AND ?"
 		args = append(args, params.MinPrice, params.MaxPrice)
+	}
+	if params.StartDate != "" && params.EndDate != "" {
+		query += " AND DATE(p.created_at) BETWEEN ? AND ?"
+		args = append(args, params.StartDate, params.EndDate)
 	}
 	// Apply multiple variant filters
 	if len(params.Variants) > 0 {
