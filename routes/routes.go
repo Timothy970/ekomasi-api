@@ -70,7 +70,7 @@ func SetupRoutes(router *mux.Router) {
 	products.HandleFunc("/subcategories/{subcategory_id}", handlers.GetProductsHandlerBySubCategoryID).Methods("GET")
 	products.HandleFunc("/related", handlers.GetRelatedProductsHandler).Methods("GET")
 	product.HandleFunc("/{product_id}", handlers.GetProductByIDHandler).Methods("GET")
-	product.HandleFunc("/upload-images", handlers.UploadProductImageHandler).Methods("POST")
+	product.Handle("/upload-images", middleware.AuthenticateToken(http.HandlerFunc(handlers.UploadProductImageHandler))).Methods("POST")
 	product.Handle("/update/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateBundleHandler))).Methods("PATCH")
 	product.Handle("/delete/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBundleHandler))).Methods("DELETE")
 	product.Handle("/add-products/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductsToBundleHandler))).Methods("POST")

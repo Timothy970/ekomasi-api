@@ -173,8 +173,12 @@ func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Router /api/product/image [post]
 func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	reqSummary := utils.GetRequestSummary(r)
-
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure admin access
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	if !ok {
+		return
+	}
 	productID, isPrimary, videoLink, err := parseUploadRequest(r)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -187,7 +191,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   reqSummary,
+			RawBody:   requestSummary,
 		})
 		return
 	}
@@ -203,7 +207,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   reqSummary,
+			RawBody:   requestSummary,
 		})
 		return
 	}
@@ -223,13 +227,14 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
 				Request:   r,
-				RawBody:   reqSummary,
+				RawBody:   requestSummary,
 			})
 			return
 		}
 	}
 
 	fileTypes := []string{"gallery", "thumbnail", "video"}
+	//check that if images uploaded contain the file types
 	for _, fileType := range fileTypes {
 		results, err := handleFileUploads(r, productID, fileType, isPrimary)
 		if err != nil {
@@ -243,7 +248,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
 				Request:   r,
-				RawBody:   reqSummary,
+				RawBody:   requestSummary,
 			})
 			return
 		}
@@ -257,11 +262,11 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 				Description: "No files uploaded for product ID " + productID,
 				Code:        http.StatusBadRequest,
 			},
-			Message:   "No files uploaded",
+			Message:   "No files were received. Please upload at least one file using the keys: 'gallery', 'thumbnail', or 'video'.",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   reqSummary,
+			RawBody:   requestSummary,
 		})
 		return
 	}
@@ -279,7 +284,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
-		RawBody:   reqSummary,
+		RawBody:   requestSummary,
 	})
 }
 func handleFileUploads(r *http.Request, productID, fileType string, isPrimary bool) ([]map[string]string, error) {
