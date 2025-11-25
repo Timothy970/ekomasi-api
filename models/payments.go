@@ -388,7 +388,7 @@ func CreatePaymentOption(paymentOption dtos.PaymentOption) error {
 	query := `
 		INSERT INTO payment_options (id, name, type, config_json, is_active)
 		VALUES (?, ?, ?, ?, ?)`
-	_, err := DB.Exec(query, paymentOptionID, paymentOption.Name, paymentOption.Type, paymentOption.Configs, paymentOption.Status)
+	_, err := DB.Exec(query, paymentOptionID, paymentOption.Name, paymentOption.Type, paymentOption.Configs, paymentOption.IsActive)
 	return err
 }
 
@@ -429,7 +429,7 @@ func ListPaymentOptions(searchParam string, page, size int) ([]dtos.PaymentOptio
 	var paymentOptions []dtos.PaymentOption
 	for rows.Next() {
 		var p dtos.PaymentOption
-		if err := rows.Scan(&p.ID, &p.Name, &p.Type, &p.Configs, &p.Status, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Type, &p.Configs, &p.IsActive, &p.CreatedAt); err != nil {
 			return nil, nil, err
 		}
 		paymentOptions = append(paymentOptions, p)
@@ -463,7 +463,7 @@ func GetPaymentOptionByID(id string) (*dtos.PaymentOption, error) {
 	}
 	var p dtos.PaymentOption
 	err = DB.QueryRow(`SELECT id, name, type, config_json, is_active, created_at
-		FROM payment_options WHERE id = ?`, id).Scan(&p.ID, &p.Name, &p.Type, &p.Configs, &p.Status, &p.CreatedAt)
+		FROM payment_options WHERE id = ?`, id).Scan(&p.ID, &p.Name, &p.Type, &p.Configs, &p.IsActive, &p.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -481,7 +481,7 @@ func UpdatePaymentOption(id string, paymentOption dtos.PaymentOptionUpdate) erro
 		UPDATE payment_options
 		SET name = ?, type = ?, is_active = ?`
 	var args []interface{}
-	args = append(args, paymentOption.Name, paymentOption.Type, paymentOption.Status)
+	args = append(args, paymentOption.Name, paymentOption.Type, paymentOption.IsActive)
 	if paymentOption.Configs != nil {
 		query += `, config_json = ?`
 		args = append(args, paymentOption.Configs)
