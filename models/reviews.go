@@ -80,14 +80,14 @@ func AddNewReview(req dtos.ReviewRequest, productID string) (dtos.ReviewResponse
 		SELECT COUNT(*) 
 		FROM order_items oi
 		JOIN orders o ON oi.order_id = o.order_id
-		WHERE oi.product_id = ? AND o.user_id = ? AND o.status = 'COLLECTED'
+		WHERE oi.product_id = ? AND o.user_id = ? AND LOWER(o.status) = LOWER('delivered')
 	`
 	err := DB.QueryRow(purchaseQuery, productID, req.UserID).Scan(&purchaseCount)
 	if err != nil {
 		return dtos.ReviewResponse{}, fmt.Errorf("failed to check product purchase: %v", err)
 	}
 	if purchaseCount == 0 {
-		return dtos.ReviewResponse{}, fmt.Errorf("user has not purchased this product or order not collected")
+		return dtos.ReviewResponse{}, fmt.Errorf("user has not purchased this product or order not delivered")
 	}
 
 	// Step 2: Check if the user already left a review for this product

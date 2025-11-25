@@ -96,9 +96,10 @@ type CreateOrderRequest struct {
 }
 
 type UpdateOrderStatusRequest struct {
-	Status        string  `json:"status" validate:"required"`
-	PaymentMethod *string `json:"payment_method"`
-	PaymentStatus *string `json:"payment_status"`
+	Status         string  `json:"status" validate:"required"`
+	PaymentMethod  *string `json:"payment_method"`
+	PaymentStatus  *string `json:"payment_status"`
+	DeliveryStatus *string `json:"delivery_status"`
 }
 type OrderResponse struct {
 	ID          int     `json:"id"`
