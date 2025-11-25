@@ -118,7 +118,7 @@ func IsProductThere(id string) error {
 		return err
 	}
 	if !exists {
-		return errors.New("product not found")
+		return errors.New("product with ID " + id + " not found")
 	}
 	return nil
 }
@@ -239,6 +239,7 @@ func CreateUser(input dtos.RegisterRequest) (*dtos.User, error) {
 		LastName:  input.Lastname,
 		Email:     input.Email,
 		Role:      role,
+		LastLogin: nil,
 	}, nil
 }
 func AddUser(input dtos.RegisterRequest) (*dtos.User, error) {

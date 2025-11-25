@@ -392,40 +392,57 @@ func CreatePaymentOption(paymentOption dtos.PaymentOption) error {
 	return err
 }
 
-func ListPaymentOptions(searchParam string, page, size int) ([]dtos.PaymentOption, *dtos.PaginationMeta, error) {
+func ListPaymentOptions(searchParam, status string, page, size int) ([]dtos.PaymentOption, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * size
+	isActive := true
+	if strings.ToLower(status) == "inactive" {
+		isActive = false
+	}
 
+	// Build conditions and args for count query
 	countQuery := `SELECT COUNT(*) FROM payment_options`
+	var conditions []string
 	var countArgs []interface{}
 
 	if searchParam != "" {
-		countQuery += " WHERE name LIKE ?"
+		conditions = append(conditions, "name LIKE ?")
 		countArgs = append(countArgs, "%"+searchParam+"%")
 	}
+	if status != "" {
+		conditions = append(conditions, "is_active = ?")
+		countArgs = append(countArgs, isActive)
+	}
+	if len(conditions) > 0 {
+		countQuery += " WHERE " + strings.Join(conditions, " AND ")
+	}
 
+	// Execute count query
 	var totalItems int
 	if err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
 		return nil, nil, err
 	}
+
+	// Build the main select query similarly
 	query := `
 		SELECT id, name, type, config_json, is_active, created_at
 		FROM payment_options
 	`
 	var queryArgs []interface{}
-
-	if searchParam != "" {
-		query += " WHERE name LIKE ?"
-		queryArgs = append(queryArgs, "%"+searchParam+"%")
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+		queryArgs = append(queryArgs, countArgs...)
 	}
 
 	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
 	queryArgs = append(queryArgs, size, offset)
 
+	// Query rows
 	rows, err := DB.Query(query, queryArgs...)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
+
 	var paymentOptions []dtos.PaymentOption
 	for rows.Next() {
 		var p dtos.PaymentOption
@@ -434,6 +451,8 @@ func ListPaymentOptions(searchParam string, page, size int) ([]dtos.PaymentOptio
 		}
 		paymentOptions = append(paymentOptions, p)
 	}
+
+	// Pagination meta
 	meta := dtos.PaginationMeta{
 		Page:       page,
 		Size:       size,

@@ -118,6 +118,7 @@ func SetupRoutes(router *mux.Router) {
 	admin.Handle("/products", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateProductHandler))).Methods("POST")
 	//add product specifications
 	admin.Handle("/products/specifications", middleware.AuthenticateToken(http.HandlerFunc(handlers.HandleProductSpecifications))).Methods("POST")
+	// admin.Handle("/products/specifications", middleware.AuthenticateToken(http.HandlerFunc(handlers.HandleProductSpecificationsUpdate))).Methods("PATCH")
 	//Get product variants
 	products.HandleFunc("/variants-products", handlers.GetVariantProductsHandler).Methods("GET")
 	//Get variants by ID
@@ -502,11 +503,14 @@ func SetupRoutes(router *mux.Router) {
 	admin.Handle(paymentOptionID, middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePaymentOptionHandler))).Methods("PATCH")
 	admin.Handle("/payment-options", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreatePaymentOptionHandler))).Methods("POST")
 	//returns endpoints
-	returnsPath := api.PathPrefix("/returns/").Subrouter()
+	returnsPath := api.PathPrefix("/returns").Subrouter()
 	returnsPathWithID := api.PathPrefix("/returns/{return_id}").Subrouter()
 	returnsPath.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateReturnsHandler))).Methods("POST")
 	// returnsPath.HandleFunc("{return_id}", handlers.GetReturnByIDHandler).Methods("GET")
 	returnsPathWithID.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetReturnByIDHandler))).Methods("GET")
 	returnsPathWithID.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateReturnStatusHandler))).Methods("PATCH")
 	returnsPath.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListAllReturnsHandler))).Methods("GET")
+	//transactions endpoints
+	api.Handle("/transaction", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllTransactionHandler))).Methods("GET")
+	api.Handle("/transaction/{transaction_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetTransactionByIDHandler))).Methods("GET")
 }

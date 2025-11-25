@@ -20,7 +20,24 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
 		return
 	}
-	err := models.CreateReturns(*req)
+	err := models.ValidateReturnRequest(*req)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Invalid return request " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	err = models.CreateReturns(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -181,8 +198,10 @@ func ListAllReturnsHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders"); !ok {
 		return
 	}
+	status := r.URL.Query().Get("status")
+	q := r.URL.Query().Get("q")
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	returns, meta, err := models.GetAllReturns(page, limit)
+	returns, meta, err := models.GetAllReturns(page, limit, status, q)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

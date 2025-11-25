@@ -7,14 +7,14 @@ import (
 )
 
 type User struct {
-	ID           string    `json:"user_id"`
-	FirstName    string    `json:"first_name"`
-	LastName     string    `json:"last_name"`
-	Email        string    `json:"email"`
-	Phone        string    `json:"phone,omitempty"`
-	PasswordHash string    `json:"-"`
-	Role         string    `json:"role"`
-	LastLogin    time.Time `json:"last_login,omitempty"`
+	ID           string     `json:"user_id"`
+	FirstName    string     `json:"first_name"`
+	LastName     string     `json:"last_name"`
+	Email        string     `json:"email"`
+	Phone        string     `json:"phone,omitempty"`
+	PasswordHash string     `json:"-"`
+	Role         string     `json:"role"`
+	LastLogin    *time.Time `json:"last_login,omitempty"`
 }
 
 type Users struct {
