@@ -15,6 +15,7 @@ type StaticPageRequest struct {
 	Description  *string `json:"description" validate:"required"`
 	Sections     []struct {
 		Position   int         `json:"position" validate:"required"`
+		Banner     *BlogImage  `json:"banner"`
 		Title      string      `json:"title"`
 		Paragraphs []Paragraph `json:"paragraphs" dive:"required"`
 		Images     []BlogImage `json:"images"`
