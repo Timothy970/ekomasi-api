@@ -409,21 +409,36 @@ func UpdateOrderStatus(orderID string, req dtos.UpdateOrderStatusRequest) error 
 		return err
 	}
 
-	// Update with or without payment method
-	if req.PaymentMethod != nil || req.PaymentStatus != nil {
-		_, err := DB.Exec(
-			`UPDATE orders SET status = ?, payment_status = ?, payment_method = ? WHERE order_id = ?`,
-			req.Status, req.PaymentStatus, *req.PaymentMethod, orderID,
-		)
-		if err != nil {
-			return err
-		}
-	} else {
-		_, err := DB.Exec(
-			`UPDATE orders SET status = ? WHERE order_id = ?`,
-			req.Status, orderID,
-		)
-		if err != nil {
+	query := "UPDATE orders SET status = ?"
+	args := []interface{}{req.Status}
+
+	// Add optional fields
+	if req.PaymentMethod != nil {
+		query += ", payment_method = ?"
+		args = append(args, *req.PaymentMethod)
+	}
+
+	if req.PaymentStatus != nil {
+		query += ", payment_status = ?"
+		args = append(args, *req.PaymentStatus)
+	}
+
+	// Final WHERE clause
+	query += " WHERE order_id = ?"
+	args = append(args, orderID)
+
+	// Update order
+	if _, err := DB.Exec(query, args...); err != nil {
+		return err
+	}
+
+	// Optional: update delivery status
+	if req.DeliveryStatus != nil {
+		if _, err := DB.Exec(
+			"UPDATE deliveries SET status = ? WHERE order_id = ?",
+			*req.DeliveryStatus,
+			orderID,
+		); err != nil {
 			return err
 		}
 	}
