@@ -566,16 +566,27 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		}(),
 		KeepSelling: func() *bool {
 			ks := strings.ToLower(r.FormValue("keep_selling"))
+
+			// default = true (empty or key missing)
+			defaultValue := true
+
+			if ks == "" {
+				return &defaultValue
+			}
+
 			switch ks {
 			case "true":
-				b := true
-				return &b
+				v := true
+				return &v
 			case "false":
-				b := false
-				return &b
+				v := false
+				return &v
 			}
-			return nil
+
+			// any unexpected value → default to true
+			return &defaultValue
 		}(),
+
 		CompareAtPrice: func() *float64 {
 			cp, _ := strconv.ParseFloat(r.FormValue("compare_at_price"), 64)
 			if cp == 0 {
@@ -1577,6 +1588,124 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary,
 	})
 }
+
+// func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
+// 	start := time.Now()
+// 	// Read and restore body FIRST
+// 	requestSummary := utils.GetRequestSummary(r)
+// 	// Ensure the user is an admin
+// 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+// 	if !ok {
+// 		return
+// 	}
+
+// 	req, ok := DecodeRequestBody[dtos.ProductSpecification](r, w, requestSummary, start)
+// 	if !ok {
+// 		return
+// 	}
+// 	//handle products specifications
+// 	err := handleProductSpecs(*req)
+// 	log.Printf("handleProductSpecs ***** %s", err)
+// 	if err != nil {
+// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+// 			CollectiveInfo: utils.CollectiveInfo{
+// 				Module:      "Products",
+// 				Description: "Failed to add product specifications: " + err.Error(),
+// 				Code:        http.StatusInternalServerError,
+// 			},
+// 			Message:   err.Error(),
+// 			TimeTaken: time.Since(start),
+// 			Function:  utils.GetCurrentFuncName(),
+// 			Request:   r,
+// 			RawBody:   requestSummary})
+// 		return
+// 	}
+// 	//handle products variants
+// 	err = handleProductsVariants(*req)
+// 	log.Printf("handleProductsVariants ***** %s", err)
+
+// 	if err != nil {
+// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+// 			CollectiveInfo: utils.CollectiveInfo{
+// 				Module:      "Products",
+// 				Description: "Failed to add product variants: " + err.Error(),
+// 				Code:        http.StatusInternalServerError,
+// 			},
+// 			Message:   err.Error(),
+// 			TimeTaken: time.Since(start),
+// 			Function:  utils.GetCurrentFuncName(),
+// 			Request:   r,
+// 			RawBody:   requestSummary})
+// 		return
+// 	}
+// 	//handle product warranty
+// 	err = handleProductsWarranty(*req)
+// 	log.Printf("handleProductsWarranty ***** %s", err)
+
+// 	if err != nil {
+// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+// 			CollectiveInfo: utils.CollectiveInfo{
+// 				Module:      "Products",
+// 				Description: "Failed to add product warranty: " + err.Error(),
+// 				Code:        http.StatusInternalServerError,
+// 			},
+// 			Message:   err.Error(),
+// 			TimeTaken: time.Since(start),
+// 			Function:  utils.GetCurrentFuncName(),
+// 			Request:   r,
+// 			RawBody:   requestSummary})
+// 		return
+// 	}
+// 	//add tax to a product
+// 	err = attachProductTax(*req)
+// 	log.Printf("attachProductTax ***** %s", err)
+
+// 	if err != nil {
+// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+// 			CollectiveInfo: utils.CollectiveInfo{
+// 				Module:      "Products",
+// 				Description: "Failed to add product tax: " + err.Error(),
+// 				Code:        http.StatusInternalServerError,
+// 			},
+// 			Message:   err.Error(),
+// 			TimeTaken: time.Since(start),
+// 			Function:  utils.GetCurrentFuncName(),
+// 			Request:   r,
+// 			RawBody:   requestSummary})
+// 		return
+// 	}
+// 	// add discount to a product
+// 	err = attachProductDiscount(*req)
+// 	log.Printf("attachProductDiscount ***** %s", err)
+
+// 	if err != nil {
+// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+// 			CollectiveInfo: utils.CollectiveInfo{
+// 				Module:      "Products",
+// 				Description: "Failed to add product discount: " + err.Error(),
+// 				Code:        http.StatusInternalServerError,
+// 			},
+// 			Message:   err.Error(),
+// 			TimeTaken: time.Since(start),
+// 			Function:  utils.GetCurrentFuncName(),
+// 			Request:   r,
+// 			RawBody:   requestSummary})
+// 		return
+// 	}
+// 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+// 		CollectiveInfo: utils.CollectiveInfo{
+// 			Module:      "Products",
+// 			Description: "Product specifications added successfully",
+// 			Code:        http.StatusOK,
+// 		},
+// 		Payload:   nil,
+// 		Message:   "Product specifications added successfully",
+// 		TimeTaken: time.Since(start),
+// 		Function:  utils.GetCurrentFuncName(),
+// 		Request:   r,
+// 		RawBody:   requestSummary,
+// 	})
+// }
 
 func handleProductSpecs(req dtos.ProductSpecification) error {
 	data := dtos.ProductSpecs{
