@@ -199,13 +199,13 @@ type PaymentOption struct {
 	Name      string          `json:"name" validate:"required"`
 	Type      string          `json:"type" validate:"required"`
 	Configs   *map[string]any `json:"configs,omitempty" `
-	Status    *bool           `json:"status" validate:"required"`
+	IsActive  *bool           `json:"is_active" validate:"required"`
 	CreatedAt string          `json:"created_at"`
 }
 
 type PaymentOptionUpdate struct {
-	Name    string          `json:"name" validate:"required"`
-	Type    string          `json:"type" validate:"required"`
-	Configs *map[string]any `json:"configs,omitempty"`
-	Status  *bool           `json:"status" validate:"required"`
+	Name     string          `json:"name" validate:"required"`
+	Type     string          `json:"type" validate:"required"`
+	Configs  *map[string]any `json:"configs,omitempty"`
+	IsActive *bool           `json:"is_active" validate:"required"`
 }
