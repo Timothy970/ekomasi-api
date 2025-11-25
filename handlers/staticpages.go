@@ -6,6 +6,8 @@ import (
 	"adenzo_backend/utils"
 	"net/http"
 	"time"
+
+	"github.com/gorilla/mux"
 )
 
 // create a static page
@@ -60,11 +62,8 @@ func GetStaticPages(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	slug := r.URL.Query().Get("slug")
-	pageType := r.URL.Query().Get("page_type")
-	status := r.URL.Query().Get("status")
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	staticPages, meta, err := models.GetStaticPages(slug, pageType, status, page, limit)
+	query := r.URL.Query().Get("q")
+	staticPages, err := models.GetStaticPages(query)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -86,7 +85,7 @@ func GetStaticPages(w http.ResponseWriter, r *http.Request) {
 			Code:        http.StatusOK,
 			Description: "Static pages fetched successfully",
 		},
-		Payload:   map[string]any{"static_pages": staticPages, "pagination": meta},
+		Payload:   staticPages,
 		Message:   "Static pages fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -101,7 +100,7 @@ func GetStaticPageByID(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	staticPageID := r.URL.Query().Get("static_page_id")
+	staticPageID := mux.Vars(r)["static_page_id"]
 	staticPage, err := models.GetStaticPageByID(staticPageID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -143,7 +142,7 @@ func DeleteStaticPage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	staticPageID := r.URL.Query().Get("static_page_id")
+	staticPageID := mux.Vars(r)["static_page_id"]
 	err := models.DeleteStaticPage(staticPageID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -185,7 +184,7 @@ func UpdateStaticPage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	staticPageID := r.URL.Query().Get("static_page_id")
+	staticPageID := mux.Vars(r)["static_page_id"]
 	req, ok := DecodeRequestBody[dtos.StaticPageRequest](r, w, requestSummary, start)
 	if !ok {
 		return

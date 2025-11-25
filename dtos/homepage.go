@@ -67,10 +67,8 @@ type SocialLinkRequest struct {
 }
 
 type MenuLink struct {
-	Title    string
-	URL      string
-	ParentID string
-	ID       string
+	Title string `json:"title"`
+	HREF  string `json:"href"`
 }
 
 type Banner struct {

@@ -54,7 +54,7 @@ func GetSocialsData() ([]dtos.SocialLink, error) {
 }
 
 func GetMenuData() ([]dtos.MenuLink, error) {
-	rows, err := DB.Query("SELECT id, title, url, parent_id FROM menu_links ORDER BY display_order")
+	rows, err := DB.Query("SELECT  title, path FROM static_pages ORDER BY updated_at DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func GetMenuData() ([]dtos.MenuLink, error) {
 	var links []dtos.MenuLink
 	for rows.Next() {
 		var l dtos.MenuLink
-		if err := rows.Scan(&l.ID, &l.Title, &l.URL, &l.ParentID); err != nil {
+		if err := rows.Scan(&l.Title, &l.HREF); err != nil {
 			return nil, err
 		}
 		links = append(links, l)

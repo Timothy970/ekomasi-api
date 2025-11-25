@@ -474,7 +474,7 @@ func SetupRoutes(router *mux.Router) {
 	admin.Handle(permissionsAvailable, middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateAvailablePermission))).Methods("PATCH")
 	admin.Handle(permissionsAvailable, middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveAvailablePermission))).Methods("DELETE")
 	//static pages endpoints
-	var staticPageID = "/static-pages/{page_id}"
+	var staticPageID = "/static-pages/{static_page_id}"
 	admin.Handle("/static-pages", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateStaticPage))).Methods("POST")
 	admin.Handle(staticPageID, middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateStaticPage))).Methods("PATCH")
 	admin.Handle(staticPageID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteStaticPage))).Methods("DELETE")
