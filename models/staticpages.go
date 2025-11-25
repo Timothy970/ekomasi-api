@@ -13,123 +13,81 @@ import (
 
 func CreateStaticPage(req dtos.StaticPageRequest) error {
 	staticPageID, _ := shortid.Generate()
-	headerData, _ := json.Marshal(req.Content.Header)
-	bodyData, _ := json.Marshal(req.Content.Body)
-	footerData, _ := json.Marshal(req.Content.Footer)
+	data, _ := json.Marshal(req.Sections)
 	query := `
-		INSERT INTO static_pages (static_page_id, title, slug, body_data, header_data, footer_data, page_type, status)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO static_pages (static_page_id, title, description, data, path)
+		VALUES (?, ?, ?, ?, ?)
 	`
-	_, err := DB.Exec(query, staticPageID, req.Title, req.Slug, bodyData, headerData, footerData, req.PageType, req.Status)
+	_, err := DB.Exec(query, staticPageID, req.Title, req.Description, data, req.Path)
 	return err
 }
 
-func GetStaticPages(slug, pageType, status string, page, limit int) ([]dtos.StaticPageRequest, *dtos.PaginationMeta, error) {
-	var count int
-	baseQuery := `SELECT COUNT(*) FROM static_pages`
-	conditions := []string{}
-	args := []interface{}{}
+func GetStaticPages(query string) ([]dtos.StaticPageRequest, error) {
+	var (
+		staticPages []dtos.StaticPageRequest
+		args        []interface{}
+	)
 
-	// Build dynamic conditions
-	if slug != "" {
-		conditions = append(conditions, "LOWER(slug) = LOWER(?)")
-		args = append(args, slug)
-	}
-	if pageType != "" {
-		conditions = append(conditions, "LOWER(page_type) = LOWER(?)")
-		args = append(args, pageType)
-	}
-	if status != "" {
-		conditions = append(conditions, "LOWER(status) = LOWER(?)")
-		args = append(args, status)
-	}
-
-	// Add WHERE clause if conditions exist
-	if len(conditions) > 0 {
-		baseQuery += " WHERE " + strings.Join(conditions, " AND ")
-	}
-
-	// Execute safely with only the needed arguments
-	if err := DB.QueryRow(baseQuery, args...).Scan(&count); err != nil {
-		log.Printf("count query exec error: %v", err)
-		return nil, nil, err
-	}
-	// Fetch the actual static pages
-	var staticPages []dtos.StaticPageRequest
-
+	// Base query
 	pageQuery := `
-	SELECT static_page_id, title, slug, header_data, body_data, footer_data, page_type, status
-	FROM static_pages
-`
-	pageConditions := []string{}
-	pageArgs := []interface{}{}
+		SELECT static_page_id, title, description, path, data, created_at, updated_at
+		FROM static_pages
+	`
 
 	// Build dynamic conditions
-	if slug != "" {
-		pageConditions = append(pageConditions, "LOWER(slug) = LOWER(?)")
-		pageArgs = append(pageArgs, slug)
-	}
-	if pageType != "" {
-		pageConditions = append(pageConditions, "LOWER(page_type) = LOWER(?)")
-		pageArgs = append(pageArgs, pageType)
-	}
-	if status != "" {
-		pageConditions = append(pageConditions, "LOWER(status) = LOWER(?)")
-		pageArgs = append(pageArgs, status)
+	var conditions []string
+	if query != "" {
+		conditions = append(conditions, "LOWER(title) = LOWER(?)")
+		args = append(args, query)
 	}
 
 	// Append WHERE clause dynamically
-	if len(pageConditions) > 0 {
-		pageQuery += " WHERE " + strings.Join(pageConditions, " AND ")
+	if len(conditions) > 0 {
+		pageQuery += " WHERE " + strings.Join(conditions, " AND ")
 	}
 
-	// Add pagination
-	pageQuery += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-	args = append(args, limit, (page-1)*limit)
+	pageQuery += " ORDER BY created_at DESC"
 
-	// Execute query safely
+	// Execute the query
 	rows, err := DB.Query(pageQuery, args...)
 	if err != nil {
-		log.Printf("page query exec error: %v", err)
-		return nil, nil, err
+		log.Printf("GetStaticPages query error: %v", err)
+		return nil, err
 	}
 	defer rows.Close()
 
+	// Iterate results
 	for rows.Next() {
 		var sp dtos.StaticPageRequest
-		var (
-			headerData sql.NullString
-			bodyData   sql.NullString
-			footerData sql.NullString
-		)
+		var data sql.NullString
 
-		if err := rows.Scan(&sp.StaticPageID, &sp.Title, &sp.Slug, &headerData, &bodyData, &footerData, &sp.PageType, &sp.Status); err != nil {
-			log.Printf("row scan error***%s", err)
-			return nil, nil, err
+		if err := rows.Scan(
+			&sp.StaticPageID,
+			&sp.Title,
+			&sp.Description,
+			&sp.Path,
+			&data,
+			&sp.CreatedAt,
+			&sp.UpdatedAt,
+		); err != nil {
+			log.Printf("GetStaticPages scan error: %v", err)
+			return nil, err
 		}
 
-		// Unmarshal JSON data into the content struct
-		if err := json.Unmarshal([]byte(headerData.String), &sp.Content.Header); err != nil {
-			log.Printf("header unmarshal error: %v", err)
-			return nil, nil, err
-		}
-		if err := json.Unmarshal([]byte(bodyData.String), &sp.Content.Body); err != nil {
-			log.Printf("body unmarshal error: %v", err)
-			return nil, nil, err
-		}
-		if err := json.Unmarshal([]byte(footerData.String), &sp.Content.Footer); err != nil {
-			log.Printf("footer unmarshal error: %v", err)
-			return nil, nil, err
+		// Only unmarshal if data is valid JSON
+		if data.Valid && data.String != "" {
+			if err := json.Unmarshal([]byte(data.String), &sp.Sections); err != nil {
+				log.Printf("GetStaticPages unmarshal error: %v", err)
+				return nil, err
+			}
 		}
 
 		staticPages = append(staticPages, sp)
 	}
 
-	// Create pagination metadata
-	pagination := calculatePagination(page, limit, int64(count))
-
-	return staticPages, &pagination, nil
+	return staticPages, nil
 }
+
 func GetStaticPageByID(staticPageID string) (*dtos.StaticPageRequest, error) {
 	err := isStaticPageThere(staticPageID)
 	if err != nil {
@@ -137,33 +95,22 @@ func GetStaticPageByID(staticPageID string) (*dtos.StaticPageRequest, error) {
 	}
 	var sp dtos.StaticPageRequest
 	var (
-		headerData sql.NullString
-		bodyData   sql.NullString
-		footerData sql.NullString
+		data sql.NullString
 	)
 	err = DB.QueryRow(`
-		SELECT static_page_id, title, slug, header_data, body_data, footer_data, page_type, status
+		SELECT static_page_id, title, description, path, data, created_at, updated_at
 		FROM static_pages
 		WHERE static_page_id = ?
-	`, staticPageID).Scan(&sp.StaticPageID, &sp.Title, &sp.Slug, &headerData, &bodyData, &footerData, &sp.PageType, &sp.Status)
+	`, staticPageID).Scan(&sp.StaticPageID, &sp.Title, &sp.Description, &sp.Path, &data, &sp.CreatedAt, &sp.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
 
 	// Unmarshal JSON data into the content struct
-	if err := json.Unmarshal([]byte(headerData.String), &sp.Content.Header); err != nil {
-		log.Printf("header unmarshal error: %v", err)
+	if err := json.Unmarshal([]byte(data.String), &sp.Sections); err != nil {
+		log.Printf("data unmarshal error: %v", err)
 		return nil, err
 	}
-	if err := json.Unmarshal([]byte(bodyData.String), &sp.Content.Body); err != nil {
-		log.Printf("body unmarshal error: %v", err)
-		return nil, err
-	}
-	if err := json.Unmarshal([]byte(footerData.String), &sp.Content.Footer); err != nil {
-		log.Printf("footer unmarshal error: %v", err)
-		return nil, err
-	}
-
 	return &sp, nil
 }
 func UpdateStaticPage(staticPageID string, req dtos.StaticPageRequest) (*dtos.StaticPageRequest, error) {
@@ -172,12 +119,13 @@ func UpdateStaticPage(staticPageID string, req dtos.StaticPageRequest) (*dtos.St
 	if err != nil {
 		return nil, err
 	}
+	data, _ := json.Marshal(req.Sections)
 	query := `
 		UPDATE static_pages
-		SET title = ?, slug = ?, content = ?, page_type = ?, status = ?
+		SET title = ?, description = ?, data = ?, path = ?
 		WHERE static_page_id = ?
 	`
-	_, err = DB.Exec(query, req.Title, req.Slug, req.Content, req.PageType, req.Status, staticPageID)
+	_, err = DB.Exec(query, req.Title, req.Description, data, req.Path, staticPageID)
 	if err != nil {
 		return nil, err
 	}

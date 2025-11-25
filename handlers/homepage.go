@@ -68,18 +68,7 @@ func HomePageData(w http.ResponseWriter, r *http.Request) {
 				}
 				return links
 			}(),
-			"menu_links": func() []map[string]string {
-				var links []map[string]string
-				for _, link := range menuLinks {
-					links = append(links, map[string]string{
-						"id":        link.ID,
-						"title":     link.Title,
-						"url":       link.URL,
-						"parent_id": link.ParentID,
-					})
-				}
-				return links
-			}(),
+			"links": menuLinks,
 		},
 		"meta": map[string]string{
 			"version":     "1.0",

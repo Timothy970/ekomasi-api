@@ -9,13 +9,20 @@ package dtos
 // }
 
 type StaticPageRequest struct {
-	StaticPageID string            `json:"static_page_id"`
-	Title        string            `json:"title" validate:"required"`
-	Slug         string            `json:"slug" validate:"required"`
-	Content      StaticPageContent `json:"content" dive:"required"`
-	PageType     string            `json:"page_type" validate:"required"`
-	Status       string            `json:"status" validate:"required"`
+	StaticPageID string  `json:"static_page_id"`
+	Title        string  `json:"title" validate:"required"`
+	Path         string  `json:"path" validate:"required"`
+	Description  *string `json:"description" validate:"required"`
+	Sections     []struct {
+		Position   int         `json:"position" validate:"required"`
+		Title      string      `json:"title"`
+		Paragraphs []Paragraph `json:"paragraphs" dive:"required"`
+		Images     []BlogImage `json:"images"`
+	} `json:"sections"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
 }
+
 type StaticPageContent struct {
 	Header map[string]any `json:"header"`
 	Body   map[string]any `json:"body"`
