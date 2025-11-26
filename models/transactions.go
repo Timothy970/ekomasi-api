@@ -110,3 +110,30 @@ func UpdateMpesaReceiptNumber(mpesaReceiptNumber, orderID string) error {
 	_, err := DB.Exec(query, mpesaReceiptNumber, orderID)
 	return err
 }
+
+func UpdateTransactionStatusByID(transactionID, status string) (string, error) {
+	query := `
+		UPDATE transactions
+		SET status = ?
+		WHERE transaction_id = ?`
+	_, err := DB.Exec(query, status, transactionID)
+	if err != nil {
+		return "", err
+	}
+	//get order id associated with this transaction
+	var orderID string
+	err = DB.QueryRow(`SELECT order_id FROM transactions WHERE transaction_id = ?`, transactionID).Scan(&orderID)
+	if err != nil {
+		return "", err
+	}
+	return orderID, nil
+}
+
+func UpdateOrderPaymentStatus(orderID, status string) error {
+	query := `
+		UPDATE orders
+		SET payment_status = ?
+		WHERE order_id = ?`
+	_, err := DB.Exec(query, status, orderID)
+	return err
+}

@@ -12,3 +12,7 @@ type TransactionsList struct {
 	TransactionDate      string  `json:"transaction_date"`
 	PaymentMethod        string  `json:"payment_method"`
 }
+
+type UpdateTransactionStatus struct {
+	Status string `json:"status" validate:"required"`
+}

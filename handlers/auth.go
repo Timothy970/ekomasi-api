@@ -105,12 +105,13 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	if !CheckUserExistsByEmailOrPhone(w, r, *req, start, requestSummary) {
 		return
 	}
-
-	otp, err := utils.GenerateOTP()
-	if err != nil {
-		log.Println("Failed to create OTP:", err)
-		return
-	}
+	//commented in order to use a hardcode otp for testing - 2025
+	otp := "2025"
+	// otp, err := utils.GenerateOTP()
+	// if err != nil {
+	// 	log.Println("Failed to create OTP:", err)
+	// 	return
+	// }
 	// Store temporary registration info in Redis for 10 minutes
 	tempKey := getVerificationRedisKey(req.Email, req.Phonenumber)
 
@@ -127,13 +128,14 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to store temporary registration: %v", err)
 		return
 	}
-	if req.Email != "" {
-		htmlBody := utils.GenerateOTPEmailHTML(otp)
-		notification.SendEmail(req.Email, subject, htmlBody)
-	}
-	if req.Phonenumber != "" {
-		notification.SendSmsMessages(req.Phonenumber, fmt.Sprintf(message, otp))
-	}
+	//no sending for now - testing purposes
+	// if req.Email != "" {
+	// 	htmlBody := utils.GenerateOTPEmailHTML(otp)
+	// 	notification.SendEmail(req.Email, subject, htmlBody)
+	// }
+	// if req.Phonenumber != "" {
+	// 	notification.SendSmsMessages(req.Phonenumber, fmt.Sprintf(message, otp))
+	// }
 	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -370,6 +372,7 @@ func VerifySignUp(w http.ResponseWriter, r *http.Request, req *dtos.VerifyOTP, s
 			CollectiveInfo: utils.CollectiveInfo{
 				Module: "Auth", Description: "Invalid OTP", Code: http.StatusBadRequest,
 			},
+
 			Message:   "Invalid OTP",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -520,11 +523,14 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	otp, err := utils.GenerateOTP()
-	if err != nil {
-		log.Println("Failed to generate:", err)
-		return
-	}
+
+	// hardcoded otp for testing - 2025
+	otp := "2025"
+	// otp, err := utils.GenerateOTP()
+	// if err != nil {
+	// 	log.Println("Failed to generate:", err)
+	// 	return
+	// }
 	if err := StoreOTPInRedis(user.ID, otp, 5*time.Minute); err != nil {
 		log.Println("Failed to store:", err)
 		respondInternalError(w, "Failed to generate OTP", start, r, requestSummary)
@@ -603,11 +609,14 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	otp, err := utils.GenerateOTP()
-	if err != nil {
-		log.Println("Failed to generate one time password:", err)
-		return
-	}
+	// hardcoded otp for testing - 2025
+	otp := "2025"
+	//
+	// otp, err := utils.GenerateOTP()
+	// if err != nil {
+	// 	log.Println("Failed to generate one time password:", err)
+	// 	return
+	// }
 	if err := StoreOTPInRedis(user.ID, otp, 5*time.Minute); err != nil {
 		log.Println("Failed to store one time password:", err)
 		respondInternalError(w, "Failed to store OTP", start, r, requestSummary)
