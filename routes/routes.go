@@ -513,4 +513,5 @@ func SetupRoutes(router *mux.Router) {
 	//transactions endpoints
 	api.Handle("/transactions", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllTransactionHandler))).Methods("GET")
 	api.Handle("/transactions/{transaction_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetTransactionByIDHandler))).Methods("GET")
+	api.Handle("/transactions/{transaction_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateTransactionStatusHandler))).Methods("PATCH")
 }

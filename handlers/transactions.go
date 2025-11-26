@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"adenzo_backend/dtos"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"net/http"
@@ -88,4 +89,68 @@ func GetTransactionByIDHandler(w http.ResponseWriter, r *http.Request) {
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
+}
+
+func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	//check if user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Transaction"); !ok {
+		return
+	}
+	transactionID := mux.Vars(r)["transaction_id"]
+	req, ok := DecodeRequestBody[dtos.UpdateTransactionStatus](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
+		return
+	}
+	orderID, err := models.UpdateTransactionStatusByID(transactionID, req.Status)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to update transaction status " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	//also update payment status in orders table
+	err = models.UpdateOrderPaymentStatus(orderID, req.Status)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to update order payment status " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Orders",
+			Description: "Transaction status updated successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "Transaction status updated successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
 }
