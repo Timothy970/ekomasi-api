@@ -538,7 +538,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clearLoginAttempts(identifier)
-	dispatchOTP(user, otp, *req)
+	// dispatchOTP(user, otp, *req)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -624,7 +624,7 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clearLoginAttempts(identifier)
-	dispatchOTP(user, otp, *req)
+	// dispatchOTP(user, otp, *req)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
