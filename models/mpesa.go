@@ -4,8 +4,9 @@ import "adenzo_backend/dtos"
 
 func HandleMpesaMoneyReturnRefunds(order dtos.Order) error {
 	//change the order status to refunded
+	status := "Refunded"
 	err := UpdateOrderStatus(order.OrderID, dtos.UpdateOrderStatusRequest{
-		Status: "refunded",
+		Status: &status,
 	})
 	if err != nil {
 		return err

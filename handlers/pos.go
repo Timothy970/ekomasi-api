@@ -6,6 +6,7 @@ import (
 	"adenzo_backend/utils"
 	"bytes"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -104,44 +105,25 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Request:   r,
 			RawBody:   requestSummary,
 		})
-		paymentMethod := "CASH"
-		paymentStatus := "SUCCESS"
-		orderStatusData := dtos.UpdateOrderStatusRequest{
-			PaymentMethod: &paymentMethod,
-			Status:        "SUCCESS",
-			PaymentStatus: &paymentStatus,
-		}
-		err := models.UpdateOrderStatus(order.OrderID, orderStatusData)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Payments",
-					Description: fmt.Sprintf("Failed to update order status: %s", err.Error()),
-					Code:        http.StatusBadRequest,
-				},
-				Message:   "Failed to update order status",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-		change := req.Amount - order.TotalAmount
-		if change < 0 {
-			change = 0
-		}
-		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		return
+	}
+	paymentMethod := "CASH"
+	paymentStatus := "SUCCESS"
+	status := "SUCCESS"
+	orderStatusData := dtos.UpdateOrderStatusRequest{
+		PaymentMethod: &paymentMethod,
+		Status:        &status,
+		PaymentStatus: &paymentStatus,
+	}
+	err = models.UpdateOrderStatus(order.OrderID, orderStatusData)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
-				Description: "Payment processed and order status updated successfully",
-				Code:        http.StatusOK,
+				Description: fmt.Sprintf("Failed to update order status: %s", err.Error()),
+				Code:        http.StatusBadRequest,
 			},
-			Payload: map[string]any{
-				"order_id": order.OrderID,
-				"change":   change,
-			},
-			Message:   "Payment processed successfully",
+			Message:   "Failed to update order status",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -149,6 +131,39 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	change := req.Amount - order.TotalAmount
+	if change < 0 {
+		change = 0
+	}
+	//log the cash payment transaction
+	logEntry := &dtos.TransactionsList{
+		OrderID:              order.OrderID,
+		TransactionReference: "ADENZO - " + order.OrderID,
+		Amount:               order.TotalAmount,
+		Status:               "COMPLETED",
+		PaymentMethod:        "CASH",
+	}
+	err = models.InsertTransaction(logEntry)
+	if err != nil {
+		log.Printf("Failed to store transaction log: %v", err)
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Payments",
+			Description: "Payment processed and order status updated successfully",
+			Code:        http.StatusOK,
+		},
+		Payload: map[string]any{
+			"order_id": order.OrderID,
+			"change":   change,
+		},
+		Message:   "Payment processed successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+
 }
 
 func PrintReceiptHandler(w http.ResponseWriter, r *http.Request) {

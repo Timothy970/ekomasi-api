@@ -4,6 +4,8 @@ import (
 	"adenzo_backend/dtos"
 	"errors"
 	"strings"
+
+	"github.com/teris-io/shortid"
 )
 
 func GetAllTransactions(page, limit int, status, q string) ([]dtos.TransactionsList, *dtos.PaginationMeta, error) {
@@ -82,11 +84,12 @@ func GetTransactionByID(transactionID string) (*dtos.TransactionsList, error) {
 }
 
 func InsertTransaction(t *dtos.TransactionsList) error {
+	transactionID, _ := shortid.Generate()
 	query := `
 		INSERT INTO transactions (transaction_id, order_id, mpesa_reference, transaction_reference, phone_number, amount, account_number, status, payment_method)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	_, err := DB.Exec(query, t.TransactionID, t.OrderID, t.MpesaReference, t.TransactionReference, t.PhoneNumber, t.Amount, t.AccountNumber, t.Status, t.PaymentMethod)
+	_, err := DB.Exec(query, transactionID, t.OrderID, t.MpesaReference, t.TransactionReference, t.PhoneNumber, t.Amount, t.AccountNumber, t.Status, t.PaymentMethod)
 	return err
 }
 
@@ -96,5 +99,14 @@ func UpdateTransactionStatus(orderID, status string) error {
 		SET status = ?
 		WHERE order_id = ?`
 	_, err := DB.Exec(query, status, orderID)
+	return err
+}
+
+func UpdateMpesaReceiptNumber(mpesaReceiptNumber, orderID string) error {
+	query := `
+		UPDATE transactions
+		SET mpesa_reference = ?
+		WHERE order_id = ?`
+	_, err := DB.Exec(query, mpesaReceiptNumber, orderID)
 	return err
 }

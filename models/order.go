@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/teris-io/shortid"
@@ -404,35 +406,39 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 }
 
 func UpdateOrderStatus(orderID string, req dtos.UpdateOrderStatusRequest) error {
-	// Check if order exists
+	// Validate order existence
 	if err := IsOrderThere(orderID); err != nil {
 		return err
 	}
 
-	query := "UPDATE orders SET status = ?"
-	args := []interface{}{req.Status}
+	// Build dynamic update fields
+	setParts := []string{}
+	args := []interface{}{}
 
-	// Add optional fields
+	if req.Status != nil {
+		setParts = append(setParts, "status = ?")
+		args = append(args, *req.Status)
+	}
 	if req.PaymentMethod != nil {
-		query += ", payment_method = ?"
+		setParts = append(setParts, "payment_method = ?")
 		args = append(args, *req.PaymentMethod)
 	}
-
 	if req.PaymentStatus != nil {
-		query += ", payment_status = ?"
+		setParts = append(setParts, "payment_status = ?")
 		args = append(args, *req.PaymentStatus)
 	}
 
-	// Final WHERE clause
-	query += " WHERE order_id = ?"
-	args = append(args, orderID)
+	// Only run ORDER update if something is actually being updated
+	if len(setParts) > 0 {
+		query := fmt.Sprintf("UPDATE orders SET %s WHERE order_id = ?", strings.Join(setParts, ", "))
+		args = append(args, orderID)
 
-	// Update order
-	if _, err := DB.Exec(query, args...); err != nil {
-		return err
+		if _, err := DB.Exec(query, args...); err != nil {
+			return err
+		}
 	}
 
-	// Optional: update delivery status
+	// Update delivery status separately
 	if req.DeliveryStatus != nil {
 		if _, err := DB.Exec(
 			"UPDATE deliveries SET status = ? WHERE order_id = ?",

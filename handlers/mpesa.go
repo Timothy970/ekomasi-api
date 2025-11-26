@@ -64,7 +64,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 	log.Printf("order found %v", order)
 	req.Amount = int(order.TotalAmount) - int(order.TotalDiscount)
 	req.DeliveryID = order.DeliveryID
-	req.Reference = "ADENZO -" + order.OrderID
+	req.Reference = "ADENZO - " + order.OrderID
 	req.Description = fmt.Sprintf("Payment for order %s", order.OrderID)
 	client, err := NewMpesaClient()
 	if err != nil {
@@ -115,6 +115,10 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	err = storeTransactionLog(req)
+	if err != nil {
+		log.Printf("Failed to store transaction log: %v", err)
+	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
@@ -129,6 +133,19 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary,
 	})
 }
+
+func storeTransactionLog(req dtos.MpesaRequest) error {
+	logEntry := &dtos.TransactionsList{
+		OrderID:              req.OrderID,
+		TransactionReference: req.Reference,
+		PhoneNumber:          &req.Phone,
+		Amount:               float64(req.Amount),
+		Status:               "PENDING",
+		PaymentMethod:        "MPESA",
+	}
+	return models.InsertTransaction(logEntry)
+}
+
 func RegisterMpesaRoutesHandler(w http.ResponseWriter, r *http.Request) {
 	client, err := NewMpesaClient()
 	if err != nil {
@@ -327,6 +344,22 @@ func HandleMpesaCallback(w http.ResponseWriter, r *http.Request) {
 	handleFailedPayment(w, stk.ResultCode, stk.ResultDesc)
 }
 
+// store mpesa receipt number
+func storeMpesaMpesaReceiptNumber(items []struct {
+	Name  string      `json:"Name"`
+	Value interface{} `json:"Value"`
+}, orderID string) error {
+	var mpesaCode string
+	for _, item := range items {
+		if item.Name == "MpesaReceiptNumber" {
+			if v, ok := item.Value.(string); ok {
+				mpesaCode = v
+			}
+		}
+	}
+	return models.UpdateMpesaReceiptNumber(mpesaCode, orderID)
+}
+
 // logCallbackInfo logs callback metadata
 func logCallbackInfo(checkoutID, resultDesc string) {
 	log.Printf("MPESA CALLBACK RECEIVED:\n- CheckoutRequestID: %s\n- Result: %s\n- Time: %s\n",
@@ -346,6 +379,17 @@ func handleSuccessfulPayment(w http.ResponseWriter, callback dtos.STKCallbackReq
 	}
 
 	processOrderUpdate(orderType, deliveryID, orderID)
+	//update transaction log
+	err = models.UpdateTransactionStatus(orderID, "COMPLETED")
+	if err != nil {
+		log.Printf("error updating transaction status: %v", err)
+	}
+	items := stk.CallbackMetadata.Item
+	err = storeMpesaMpesaReceiptNumber(items, orderID)
+	if err != nil {
+		log.Printf("error storing mpesa receipt number: %v", err)
+	}
+
 	//send sms and email notification
 	//store the order to order_notifications table for processing later
 	models.StoreOrderNotification(orderID)
