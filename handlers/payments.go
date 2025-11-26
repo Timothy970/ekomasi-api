@@ -668,7 +668,8 @@ func ListPaymentOptionsHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	q := r.URL.Query().Get("q")
-	paymentOptions, pagination, err := models.ListPaymentOptions(q, page, size)
+	status := r.URL.Query().Get("status")
+	paymentOptions, pagination, err := models.ListPaymentOptions(q, status, page, size)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

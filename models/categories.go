@@ -328,7 +328,7 @@ func GetAdminCategories(page, limit int, categoryName string) ([]dtos.AdminCateg
         (SELECT COUNT(*) FROM categories sc WHERE sc.parent_category_id = c.category_id) AS subcategories,
         c.description
     FROM categories c
-    ORDER BY c.name
+    ORDER BY c.updated_at DESC
     LIMIT ? OFFSET ?`, limit, offset)
 
 	if err != nil {
@@ -362,7 +362,7 @@ func GetCategoriesWithSubCategories() ([]dtos.CategoryWithSubCategories, error) 
 	parentQuery := `
 		SELECT category_id, name 
 		FROM categories
-		WHERE parent_category_id IS NULL
+		WHERE parent_category_id IS NULL		
 	`
 
 	rows, err := DB.Query(parentQuery)

@@ -2,6 +2,7 @@ package models
 
 import (
 	"adenzo_backend/dtos"
+	"fmt"
 
 	"github.com/teris-io/shortid"
 )
@@ -30,9 +31,9 @@ func insertIntoReturnProducts(returnID string, req dtos.ReturnRequest) error {
 		INSERT INTO return_products (return_product_id, return_id, product_id, quantity)
 		VALUES (?, ?, ?, ?)
 	`
-	for _, productID := range req.Products {
+	for _, product := range req.ReturnProducts {
 		returnProductID, _ := shortid.Generate()
-		_, err := DB.Exec(query, returnProductID, returnID, productID, req.Quantity)
+		_, err := DB.Exec(query, returnProductID, returnID, product.ProductID, product.Quantity)
 		if err != nil {
 			return err
 		}
@@ -81,6 +82,7 @@ func GetReturnByID(returnID string) (dtos.ReturnResponse, error) {
 			return ret, err
 		}
 		product, err = GetProductByID(productID)
+		product.StockQuantity = quantity
 		if err != nil {
 			return ret, err
 		}
@@ -111,40 +113,113 @@ func GetProductRefundAmount(productID string, quantity int, orderID string) (flo
 	return price * float64(quantity), nil
 }
 
-func GetAllReturns(page, size int) ([]dtos.ReturnResponse, *dtos.PaginationMeta, error) {
-	var returns []dtos.ReturnResponse
-	var totalRecords int
+func GetAllReturns(page, size int, status, q string) (*dtos.ReturnListResponse, *dtos.PaginationMeta, error) {
+	offset := (page - 1) * size
 
-	// Get total count
-	countQuery := `SELECT COUNT(*) FROM returns`
-	row := DB.QueryRow(countQuery)
-	if err := row.Scan(&totalRecords); err != nil {
+	where := "WHERE 1=1"
+	var args []interface{}
+	//use lower case for status comparison
+	if status != "" && status != "All" {
+		where += " AND LOWER(r.status) LIKE ?"
+		args = append(args, "%"+status+"%")
+	}
+
+	if q != "" {
+		where += `
+			AND (
+				r.reason LIKE ? 
+				OR r.order_id LIKE ?
+				OR p.name LIKE ?
+			)
+		`
+		args = append(args, "%"+q+"%", "%"+q+"%", "%"+q+"%")
+	}
+
+	countQuery := `
+		SELECT COUNT(DISTINCT r.return_id)
+		FROM returns r
+		LEFT JOIN return_products rp ON r.return_id = rp.return_id
+		LEFT JOIN products p ON rp.product_id = p.product_id
+		` + where
+
+	var totalRecords int
+	if err := DB.QueryRow(countQuery, args...).Scan(&totalRecords); err != nil {
 		return nil, nil, err
 	}
 
-	query := `
-		SELECT r.return_id, r.reason, r.status, r.created_at, r.order_id
+	selectQuery := `
+		SELECT DISTINCT r.return_id, r.reason, r.status, r.created_at, r.order_id
 		FROM returns r
+		LEFT JOIN return_products rp ON r.return_id = rp.return_id
+		LEFT JOIN products p ON rp.product_id = p.product_id
+		` + where + `
+		ORDER BY r.created_at DESC
 		LIMIT ? OFFSET ?
 	`
-	rows, err := DB.Query(query, size, (page-1)*size)
+	argsWithPagination := append(args, size, offset)
+
+	rows, err := DB.Query(selectQuery, argsWithPagination...)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
 
+	var returns []dtos.ReturnResponse
+
 	for rows.Next() {
 		var ret dtos.ReturnResponse
+
 		if err := rows.Scan(&ret.ReturnID, &ret.Reason, &ret.Status, &ret.CreatedAt, &ret.OrderID); err != nil {
 			return nil, nil, err
 		}
+
 		products, totalRefund, err := fetchReturnProductsAndRefund(ret.ReturnID, ret.OrderID)
 		if err != nil {
 			return nil, nil, err
 		}
+
 		ret.Products = products
 		ret.TotalRefund = totalRefund
 		returns = append(returns, ret)
+	}
+
+	// First get counts grouped by status
+	countsQuery := `
+    SELECT status, COUNT(*)
+    FROM returns
+    GROUP BY status
+`
+	countRows, err := DB.Query(countsQuery)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer countRows.Close()
+
+	// Prepare a map to store DB results
+	statusMap := map[string]int{
+		"Pending":  0,
+		"Approved": 0,
+		"Rejected": 0,
+	}
+
+	// Fill with DB results
+	for countRows.Next() {
+		var s string
+		var c int
+		if err := countRows.Scan(&s, &c); err != nil {
+			return nil, nil, err
+		}
+		if _, ok := statusMap[s]; ok {
+			statusMap[s] = c
+		}
+	}
+
+	// Now build the ordered result
+	var counts []dtos.ReturnsCounts = []dtos.ReturnsCounts{
+		{Status: "Pending", Count: statusMap["Pending"]},
+		{Status: "Approved", Count: statusMap["Approved"]},
+		{Status: "Rejected", Count: statusMap["Rejected"]},
+		{Status: "Total Returns", Count: totalRecords}, // add All last
 	}
 
 	meta := &dtos.PaginationMeta{
@@ -153,9 +228,13 @@ func GetAllReturns(page, size int) ([]dtos.ReturnResponse, *dtos.PaginationMeta,
 		TotalItems: totalRecords,
 		TotalPages: (totalRecords + size - 1) / size,
 		HasPrev:    page > 1,
-		HasNext:    page*size < totalRecords,
+		HasNext:    offset+size < totalRecords,
 	}
-	return returns, meta, nil
+
+	return &dtos.ReturnListResponse{
+		Returns:        returns,
+		CountsByStatus: counts,
+	}, meta, nil
 }
 
 // fetchReturnProductsAndRefund fetches products and calculates total refund for a return
@@ -180,6 +259,7 @@ func fetchReturnProductsAndRefund(returnID, orderID string) ([]dtos.Product, flo
 			return nil, 0, err
 		}
 		product, err := GetProductByID(productID)
+		product.StockQuantity = quantity
 		if err != nil {
 			return nil, 0, err
 		}
@@ -199,4 +279,42 @@ func DeleteReturn(returnID string) error {
 	`
 	_, err := DB.Exec(query, returnID)
 	return err
+}
+
+func ValidateReturnRequest(req dtos.ReturnRequest) error {
+	// check if order exists
+	err := IsOrderThere(req.OrderID)
+	if err != nil {
+		return err
+	}
+	// check if products exist in the order
+	for _, product := range req.ReturnProducts {
+		err := IsProductInOrder(req.OrderID, product.ProductID)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func IsProductInOrder(orderID, productID string) error {
+	//first is even product there
+	err := IsProductThere(productID)
+	if err != nil {
+		return err
+	}
+	//now is the product in the order
+	query := `
+		SELECT COUNT(*) FROM order_items
+		WHERE order_id = ? AND product_id = ?
+	`
+	var count int
+	err = DB.QueryRow(query, orderID, productID).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("product with ID %s not found in order %s", productID, orderID)
+	}
+	return nil
 }

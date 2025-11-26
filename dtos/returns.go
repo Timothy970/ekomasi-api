@@ -1,17 +1,20 @@
 package dtos
 
 type ReturnRequest struct {
-	Products []string `json:"products" validate:"required"`
-	Quantity int      `json:"quantity" validate:"required,min=1"`
-	OrderID  string   `json:"order_id" validate:"required"`
-	Reason   string   `json:"reason" validate:"required"`
+	ReturnProducts []ReturnProduct `json:"products" validate:"required,dive"`
+	OrderID        string          `json:"order_id" validate:"required"`
+	Reason         string          `json:"reason" validate:"required"`
+}
+
+type ReturnProduct struct {
+	ProductID string `json:"product_id" validate:"required"`
+	Quantity  int    `json:"quantity" validate:"required,min=1"`
 }
 
 type ReturnResponse struct {
 	ReturnID    string    `json:"return_id"`
 	OrderID     string    `json:"order_id"`
 	Products    []Product `json:"products"`
-	Quantity    int       `json:"quantity"`
 	Reason      string    `json:"reason"`
 	Status      string    `json:"status"`
 	TotalRefund float64   `json:"total_refund"`
@@ -19,4 +22,13 @@ type ReturnResponse struct {
 }
 type ReturnStatusUpdate struct {
 	Status string `json:"status" validate:"required,oneof=Pending Approved Rejected"`
+}
+
+type ReturnListResponse struct {
+	Returns        []ReturnResponse `json:"returns"`
+	CountsByStatus []ReturnsCounts  `json:"count"`
+}
+type ReturnsCounts struct {
+	Status string `json:"status"`
+	Count  int    `json:"count"`
 }

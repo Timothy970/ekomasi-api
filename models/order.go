@@ -598,10 +598,10 @@ func getOrderProducts(orderID string) ([]dtos.OrderProduct, error) {
 // admin handler to get all orders with pagination and filtering
 // filter by status, time range: today, this week, this month, last month, this year
 // search by order id, user
-func ListOrdersByAdmin(status, timeRange, orderID, user string, page, limit int) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
+func ListOrdersByAdmin(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, user string, page, limit int) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * limit
 
-	conds := buildAdminOrderConditions(status, timeRange, orderID, user)
+	conds := buildAdminOrderConditions(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, user)
 
 	total, err := getAdminOrderCount(conds)
 	if err != nil {
@@ -634,19 +634,34 @@ func ListOrdersByAdmin(status, timeRange, orderID, user string, page, limit int)
 
 // Helper to build WHERE conditions and args
 type OrderConditions struct {
-	Conditions []string
-	Args       []interface{}
-	JoinUsers  bool
+	Conditions     []string
+	Args           []interface{}
+	JoinUsers      bool
+	JoinDeliveries bool
 }
 
-func buildAdminOrderConditions(status, timeRange, orderID, user string) OrderConditions {
+func buildAdminOrderConditions(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, user string) OrderConditions {
 	var conditions []string
 	var args []interface{}
 	joinUsers := false
+	joinDeliveries := false
 
-	if status != "" {
-		conditions = append(conditions, "o.status = ?")
-		args = append(args, status)
+	if orderStatus != "" {
+		conditions = append(conditions, "o.status LIKE ?")
+		args = append(args, orderStatus)
+	}
+	if paymentStatus != "" {
+		conditions = append(conditions, "o.payment_status LIKE ?")
+		args = append(args, paymentStatus)
+	}
+	if deliveryStatus != "" {
+		joinDeliveries = true
+		conditions = append(conditions, "d.status LIKE ?")
+		args = append(args, deliveryStatus)
+	}
+	if paymentMethod != "" {
+		conditions = append(conditions, "o.payment_method LIKE ?")
+		args = append(args, paymentMethod)
 	}
 
 	now := time.Now()
@@ -702,9 +717,10 @@ func buildAdminOrderConditions(status, timeRange, orderID, user string) OrderCon
 	}
 
 	return OrderConditions{
-		Conditions: conditions,
-		Args:       args,
-		JoinUsers:  joinUsers,
+		Conditions:     conditions,
+		Args:           args,
+		JoinUsers:      joinUsers,
+		JoinDeliveries: joinDeliveries,
 	}
 }
 
@@ -713,6 +729,9 @@ func getAdminOrderCount(conds OrderConditions) (int, error) {
 	countQuery := "SELECT COUNT(*) FROM orders o"
 	if conds.JoinUsers {
 		countQuery += " LEFT JOIN users u ON u.user_id = o.user_id"
+	}
+	if conds.JoinDeliveries {
+		countQuery += " LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id"
 	}
 	if len(conds.Conditions) > 0 {
 		countQuery += " WHERE " + joinConditions(conds.Conditions)

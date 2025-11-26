@@ -616,11 +616,15 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	status := r.URL.Query().Get("status")
+	orderStatus := r.URL.Query().Get("order_status")
+	paymentStatus := r.URL.Query().Get("payment_status")
+	deliveryStatus := r.URL.Query().Get("delivery_status")
+	paymentMethod := r.URL.Query().Get("payment_method")
 	timeRange := r.URL.Query().Get("time_range")
 	orderID := r.URL.Query().Get("order_id")
 	user := r.URL.Query().Get("user")
-	orders, pagination, err := models.ListOrdersByAdmin(status, timeRange, orderID, user, page, limit)
+
+	orders, pagination, err := models.ListOrdersByAdmin(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, user, page, limit)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -665,7 +669,10 @@ func StreamOrdersCSV(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := r.URL.Query()
-	status := query.Get("status")
+	orderStatus := r.URL.Query().Get("order_status")
+	paymentStatus := r.URL.Query().Get("payment_status")
+	deliveryStatus := r.URL.Query().Get("delivery_status")
+	paymentMethod := r.URL.Query().Get("payment_method")
 	timeRange := query.Get("time_range")
 	orderID := query.Get("order_id")
 	user := query.Get("user")
@@ -674,7 +681,7 @@ func StreamOrdersCSV(w http.ResponseWriter, r *http.Request) {
 	limit := 1000
 
 	for {
-		orders, meta, err := models.ListOrdersByAdmin(status, timeRange, orderID, user, page, limit)
+		orders, meta, err := models.ListOrdersByAdmin(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, user, page, limit)
 		if err != nil {
 			writeCSVError(w, "Failed to fetch orders: "+err.Error())
 			return
