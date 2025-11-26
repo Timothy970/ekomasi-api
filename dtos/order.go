@@ -96,7 +96,7 @@ type CreateOrderRequest struct {
 }
 
 type UpdateOrderStatusRequest struct {
-	Status         string  `json:"status" validate:"required"`
+	Status         *string `json:"order_status"`
 	PaymentMethod  *string `json:"payment_method"`
 	PaymentStatus  *string `json:"payment_status"`
 	DeliveryStatus *string `json:"delivery_status"`
@@ -106,7 +106,7 @@ type OrderResponse struct {
 	UserID      int     `json:"user_id"`
 	CustomerID  int     `json:"customer_id"`
 	TotalAmount float64 `json:"total_amount"`
-	Status      string  `json:"status"`
+	Status      string  `json:"order_status"`
 	OrderDate   string  `json:"order_date"`
 
 	Items []OrderItem `json:"items,omitempty"`
