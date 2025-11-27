@@ -185,13 +185,23 @@ type VariantFilter struct {
 }
 
 type ProductFeature struct {
-	ID            string `json:"feature_id"`
-	ProductID     string `json:"product_id"`
-	Header        string `json:"header" validate:"required"`
-	Image         string `json:"image" validate:"required"`
-	Description   string `json:"description" validate:"required"`
-	ImagePosition string `json:"image-position" validate:"required"`
+	ID                    string     `json:"feature_id"`
+	ProductID             string     `json:"product_id"`
+	Header                string     `json:"header" validate:"required"`
+	Image                 string     `json:"image" validate:"required"`
+	Description           string     `json:"description" validate:"required"`
+	ImagePosition         string     `json:"image-position" validate:"required"`
+	ProductSpecifications *[]string  `json:"product_specifications"`
+	TopSection            *[]Section `json:"top_section"`
+	DesignType            *string    `json:"design_type"`
+	Images                *[]string  `json:"images"`
 }
+
+type Section struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
 type UpdateProductFeature struct {
 	ID            string `json:"feature_id"`
 	ProductID     string `json:"product_id"`

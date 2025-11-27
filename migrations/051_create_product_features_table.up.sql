@@ -5,6 +5,10 @@ CREATE TABLE IF NOT EXISTS product_features (
     description     LONGTEXT,
     image           VARCHAR(255),
     image_position  ENUM('left','right','top','bottom') DEFAULT 'left',
+    product_specifications JSON,
+    top_section     JSON,
+    design_type     VARCHAR(50) DEFAULT NULL,
+    images          JSON,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,    
     CONSTRAINT fk_product FOREIGN KEY (product_id) REFERENCES products(product_id)

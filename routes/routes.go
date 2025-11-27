@@ -510,6 +510,9 @@ func SetupRoutes(router *mux.Router) {
 	returnsPathWithID.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetReturnByIDHandler))).Methods("GET")
 	returnsPathWithID.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateReturnStatusHandler))).Methods("PATCH")
 	returnsPath.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListAllReturnsHandler))).Methods("GET")
+	//get owners returns
+	api.Handle("/returns/owner/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListOwnerReturnsHandler))).Methods("GET")
+	api.Handle("/returns/owner/me/{return_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetOwnerReturnsHandler))).Methods("GET")
 	//transactions endpoints
 	api.Handle("/transactions", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllTransactionHandler))).Methods("GET")
 	api.Handle("/transactions/{transaction_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetTransactionByIDHandler))).Methods("GET")

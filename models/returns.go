@@ -7,14 +7,14 @@ import (
 	"github.com/teris-io/shortid"
 )
 
-func CreateReturns(req dtos.ReturnRequest) error {
+func CreateReturns(req dtos.ReturnRequest, userID string) error {
 	returnID, _ := shortid.Generate()
 	//create the return record in the database
 	query := `
-		INSERT INTO returns (return_id, reason, status, order_id)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO returns (return_id, reason, status, order_id, user_id)
+		VALUES (?, ?, ?, ?, ?)
 	`
-	_, err := DB.Exec(query, returnID, req.Reason, "Pending", req.OrderID)
+	_, err := DB.Exec(query, returnID, req.Reason, "Pending", req.OrderID, userID)
 	if err != nil {
 		return err
 	}
@@ -48,6 +48,7 @@ func UpdateReturnStatus(returnID string, statusUpdate dtos.ReturnStatusUpdate) e
 	_, err := DB.Exec(query, statusUpdate.Status, returnID)
 	return err
 }
+
 func GetReturnByID(returnID string) (dtos.ReturnResponse, error) {
 	var ret dtos.ReturnResponse
 	query := `
@@ -96,6 +97,7 @@ func GetReturnByID(returnID string) (dtos.ReturnResponse, error) {
 	ret.Products = products
 	return ret, nil
 }
+
 func GetProductRefundAmount(productID string, quantity int, orderID string) (float64, error) {
 	var price float64
 	//get unit price from order_items
@@ -317,4 +319,111 @@ func IsProductInOrder(orderID, productID string) error {
 		return fmt.Errorf("product with ID %s not found in order %s", productID, orderID)
 	}
 	return nil
+}
+
+func GetAllOwnerReturns(status, q, ownerID string) ([]dtos.ReturnResponse, error) {
+	where := "WHERE 1=1"
+	var args []interface{}
+	//use lower case for status comparison
+	if status != "" && status != "All" {
+		where += " AND LOWER(r.status) LIKE ?"
+		args = append(args, "%"+status+"%")
+	}
+
+	if q != "" {
+		where += `
+			AND (
+				r.reason LIKE ? 
+				OR r.order_id LIKE ?
+				OR p.name LIKE ?
+			)
+		`
+		args = append(args, "%"+q+"%", "%"+q+"%", "%"+q+"%")
+	}
+	where += " AND r.user_id = ?"
+	args = append(args, ownerID)
+	selectQuery := `
+		SELECT DISTINCT r.return_id, r.reason, r.status, r.created_at, r.order_id
+		FROM returns r
+		LEFT JOIN return_products rp ON r.return_id = rp.return_id
+		LEFT JOIN products p ON rp.product_id = p.product_id
+		` + where + `
+		ORDER BY r.created_at DESC
+	`
+
+	rows, err := DB.Query(selectQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var returns []dtos.ReturnResponse
+
+	for rows.Next() {
+		var ret dtos.ReturnResponse
+
+		if err := rows.Scan(&ret.ReturnID, &ret.Reason, &ret.Status, &ret.CreatedAt, &ret.OrderID); err != nil {
+			return nil, err
+		}
+
+		products, totalRefund, err := fetchReturnProductsAndRefund(ret.ReturnID, ret.OrderID)
+		if err != nil {
+			return nil, err
+		}
+
+		ret.Products = products
+		ret.TotalRefund = totalRefund
+		returns = append(returns, ret)
+	}
+
+	return returns, nil
+}
+
+func GetOwnerReturnByID(returnID, ownerID string) (dtos.ReturnResponse, error) {
+	var ret dtos.ReturnResponse
+	query := `
+		SELECT r.return_id, r.reason, r.status, r.created_at, r.order_id
+		FROM returns r
+		WHERE r.return_id = ? AND r.user_id = ?
+	`
+	row := DB.QueryRow(query, returnID, ownerID)
+	err := row.Scan(&ret.ReturnID, &ret.Reason, &ret.Status, &ret.CreatedAt, &ret.OrderID)
+	if err != nil {
+		return ret, err
+	}
+	//get product ids associated with the return
+	productIDsQuery := `
+		SELECT rp.product_id, rp.quantity
+		FROM return_products rp
+		WHERE rp.return_id = ?
+	`
+	rows, err := DB.Query(productIDsQuery, returnID)
+	if err != nil {
+		return ret, err
+	}
+	defer rows.Close()
+	var productID string
+	var quantity int
+	var products []dtos.Product
+
+	for rows.Next() {
+		var product *dtos.Product
+		err := rows.Scan(&productID, &quantity)
+		if err != nil {
+			return ret, err
+		}
+		product, err = GetProductByID(productID)
+		product.StockQuantity = quantity
+		if err != nil {
+			return ret, err
+		}
+		refund, err := GetProductRefundAmount(productID, quantity, ret.OrderID)
+		if err != nil {
+			return ret, err
+		}
+		ret.TotalRefund += refund
+		products = append(products, *product)
+	}
+	ret.Products = products
+	return ret, nil
 }
