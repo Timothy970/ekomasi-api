@@ -517,4 +517,6 @@ func SetupRoutes(router *mux.Router) {
 	api.Handle("/transactions", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllTransactionHandler))).Methods("GET")
 	api.Handle("/transactions/{transaction_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetTransactionByIDHandler))).Methods("GET")
 	api.Handle("/transactions/{transaction_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateTransactionStatusHandler))).Methods("PATCH")
+	//check mpesa transaction status
+	api.Handle("/transactions/mpesa/status", middleware.AuthenticateToken(http.HandlerFunc(handlers.HandleMpesaTransactionStatus))).Methods("POST")
 }
