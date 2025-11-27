@@ -3,6 +3,7 @@ package models
 import (
 	"adenzo_backend/dtos"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -160,22 +161,29 @@ func AddProductFeature(input dtos.ProductFeature, productID string) (*dtos.Produ
 		return nil, err
 	}
 	featureID, _ := shortid.Generate()
+	jsonProductSpecifications, _ := json.Marshal(input.ProductSpecifications)
+	jsonTopSection, _ := json.Marshal(input.TopSection)
+	jsonImages, _ := json.Marshal(input.Images)
 	_, err = DB.Exec(`
-		INSERT INTO product_features (feature_id, product_id, header, description, image, image_position)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		featureID, productID, input.Header, input.Description, input.Image, input.ImagePosition,
+		INSERT INTO product_features (feature_id, product_id, header, description, image, image_position, product_specifications, top_section, design_type, images)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		featureID, productID, input.Header, input.Description, input.Image, input.ImagePosition, jsonProductSpecifications, jsonTopSection, input.DesignType, jsonImages,
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &dtos.ProductFeature{
-		ID:            featureID,
-		ProductID:     productID,
-		Header:        input.Header,
-		ImagePosition: input.ImagePosition,
-		Description:   input.Description,
-		Image:         input.Image,
+		ID:                    featureID,
+		ProductID:             productID,
+		Header:                input.Header,
+		ImagePosition:         input.ImagePosition,
+		Description:           input.Description,
+		Image:                 input.Image,
+		ProductSpecifications: input.ProductSpecifications,
+		TopSection:            input.TopSection,
+		DesignType:            input.DesignType,
+		Images:                input.Images,
 	}, err
 }
 func isFeatureThere(id string) error {
@@ -188,28 +196,24 @@ func isFeatureThere(id string) error {
 	}
 	return nil
 }
-func UpdateProductFeature(input dtos.UpdateProductFeature, featureID string) (*dtos.ProductFeature, error) {
+func UpdateProductFeature(input dtos.ProductFeature, featureID string) (*dtos.ProductFeature, error) {
 	err := isFeatureThere(featureID)
 	if err != nil {
 		return nil, err
 	}
-	query := `
-		UPDATE product_features
-		SET header = ?, description = ?, image_position = ?
-		WHERE feature_id = ?
-	`
+	jsonProductSpecifications, _ := json.Marshal(input.ProductSpecifications)
+	jsonTopSection, _ := json.Marshal(input.TopSection)
+	jsonImages, _ := json.Marshal(input.Images)
 
-	args := []interface{}{input.Header, input.Description, input.ImagePosition, featureID}
-
-	// If image was provided, update it too
+	// Build dynamic update query
+	query := "UPDATE product_features SET "
+	args := []interface{}{}
 	if input.Image != "" {
-		query = `
-			UPDATE product_features
-			SET header = ?, description = ?, image_position = ?, image = ?
-			WHERE feature_id = ?
-		`
-		args = []interface{}{input.Header, input.Description, input.ImagePosition, input.Image, featureID}
+		query += "image = ?, "
+		args = append(args, input.Image)
 	}
+	query += "header = ?, description = ?, image_position = ?, product_specifications = ?, top_section = ?, design_type = ?, images = ? WHERE feature_id = ?"
+	args = append(args, input.Header, input.Description, input.ImagePosition, jsonProductSpecifications, jsonTopSection, input.DesignType, jsonImages, featureID)
 
 	_, err = DB.Exec(query, args...)
 	if err != nil {
@@ -224,8 +228,9 @@ func GetProductFeaturesByProductID(productID string) ([]dtos.ProductFeature, err
 	if err != nil {
 		return nil, err
 	}
+	var topSectionStr, productSpecificationsStr, imagesStr sql.NullString
 	rows, err := DB.Query(`
-		SELECT feature_id, product_id, header, description, image, image_position
+		SELECT feature_id, product_id, header, description, image, image_position, product_specifications, top_section, design_type, images
 		FROM product_features
 		WHERE product_id = ?
 	`, productID)
@@ -237,8 +242,17 @@ func GetProductFeaturesByProductID(productID string) ([]dtos.ProductFeature, err
 	var features []dtos.ProductFeature
 	for rows.Next() {
 		var f dtos.ProductFeature
-		if err := rows.Scan(&f.ID, &f.ProductID, &f.Header, &f.Description, &f.Image, &f.ImagePosition); err != nil {
+		if err := rows.Scan(&f.ID, &f.ProductID, &f.Header, &f.Description, &f.Image, &f.ImagePosition, &productSpecificationsStr, &topSectionStr, &f.DesignType, &imagesStr); err != nil {
 			return nil, err
+		}
+		if productSpecificationsStr.Valid {
+			json.Unmarshal([]byte(productSpecificationsStr.String), &f.ProductSpecifications)
+		}
+		if topSectionStr.Valid {
+			json.Unmarshal([]byte(topSectionStr.String), &f.TopSection)
+		}
+		if imagesStr.Valid {
+			json.Unmarshal([]byte(imagesStr.String), &f.Images)
 		}
 		features = append(features, f)
 	}
@@ -250,11 +264,22 @@ func GetProductFeatureByID(featureID string) (*dtos.ProductFeature, error) {
 		return nil, err
 	}
 	var f dtos.ProductFeature
+	var topSectionStr, productSpecificationsStr, imagesStr sql.NullString
 	err = DB.QueryRow(`
-		SELECT feature_id, product_id, header, description, image, image_position
+		SELECT feature_id, product_id, header, description, image, image_position, product_specifications, top_section, design_type, images
 		FROM product_features
 		WHERE feature_id = ?
-	`, featureID).Scan(&f.ID, &f.ProductID, &f.Header, &f.Description, &f.Image, &f.ImagePosition)
+	`, featureID).Scan(&f.ID, &f.ProductID, &f.Header, &f.Description, &f.Image, &f.ImagePosition, &productSpecificationsStr, &topSectionStr, &f.DesignType, &imagesStr)
+
+	if productSpecificationsStr.Valid {
+		json.Unmarshal([]byte(productSpecificationsStr.String), &f.ProductSpecifications)
+	}
+	if topSectionStr.Valid {
+		json.Unmarshal([]byte(topSectionStr.String), &f.TopSection)
+	}
+	if imagesStr.Valid {
+		json.Unmarshal([]byte(imagesStr.String), &f.Images)
+	}
 
 	if err != nil {
 		return nil, err

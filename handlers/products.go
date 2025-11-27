@@ -1220,15 +1220,18 @@ func getFloatQueryParam(query url.Values, key string) float64 {
 // @Router /api/product/image [post]
 func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+
+	// --- Capture request summary early ---
 	requestSummary := utils.GetRequestSummary(r)
-	// Ensure user is admin
+
+	// --- Only admins can add product features ---
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products"); !ok {
 		return
 	}
+
 	productID := mux.Vars(r)["product_id"]
 
-	// Parse multipart form (20 MB max)
+	// --- Parse multipart form (max 20MB) ---
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1244,13 +1247,15 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get image file
+	// ------------------------------------------------------------------
+	// 1. IMAGE (Required)
+	// ------------------------------------------------------------------
 	file, header, err := r.FormFile("image")
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
-				Description: "Image field is required and must be a valid file",
+				Description: "Primary image is required",
 				Code:        http.StatusBadRequest,
 			},
 			Message:   "Image is required",
@@ -1262,8 +1267,8 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Upload image to GCS
-	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+	// Upload required main image to GCS
+	mainImageURL, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1279,18 +1284,102 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build DTO
-	req := dtos.ProductFeature{
-		Image:         url,
-		Header:        r.FormValue("header"),
-		Description:   r.FormValue("description"),
-		ImagePosition: r.FormValue("image_position"),
+	// ------------------------------------------------------------------
+	// 2. IMAGES (Optional multiple uploads)
+	// ------------------------------------------------------------------
+	var imageURLs []string
+
+	if r.MultipartForm != nil && r.MultipartForm.File["images"] != nil {
+		for _, fh := range r.MultipartForm.File["images"] {
+			url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fh})
+			if err != nil {
+				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+					CollectiveInfo: utils.CollectiveInfo{
+						Module:      "Products",
+						Description: "Failed uploading images: " + err.Error(),
+						Code:        http.StatusInternalServerError,
+					},
+					Message:   err.Error(),
+					TimeTaken: time.Since(start),
+					Function:  utils.GetCurrentFuncName(),
+					Request:   r,
+				})
+				return
+			}
+			imageURLs = append(imageURLs, url)
+		}
 	}
-	// Validate request
+
+	// ------------------------------------------------------------------
+	// 3. Parse TopSection (JSON array of objects)
+	// ------------------------------------------------------------------
+	var topSections []dtos.Section
+	topSectionStr := r.FormValue("top_section")
+
+	if topSectionStr != "" {
+		if err := json.Unmarshal([]byte(topSectionStr), &topSections); err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Invalid top_section JSON: " + err.Error(),
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Invalid top_section format",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+			})
+			return
+		}
+	}
+
+	// ------------------------------------------------------------------
+	// 4. Parse Product Specifications (JSON array of strings)
+	// ------------------------------------------------------------------
+	var productSpecs []string
+	specStr := r.FormValue("product_specifications")
+
+	if specStr != "" {
+		if err := json.Unmarshal([]byte(specStr), &productSpecs); err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Invalid product_specifications JSON: " + err.Error(),
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Invalid product_specifications format",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+			})
+			return
+		}
+	}
+
+	designType := r.FormValue("design_type")
+
+	// ------------------------------------------------------------------
+	// 5. Build DTO for validation
+	// ------------------------------------------------------------------
+	req := dtos.ProductFeature{
+		Image:                 mainImageURL,
+		Header:                r.FormValue("header"),
+		Description:           r.FormValue("description"),
+		ImagePosition:         r.FormValue("image_position"),
+		Images:                &imageURLs,
+		TopSection:            &topSections,
+		ProductSpecifications: &productSpecs,
+		DesignType:            &designType,
+	}
+
+	// --- Validate struct fields ---
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
-	//insert into db
+
+	// ------------------------------------------------------------------
+	// 6. Add feature to database
+	// ------------------------------------------------------------------
 	feature, err := models.AddProductFeature(req, productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1306,6 +1395,10 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// ------------------------------------------------------------------
+	// 7. Respond success
+	// ------------------------------------------------------------------
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
@@ -1317,7 +1410,8 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
-		RawBody:   requestSummary})
+		RawBody:   requestSummary,
+	})
 }
 
 // Update Product feature
@@ -1354,11 +1448,92 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	req := dtos.UpdateProductFeature{
-		Header:        r.FormValue("header"),
-		Description:   r.FormValue("description"),
-		ImagePosition: r.FormValue("image_position"),
-		Image:         imageURL, // empty if not uploaded
+	// ------------------------------------------------------------------
+	// 2. IMAGES (Optional multiple uploads)
+	// ------------------------------------------------------------------
+	var imageURLs []string
+
+	if r.MultipartForm != nil && r.MultipartForm.File["images"] != nil {
+		for _, fh := range r.MultipartForm.File["images"] {
+			url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fh})
+			if err != nil {
+				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+					CollectiveInfo: utils.CollectiveInfo{
+						Module:      "Products",
+						Description: "Failed uploading images: " + err.Error(),
+						Code:        http.StatusInternalServerError,
+					},
+					Message:   err.Error(),
+					TimeTaken: time.Since(start),
+					Function:  utils.GetCurrentFuncName(),
+					Request:   r,
+				})
+				return
+			}
+			imageURLs = append(imageURLs, url)
+		}
+	}
+
+	// ------------------------------------------------------------------
+	// 3. Parse TopSection (JSON array of objects)
+	// ------------------------------------------------------------------
+	var topSections []dtos.Section
+	topSectionStr := r.FormValue("top_section")
+
+	if topSectionStr != "" {
+		if err := json.Unmarshal([]byte(topSectionStr), &topSections); err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Invalid top_section JSON: " + err.Error(),
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Invalid top_section format",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+			})
+			return
+		}
+	}
+
+	// ------------------------------------------------------------------
+	// 4. Parse Product Specifications (JSON array of strings)
+	// ------------------------------------------------------------------
+	var productSpecs []string
+	specStr := r.FormValue("product_specifications")
+
+	if specStr != "" {
+		if err := json.Unmarshal([]byte(specStr), &productSpecs); err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Invalid product_specifications JSON: " + err.Error(),
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Invalid product_specifications format",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+			})
+			return
+		}
+	}
+
+	designType := r.FormValue("design_type")
+
+	// ------------------------------------------------------------------
+	// 5. Build DTO for validation
+	// ------------------------------------------------------------------
+	req := dtos.ProductFeature{
+		Image:                 imageURL,
+		Header:                r.FormValue("header"),
+		Description:           r.FormValue("description"),
+		ImagePosition:         r.FormValue("image_position"),
+		Images:                &imageURLs,
+		TopSection:            &topSections,
+		ProductSpecifications: &productSpecs,
+		DesignType:            &designType,
 	}
 
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
