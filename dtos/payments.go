@@ -209,3 +209,7 @@ type PaymentOptionUpdate struct {
 	Configs  *map[string]any `json:"configs,omitempty"`
 	IsActive *bool           `json:"is_active" validate:"required"`
 }
+
+type MpesaTransactionStatus struct {
+	TransactionID string `json:"transaction_id" validate:"required"`
+}

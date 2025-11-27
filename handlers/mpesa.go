@@ -28,23 +28,14 @@ var (
 func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-
-	var req dtos.MpesaRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Payments",
-				Description: "Failed to decode MPESA payment request",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   "Invalid request",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary,
-		})
+	req, ok := DecodeRequestBody[dtos.MpesaRequest](r, w, requestSummary, start)
+	if !ok {
 		return
 	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+		return
+	}
+
 	order, err := models.GetOrderByID(req.OrderID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -83,7 +74,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := client.LipaNaMpesaOnline(req)
+	response, err := client.LipaNaMpesaOnline(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -99,7 +90,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err = models.StoreStkResponse(response, req)
+	err = models.StoreStkResponse(response, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -115,7 +106,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err = storeTransactionLog(req)
+	err = storeTransactionLog(*req)
 	if err != nil {
 		log.Printf("Failed to store transaction log: %v", err)
 	}
@@ -800,4 +791,254 @@ type MpesaMoneyReturnResponse struct {
 	ResultDesc               string `json:"ResultDesc"`
 	ConversationID           string `json:"ConversationID"`
 	OriginatorConversationID string `json:"OriginatorConversationID"`
+}
+
+func HandleMpesaTransactionStatus(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	req, ok := DecodeRequestBody[dtos.MpesaTransactionStatus](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+		return
+	}
+	// Save a "pending" mark in Redis (expires in 2 minutes)
+	pending := map[string]interface{}{
+		"status": "pending",
+	}
+	utils.SetCache("mpesa_status:"+req.TransactionID, pending, 2*time.Minute)
+	client, err := NewMpesaClient()
+	if err != nil {
+		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "Failed to initialize MPESA client",
+				Code:        http.StatusOK,
+			},
+			Payload: dtos.TransactionStatusResponse{
+				Status:                   "Failed",
+				TransactionID:            req.TransactionID,
+				Message:                  "Failed to get transaction status!",
+				MpesaReference:           "",
+				ConversationID:           "",
+				OriginatorConversationID: "",
+			},
+			Message:   fmt.Sprintf("Failed to initialize MPESA client %s", err),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	response, err := client.CheckMpesaTransactionStatus(*req)
+	if err != nil {
+		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "Failed to initiate MPESA payment",
+				Code:        http.StatusOK,
+			},
+			Payload: dtos.TransactionStatusResponse{
+				Status:                   "Failed",
+				TransactionID:            req.TransactionID,
+				Message:                  "Failed to get transaction status!",
+				MpesaReference:           "",
+				ConversationID:           "",
+				OriginatorConversationID: "",
+			},
+			Message:   "Failed to get transaction status!",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	if response.ResponseCode != "0" {
+		log.Printf("MPESA transaction status fetch failed: %s", response.ResponseDescription)
+		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "MPESA transaction status fetch failed",
+				Code:        http.StatusOK,
+			},
+			Payload: dtos.TransactionStatusResponse{
+				Status:                   "Failed",
+				TransactionID:            req.TransactionID,
+				Message:                  "MPESA transaction status fetch failed",
+				MpesaReference:           "",
+				ConversationID:           response.ConversationID,
+				OriginatorConversationID: response.OriginatorConversationID,
+			},
+			Message:   "Failed to get transaction status!",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	// Wait for callback (poll Redis)
+	var callback dtos.MpesaResultResponse
+	maxWait := 30 * time.Second
+	interval := 1 * time.Second
+	deadline := time.Now().Add(maxWait)
+
+	for time.Now().Before(deadline) {
+		statusObj := struct {
+			Status string                   `json:"status"`
+			Data   dtos.MpesaResultResponse `json:"data"`
+		}{}
+
+		err := utils.GetCache("mpesa_status:"+req.TransactionID, &statusObj)
+		if err == nil && statusObj.Status == "done" {
+			// Got callback!
+			callback = statusObj.Data
+			break
+		}
+
+		time.Sleep(interval)
+	}
+
+	if callback.Result.ResultCode != 0 {
+		log.Printf("MPESA transaction status fetch failed: %s", callback.Result.ResultDesc)
+		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Payments",
+				Description: "MPESA transaction status fetch failed",
+				Code:        http.StatusOK,
+			},
+			Payload: dtos.TransactionStatusResponse{
+				Status:                   "Failed",
+				TransactionID:            req.TransactionID,
+				Message:                  "MPESA transaction status fetch failed",
+				MpesaReference:           "",
+				ConversationID:           response.ConversationID,
+				OriginatorConversationID: response.OriginatorConversationID,
+			},
+			Message:   "Failed to get transaction status!",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	// Delete from Redis after serving
+	utils.DeleteCache("mpesa_status:" + req.TransactionID)
+
+	log.Printf("MPESA transaction status response: %+v", response)
+	mpesaReference := GetResultParameterValue(callback.Result.ResultParameters.ResultParameter, "ReceiptNo")
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Payments",
+			Description: "MPESA transaction status fetched successfully",
+			Code:        http.StatusOK,
+		},
+		Payload: dtos.TransactionStatusResponse{
+			Status:                   "Failed",
+			TransactionID:            req.TransactionID,
+			Message:                  "MPESA transaction status fetch failed",
+			MpesaReference:           mpesaReference,
+			ConversationID:           callback.Result.ConversationID,
+			OriginatorConversationID: callback.Result.OriginatorConversationID,
+		},
+		Message:   "Transaction status fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+
+}
+
+func GetResultParameterValue(params []dtos.ResultParameter, key string) string {
+	for _, param := range params {
+		if param.Key == key {
+			return param.Value
+		}
+	}
+	return ""
+}
+
+func (m *MpesaClient) CheckMpesaTransactionStatus(req dtos.MpesaTransactionStatus) (*dtos.MpesaTransactionStatusRequest, error) {
+	timestamp := time.Now().Format("20060102150405")
+	password := base64.StdEncoding.EncodeToString([]byte(m.HeadOffice + m.Passkey + timestamp))
+	payload := map[string]interface{}{
+		"Initiator":          "Adenzo",
+		"SecurityCredential": password,
+		"CommandID":          "TransactionStatusQuery",
+		"TransactionID":      req.TransactionID,
+		"PartyA":             m.HeadOffice,
+		"IdentifierType":     2,
+		"Remarks":            "Checking Transaction Status",
+		"QueueTimeOutURL":    m.CallbackURL,
+		"ResultURL":          m.CallbackURL,
+		"Occassion":          "",
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Error marshalling payload %s", err.Error())
+		return nil, err
+	}
+	url := fmt.Sprintf("%smpesa/transactionstatus/v1/query", m.MpesaURL)
+	request, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("Error creating request %s", err.Error())
+		return nil, err
+	}
+	request.Header.Set("Authorization", "Bearer "+m.AccessToken)
+	request.Header.Set(content, contentTypeJSON)
+
+	client := &http.Client{}
+	res, err := client.Do(request)
+	if err != nil {
+		log.Printf("Error making request %s", err.Error())
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	var result dtos.MpesaTransactionStatusRequest
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		log.Printf("Error decoding response %s", err.Error())
+		return nil, err
+	}
+	log.Printf("MPESA Transaction Status Response: %+v", result)
+	return &result, nil
+}
+
+func MpesaCallbackHandler(w http.ResponseWriter, r *http.Request) {
+	var callback dtos.MpesaResultResponse
+	//log recieved callback
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("Failed to decode MPESA callback: %v", err)
+		return
+	}
+	log.Printf("Received MPESA callback: %s", string(bodyBytes))
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	if err := json.NewDecoder(r.Body).Decode(&callback); err != nil {
+		log.Printf("Failed to decode MPESA callback: %v", err)
+		return
+	}
+
+	trxID := callback.Result.TransactionID
+	if trxID == "" {
+		log.Printf("Missing TransactionID in callback")
+		return
+	}
+
+	// Save as "done" in Redis
+	finalObj := map[string]interface{}{
+		"status": "done",
+		"data":   callback,
+	}
+	utils.SetCache("mpesa_status:"+trxID, finalObj, 2*time.Minute)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Transaction status callback received"}`))
 }
