@@ -208,12 +208,24 @@ func UpdateProductFeature(input dtos.ProductFeature, featureID string) (*dtos.Pr
 	// Build dynamic update query
 	query := "UPDATE product_features SET "
 	args := []interface{}{}
-	if input.Image != "" {
+	if input.Image != nil {
 		query += "image = ?, "
 		args = append(args, input.Image)
 	}
-	query += "header = ?, description = ?, image_position = ?, product_specifications = ?, top_section = ?, design_type = ?, images = ? WHERE feature_id = ?"
-	args = append(args, input.Header, input.Description, input.ImagePosition, jsonProductSpecifications, jsonTopSection, input.DesignType, jsonImages, featureID)
+	if input.ProductSpecifications != nil {
+		query += "product_specifications = ?, "
+		args = append(args, jsonProductSpecifications)
+	}
+	if input.TopSection != nil {
+		query += "top_section = ?, "
+		args = append(args, jsonTopSection)
+	}
+	if input.Images != nil {
+		query += "images = ?, "
+		args = append(args, jsonImages)
+	}
+	query += "header = ?, description = ?, image_position = ?, design_type = ? WHERE feature_id = ?"
+	args = append(args, input.Header, input.Description, input.ImagePosition, input.DesignType, featureID)
 
 	_, err = DB.Exec(query, args...)
 	if err != nil {

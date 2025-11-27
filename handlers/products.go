@@ -1246,42 +1246,29 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	// ------------------------------------------------------------------
-	// 1. IMAGE (Required)
+	// 1. IMAGE (Optional)
 	// ------------------------------------------------------------------
+	var mainImageURL string
 	file, header, err := r.FormFile("image")
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Products",
-				Description: "Primary image is required",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   "Image is required",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-		})
-		return
-	}
-	defer file.Close()
-
-	// Upload required main image to GCS
-	mainImageURL, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Products",
-				Description: err.Error(),
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-		})
-		return
+	if err == nil {
+		defer file.Close()
+		// Upload main image to GCS
+		mainImageURL, err = utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: err.Error(),
+					Code:        http.StatusInternalServerError,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+			})
+			return
+		}
 	}
 
 	// ------------------------------------------------------------------
@@ -1362,7 +1349,7 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 	// 5. Build DTO for validation
 	// ------------------------------------------------------------------
 	req := dtos.ProductFeature{
-		Image:                 mainImageURL,
+		Image:                 &mainImageURL,
 		Header:                r.FormValue("header"),
 		Description:           r.FormValue("description"),
 		ImagePosition:         r.FormValue("image_position"),
@@ -1526,7 +1513,7 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 	// 5. Build DTO for validation
 	// ------------------------------------------------------------------
 	req := dtos.ProductFeature{
-		Image:                 imageURL,
+		Image:                 &imageURL,
 		Header:                r.FormValue("header"),
 		Description:           r.FormValue("description"),
 		ImagePosition:         r.FormValue("image_position"),
