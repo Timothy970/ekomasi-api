@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+
 	"time"
 
 	"github.com/gorilla/mux"
@@ -28,48 +29,17 @@ var productWithID = "Product with ID "
 // @Failure      404         {object}  map[string]string
 // @Failure      500         {object}  map[string]string
 // @Router       /api/reviews [get]
-func GetReviews(w http.ResponseWriter, r *http.Request) {
+func GetReview(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
-	limit := 0
-	page := 1
+
 	requestSummary := utils.GetRequestSummary(r)
 	// ctx := r.Context()
 	productID := mux.Vars(r)["product_id"]
 	reviewID := mux.Vars(r)["review_id"]
-	pageStr := r.URL.Query().Get("page")
-	limitStr := r.URL.Query().Get("size")
-	if limitStr != "" {
-		limit, _ = strconv.Atoi(limitStr)
-	} else {
-		limit = 10
-	}
-	if pageStr != "" {
-		page, _ = strconv.Atoi(pageStr)
-	}
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 
-	// cacheKey := fmt.Sprintf("reviews_%s", productID)
-
-	// // Try from Redis cache first
-	// cachedVal, err := Redis.Get(ctx, cacheKey).Result()
-	// if err == nil {
-	// 	var cachedReviews []dtos.ReviewResponse
-	// 	if err := json.Unmarshal([]byte(cachedVal), &cachedReviews); err == nil {
-	// 		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-	// 			Code:      http.StatusOK,
-	// 			Payload:   cachedReviews,
-	// 			Message:   "Reviews",
-	// 			TimeTaken: time.Since(start),
-	// 			Function:  utils.GetCurrentFuncName(),
-	// 			Request:   r,
-	// 			RawBody:   requestSummary})
-	// 		return
-	// 	}
-	// 	log.Printf("Error unmarshaling review cache: %v", err)
-	// }
-
-	// Cache miss — query from DB
-	reviews, pagination, err := models.GetProductReviews(productID, reviewID, limit, page)
+	reviews, pagination, err := models.GetProductReview(productID, reviewID, limit, page)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -119,6 +89,72 @@ func GetReviews(w http.ResponseWriter, r *http.Request) {
 		},
 		Payload:   response,
 		Message:   "Product reviews",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+func GetProductReviews(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+
+	requestSummary := utils.GetRequestSummary(r)
+	// ctx := r.Context()
+	productID := mux.Vars(r)["product_id"]
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	sortBy := r.URL.Query().Get("sort_by")
+	ratingStr := r.URL.Query().Get("ratings")
+	rating, _ := strconv.Atoi(ratingStr)
+	reviews, pagination, err := models.GetProductReviews(productID, sortBy, rating, limit, page)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: productWithID + productID + " is not found",
+					Code:        http.StatusNotFound,
+				},
+				Message:   "Product not found",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+		} else {
+			log.Printf("error getting reviews:::%v", err)
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Error fetching product reviews for product with ID " + productID,
+					Code:        http.StatusInternalServerError,
+				},
+				Message:   "Error fetching product reviews",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+		}
+		return
+	}
+
+	// Cache result
+	// if jsonBytes, err := json.Marshal(reviews); err == nil {
+	// 	Redis.Set(ctx, cacheKey, jsonBytes, time.Hour)
+	// }
+	response := map[string]interface{}{
+		"reviews": reviews,
+	}
+	if pagination != nil {
+		response["pagination"] = pagination
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product reviews for product ID " + productID + " retrieved successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   response,
+		Message:   "All reviews for product",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

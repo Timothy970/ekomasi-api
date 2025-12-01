@@ -306,3 +306,41 @@ func DeleteProductFeature(featureID string) error {
 	_, err = DB.Exec(`DELETE FROM product_features WHERE feature_id = ?`, featureID)
 	return err
 }
+
+func UpdateProductFeatures(input dtos.ProductFeature, productID string) (*dtos.ProductFeature, error) {
+	log.Println("Adding feature to product:", productID)
+	err := IsProductThere(productID)
+	if err != nil {
+		return nil, err
+	}
+	//delete all existing features for the product
+	_, err = DB.Exec(`DELETE FROM product_features WHERE product_id = ?`, productID)
+	if err != nil {
+		return nil, err
+	}
+	featureID, _ := shortid.Generate()
+	jsonProductSpecifications, _ := json.Marshal(input.ProductSpecifications)
+	jsonTopSection, _ := json.Marshal(input.TopSection)
+	jsonImages, _ := json.Marshal(input.Images)
+	_, err = DB.Exec(`
+		INSERT INTO product_features (feature_id, product_id, header, description, image, image_position, product_specifications, top_section, design_type, images)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		featureID, productID, input.Header, input.Description, input.Image, input.ImagePosition, jsonProductSpecifications, jsonTopSection, input.DesignType, jsonImages,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dtos.ProductFeature{
+		ID:                    featureID,
+		ProductID:             productID,
+		Header:                input.Header,
+		ImagePosition:         input.ImagePosition,
+		Description:           input.Description,
+		Image:                 input.Image,
+		ProductSpecifications: input.ProductSpecifications,
+		TopSection:            input.TopSection,
+		DesignType:            input.DesignType,
+		Images:                input.Images,
+	}, err
+}
