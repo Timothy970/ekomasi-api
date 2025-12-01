@@ -80,7 +80,7 @@ func SetupRoutes(router *mux.Router) {
 	products.HandleFunc("/cheap/expensive", handlers.GetExpensiveAndCheapProducts).Methods("GET")
 	//reviews endpoints
 	products.HandleFunc("/{product_id}/reviews", handlers.GetProductReviews).Methods("GET")
-	products.HandleFunc("/{product_id}/reviews/{review_id}", handlers.GetReviews).Methods("GET")
+	products.HandleFunc("/{product_id}/reviews/{review_id}", handlers.GetReview).Methods("GET")
 	//add a new product review
 	products.Handle("/{product_id}/reviews", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateReview))).Methods("POST")
 

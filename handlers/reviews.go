@@ -29,7 +29,7 @@ var productWithID = "Product with ID "
 // @Failure      404         {object}  map[string]string
 // @Failure      500         {object}  map[string]string
 // @Router       /api/reviews [get]
-func GetReviews(w http.ResponseWriter, r *http.Request) {
+func GetReview(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 

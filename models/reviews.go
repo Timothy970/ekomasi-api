@@ -25,8 +25,10 @@ func GetProductReview(productID, reviewID string, limit, page int) ([]dtos.Revie
 	if err != nil {
 		return nil, nil, err
 	}
-	r.User, _ = GetUserDisplayName(userID)
-
+	r.User, err = GetUserDisplayName(userID)
+	if err != nil {
+		return nil, nil, err
+	}
 	return []dtos.ReviewResponse{r}, nil, nil
 }
 
@@ -97,7 +99,10 @@ func GetProductReviews(productID, sortBy string, rating, limit, page int) (*dtos
 		if err := rows.Scan(&r.ID, &userID, &r.Score, &r.Details, &r.CreatedAt); err != nil {
 			return nil, nil, err
 		}
-		r.User, _ = GetUserDisplayName(userID)
+		r.User, err = GetUserDisplayName(userID)
+		if err != nil {
+			return nil, nil, err
+		}
 		reviewList = append(reviewList, r)
 	}
 
@@ -239,7 +244,10 @@ func AddNewReview(req dtos.ReviewRequest, productID string) (dtos.ReviewResponse
 	}
 
 	// Step 4: Return the response
-	user, _ := GetUserDisplayName(req.UserID)
+	user, err := GetUserDisplayName(req.UserID)
+	if err != nil {
+		return dtos.ReviewResponse{}, err
+	}
 	res := dtos.ReviewResponse{
 		ID:      reviewID,
 		User:    user,

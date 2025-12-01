@@ -1729,11 +1729,11 @@ func UpdateAllProductFeaturesHandler(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
-			Description: "Product feature added successfully",
-			Code:        http.StatusCreated,
+			Description: "Product feature updated successfully",
+			Code:        http.StatusOK,
 		},
 		Payload:   feature,
-		Message:   "Product feature added successfully",
+		Message:   "Product feature updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
