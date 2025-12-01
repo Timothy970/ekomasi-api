@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/teris-io/shortid"
 )
@@ -249,10 +250,11 @@ func AddNewReview(req dtos.ReviewRequest, productID string) (dtos.ReviewResponse
 		return dtos.ReviewResponse{}, err
 	}
 	res := dtos.ReviewResponse{
-		ID:      reviewID,
-		User:    user,
-		Score:   req.Score,
-		Details: req.Details,
+		ID:        reviewID,
+		User:      user,
+		Score:     req.Score,
+		Details:   req.Details,
+		CreatedAt: time.Now(),
 	}
 
 	return res, nil
