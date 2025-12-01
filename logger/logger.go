@@ -23,6 +23,8 @@ type LogEntry struct {
 	Message  string
 	UserID   *string // nullable
 	Metadata map[string]interface{}
+	Module   *string // nullable
+	Role     *string // nullable
 }
 
 // Log writes the log entry to the logs table
@@ -31,9 +33,9 @@ func Log(entry LogEntry) {
 	meta, _ := json.Marshal(entry.Metadata)
 
 	_, err := models.DB.Exec(`
-		INSERT INTO logs (log_id, level, message, user_id, metadata)
-		VALUES (?, ?, ?, ?, ?)`,
-		logID, entry.Level, entry.Message, entry.UserID, string(meta),
+		INSERT INTO logs (log_id, level, message, user_id, metadata, module, role)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		logID, entry.Level, entry.Message, entry.UserID, string(meta), entry.Module, entry.Role,
 	)
 
 	if err != nil {

@@ -11,12 +11,11 @@ import (
 
 func GetUserLogs(
 	page, limit int,
-	module, status, role, date, q string,
+	module, status, role, startDate, endDate, q string,
 ) ([]dtos.UserLog, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * limit
 
-	whereSQL, args := buildUserLogsFilter(module, status, role, date, q)
-
+	whereSQL, args := buildUserLogsFilter(module, status, role, startDate, endDate, q)
 	total, err := countUserLogs(whereSQL, args)
 	if err != nil {
 		return nil, nil, err
@@ -46,25 +45,25 @@ func GetUserLogs(
 }
 
 // buildUserLogsFilter creates the WHERE clause and args for filtering logs.
-func buildUserLogsFilter(module, status, role, date, q string) (string, []interface{}) {
+func buildUserLogsFilter(module, status, role, startDate, endDate, q string) (string, []interface{}) {
 	var whereClauses []string
 	var args []interface{}
 
 	if module != "" && module != "all" {
-		whereClauses = append(whereClauses, "metadata LIKE ?")
-		args = append(args, fmt.Sprintf("%%%q:%s%%", "Module", module))
+		whereClauses = append(whereClauses, "LOWER(module) = ?")
+		args = append(args, strings.ToLower(module))
 	}
 	if status != "" && status != "all" {
 		whereClauses = append(whereClauses, "level = ?")
 		args = append(args, status)
 	}
 	if role != "" && role != "all" {
-		whereClauses = append(whereClauses, "user_id IN (SELECT user_id FROM users WHERE LOWER(role) = ?)")
-		args = append(args, role)
+		whereClauses = append(whereClauses, "LOWER(role) = ?")
+		args = append(args, strings.ToLower(role))
 	}
-	if date != "" {
-		whereClauses = append(whereClauses, "DATE(timestamp) LIKE ? ")
-		args = append(args, date)
+	if startDate != "" && endDate != "" {
+		whereClauses = append(whereClauses, "DATE(timestamp) BETWEEN DATE(?) AND DATE(?)")
+		args = append(args, startDate, endDate)
 	}
 	if q != "" {
 		whereClauses = append(whereClauses, `user_id IN (
