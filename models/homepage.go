@@ -307,6 +307,11 @@ func GetCategoriesWithProducts() ([]dtos.CategoryWithProducts, error) {
 				return nil, err
 			}
 			product.Images = images
+			warranty, err := FetchProductWarranties(product.ID)
+			if err != nil {
+				return nil, err
+			}
+			product.Warranty = &warranty
 			categoryMap[catID].Products = append(categoryMap[catID].Products, product)
 		}
 	}
@@ -354,6 +359,33 @@ func fetchProductImages(productID string) ([]dtos.Image, error) {
 	}
 	return images, nil
 }
+
+func FetchProductWarranties(productID string) (dtos.ProductWarranty, error) {
+	query := `
+		SELECT pw.warranty_period, pw.manufacturing_date, pw.expiry_date, wt.name, wt.warranty_type_id
+		FROM product_warranties pw
+		JOIN warranty_types wt ON pw.warranty_type_id = wt.warranty_type_id
+		WHERE pw.product_id = ?
+		ORDER BY pw.created_at DESC
+		LIMIT 1
+	`
+
+	var warranty dtos.ProductWarranty
+
+	err := DB.QueryRow(query, productID).
+		Scan(&warranty.WarrantyPeriod, &warranty.ManufacturingDate, &warranty.ExpiryDate, &warranty.WarrantyType, &warranty.WarrantyID)
+
+	if err == sql.ErrNoRows {
+		return dtos.ProductWarranty{}, nil
+	}
+
+	if err != nil {
+		return dtos.ProductWarranty{}, err
+	}
+
+	return warranty, nil
+}
+
 func fetchProductFeatures(productID string) ([]dtos.ProductFeature, error) {
 	query := `
 		SELECT feature_id, product_id, header, image, description, image_position
@@ -1039,7 +1071,11 @@ func GetFeaturedProducts() ([]dtos.Product, error) {
 			return nil, err
 		}
 		product.Images = images
-
+		warranty, err := FetchProductWarranties(product.ID)
+		if err != nil {
+			return nil, err
+		}
+		product.Warranty = &warranty
 		featured = append(featured, product)
 	}
 

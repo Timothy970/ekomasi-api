@@ -18,3 +18,11 @@ type AddProductWarrantiesRequest struct {
 	ManufacturingDate string `json:"manufacturing_date" validate:"required"`
 	ExpiryDate        string `json:"expiry_date" validate:"required,gtfield=ManufacturingDate"`
 }
+
+type ProductWarranty struct {
+	WarrantyID        string `json:"warranty_id"`
+	WarrantyType      string `json:"warranty_type"`
+	WarrantyPeriod    int    `json:"warranty_period"` // in months
+	ManufacturingDate string `json:"manufacturing_date"`
+	ExpiryDate        string `json:"expiry_date"`
+}

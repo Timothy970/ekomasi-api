@@ -166,6 +166,7 @@ type Product struct {
 	LastUpdated      time.Time         `json:"last_updated"`
 	Images           []Image           `json:"urls,omitempty"`
 	ProductVariants  []ProductVariants `json:"product_variants"`
+	Warranty         *ProductWarranty  `json:"warranty"`
 	InWishlist       *bool             `json:"liked_by_user,omitempty"`
 	Details          []string          `json:"details,omitempty"`
 	Features         []ProductFeature  `json:"features,omitempty"`
@@ -188,6 +189,7 @@ type DealProduct struct {
 	LastUpdated      time.Time         `json:"last_updated"`
 	Images           []Image           `json:"urls,omitempty"`
 	ProductVariants  []ProductVariants `json:"product_variants"`
+	Warranty         *ProductWarranty  `json:"warranty"`
 	Discount         *float64          `json:"discount,omitempty"`
 	DiscountType     *string           `json:"discount_type,omitempty"`
 }

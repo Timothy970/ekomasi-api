@@ -420,6 +420,22 @@ func GetProductsByCategories(categories []string, page, size int) ([]dtos.Produc
 			return nil, dtos.PaginationMeta{}, err
 		}
 		p.Images, _ = fetchProductImages(p.ID)
+		warranties, err := FetchProductWarranties(p.ID)
+		if err != nil {
+			return nil, dtos.PaginationMeta{}, err
+		}
+		p.Warranty = &warranties
+		features, err := fetchProductFeatures(p.ID)
+		if err != nil {
+			return nil, dtos.PaginationMeta{}, err
+		}
+		p.Features = features
+		//fetch product variants
+		variants, err := getProductVariants(p.ID)
+		if err != nil {
+			return nil, dtos.PaginationMeta{}, err
+		}
+		p.ProductVariants = variants
 		products = append(products, p)
 	}
 
