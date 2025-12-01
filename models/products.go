@@ -323,6 +323,11 @@ func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Pr
 		return category, nil, err
 	}
 	product.Images = images
+	warranties, err := FetchProductWarranties(product.ID)
+	if err != nil {
+		return category, nil, err
+	}
+	product.Warranty = &warranties
 	features, err := fetchProductFeatures(product.ID)
 	if err != nil {
 		return category, nil, err
@@ -430,6 +435,12 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 		return nil, err
 	}
 	p.Images = images
+	// Fetch product warranties
+	warranties, err := FetchProductWarranties(p.ID)
+	if err != nil {
+		return nil, err
+	}
+	p.Warranty = &warranties
 	features, err := fetchProductFeatures(p.ID)
 	if err != nil {
 		return nil, err
@@ -733,6 +744,13 @@ func scanRelatedProduct(rows *sql.Rows) (dtos.Product, error) {
 		return product, err
 	}
 	product.Images = images
+	// Fetch product warranties
+	warranties, err := FetchProductWarranties(product.ID)
+	if err != nil {
+		return product, err
+	}
+	product.Warranty = &warranties
+	// Fetch product features
 	features, err := fetchProductFeatures(product.ID)
 	if err != nil {
 		return product, err
@@ -1186,6 +1204,13 @@ func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.Subca
 			return nil, nil, err
 		}
 		p.Images = images
+		// fetch product warranties
+		warranties, err := FetchProductWarranties(p.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		p.Warranty = &warranties
+		// fetch product features
 		features, err := fetchProductFeatures(p.ID)
 		if err != nil {
 			return nil, nil, err
@@ -1465,6 +1490,9 @@ func getProductsForSubcategories(subIDs []string, page, size int, params dtos.Se
 
 		// Fetch related images and variants
 		if pr.Images, err = fetchProductImages(pr.ID); err != nil {
+			return nil, nil, err
+		}
+		if pr.Warranty, err = FetchProductWarranties(pr.ID); err != nil {
 			return nil, nil, err
 		}
 		if pr.Features, err = fetchProductFeatures(pr.ID); err != nil {
@@ -1844,6 +1872,11 @@ func scanProduct(rows *sql.Rows, isAdmin bool) (dtos.Product, error) {
 		return product, err
 	}
 	product.Images = images
+	warranties, err := FetchProductWarranties(product.ID)
+	if err != nil {
+		return product, err
+	}
+	product.Warranty = &warranties
 	features, err := fetchProductFeatures(product.ID)
 	if err != nil {
 		return product, err
@@ -2042,6 +2075,12 @@ func getProductByPriceType(priceType string) (*dtos.Product, error) {
 	if p.Images, err = fetchProductImages(p.ID); err != nil {
 		return nil, err
 	}
+	// Fetch product warranties
+	warranty, err := FetchProductWarranties(p.ID)
+	if err != nil {
+		return nil, err
+	}
+	p.Warranty = &warranty
 	if p.Features, err = fetchProductFeatures(p.ID); err != nil {
 		return nil, err
 	}

@@ -32,6 +32,13 @@ func GetProductThroughScanning(sku string) (*dtos.Product, error) {
 		return nil, err
 	}
 	p.Images = images
+	// Fetch product warranties
+	warranties, err := FetchProductWarranties(p.ID)
+	if err != nil {
+		return nil, err
+	}
+	p.Warranty = &warranties
+	// Fetch product variants
 	variants, err := getProductVariants(p.ID)
 	if err != nil {
 		return nil, err

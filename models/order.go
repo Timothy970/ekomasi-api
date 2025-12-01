@@ -594,7 +594,11 @@ func getOrderProducts(orderID string) ([]dtos.OrderProduct, error) {
 			return nil, err
 		}
 		item.Images = images
-
+		warranty, err := FetchProductWarranties(item.ID)
+		if err != nil {
+			return nil, err
+		}
+		item.Warranty = &warranty
 		items = append(items, item)
 	}
 

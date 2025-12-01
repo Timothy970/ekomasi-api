@@ -208,7 +208,11 @@ func GetProductsByDealID(dealID string) ([]dtos.DealProduct, error) {
 			return nil, err
 		}
 		p.Images = images
-
+		warranties, err := FetchProductWarranties(p.ID)
+		if err != nil {
+			return nil, err
+		}
+		p.Warranty = &warranties
 		// Fetch product variants
 		variants, err := getProductVariants(p.ID)
 		if err != nil {
@@ -267,7 +271,11 @@ func GetProductsByDealIDWithPagination(dealID string, page, limit int) ([]dtos.D
 			return nil, nil, err
 		}
 		p.Images = images
-
+		warranty, err := FetchProductWarranties(p.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		p.Warranty = &warranty
 		// Fetch product variants
 		variants, err := getProductVariants(p.ID)
 		if err != nil {
