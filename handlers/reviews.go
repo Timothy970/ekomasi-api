@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"adenzo_backend/dtos"
+	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"context"
@@ -177,42 +178,45 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	productID := mux.Vars(r)["product_id"]
+	authuser, ok := middleware.UserFromContext(r.Context())
+	if !ok {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "User not validated or authenticated",
+				Code:        http.StatusUnauthorized,
+			},
+			Message:   "User not validated",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 	req, ok := DecodeRequestBody[dtos.ReviewRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+	req.UserID = authuser.ID
 	//Validate the request
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	//check if product exists
-	product, err := models.GetProductByID(productID)
-	if err != nil || product == nil {
-		if err == sql.ErrNoRows {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: productWithID + productID + " has not been found",
-					Code:        http.StatusNotFound,
-				},
-				Message:   productNotFound,
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-		} else {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: "Error fetching product reviews for product with ID " + productID,
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-		}
+	err := models.IsProductThere(productID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Error fetching product reviews for product with ID " + productID,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+
 		return
 	}
 	review, err := models.AddNewReview(*req, productID)

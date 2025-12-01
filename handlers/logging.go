@@ -22,9 +22,10 @@ func GetUserLogs(w http.ResponseWriter, r *http.Request) {
 	module := r.URL.Query().Get("module")
 	status := r.URL.Query().Get("status")
 	role := r.URL.Query().Get("role")
-	date := r.URL.Query().Get("date")
+	start_date := r.URL.Query().Get("start_date")
+	end_date := r.URL.Query().Get("end_date")
 	q := r.URL.Query().Get("q")
-	logs, meta, err := models.GetUserLogs(page, limit, module, status, role, date, q)
+	logs, meta, err := models.GetUserLogs(page, limit, module, status, role, start_date, end_date, q)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

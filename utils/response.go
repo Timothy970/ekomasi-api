@@ -55,9 +55,11 @@ var RespondWithJSON = func(w http.ResponseWriter, opts SuccessJSONResponseOption
 	ctx := opts.Request.Context()
 
 	userID := "unknown"
+	userRole := "customer"
 	user, ok := middleware.UserFromContext(ctx)
 	if ok {
 		userID = user.ID
+		userRole = user.Role
 	}
 	// Log to file
 	log.Printf(
@@ -84,6 +86,8 @@ var RespondWithJSON = func(w http.ResponseWriter, opts SuccessJSONResponseOption
 			"Module":       opts.CollectiveInfo.Module,
 			"Description":  opts.CollectiveInfo.Description,
 		},
+		Module: &opts.CollectiveInfo.Module,
+		Role:   &userRole,
 	})
 
 	// Create response

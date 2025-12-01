@@ -400,6 +400,10 @@ func getProductVariants(productID string) ([]dtos.ProductVariants, error) {
 // }
 
 func GetProductByID(productID string) (*dtos.Product, error) {
+	err := IsProductThere(productID)
+	if err != nil {
+		return nil, err
+	}
 	query := `
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
@@ -413,7 +417,7 @@ func GetProductByID(productID string) (*dtos.Product, error) {
 		p           dtos.Product
 		detailsData []byte
 	)
-	err := DB.QueryRow(query, productID).Scan(
+	err = DB.QueryRow(query, productID).Scan(
 		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
 		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
 		&p.CategoryName, &p.Tag, &detailsData,
