@@ -1492,9 +1492,11 @@ func getProductsForSubcategories(subIDs []string, page, size int, params dtos.Se
 		if pr.Images, err = fetchProductImages(pr.ID); err != nil {
 			return nil, nil, err
 		}
-		if pr.Warranty, err = FetchProductWarranties(pr.ID); err != nil {
+		warranty, err := FetchProductWarranties(pr.ID)
+		if err != nil {
 			return nil, nil, err
 		}
+		pr.Warranty = &warranty
 		if pr.Features, err = fetchProductFeatures(pr.ID); err != nil {
 			return nil, nil, err
 		}

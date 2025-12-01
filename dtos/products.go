@@ -156,7 +156,7 @@ type CategoryProduct struct {
 	Tag             *string           `json:"tag"`
 	Images          []Image           `json:"urls"`
 	ProductVariants []ProductVariants `json:"products_variants"`
-	Warranty        ProductWarranty   `json:"warranty"`
+	Warranty        *ProductWarranty  `json:"warranty"`
 	//only visible when user is authenticated
 	InWishlist *bool            `json:"liked_by_user,omitempty"`
 	Details    []string         `json:"details,omitempty"`
