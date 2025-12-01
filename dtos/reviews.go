@@ -4,8 +4,7 @@ import "time"
 
 type ReviewResponse struct {
 	ID        string    `json:"review_id"`
-	ProductID string    `json:"product_id"`
-	UserID    string    `json:"user_id"`
+	User      string    `json:"user"`
 	Score     int       `json:"score"`
 	Details   string    `json:"details"`
 	CreatedAt time.Time `json:"created_at"`
@@ -20,4 +19,20 @@ type UpdateReview struct {
 	Score   int    `json:"score,omitempty"`
 	Details string `json:"details,omitempty"`
 	Status  string `json:"status" validate:"required"`
+}
+type DetailedReviewResponse struct {
+	Reviews      []ReviewResponse `json:"reviews"`
+	AverageScore float64          `json:"average_score"`
+	ScoreCounts  []ScoreCount     `json:"score_counts"`
+}
+type ScoreCount struct {
+	Score int `json:"score"`
+	Count int `json:"count"`
+}
+
+type AddReview struct {
+	ProductID string `json:"product_id" validate:"required"`
+	UserID    string `json:"user_id"`
+	Score     int    `json:"score" validate:"required"`
+	Details   string `json:"details" validate:"required"`
 }

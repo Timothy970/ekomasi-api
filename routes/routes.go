@@ -79,7 +79,7 @@ func SetupRoutes(router *mux.Router) {
 	//get expensive aand cheapest products
 	products.HandleFunc("/cheap/expensive", handlers.GetExpensiveAndCheapProducts).Methods("GET")
 	//reviews endpoints
-	products.HandleFunc("/{product_id}/reviews", handlers.GetReviews).Methods("GET")
+	products.HandleFunc("/{product_id}/reviews", handlers.GetProductReviews).Methods("GET")
 	products.HandleFunc("/{product_id}/reviews/{review_id}", handlers.GetReviews).Methods("GET")
 	//add a new product review
 	products.Handle("/{product_id}/reviews", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateReview))).Methods("POST")
@@ -429,6 +429,7 @@ func SetupRoutes(router *mux.Router) {
 	admin.Handle("/features/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductFeatures))).Methods("POST")
 	product.HandleFunc("/features/{product_id}", handlers.GetFeaturesByProductHandler).Methods("GET")
 	admin.Handle("/features/{feature_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateProductFeatureHandler))).Methods("PATCH")
+	admin.Handle("/features/product/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateAllProductFeaturesHandler))).Methods("PATCH")
 	admin.Handle("/features/{feature_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteProductFeatureHandler))).Methods("DELETE")
 	//charges endpoints
 	charges := api.PathPrefix("/admin/charges").Subrouter()

@@ -2,64 +2,154 @@ package models
 
 import (
 	"adenzo_backend/dtos"
+	"database/sql"
 	"fmt"
 	"strings"
 
 	"github.com/teris-io/shortid"
 )
 
-func GetProductReviews(productID, reviewID string, limit, page int) ([]dtos.ReviewResponse, *dtos.PaginationMeta, error) {
-	if reviewID != "" {
-		query := `
-			SELECT review_id, product_id, user_id, score, details, created_at
+func GetProductReview(productID, reviewID string, limit, page int) ([]dtos.ReviewResponse, *dtos.PaginationMeta, error) {
+	query := `
+			SELECT review_id, user_id, score, details, created_at
 			FROM product_reviews
 			WHERE product_id = ? AND review_id = ? AND status = 'approved'
+			LIMIT 1
 		`
-		row := DB.QueryRow(query, productID, reviewID)
 
-		var r dtos.ReviewResponse
-		err := row.Scan(&r.ID, &r.ProductID, &r.UserID, &r.Score, &r.Details, &r.CreatedAt)
-		if err != nil {
-			return nil, nil, err
-		}
+	var r dtos.ReviewResponse
+	var userID string
+	err := DB.QueryRow(query, productID, reviewID).
+		Scan(&r.ID, &userID, &r.Score, &r.Details, &r.CreatedAt)
 
-		return []dtos.ReviewResponse{r}, nil, nil
-	}
-
-	// When no reviewID, apply pagination
-	offset := (page - 1) * limit
-
-	// Count total reviews
-	var totalItems int
-	countQuery := `SELECT COUNT(*) FROM product_reviews WHERE product_id = ? AND status = 'approved'`
-	err := DB.QueryRow(countQuery, productID).Scan(&totalItems)
 	if err != nil {
 		return nil, nil, err
 	}
+	r.User, _ = GetUserDisplayName(userID)
 
-	// Fetch paginated reviews
-	query := `
-		SELECT review_id, product_id, user_id, score, details, created_at
+	return []dtos.ReviewResponse{r}, nil, nil
+}
+
+func GetProductReviews(productID, sortBy string, rating, limit, page int) (*dtos.DetailedReviewResponse, *dtos.PaginationMeta, error) {
+
+	// Pagination
+	offset := (page - 1) * limit
+
+	// ----- COUNT TOTAL ITEMS -----
+	countArgs := []interface{}{productID}
+	countQuery := `
+		SELECT COUNT(*)
 		FROM product_reviews
-		WHERE product_id = ? AND status = 'approved'
-		LIMIT ? OFFSET ?
+		WHERE product_id = ?
 	`
-	rows, err := DB.Query(query, productID, limit, offset)
+	if rating > 0 {
+		countQuery += " AND score = ?"
+		countArgs = append(countArgs, rating)
+	}
+
+	var totalItems int
+	if err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
+		return nil, nil, err
+	}
+
+	// ----- FETCH PAGINATED REVIEWS -----
+	queryArgs := []interface{}{productID}
+	query := `
+		SELECT review_id, user_id, score, details, created_at
+		FROM product_reviews
+		WHERE product_id = ?
+	`
+
+	if rating > 0 {
+		query += " AND score = ?"
+		queryArgs = append(queryArgs, rating)
+	}
+
+	// Sorting
+	switch strings.ToLower(sortBy) {
+	case "newest":
+		query += " ORDER BY created_at DESC"
+	case "oldest":
+		query += " ORDER BY created_at ASC"
+	case "highest":
+		query += " ORDER BY score DESC"
+	case "lowest":
+		query += " ORDER BY score ASC"
+	default:
+		query += " ORDER BY created_at DESC"
+	}
+
+	query += " LIMIT ? OFFSET ?"
+	queryArgs = append(queryArgs, limit, offset)
+
+	rows, err := DB.Query(query, queryArgs...)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
 
-	var reviews []dtos.ReviewResponse
+	// --- REVIEWS ARRAY ---
+	var reviewList []dtos.ReviewResponse
+
 	for rows.Next() {
 		var r dtos.ReviewResponse
-		if err := rows.Scan(&r.ID, &r.ProductID, &r.UserID, &r.Score, &r.Details, &r.CreatedAt); err != nil {
+		var userID string
+		if err := rows.Scan(&r.ID, &userID, &r.Score, &r.Details, &r.CreatedAt); err != nil {
 			return nil, nil, err
 		}
-		reviews = append(reviews, r)
+		r.User, _ = GetUserDisplayName(userID)
+		reviewList = append(reviewList, r)
 	}
 
-	// Build pagination metadata
+	// ----- SCORE COUNTS (1–5 ALWAYS RETURNED) -----
+	scoreQuery := `
+		SELECT score, COUNT(*)
+		FROM product_reviews
+		WHERE product_id = ?
+		GROUP BY score
+	`
+
+	scoreRows, err := DB.Query(scoreQuery, productID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer scoreRows.Close()
+
+	scoreMap := make(map[int]int)
+	totalScore := 0
+
+	for scoreRows.Next() {
+		var score, count int
+		if err := scoreRows.Scan(&score, &count); err != nil {
+			return nil, nil, err
+		}
+		scoreMap[score] = count
+		totalScore += score * count
+	}
+
+	// Build score counts 1–5 (missing = 0)
+	finalScoreCounts := make([]dtos.ScoreCount, 0, 5)
+	for i := 1; i <= 5; i++ {
+		finalScoreCounts = append(finalScoreCounts, dtos.ScoreCount{
+			Score: i,
+			Count: scoreMap[i],
+		})
+	}
+
+	// Average score
+	averageScore := 0.0
+	if totalItems > 0 {
+		averageScore = float64(totalScore) / float64(totalItems)
+	}
+
+	// ----- BUILD DETAILED RESPONSE -----
+	detailed := &dtos.DetailedReviewResponse{
+		Reviews:      reviewList,
+		AverageScore: averageScore,
+		ScoreCounts:  finalScoreCounts,
+	}
+
+	// ----- Pagination -----
 	totalPages := (totalItems + limit - 1) / limit
 	pagination := &dtos.PaginationMeta{
 		Page:       page,
@@ -70,7 +160,39 @@ func GetProductReviews(productID, reviewID string, limit, page int) ([]dtos.Revi
 		HasNext:    page < totalPages,
 	}
 
-	return reviews, pagination, nil
+	return detailed, pagination, nil
+}
+
+func GetUserDisplayName(userID string) (string, error) {
+
+	var firstName, lastName, email, phone sql.NullString
+
+	query := `
+		SELECT first_name, last_name, email, phone_number
+		FROM users
+		WHERE user_id = ?
+	`
+
+	err := DB.QueryRow(query, userID).Scan(&firstName, &lastName, &email, &phone)
+	if err != nil {
+		return "", err
+	}
+	// First + Last Name
+	if firstName.Valid && lastName.Valid {
+		return strings.TrimSpace(firstName.String + " " + lastName.String), nil
+	}
+
+	// Email fallback
+	if email.Valid {
+		return email.String, nil
+	}
+
+	// Phone fallback
+	if phone.Valid {
+		return phone.String, nil
+	}
+
+	return "Unknown User", nil
 }
 
 func AddNewReview(req dtos.ReviewRequest, productID string) (dtos.ReviewResponse, error) {
@@ -117,12 +239,12 @@ func AddNewReview(req dtos.ReviewRequest, productID string) (dtos.ReviewResponse
 	}
 
 	// Step 4: Return the response
+	user, _ := GetUserDisplayName(req.UserID)
 	res := dtos.ReviewResponse{
-		ID:        reviewID,
-		ProductID: productID,
-		UserID:    req.UserID,
-		Score:     req.Score,
-		Details:   req.Details,
+		ID:      reviewID,
+		User:    user,
+		Score:   req.Score,
+		Details: req.Details,
 	}
 
 	return res, nil
