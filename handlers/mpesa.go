@@ -193,6 +193,7 @@ func NewMpesaClient() (*MpesaClient, error) {
 		ReturnURL:  os.Getenv("MPESA_RETURN_URL"),
 		HeadOffice: os.Getenv("MPESA_HEAD_OFFICE"),
 	}
+	log.Printf("Mpesa Client Config: %+v", client)
 	err := client.generateToken()
 	return client, err
 }
