@@ -4,10 +4,10 @@ import "time"
 
 type MpesaRequest struct {
 	Phone       string `json:"phone_number" validate:"required"`
-	Amount      int    `json:"amount" validate:"required, min=1"`
+	Amount      int    `json:"amount"`
 	Reference   string `json:"reference"`
 	Description string `json:"description"`
-	OrderID     string `json:"order_id"`
+	OrderID     string `json:"order_id" validate:"required"`
 	DeliveryID  string `json:"delivery_id"`
 	Type        string `json:"type"`
 }
