@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"adenzo_backend/dtos"
+	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"net/http"
@@ -20,6 +21,8 @@ func CreateStaticPage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	authuser, _ := middleware.UserFromContext(r.Context())
+
 	req, ok := DecodeRequestBody[dtos.StaticPageRequest](r, w, requestSummary, start)
 	if !ok {
 		return
@@ -27,7 +30,7 @@ func CreateStaticPage(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "HomePage") {
 		return
 	}
-	err := models.CreateStaticPage(*req)
+	err := models.CreateStaticPage(*req, authuser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

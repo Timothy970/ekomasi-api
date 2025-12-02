@@ -7,18 +7,19 @@ import (
 	"errors"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/teris-io/shortid"
 )
 
-func CreateStaticPage(req dtos.StaticPageRequest) error {
+func CreateStaticPage(req dtos.StaticPageRequest, userID string) error {
 	staticPageID, _ := shortid.Generate()
 	data, _ := json.Marshal(req.Sections)
 	query := `
-		INSERT INTO static_pages (static_page_id, title, description, data, path)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO static_pages (static_page_id, title, description, data, path, user_id)
+		VALUES (?, ?, ?, ?, ?, ?)
 	`
-	_, err := DB.Exec(query, staticPageID, req.Title, req.Description, data, req.Path)
+	_, err := DB.Exec(query, staticPageID, req.Title, req.Description, data, req.Path, userID)
 	return err
 }
 
@@ -30,7 +31,7 @@ func GetStaticPages(query string) ([]dtos.StaticPageRequest, error) {
 
 	// Base query
 	pageQuery := `
-		SELECT static_page_id, title, description, path, data, created_at, updated_at
+		SELECT static_page_id, title, description, path, data, created_at, updated_at, user_id
 		FROM static_pages
 	`
 
@@ -60,6 +61,7 @@ func GetStaticPages(query string) ([]dtos.StaticPageRequest, error) {
 	for rows.Next() {
 		var sp dtos.StaticPageRequest
 		var data sql.NullString
+		var userID sql.NullString
 
 		if err := rows.Scan(
 			&sp.StaticPageID,
@@ -69,10 +71,15 @@ func GetStaticPages(query string) ([]dtos.StaticPageRequest, error) {
 			&data,
 			&sp.CreatedAt,
 			&sp.UpdatedAt,
+			&userID,
 		); err != nil {
 			log.Printf("GetStaticPages scan error: %v", err)
 			return nil, err
 		}
+
+		// Format created_at and updated_at
+		sp.CreatedAt = formatDateTimeString(sp.CreatedAt)
+		sp.UpdatedAt = formatDateTimeString(sp.UpdatedAt)
 
 		// Only unmarshal if data is valid JSON
 		if data.Valid && data.String != "" {
@@ -80,6 +87,15 @@ func GetStaticPages(query string) ([]dtos.StaticPageRequest, error) {
 				log.Printf("GetStaticPages unmarshal error: %v", err)
 				return nil, err
 			}
+		}
+		if userID.Valid {
+			sp.Author, err = GetUserDisplayName(userID.String)
+			if err != nil {
+				log.Printf("GetStaticPages get user display name error: %v", err)
+				return nil, err
+			}
+		} else {
+			sp.Author = "Unknown"
 		}
 
 		staticPages = append(staticPages, sp)
@@ -95,13 +111,14 @@ func GetStaticPageByID(staticPageID string) (*dtos.StaticPageRequest, error) {
 	}
 	var sp dtos.StaticPageRequest
 	var (
-		data sql.NullString
+		data   sql.NullString
+		userID sql.NullString
 	)
 	err = DB.QueryRow(`
-		SELECT static_page_id, title, description, path, data, created_at, updated_at
+		SELECT static_page_id, title, description, path, data, created_at, updated_at, user_id
 		FROM static_pages
 		WHERE static_page_id = ?
-	`, staticPageID).Scan(&sp.StaticPageID, &sp.Title, &sp.Description, &sp.Path, &data, &sp.CreatedAt, &sp.UpdatedAt)
+	`, staticPageID).Scan(&sp.StaticPageID, &sp.Title, &sp.Description, &sp.Path, &data, &sp.CreatedAt, &sp.UpdatedAt, &userID)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +128,19 @@ func GetStaticPageByID(staticPageID string) (*dtos.StaticPageRequest, error) {
 		log.Printf("data unmarshal error: %v", err)
 		return nil, err
 	}
+	if userID.Valid {
+		sp.Author, err = GetUserDisplayName(userID.String)
+		if err != nil {
+			log.Printf("GetStaticPageByID get user display name error: %v", err)
+			return nil, err
+		}
+	} else {
+		sp.Author = "Unknown"
+	}
+
+	// Format created_at and updated_at
+	sp.CreatedAt = formatDateTimeString(sp.CreatedAt)
+	sp.UpdatedAt = formatDateTimeString(sp.UpdatedAt)
 	return &sp, nil
 }
 func UpdateStaticPage(staticPageID string, req dtos.StaticPageRequest) (*dtos.StaticPageRequest, error) {
@@ -153,4 +183,33 @@ func isStaticPageThere(staticPageID string) error {
 		return errors.New("static page not found")
 	}
 	return nil
+}
+
+// formatDateTimeString formats a datetime string into "2006-01-02 15:04"
+func formatDateTimeString(dt string) string {
+	if dt == "" {
+		return ""
+	}
+
+	// Try parsing multiple common datetime formats
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05",
+		"2006-01-02T15:04:05",
+		"2006-01-02", // date only
+	}
+
+	var t time.Time
+	var err error
+
+	for _, layout := range layouts {
+		t, err = time.Parse(layout, dt)
+		if err == nil {
+			// Successful parse
+			return t.Format("2006-01-02 15:04")
+		}
+	}
+
+	// If nothing works, return original
+	return dt
 }

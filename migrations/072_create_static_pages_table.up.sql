@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS static_pages (
     static_page_id CHAR(36) PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
+    user_id CHAR(36) NOT NULL,
     path VARCHAR(255) NOT NULL,
     description TEXT DEFAULT NULL,
     data LONGTEXT NOT NULL,

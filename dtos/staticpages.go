@@ -9,6 +9,7 @@ package dtos
 // }
 
 type StaticPageRequest struct {
+	Author       string  `json:"author"`
 	StaticPageID string  `json:"static_page_id"`
 	Title        string  `json:"title" validate:"required"`
 	Path         string  `json:"path" validate:"required"`
