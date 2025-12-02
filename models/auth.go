@@ -353,9 +353,12 @@ func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, 
 	if err != nil {
 		return nil, err
 	}
-	err = isRoleThere(input.RoleID)
-	if err != nil {
-		return nil, err
+	//check if role exists
+	if input.RoleID != "" {
+		err = isRoleThere(input.RoleID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	//check if email and phone number exists for other users
 	err = isEmailAndPhoneThere(input.Email, input.Phonenumber, userID)
