@@ -249,20 +249,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if input.RoleID == "" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Users",
-				Description: "Missing mandatory field role ID",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   mandatory,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
+
 	if input.Email == "" && input.Phonenumber == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -277,9 +264,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start, "Users") {
-		return
-	}
+
 	if input.Phonenumber != "" {
 		if !utils.IsValidKenyanPhone(input.Phonenumber) {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
