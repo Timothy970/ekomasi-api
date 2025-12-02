@@ -162,38 +162,38 @@ type MpesaClient struct {
 	InitiatorName     string
 	InitiatorPassword string
 	// CertificatePath    string
-	SecurityCredential string
-	ReturnURL          string
-	HeadOffice         string
+	// SecurityCredential string
+	ReturnURL  string
+	HeadOffice string
 }
 
 func NewMpesaClient() (*MpesaClient, error) {
-	CertificatePath := os.Getenv("MPESA_CERTIFICATE_PATH")
+	// CertificatePath := os.Getenv("MPESA_CERTIFICATE_PATH")
 	InitiatorPassword := os.Getenv("MPESA_INITIATOR_PASSWORD")
-	pubKey, err := loadPublicKey(CertificatePath)
-	if err != nil {
-		log.Fatal("Failed to load public key:", err)
-	}
+	// pubKey, err := loadPublicKey(CertificatePath)
+	// if err != nil {
+	// 	log.Fatal("Failed to load public key:", err)
+	// }
 
-	securityCredential, err := generateSecurityCredential(pubKey, InitiatorPassword)
-	if err != nil {
-		log.Fatal("Failed to generate SecurityCredential:", err)
-	}
+	// securityCredential, err := generateSecurityCredential(pubKey, InitiatorPassword)
+	// if err != nil {
+	// 	log.Fatal("Failed to generate SecurityCredential:", err)
+	// }
 	client := &MpesaClient{
-		ConsumerKey:        os.Getenv("MPESA_CONSUMER_KEY"),
-		ConsumerSecret:     os.Getenv("MPESA_CONSUMER_SECRET"),
-		ShortCode:          os.Getenv("MPESA_SHORTCODE"),
-		Passkey:            os.Getenv("MPESA_PASSKEY"),
-		CallbackURL:        os.Getenv("MPESA_CALLBACK_URL"),
-		BalanceURL:         os.Getenv("MPESA_BALANCE_URL"),
-		MpesaURL:           os.Getenv("MPESA_SEND_URL"),
-		InitiatorName:      os.Getenv("MPESA_INITIATOR_NAME"),
-		InitiatorPassword:  InitiatorPassword,
-		SecurityCredential: securityCredential,
-		ReturnURL:          os.Getenv("MPESA_RETURN_URL"),
-		HeadOffice:         os.Getenv("MPESA_HEAD_OFFICE"),
+		ConsumerKey:       os.Getenv("MPESA_CONSUMER_KEY"),
+		ConsumerSecret:    os.Getenv("MPESA_CONSUMER_SECRET"),
+		ShortCode:         os.Getenv("MPESA_SHORTCODE"),
+		Passkey:           os.Getenv("MPESA_PASSKEY"),
+		CallbackURL:       os.Getenv("MPESA_CALLBACK_URL"),
+		BalanceURL:        os.Getenv("MPESA_BALANCE_URL"),
+		MpesaURL:          os.Getenv("MPESA_SEND_URL"),
+		InitiatorName:     os.Getenv("MPESA_INITIATOR_NAME"),
+		InitiatorPassword: InitiatorPassword,
+		// SecurityCredential: securityCredential,
+		ReturnURL:  os.Getenv("MPESA_RETURN_URL"),
+		HeadOffice: os.Getenv("MPESA_HEAD_OFFICE"),
 	}
-	err = client.generateToken()
+	err := client.generateToken()
 	return client, err
 }
 
@@ -521,14 +521,14 @@ func generateSecurityCredential(pubKey *rsa.PublicKey, initiatorPassword string)
 func (m *MpesaClient) FetchPayBillBalance() (map[string]any, error) {
 
 	payload := map[string]interface{}{
-		"Initiator":          m.InitiatorName,
-		"SecurityCredential": m.SecurityCredential,
-		"CommandID":          "AccountBalance",
-		"PartyA":             m.ShortCode,
-		"IdentifierType":     "4",
-		"Remarks":            "balance",
-		"QueueTimeOutURL":    m.BalanceURL,
-		"ResultURL":          m.BalanceURL,
+		"Initiator": m.InitiatorName,
+		// "SecurityCredential": m.SecurityCredential,
+		"CommandID":       "AccountBalance",
+		"PartyA":          m.ShortCode,
+		"IdentifierType":  "4",
+		"Remarks":         "balance",
+		"QueueTimeOutURL": m.BalanceURL,
+		"ResultURL":       m.BalanceURL,
 	}
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
@@ -739,15 +739,15 @@ func (m *MpesaClient) HandleMoneyReturn(amount float64, phoneNumber string) (Mpe
 	payload := map[string]interface{}{
 		"OriginatorConversationID": randString(24),
 		"InitiatorName":            m.InitiatorName,
-		"SecurityCredential":       m.SecurityCredential,
-		"CommandID":                "BusinessPayment",
-		"Amount":                   amount,
-		"PartyA":                   m.ShortCode,
-		"PartyB":                   phoneNumber,
-		"Remarks":                  "Payment Return for order to phone number " + phoneNumber,
-		"QueueTimeOutURL":          m.ReturnURL,
-		"ResultURL":                m.ReturnURL,
-		"Occasion":                 "",
+		// "SecurityCredential":       m.SecurityCredential,
+		"CommandID":       "BusinessPayment",
+		"Amount":          amount,
+		"PartyA":          m.ShortCode,
+		"PartyB":          phoneNumber,
+		"Remarks":         "Payment Return for order to phone number " + phoneNumber,
+		"QueueTimeOutURL": m.ReturnURL,
+		"ResultURL":       m.ReturnURL,
+		"Occasion":        "",
 	}
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
