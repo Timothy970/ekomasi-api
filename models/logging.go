@@ -13,71 +13,203 @@ func GetUserLogs(
 	page, limit int,
 	module, status, role, startDate, endDate, q string,
 ) ([]dtos.UserLog, *dtos.PaginationMeta, error) {
+
 	offset := (page - 1) * limit
 
 	whereSQL, args := buildUserLogsFilter(module, status, role, startDate, endDate, q)
-	total, err := countUserLogs(whereSQL, args)
-	if err != nil {
+
+	// Count query
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM logs l
+		LEFT JOIN users u ON l.user_id = u.user_id
+		%s
+	`, whereSQL)
+
+	var total int
+	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
 		return nil, nil, err
 	}
 
-	argsWithLimit := append(args, limit, offset)
+	// Main query
 	query := fmt.Sprintf(`
-		SELECT log_id, user_id, level, metadata, message, timestamp
-		FROM logs
-		%s
-		ORDER BY timestamp DESC
-		LIMIT ? OFFSET ?`, whereSQL)
+		SELECT 
+			l.log_id,
+			l.user_id,        
+			l.level,
+			l.metadata,
+			l.message,
+			l.timestamp,
 
-	rows, err := DB.Query(query, argsWithLimit...)
+			u.user_id,         
+			u.first_name,
+			u.last_name,
+			u.email,
+			u.role,
+			u.status,
+			u.last_login,
+			u.created_at,
+			u.phone_number
+
+		FROM logs l
+		LEFT JOIN users u ON l.user_id = u.user_id
+		%s
+		ORDER BY l.timestamp DESC
+		LIMIT ? OFFSET ?
+	`, whereSQL)
+
+	args = append(args, limit, offset)
+
+	rows, err := DB.Query(query, args...)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
 
-	logs, err := processUserLogRows(rows)
-	if err != nil {
-		return nil, nil, err
+	var logs []dtos.UserLog
+
+	for rows.Next() {
+
+		var log dtos.UserLog
+		var meta string
+		var ts sql.NullTime
+
+		var user dtos.Users
+
+		// Raw scanned database values
+		var (
+			logUserID sql.NullString
+			dbUserID  sql.NullString
+			firstName sql.NullString
+			lastName  sql.NullString
+			email     sql.NullString
+			roleStr   sql.NullString
+			statusStr sql.NullString
+			lastLogin sql.NullTime
+			createdAt sql.NullTime
+			phone     sql.NullString
+		)
+
+		if err := rows.Scan(
+			&log.LogID,
+			&logUserID,
+			&log.Status,
+			&meta,
+			&log.Action,
+			&ts,
+
+			&dbUserID,
+			&firstName,
+			&lastName,
+			&email,
+			&roleStr,
+			&statusStr,
+			&lastLogin,
+			&createdAt,
+			&phone,
+		); err != nil {
+			return nil, nil, err
+		}
+
+		// Timestamp
+		if ts.Valid {
+			log.CreatedAt = ts.Time.Format("2006-01-02 15:04:05")
+		}
+
+		// Metadata JSON
+		if err := mapMetadataToLogger(&log, meta); err != nil {
+			return nil, nil, err
+		}
+
+		// If user exists (not "unknown")
+		if dbUserID.Valid && dbUserID.String != "unknown" {
+
+			user.ID = dbUserID.String
+			user.FirstName = firstName.String
+			user.LastName = lastName.String
+			user.Email = email.String
+			user.Role = roleStr.String
+			user.Status = statusStr.String
+			user.LastLogin = formatNullTime(lastLogin)
+			user.DateJoined = formatNullTime(createdAt)
+			user.Phone = phone.String
+
+			log.User = &user
+
+		} else {
+			// Unknown user
+			log.User = UnknownUser()
+		}
+
+		logs = append(logs, log)
 	}
 
 	meta := buildPagination(limit, offset, total)
 	return logs, meta, nil
 }
 
+func UnknownUser() *dtos.Users {
+	return &dtos.Users{
+		ID:        "unknown",
+		FirstName: "Unknown",
+		LastName:  "User",
+		Email:     "unknown",
+		Role:      "unknown",
+		Status:    "unknown",
+	}
+}
+func formatNullTime(t sql.NullTime) string {
+	if !t.Valid {
+		return ""
+	}
+	return t.Time.Format("2006-01-02 15:04:05")
+}
+
 // buildUserLogsFilter creates the WHERE clause and args for filtering logs.
 func buildUserLogsFilter(module, status, role, startDate, endDate, q string) (string, []interface{}) {
-	var whereClauses []string
+	var where []string
 	var args []interface{}
 
 	if module != "" && module != "all" {
-		whereClauses = append(whereClauses, "LOWER(module) = ?")
-		args = append(args, strings.ToLower(module))
+		where = append(where, "l.module = ?")
+		args = append(args, module)
 	}
+
 	if status != "" && status != "all" {
-		whereClauses = append(whereClauses, "level = ?")
+		where = append(where, "l.level = ?")
 		args = append(args, status)
 	}
+
 	if role != "" && role != "all" {
-		whereClauses = append(whereClauses, "LOWER(role) = ?")
-		args = append(args, strings.ToLower(role))
+		where = append(where, "u.role = ?")
+		args = append(args, role)
 	}
+
 	if startDate != "" && endDate != "" {
-		whereClauses = append(whereClauses, "DATE(timestamp) BETWEEN DATE(?) AND DATE(?)")
-		args = append(args, startDate, endDate)
+		startDate = FormatDateTimeString(startDate)
+		endDate = FormatDateTimeString(endDate)
+		where = append(where, "l.timestamp BETWEEN ? AND ?")
+		args = append(args, startDate+" 00:00:00", endDate+" 23:59:59")
 	}
+
+	// Optimized user search
 	if q != "" {
-		whereClauses = append(whereClauses, `user_id IN (
-			SELECT user_id FROM users
-			WHERE LOWER(first_name) LIKE ? OR LOWER(last_name) LIKE ? OR LOWER(email) LIKE ? OR phone_number LIKE ?
-		)`)
 		qLike := "%" + strings.ToLower(q) + "%"
+		where = append(where,
+			`(
+				LOWER(u.first_name) LIKE ? OR
+				LOWER(u.last_name)  LIKE ? OR
+				LOWER(u.email)      LIKE ? OR
+				u.phone_number      LIKE ?
+			)`)
 		args = append(args, qLike, qLike, qLike, qLike)
 	}
 
 	whereSQL := ""
-	if len(whereClauses) > 0 {
-		whereSQL = "WHERE " + strings.Join(whereClauses, " AND ")
+	if len(where) > 0 {
+		whereSQL = "WHERE " + strings.Join(where, " AND ")
 	}
+
 	return whereSQL, args
 }
 
@@ -170,42 +302,44 @@ func ConvertStringToMap(data string) (map[string]interface{}, error) {
 	err := json.Unmarshal([]byte(data), &result)
 	return result, err
 }
+
 func GetUserLogsByUserID(userID string, limit, page int) ([]dtos.UserLog, *dtos.PaginationMeta, error) {
-	// Check if user exists
+	// Validate user
 	if err := isUserThere(userID); err != nil {
 		return nil, nil, err
 	}
 
 	log.Printf("Fetching logs for user ID: %s", userID)
 	offset := (page - 1) * limit
-	var logs []dtos.UserLog
-	var total int
 
-	// Get total count for pagination
-	err := DB.QueryRow(`SELECT COUNT(*) FROM logs WHERE user_id = ?`, userID).Scan(&total)
-	if err != nil {
+	// Count total logs
+	var total int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM logs WHERE user_id = ?`, userID).Scan(&total); err != nil {
 		return nil, nil, err
 	}
 
+	// Fetch log rows
 	query := `
-        SELECT log_id, user_id, level, metadata, message, timestamp
-        FROM logs
-        WHERE user_id = ?
-        ORDER BY timestamp DESC
-        LIMIT ? OFFSET ?`
+		SELECT log_id, user_id, level, metadata, message, timestamp
+		FROM logs
+		WHERE user_id = ?
+		ORDER BY timestamp DESC
+		LIMIT ? OFFSET ?`
 
 	rows, err := DB.Query(query, userID, limit, offset)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
-	logs, err = processUserLogRows(rows)
-	log.Printf("Fetched %d logs for user ID %s", len(logs), userID)
+
+	// Process rows into DTOs
+	logs, err := processUserLogRows(rows)
 	if err != nil {
-		log.Printf("Error processing log rows for user ID %s: %v", userID, err)
+		log.Printf("Error processing logs for user %s: %v", userID, err)
 		return nil, nil, err
 	}
-	log.Printf("Processed %d logs for user ID %s", len(logs), userID)
+
+	log.Printf("Fetched %d logs for user ID %s", len(logs), userID)
 
 	meta := buildPagination(limit, offset, total)
 	return logs, meta, nil

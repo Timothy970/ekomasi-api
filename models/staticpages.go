@@ -78,8 +78,8 @@ func GetStaticPages(query string) ([]dtos.StaticPageRequest, error) {
 		}
 
 		// Format created_at and updated_at
-		sp.CreatedAt = formatDateTimeString(sp.CreatedAt)
-		sp.UpdatedAt = formatDateTimeString(sp.UpdatedAt)
+		sp.CreatedAt = FormatDateTimeString(sp.CreatedAt)
+		sp.UpdatedAt = FormatDateTimeString(sp.UpdatedAt)
 
 		// Only unmarshal if data is valid JSON
 		if data.Valid && data.String != "" {
@@ -139,8 +139,8 @@ func GetStaticPageByID(staticPageID string) (*dtos.StaticPageRequest, error) {
 	}
 
 	// Format created_at and updated_at
-	sp.CreatedAt = formatDateTimeString(sp.CreatedAt)
-	sp.UpdatedAt = formatDateTimeString(sp.UpdatedAt)
+	sp.CreatedAt = FormatDateTimeString(sp.CreatedAt)
+	sp.UpdatedAt = FormatDateTimeString(sp.UpdatedAt)
 	return &sp, nil
 }
 func UpdateStaticPage(staticPageID string, req dtos.StaticPageRequest) (*dtos.StaticPageRequest, error) {
@@ -186,7 +186,7 @@ func isStaticPageThere(staticPageID string) error {
 }
 
 // formatDateTimeString formats a datetime string into "2006-01-02 15:04"
-func formatDateTimeString(dt string) string {
+func FormatDateTimeString(dt string) string {
 	if dt == "" {
 		return ""
 	}
