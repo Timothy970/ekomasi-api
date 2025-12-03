@@ -463,14 +463,18 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 	var results []dtos.TopProduct
 	for rows.Next() {
 		var tp dtos.TopProduct
+		var image sql.NullString
 		if err := rows.Scan(
 			&tp.ProductID,
 			&tp.ProductName,
 			&tp.TotalQuantity,
-			&tp.ProductImage,
+			&image,
 			&tp.TotalRevenue,
 		); err != nil {
 			return nil, nil, err
+		}
+		if image.Valid {
+			tp.ProductImage = image.String
 		}
 		results = append(results, tp)
 	}
