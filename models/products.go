@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math"
 	"strings"
 	"time"
@@ -41,7 +40,6 @@ func GetAllProducts(categoryFilter, productFilter, categoryID string, page, limi
 	if err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
 		return nil, nil, err
 	}
-	log.Printf("Total items %d", totalItems)
 
 	var products []dtos.Product
 	for rows.Next() {

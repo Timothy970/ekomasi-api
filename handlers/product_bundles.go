@@ -6,7 +6,6 @@ import (
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"encoding/json"
-	"log"
 	"mime/multipart"
 	"net/http"
 	"strconv"
@@ -26,7 +25,6 @@ func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 
 	bundles, pagination, err := models.GetBundleProducts(limit, page)
 	if err != nil {
-		log.Printf("bundles get error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
@@ -63,7 +61,6 @@ func GetBundleByIDProductsHandler(w http.ResponseWriter, r *http.Request) {
 	bundleID := mux.Vars(r)["bundle_id"]
 	bundles, err := models.GetBundleByIDProducts(bundleID)
 	if err != nil {
-		log.Printf("bundles get error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
@@ -104,58 +101,58 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	authuser, _ := middleware.UserFromContext(r.Context())
 
-	// if err := r.ParseMultipartForm(20 << 20); err != nil {
-	// 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-	// 		CollectiveInfo: utils.CollectiveInfo{
-	// 			Module:      "Products",
-	// 			Description: "Failed to parse form data: " + err.Error(),
-	// 			Code:        http.StatusBadRequest,
-	// 		},
-	// 		Message:   err.Error(),
-	// 		TimeTaken: time.Since(start),
-	// 		Function:  utils.GetCurrentFuncName(),
-	// 		Request:   r,
-	// 	})
-	// 	return
-	// }
-	// // Get image file
-	// file, header, err := r.FormFile("image")
-	// if err != nil {
-	// 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-	// 		CollectiveInfo: utils.CollectiveInfo{
-	// 			Module:      "Products",
-	// 			Description: "Image is required when creating a bundle",
-	// 			Code:        http.StatusBadRequest,
-	// 		},
-	// 		Message:   "Image is required",
-	// 		TimeTaken: time.Since(start),
-	// 		Function:  utils.GetCurrentFuncName(),
-	// 		Request:   r,
-	// 	})
-	// 	return
-	// }
-	// defer file.Close()
-	// // Upload image to GCS
-	// url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
-	// if err != nil {
-	// 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-	// 		CollectiveInfo: utils.CollectiveInfo{
-	// 			Module:      "Products",
-	// 			Description: err.Error(),
-	// 			Code:        http.StatusInternalServerError,
-	// 		},
-	// 		Message:   err.Error(),
-	// 		TimeTaken: time.Since(start),
-	// 		Function:  utils.GetCurrentFuncName(),
-	// 		Request:   r,
-	// 	})
-	// 	return
-	// }
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to parse form data: " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	// Get image file
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Image is required when creating a bundle",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Image is required",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	defer file.Close()
+	// Upload image to GCS
+	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
 	req := &dtos.Bundle{
 		Name:        r.FormValue("bundle_name"),
 		Description: r.FormValue("bundle_description"),
 		Price:       func() float64 { p, _ := strconv.ParseFloat(r.FormValue("bundle_price"), 64); return p }(),
-		Image:       "https://bucket.emalify.com/attachments/1759135817149257825_1759135817149290984.jpeg",
+		Image:       url,
 		Products: func() []dtos.BundleProducts {
 			productsStr := r.FormValue("products")
 			if productsStr == "" {
@@ -204,9 +201,8 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
-	err := models.CreateBundle(*req, authuser.ID)
+	err = models.CreateBundle(*req, authuser.ID)
 	if err != nil {
-		log.Printf("create bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
@@ -316,7 +312,6 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	err := models.UpdateBundle(*req)
 	if err != nil {
-		log.Printf("update bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
@@ -362,7 +357,6 @@ func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	err := models.DeleteBundle(req.ID)
 	if err != nil {
-		log.Printf("delete bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
@@ -408,7 +402,6 @@ func AddProductsToBundleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	err := models.AddProductsToBundle(*req, mux.Vars(r)["bundle_id"])
 	if err != nil {
-		log.Printf("dd product to bundle error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",

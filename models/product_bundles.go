@@ -182,8 +182,8 @@ func CreateBundle(req dtos.Bundle, userID string) error {
 	productID, _ := shortid.Generate()
 
 	_, err := DB.Exec(`
-		INSERT INTO products (product_id, name, description, sku, price, stock_quantity, created_by_id, buying_price, search_vector)
-		VALUES (?,?,?,?,?,?,?,?,?)
+		INSERT INTO products (product_id, name, description, sku, price, stock_quantity, created_by_id, buying_price, search_vector, product_type)
+		VALUES (?,?,?,?,?,?,?,?,?, 'bundle')
 	`, productID, req.Name, req.Description, "BUNDLE-"+productID, req.Price, 0, userID, req.CompareAtPrice, req.Name)
 	if err != nil {
 		return err
@@ -310,12 +310,9 @@ func AddProductsToBundle(req []dtos.BundleProducts, bundleID string) error {
 }
 
 func RemoveProductsFromBundle(req dtos.AddProductsToBundle, bundleID string) error {
-	exists, err := RecordExists("product_bundles", fetchbundle, bundleID)
+	err := IsProductThere(bundleID)
 	if err != nil {
 		return err
-	}
-	if !exists {
-		return fmt.Errorf("%s", nobundle)
 	}
 	if len(req.ProductIDs) == 0 {
 		return fmt.Errorf("no products provided")
