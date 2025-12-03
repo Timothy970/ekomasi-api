@@ -16,6 +16,7 @@ type Order struct {
 	OrderStatus          *string              `json:"order_status"`
 	DeliveryStatus       *string              `json:"delivery_status"`
 	PaymentMethod        string               `json:"payment_method"`
+	PaymentStatus        *string              `json:"payment_status"`
 	DeliveryCharge       *float64             `json:"delivery_charge"`
 	DeliveryAddress      *string              `json:"delivery_address"`
 	GuestDeliveryAddress GuestDeliveryAddress `json:"guest_delivery_address"`

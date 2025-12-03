@@ -86,6 +86,7 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
             o.status,
             d.status AS delivery_status,
             o.payment_method,
+			o.payment_status,
             d.delivery_charge,
             d.delivery_address,
             o.guest_delivery_address,
@@ -96,7 +97,7 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
         WHERE o.order_id = ? AND o.user_id = ?`
 	var ord dtos.Order
-	var guestAddrStr, guestDetailsStr string
+	var guestAddrStr, guestDetailsStr, paymentStatusStr string
 	var totalAmount float64
 	err := DB.QueryRow(query, orderID, userID).Scan(
 		&ord.OrderID,
@@ -106,6 +107,7 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 		&ord.OrderStatus,
 		&ord.DeliveryStatus,
 		&ord.PaymentMethod,
+		&paymentStatusStr,
 		&ord.DeliveryCharge,
 		&ord.DeliveryAddress,
 		&guestAddrStr,
@@ -130,7 +132,9 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 	if guestDetailsStr != "" {
 		_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
 	}
-
+	if paymentStatusStr != "" {
+		ord.PaymentStatus = &paymentStatusStr
+	}
 	items, err := getOrderProducts(orderID)
 	if err != nil {
 		return nil, err
@@ -254,6 +258,7 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
             o.status,
             d.status AS delivery_status,
             o.payment_method,
+			o.payment_status,
             d.delivery_charge,
             d.delivery_address,
             o.guest_delivery_address,
@@ -275,7 +280,7 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 
 	for rows.Next() {
 		var ord dtos.Order
-		var guestAddrStr, guestDetailsStr string
+		var guestAddrStr, guestDetailsStr, paymentStatusStr string
 		var totalAmount float64
 		if err := rows.Scan(
 			&ord.OrderID,
@@ -285,6 +290,7 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 			&ord.OrderStatus,
 			&ord.DeliveryStatus,
 			&ord.PaymentMethod,
+			&paymentStatusStr,
 			&ord.DeliveryCharge,
 			&ord.DeliveryAddress,
 			&guestAddrStr,
@@ -304,6 +310,9 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 		}
 		if guestDetailsStr != "" {
 			_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
+		}
+		if paymentStatusStr != "" {
+			ord.PaymentStatus = &paymentStatusStr
 		}
 
 		// Fetch items for this order
@@ -347,6 +356,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
             o.status,
             d.status AS delivery_status,
             o.payment_method,
+			o.payment_status,
             d.delivery_charge,
             d.delivery_address,
             o.guest_delivery_address,
@@ -360,7 +370,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
           AND o.guest_personal_details LIKE ?`
 
 	var ord dtos.Order
-	var guestAddrStr, guestDetailsStr string
+	var guestAddrStr, guestDetailsStr, paymentStatusStr string
 	var totalAmount float64
 	err := DB.QueryRow(query, orderID, "%"+email+"%", "%"+phone+"%").Scan(
 		&ord.OrderID,
@@ -370,6 +380,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 		&ord.OrderStatus,
 		&ord.DeliveryStatus,
 		&ord.PaymentMethod,
+		&paymentStatusStr,
 		&ord.DeliveryCharge,
 		&ord.DeliveryAddress,
 		&guestAddrStr,
@@ -394,7 +405,9 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 	if guestDetailsStr != "" {
 		_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
 	}
-
+	if paymentStatusStr != "" {
+		ord.PaymentStatus = &paymentStatusStr
+	}
 	// Fetch items for this order
 	items, err := getOrderProducts(orderID)
 	if err != nil {
