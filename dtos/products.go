@@ -53,15 +53,30 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 type GetBundleRequest struct {
-	BundleID          string    `json:"bundle_id"`
-	BundleName        string    `json:"bundle_name"`
-	BundleDescription string    `json:"bundle_description"`
-	BundlePrice       float64   `json:"bundle_price"`
-	BundleImage       *string   `json:"bundle_image"`
-	CompareAtPrice    *float64  `json:"compare_at_price"`
-	KeepSelling       *bool     `json:"keep_selling_when_out_of_stock"`
-	Products          []Product `json:"products"`
+	ID               string            `json:"product_id"`
+	Name             string            `json:"name"`
+	Description      string            `json:"description"`
+	SKU              string            `json:"sku"`
+	Tag              *string           `json:"tag"`
+	Price            float64           `json:"price"`
+	CategoryID       string            `json:"category_id"`
+	CategoryName     string            `json:"category_name"`
+	StockQuantity    int               `json:"stock_quantity"`
+	MaxStockQuantity int               `json:"max_stock_quantity"`
+	SearchVector     string            `json:"search_vector"`
+	IsInTodaysDeals  bool              `json:"in_today_deal"`
+	CreatedBy        string            `json:"created_by"`
+	CreatedAt        time.Time         `json:"created_at"`
+	LastUpdated      time.Time         `json:"last_updated"`
+	Images           []Image           `json:"urls,omitempty"`
+	ProductVariants  []ProductVariants `json:"product_variants"`
+	Warranty         *ProductWarranty  `json:"warranty"`
+	InWishlist       *bool             `json:"liked_by_user,omitempty"`
+	Details          []string          `json:"details,omitempty"`
+	Features         []ProductFeature  `json:"features,omitempty"`
+	Products         []Product         `json:"products"`
 }
+
 type Bundle struct {
 	Name           string           `json:"bundle_name" validate:"required"`
 	Description    string           `json:"bundle_description" validate:"required"`
@@ -70,7 +85,9 @@ type Bundle struct {
 	Products       []BundleProducts `json:"products" validate:"required"`
 	KeepSelling    *bool            `json:"keep_selling"`
 	CompareAtPrice *float64         `json:"compare_at_price"`
+	// StockQuantity  int              `json:"stock_quantity"`
 }
+
 type BundleProducts struct {
 	ProductID string `json:"product_id" validate:"required"`
 	Quantity  int    `json:"quantity" validate:"required,gte=1"`
