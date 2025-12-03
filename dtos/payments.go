@@ -27,6 +27,7 @@ type STKCallbackRequest struct {
 		} `json:"stkCallback"`
 	} `json:"Body"`
 }
+
 type VoucherRequest struct {
 	VoucherCode string `json:"voucher_code"`
 	Amount      int    `json:"amount"`

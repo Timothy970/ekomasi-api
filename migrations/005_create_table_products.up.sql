@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS `products` (
    `description` text,
    `sku` varchar(50) NOT NULL,
    `price` decimal(10,2) NOT NULL,
-   `category_id` char(36) NOT NULL,
+   `category_id` char(36) DEFAULT NULL,
    `stock_quantity` int NOT NULL DEFAULT '0',
    `search_vector` text,
    `tag` varchar(100) DEFAULT NULL,
@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS `products` (
    `show_stock_quantity` boolean NOT NULL DEFAULT TRUE,
    `created_by_id` char(36) DEFAULT NULL,
    `buying_price` decimal(10,2) DEFAULT '0.0',
+   `product_type` varchar(50) DEFAULT 'single',
    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
    `last_updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
    PRIMARY KEY (`product_id`),
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS `products` (
    KEY `idx_products_category_id` (`category_id`),
    KEY `idx_products_stock_quantity` (`stock_quantity`),
    KEY `idx_products_search_vector` (`search_vector`(255)),
+   KEY `idx_products_product_type` (`product_type`),
    CONSTRAINT `products_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`category_id`) ON DELETE RESTRICT,
    CONSTRAINT `products_ibfk_2` FOREIGN KEY (`created_by_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
  );

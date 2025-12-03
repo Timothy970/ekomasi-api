@@ -22,7 +22,7 @@ var lowerVariant = "(LOWER(v.variant_type) = ?)"
 var lowerVariantTypeName = "(LOWER(v.variant_type) = ? AND LOWER(v.name) = ?)"
 var whereBundleID = " WHERE bundle_id = ?"
 
-func GetAllProducts(categoryFilter, productFilter, categoryID string, page, limit int) ([]dtos.CategoryWithProducts, *dtos.PaginationMeta, error) {
+func GetAllProducts(categoryFilter, productFilter, categoryID string, page, limit int) ([]dtos.Product, *dtos.PaginationMeta, error) {
 	if categoryID != "" {
 		if err := CategoryExists(categoryID); err != nil {
 			return nil, nil, err
@@ -41,123 +41,55 @@ func GetAllProducts(categoryFilter, productFilter, categoryID string, page, limi
 	if err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
 		return nil, nil, err
 	}
+	log.Printf("Total items %d", totalItems)
 
-	categoryMap, err := processProductRows(rows)
-	if err != nil {
-		return nil, nil, err
+	var products []dtos.Product
+	for rows.Next() {
+		var product dtos.Product
+		var tag sql.NullString
+
+		err := rows.Scan(
+			&product.CategoryID, &product.CategoryName, &product.ID, &product.Name, &product.Description, &product.SKU, &product.Price, &product.CategoryID, &product.StockQuantity, &product.SearchVector, &product.CreatedAt, &product.LastUpdated, &tag,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		if tag.Valid {
+			product.Tag = &tag.String
+		}
+		product.Images, err = fetchProductImages(product.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		warranty, err := FetchProductWarranties(product.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		product.Warranty = &warranty
+		features, err := fetchProductFeatures(product.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		product.Features = features
+		variants, err := getProductVariants(product.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		product.ProductVariants = variants
+		products = append(products, product)
 	}
-
-	result := buildResultFromCategoryMap(categoryMap, categoryID)
 
 	pagination := calculatePagination(page, limit, totalItems)
-	return result, &pagination, nil
-}
-
-// Helper to process product rows and build category map
-func processProductRows(rows *sql.Rows) (map[string]*dtos.CategoryWithProducts, error) {
-	categoryMap := make(map[string]*dtos.CategoryWithProducts)
-	for rows.Next() {
-		cat, prod, err := scanCategoryAndProduct(rows)
-		if err != nil {
-			return nil, err
-		}
-		if _, exists := categoryMap[cat.CategoryID]; !exists {
-			categoryMap[cat.CategoryID] = &cat
-		}
-		if prod != nil {
-			categoryMap[cat.CategoryID].Products = append(categoryMap[cat.CategoryID].Products, *prod)
-		}
-	}
-	return categoryMap, nil
-}
-
-// Helper to build result from category map
-func buildResultFromCategoryMap(categoryMap map[string]*dtos.CategoryWithProducts, categoryID string) []dtos.CategoryWithProducts {
-	if categoryID != "" {
-		if targetCat, exists := categoryMap[categoryID]; exists {
-			return buildCompleteHierarchyWithParents(categoryMap, targetCat)
-		}
-		return []dtos.CategoryWithProducts{}
-	}
-	return buildCategoryHierarchy(categoryMap)
-}
-
-// Helper function to build complete hierarchy including parents for a specific category
-func buildCompleteHierarchyWithParents(categoryMap map[string]*dtos.CategoryWithProducts, targetCat *dtos.CategoryWithProducts) []dtos.CategoryWithProducts {
-	// First, build the hierarchy from the target category down to its children
-	buildCompleteHierarchy(categoryMap, targetCat)
-
-	// Then, build the hierarchy upwards to include all parents
-	// var hierarchy []dtos.CategoryWithProducts
-	currentCat := targetCat
-
-	// Build the chain of parents
-	parentChain := []*dtos.CategoryWithProducts{currentCat}
-	for currentCat.ParentCategoryID != nil {
-		if parent, exists := categoryMap[*currentCat.ParentCategoryID]; exists {
-			parentChain = append([]*dtos.CategoryWithProducts{parent}, parentChain...)
-			currentCat = parent
-		} else {
-			break
-		}
-	}
-
-	// Now build the nested hierarchy structure
-	for i := 0; i < len(parentChain)-1; i++ {
-		// Clear any existing subcategories to avoid duplication
-		parentChain[i].Subcategories = []*dtos.CategoryWithProducts{parentChain[i+1]}
-	}
-
-	// Return the top-level category (root of the hierarchy)
-	if len(parentChain) > 0 {
-		return []dtos.CategoryWithProducts{*parentChain[0]}
-	}
-
-	return []dtos.CategoryWithProducts{*targetCat}
-}
-
-// Helper function to build hierarchy downwards (children)
-func buildCompleteHierarchy(categoryMap map[string]*dtos.CategoryWithProducts, targetCat *dtos.CategoryWithProducts) {
-	// Clear existing subcategories to avoid duplication
-	targetCat.Subcategories = []*dtos.CategoryWithProducts{}
-
-	// Attach all direct subcategories
-	for _, cat := range categoryMap {
-		if cat.ParentCategoryID != nil && *cat.ParentCategoryID == targetCat.CategoryID {
-			// Recursively build hierarchy for this subcategory
-			buildCompleteHierarchy(categoryMap, cat)
-			targetCat.Subcategories = append(targetCat.Subcategories, cat)
-		}
-	}
-}
-
-func buildCategoryHierarchy(categoryMap map[string]*dtos.CategoryWithProducts) []dtos.CategoryWithProducts {
-	// First attach subcategories
-	for _, cat := range categoryMap {
-		if cat.ParentCategoryID != nil {
-			if parent, ok := categoryMap[*cat.ParentCategoryID]; ok {
-				parent.Subcategories = append(parent.Subcategories, cat)
-			}
-		}
-	}
-
-	// Then collect only top-level categories
-	var topLevel []dtos.CategoryWithProducts
-	for _, cat := range categoryMap {
-		if cat.ParentCategoryID == nil {
-			topLevel = append(topLevel, *cat)
-		}
-	}
-	return topLevel
+	return products, &pagination, nil
 }
 
 // Update the queries to fetch the complete hierarchy including parents
 func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, []interface{}) {
 	query := `
-		SELECT COUNT(DISTINCT c.category_id)
-		FROM categories c
-		LEFT JOIN products p ON c.category_id = p.category_id
-		WHERE 1=1`
+        SELECT COUNT(DISTINCT p.product_id)
+        FROM products p
+        JOIN categories c ON p.category_id = c.category_id
+        WHERE p.product_type = 'single'`
 	var args []interface{}
 
 	if categoryFilter != "" {
@@ -188,10 +120,10 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
             FROM categories c
             INNER JOIN descendants d ON c.parent_category_id = d.category_id
         )
-        SELECT COUNT(DISTINCT c.category_id)
-        FROM categories c
-        LEFT JOIN products p ON c.category_id = p.category_id
-        WHERE 1=1
+        SELECT COUNT(DISTINCT p.product_id)
+        FROM products p
+        JOIN categories c ON p.category_id = c.category_id
+        WHERE p.product_type = 'single'
           AND c.category_id IN (
               SELECT category_id FROM ancestors
               UNION
@@ -205,13 +137,13 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
 
 func buildProductQuery(categoryFilter, productFilter, categoryID string, page, limit int) (string, []interface{}) {
 	query := `
-		SELECT 
-			c.category_id, c.name, c.parent_category_id, c.description,
-			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, p.tag
-		FROM categories c
-		LEFT JOIN products p ON c.category_id = p.category_id
-		WHERE 1=1`
+        SELECT 
+            c.category_id, c.name,
+            p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
+            p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, p.tag
+        FROM categories c
+        JOIN products p ON c.category_id = p.category_id
+        WHERE p.product_type = 'single'`
 	var args []interface{}
 
 	if categoryFilter != "" {
@@ -223,9 +155,6 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
 		args = append(args, "%"+strings.ToLower(productFilter)+"%")
 	}
 	if categoryID != "" {
-		// For MySQL, we might need to handle this differently
-		// Option 1: Use application logic to get all related category IDs first
-		// Option 2: Use a simpler approach if hierarchy depth is limited
 		query += " AND (c.category_id = ? OR c.parent_category_id = ? OR c.category_id IN (SELECT parent_category_id FROM categories WHERE category_id = ? AND parent_category_id IS NOT NULL))"
 		args = append(args, categoryID, categoryID, categoryID)
 	}
@@ -258,87 +187,6 @@ func calculatePagination(page, limit int, totalItems int64) dtos.PaginationMeta 
 		HasPrev:    page > 1,
 		HasNext:    page < totalPages,
 	}
-}
-
-func scanCategoryAndProduct(rows *sql.Rows) (dtos.CategoryWithProducts, *dtos.Product, error) {
-	var (
-		catID, catName, catDesc                              string
-		parentCatID                                          *string
-		tag                                                  sql.NullString
-		productID, name, desc, sku, categoryID, searchVector sql.NullString
-		price                                                sql.NullFloat64
-		stockQuantity                                        sql.NullInt64
-		createdAt, updatedAt                                 sql.NullTime
-	)
-
-	if err := rows.Scan(
-		&catID, &catName, &parentCatID, &catDesc,
-		&productID, &name, &desc, &sku, &price, &categoryID,
-		&stockQuantity, &searchVector, &createdAt, &updatedAt, &tag,
-	); err != nil {
-		return dtos.CategoryWithProducts{}, nil, err
-	}
-
-	category := dtos.CategoryWithProducts{
-		CategoryID:       catID,
-		Name:             catName,
-		ParentCategoryID: parentCatID,
-		Description:      catDesc,
-		Products:         []dtos.Product{},
-	}
-
-	if !productID.Valid {
-		return category, nil, nil
-	}
-
-	stock := 0
-	if stockQuantity.Valid {
-		stock = int(stockQuantity.Int64)
-	}
-	tagPtr := ""
-	if tag.Valid {
-		tagPtr = tag.String
-	}
-	product := dtos.Product{
-		ID:            productID.String,
-		Name:          name.String,
-		Description:   desc.String,
-		SKU:           sku.String,
-		Price:         price.Float64,
-		CategoryID:    categoryID.String,
-		StockQuantity: stock,
-		SearchVector:  searchVector.String,
-		Tag:           &tagPtr,
-	}
-
-	if createdAt.Valid {
-		product.CreatedAt = createdAt.Time
-	}
-	if updatedAt.Valid {
-		product.LastUpdated = updatedAt.Time
-	}
-
-	images, err := fetchProductImages(product.ID)
-	if err != nil {
-		return category, nil, err
-	}
-	product.Images = images
-	warranties, err := FetchProductWarranties(product.ID)
-	if err != nil {
-		return category, nil, err
-	}
-	product.Warranty = &warranties
-	features, err := fetchProductFeatures(product.ID)
-	if err != nil {
-		return category, nil, err
-	}
-	product.Features = features
-	variants, err := getProductVariants(product.ID)
-	if err != nil {
-		return category, nil, err
-	}
-	product.ProductVariants = variants
-	return category, &product, nil
 }
 
 // GetProductVariants fetches all variants for a given productID
@@ -670,6 +518,7 @@ func buildRelatedProductsQuery(categoryID, excludeProductID string, limit, page 
             p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, p.tag
         FROM products p
         WHERE p.category_id = ?
+		AND p.product_type = 'single'
     `
 	args = append(args, categoryID)
 
@@ -694,7 +543,7 @@ func buildRelatedProductsQuery(categoryID, excludeProductID string, limit, page 
 func buildRelatedProductsCountQuery(categoryID, excludeProductID string) (string, []interface{}) {
 	var args []interface{}
 
-	query := "SELECT COUNT(*) FROM products p WHERE p.category_id = ?"
+	query := "SELECT COUNT(*) FROM products p WHERE p.category_id = ? AND p.product_type = 'single'"
 	args = append(args, categoryID)
 
 	if excludeProductID != "" {
@@ -766,272 +615,6 @@ func scanRelatedProduct(rows *sql.Rows) (dtos.Product, error) {
 	}
 	product.ProductVariants = variants
 	return product, nil
-}
-
-// Get bundles
-func GetBundleProducts(bundleID string, limit, page int) ([]dtos.GetBundleRequest, *dtos.PaginationMeta, error) {
-	// Validate optional bundle ID
-	if bundleID != "" {
-		if err := isBundleThere(bundleID); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	// Count total bundles for pagination
-	countQuery := "SELECT COUNT(*) FROM product_bundles"
-	var args []interface{}
-
-	if bundleID != "" {
-		countQuery += whereBundleID
-		args = append(args, bundleID)
-	}
-
-	var total int
-	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
-		return nil, nil, err
-	}
-
-	offset := (page - 1) * limit
-	totalPages := (total + limit - 1) / limit
-
-	pagination := &dtos.PaginationMeta{
-		Page:       page,
-		Size:       limit,
-		TotalItems: total,
-		TotalPages: totalPages,
-		HasPrev:    page > 1,
-		HasNext:    page < totalPages,
-	}
-
-	// Fetch paginated bundles
-	query := `
-		SELECT 
-			bundle_id, name, description, bundle_price, bundle_image, compare_at_price, keep_selling_when_out_of_stock
-		FROM product_bundles
-	`
-	if bundleID != "" {
-		query += whereBundleID
-	}
-	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-
-	args = append(args, limit, offset)
-	rows, err := DB.Query(query, args...)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer rows.Close()
-	var bundles []dtos.GetBundleRequest
-	for rows.Next() {
-		var b dtos.GetBundleRequest
-		var compareAtPrice sql.NullFloat64
-		var keepSelling sql.NullBool
-
-		if err := rows.Scan(
-			&b.BundleID, &b.BundleName, &b.BundleDescription, &b.BundlePrice,
-			&b.BundleImage, &compareAtPrice, &keepSelling,
-		); err != nil {
-			return nil, nil, err
-		}
-
-		b.CompareAtPrice = nullFloat64ToPtr(compareAtPrice)
-		b.KeepSelling = &keepSelling.Bool
-
-		//Fetch products belonging to this bundle
-		products, err := getProductsForBundle(b.BundleID)
-		if err != nil {
-			return nil, nil, err
-		}
-		b.Products = products
-
-		bundles = append(bundles, b)
-	}
-	log.Printf("count of bundles************************** %v", len(bundles))
-
-	return bundles, pagination, nil
-}
-func getProductsForBundle(bundleID string) ([]dtos.Product, error) {
-	query := `
-		SELECT product_id, quantity
-		FROM bundle_products
-		WHERE bundle_id = ?
-	`
-	rows, err := DB.Query(query, bundleID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var products []dtos.Product
-
-	for rows.Next() {
-		var productID string
-		var quantity int
-		if err := rows.Scan(&productID, &quantity); err != nil {
-			return nil, err
-		}
-
-		// Reuse your existing reusable product function
-		product, err := GetProductByID(productID)
-		if err != nil {
-			// Skip missing products instead of failing the entire bundle
-			log.Printf("warning: failed to fetch product %s for bundle %s: %v", productID, bundleID, err)
-			continue
-		}
-
-		// Override product quantity with bundle_products.quantity
-		product.StockQuantity = quantity
-		products = append(products, *product)
-	}
-
-	return products, nil
-}
-
-// create bundle
-func CreateBundle(req dtos.Bundle) error {
-	bundleID, _ := shortid.Generate()
-	_, err := DB.Exec(`
-		INSERT INTO product_bundles (bundle_id, name, description, bundle_price, bundle_image, compare_at_price, keep_selling_when_out_of_stock)
-		VALUES (?,?,?,?,?,?,?)
-	`, bundleID, req.Name, req.Description, req.Price, req.Image, req.CompareAtPrice, req.KeepSelling)
-	if err != nil {
-		return err
-	}
-	//add products to bundle
-	if len(req.Products) > 0 {
-		err = AddProductsToBundle(req.Products, bundleID)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// update bundle
-func UpdateBundle(req dtos.UpdateBundle) error {
-	exists, err := RecordExists("product_bundles", fetchbundle, req.ID)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return fmt.Errorf("%s", nobundle)
-	}
-	query := "UPDATE product_bundles SET"
-	args := []interface{}{}
-	updates := []string{}
-
-	if req.Name != "" {
-		updates = append(updates, "name = ?")
-		args = append(args, req.Name)
-	}
-	if req.Description != "" {
-		updates = append(updates, "description = ?")
-		args = append(args, req.Description)
-	}
-	if req.Price != 0 {
-		updates = append(updates, "bundle_price = ?")
-		args = append(args, req.Price)
-	}
-	if req.Image != nil {
-		updates = append(updates, "bundle_image = ?")
-		args = append(args, req.Image)
-	}
-	if req.KeepSelling != nil {
-		updates = append(updates, "keep_selling_when_out_of_stock = ?")
-		args = append(args, *req.KeepSelling)
-	}
-	if req.CompareAtPrice != nil {
-		updates = append(updates, "compare_at_price = ?")
-		args = append(args, *req.CompareAtPrice)
-	}
-	if len(updates) == 0 {
-		return nil // Nothing to update
-	}
-
-	query += " " + strings.Join(updates, ", ") + whereBundleID
-	args = append(args, req.ID)
-
-	if _, err := DB.Exec(query, args...); err != nil {
-		return fmt.Errorf("failed to update bundle: %v", err)
-	}
-
-	return nil
-}
-
-// Delete bundle
-func DeleteBundle(bundleID string) error {
-	exists, err := RecordExists("product_bundles", fetchbundle, bundleID)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return fmt.Errorf("%s", nobundle)
-	}
-	query := `DELETE FROM product_bundles WHERE bundle_id = ?`
-	_, err = DB.Exec(query, bundleID)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func AddProductsToBundle(req []dtos.BundleProducts, bundleID string) error {
-	// check if bundle exists
-	exists, err := RecordExists("product_bundles", fetchbundle, bundleID)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return fmt.Errorf("%s", nobundle)
-	}
-
-	checkQuery := `SELECT COUNT(1) FROM bundle_products WHERE bundle_id = ? AND product_id = ?`
-	insertQuery := `INSERT INTO bundle_products (bundle_product_id, bundle_id, product_id, quantity) VALUES (?, ?, ?, ?)`
-
-	for _, product := range req {
-		// Check if this product already exists in the bundle
-		var count int
-		if err := DB.QueryRow(checkQuery, bundleID, product.ProductID).Scan(&count); err != nil {
-			return err
-		}
-
-		if count > 0 {
-			continue // skip if already exists
-		}
-
-		// Generate bundle_product_id
-		bundleProductID, _ := shortid.Generate()
-
-		// Insert product into bundle
-		if _, err := DB.Exec(insertQuery, bundleProductID, bundleID, product.ProductID, product.Quantity); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func RemoveProductsFromBundle(req dtos.AddProductsToBundle, bundleID string) error {
-	exists, err := RecordExists("product_bundles", fetchbundle, bundleID)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return fmt.Errorf("%s", nobundle)
-	}
-	if len(req.ProductIDs) == 0 {
-		return fmt.Errorf("no products provided")
-	}
-
-	deleteQuery := `DELETE FROM bundle_products WHERE bundle_id = ? AND product_id = ?`
-
-	for _, productID := range req.ProductIDs {
-		if _, err := DB.Exec(deleteQuery, bundleID, productID); err != nil {
-			return fmt.Errorf("failed to remove product %s from bundle: %v", productID, err)
-		}
-	}
-
-	return nil
 }
 
 // products reports
@@ -1160,7 +743,7 @@ func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.Subca
 
 	// Count total products for pagination
 	var totalItems int
-	err = DB.QueryRow(`SELECT COUNT(*) FROM products WHERE category_id = ?`, subcategoryID).Scan(&totalItems)
+	err = DB.QueryRow(`SELECT COUNT(*) FROM products WHERE category_id = ? AND product_type = 'single'`, subcategoryID).Scan(&totalItems)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1171,7 +754,7 @@ func FetchSubcategoryProducts(subcategoryID string, page, size int) (*dtos.Subca
 			product_id, name, description, sku, price, category_id, 
 			stock_quantity, search_vector, created_at, last_updated_at, tag, details
 		FROM products
-		WHERE category_id = ?
+		WHERE category_id = ? AND product_type = 'single'
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?`, subcategoryID, size, offset)
 	if err != nil {
@@ -1342,6 +925,7 @@ func getMainCategories(filterCategoryID string, params dtos.SearchParams) ([]dto
                 LEFT JOIN products p ON sub.category_id = p.category_id
                 WHERE sub.parent_category_id = c.category_id
                 AND p.product_id IS NOT NULL
+				AND p.product_type = 'single'
             )`
 		args []interface{}
 	)
@@ -1390,6 +974,7 @@ func getSubcategoriesWithParentID(parentID string) ([]dtos.SubcategoryResponse, 
         LEFT JOIN products p ON c.category_id = p.category_id
         WHERE c.parent_category_id = ?
         AND p.product_id IS NOT NULL
+		AND p.product_type = 'single'
         GROUP BY c.category_id, c.name, c.parent_category_id, c.image, c.description`, parentID)
 	if err != nil {
 		return nil, nil, err
@@ -1428,7 +1013,8 @@ func getProductsForSubcategories(subIDs []string, page, size int, params dtos.Se
 	// Base query
 	baseQuery := fmt.Sprintf(`FROM products p
 		JOIN categories c ON p.category_id = c.category_id
-		WHERE p.category_id IN (?%s)`, placeholders)
+		WHERE p.category_id IN (?%s)
+		AND p.product_type = 'single'`, placeholders)
 
 	args := make([]interface{}, len(subIDs))
 	for i, id := range subIDs {
@@ -1635,7 +1221,7 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 			c.name as category_name, p.tag
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
-		WHERE 1=1
+		WHERE p.product_type = 'single'
 	`
 	var args []interface{}
 	// Apply search query (q parameter) - searches both category name and product name
@@ -1715,7 +1301,7 @@ func buildCountQuerySearch(params dtos.SearchParams) (string, []interface{}) {
 		SELECT COUNT(DISTINCT p.product_id)
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
-		WHERE 1=1
+		WHERE p.product_type = 'single'
 	`
 	var args []interface{}
 	// Apply search query
@@ -1819,14 +1405,6 @@ func getSortClause(sortBy string) string {
 	default:
 		return "p.created_at DESC"
 	}
-}
-
-// Helper to convert sql.NullFloat64 to *float64
-func nullFloat64ToPtr(n sql.NullFloat64) *float64 {
-	if n.Valid {
-		return &n.Float64
-	}
-	return nil
 }
 
 func scanProduct(rows *sql.Rows, isAdmin bool) (dtos.Product, error) {
@@ -2060,6 +1638,7 @@ func getProductByPriceType(priceType string) (*dtos.Product, error) {
 			p.created_at, p.last_updated_at, c.name AS category_name, p.tag
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
+		WHERE p.product_type = 'single'
 		ORDER BY p.price %s
 		LIMIT 1
 	`, orderClause)
