@@ -294,9 +294,9 @@ func SetupRoutes(router *mux.Router) {
 	//warehouses endpoints
 	adminWarehouses := admin.PathPrefix("/warehouses").Subrouter()
 	warehouses := api.PathPrefix("/warehouses").Subrouter()
-	warehouses.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListWarehouses))).Methods("GET")
+	warehouses.HandleFunc("", handlers.ListWarehouses).Methods("GET")
 	adminWarehouses.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateWarehouse))).Methods("POST")
-	warehouses.Handle("/{warehouse_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetWarehouse))).Methods("GET")
+	warehouses.HandleFunc("/{warehouse_id}", handlers.GetWarehouse).Methods("GET")
 	adminWarehouses.Handle("/{warehouse_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateWarehouse))).Methods("PATCH")
 	api.Handle("/admin/warehouses/{warehouse_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteWarehouse))).Methods("DELETE")
 	//
