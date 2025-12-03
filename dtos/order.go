@@ -192,6 +192,7 @@ type CreateOrderPayload struct {
 	OrderItems           []OrderItemPayload `json:"order_items" validate:"required,dive"`
 	DeliveryAddressID    *int64             `json:"location_id,omitempty"`
 	PromoCode            *string            `json:"promo_code,omitempty"`
+	StoreID              *string            `json:"store_id,omitempty"`
 }
 type OrderItemPayload struct {
 	ProductID string `json:"product_id" validate:"required"`
