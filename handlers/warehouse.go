@@ -84,11 +84,6 @@ func ListWarehouses(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse")
-	if !ok {
-		return
-	}
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	cacheKeyWarehouses := fmt.Sprintf("warehouses_%d_size_%d", page, size)
 	cacheKeyPagination := fmt.Sprintf("warehouses_pagination_%d_size_%d", page, size)
@@ -153,10 +148,6 @@ func GetWarehouse(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse"); !ok {
-		return
-	}
 	id := mux.Vars(r)["warehouse_id"]
 	warehouse, err := models.GetWarehouseByID(id)
 	if err != nil {
