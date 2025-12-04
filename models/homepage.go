@@ -271,9 +271,11 @@ func GetCategoriesWithProducts() ([]dtos.CategoryWithProducts, error) {
 		SELECT 
 			c.category_id, c.name, c.parent_category_id, c.description,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, dp.discount, dp.discount_type, ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit
 		FROM categories c
 		LEFT JOIN products p ON c.category_id = p.category_id
+		LEFT JOIN deal_products dp ON p.product_id = dp.product_id
+		LEFT JOIN product_specifications ps ON p.product_id = ps.product_id
 		ORDER BY c.category_id
 	`)
 	if err != nil {
@@ -312,6 +314,11 @@ func GetCategoriesWithProducts() ([]dtos.CategoryWithProducts, error) {
 				return nil, err
 			}
 			product.Warranty = &warranty
+			tax, err := fetchProductTax(product.ID)
+			if err != nil {
+				return nil, err
+			}
+			product.Tax = &tax
 			categoryMap[catID].Products = append(categoryMap[catID].Products, product)
 		}
 	}
@@ -333,7 +340,7 @@ func scanCategoryProductRow(rows *sql.Rows) (string, string, string, *string, dt
 	err := rows.Scan(
 		&catID, &catName, &parentCatID, &catDesc,
 		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
-		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
+		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit,
 	)
 	return catID, catName, catDesc, parentCatID, p, err
 }
@@ -358,6 +365,22 @@ func fetchProductImages(productID string) ([]dtos.Image, error) {
 		images = append(images, img)
 	}
 	return images, nil
+}
+
+func fetchProductTax(productID string) (dtos.ProductTax, error) {
+	query := `SELECT c.charge_id, c.charge_name, c.charge_value
+		FROM product_charges pc
+		JOIN charges c ON pc.charge_id = c.charge_id
+		WHERE pc.product_id = ? LIMIT 1`
+	var tax dtos.ProductTax
+	err := DB.QueryRow(query, productID).Scan(&tax.ID, &tax.Name, &tax.Value)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return dtos.ProductTax{}, nil
+		}
+		return dtos.ProductTax{}, err
+	}
+	return tax, nil
 }
 
 func FetchProductWarranties(productID string) (dtos.ProductWarranty, error) {
@@ -1047,9 +1070,11 @@ func GetFeaturedProducts() ([]dtos.Product, error) {
 	rows, err := DB.Query(`
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, dp.discount, dp.discount_type, ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit
 		FROM featured_products fp
 		JOIN products p ON fp.product_id = p.product_id
+		LEFT JOIN deal_products dp ON p.product_id = dp.product_id
+		LEFT JOIN product_specifications ps ON p.product_id = ps.product_id
 		ORDER BY fp.created_at DESC
 	`)
 	if err != nil {
@@ -1076,6 +1101,11 @@ func GetFeaturedProducts() ([]dtos.Product, error) {
 			return nil, err
 		}
 		product.Warranty = &warranty
+		tax, err := fetchProductTax(product.ID)
+		if err != nil {
+			return nil, err
+		}
+		product.Tax = &tax
 		featured = append(featured, product)
 	}
 
@@ -1085,7 +1115,7 @@ func scanFeaturedProductRow(rows *sql.Rows) (dtos.Product, error) {
 	var p dtos.Product
 	err := rows.Scan(
 		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
-		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
+		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit,
 	)
 	return p, err
 }

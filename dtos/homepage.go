@@ -170,7 +170,21 @@ type Product struct {
 	InWishlist       *bool             `json:"liked_by_user,omitempty"`
 	Details          []string          `json:"details,omitempty"`
 	Features         []ProductFeature  `json:"features,omitempty"`
+	Weight           *float64          `json:"weight"`
+	WeightLimit      *float64          `json:"weight_limit"`
+	Dimensions       *string           `json:"dimensions"`
+	Manufacturer     *string           `json:"manufacturer"`
+	Discount         *float64          `json:"discount"`
+	DiscountType     *string           `json:"discount_type"`
+	Tax              *ProductTax       `json:"tax"`
 }
+
+type ProductTax struct {
+	ID    string   `json:"tax_id"`
+	Name  *string  `json:"tax_name"`
+	Value *float64 `json:"tax_value"`
+}
+
 type DealProduct struct {
 	ID               string            `json:"product_id"`
 	Name             string            `json:"name"`
@@ -192,6 +206,11 @@ type DealProduct struct {
 	Warranty         *ProductWarranty  `json:"warranty"`
 	Discount         *float64          `json:"discount,omitempty"`
 	DiscountType     *string           `json:"discount_type,omitempty"`
+	Weight           *float64          `json:"weight"`
+	WeightLimit      *float64          `json:"weight_limit"`
+	Dimensions       *string           `json:"dimensions"`
+	Manufacturer     *string           `json:"manufacturer"`
+	Tax              *ProductTax       `json:"tax"`
 }
 type FeaturedProduct struct {
 	ID        int64     `json:"id"`

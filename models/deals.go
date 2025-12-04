@@ -176,10 +176,11 @@ func GetProductsByDealID(dealID string) ([]dtos.DealProduct, error) {
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at,
-			c.name AS category_name, p.tag, dp.discount, dp.discount_type
+			c.name AS category_name, p.tag, dp.discount, dp.discount_type, ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit
 		FROM deal_products dp
 		INNER JOIN products p ON p.product_id = dp.product_id
 		LEFT JOIN categories c ON p.category_id = c.category_id
+		LEFT JOIN product_specifications ps ON p.product_id = ps.product_id
 		WHERE dp.deal_id = ?
 	`
 
@@ -193,10 +194,11 @@ func GetProductsByDealID(dealID string) ([]dtos.DealProduct, error) {
 
 	for rows.Next() {
 		var p dtos.DealProduct
+
 		err := rows.Scan(
 			&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
 			&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
-			&p.CategoryName, &p.Tag, &p.Discount, &p.DiscountType,
+			&p.CategoryName, &p.Tag, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit,
 		)
 		if err != nil {
 			return nil, err
@@ -219,7 +221,11 @@ func GetProductsByDealID(dealID string) ([]dtos.DealProduct, error) {
 			return nil, err
 		}
 		p.ProductVariants = variants
-
+		tax, err := fetchProductTax(p.ID)
+		if err != nil {
+			return nil, err
+		}
+		p.Tax = &tax
 		products = append(products, p)
 	}
 
@@ -238,10 +244,11 @@ func GetProductsByDealIDWithPagination(dealID string, page, limit int) ([]dtos.D
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at,
-			c.name AS category_name, p.tag, dp.discount, dp.discount_type
+			c.name AS category_name, p.tag, dp.discount, dp.discount_type, ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit
 		FROM deal_products dp
 		INNER JOIN products p ON p.product_id = dp.product_id
 		LEFT JOIN categories c ON p.category_id = c.category_id
+		LEFT JOIN product_specifications ps ON p.product_id = ps.product_id
 		WHERE dp.deal_id = ?
 		LIMIT ? OFFSET ?
 	`
@@ -259,7 +266,7 @@ func GetProductsByDealIDWithPagination(dealID string, page, limit int) ([]dtos.D
 		err := rows.Scan(
 			&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
 			&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
-			&p.CategoryName, &p.Tag, &p.Discount, &p.DiscountType,
+			&p.CategoryName, &p.Tag, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit,
 		)
 		if err != nil {
 			return nil, nil, err
@@ -282,7 +289,11 @@ func GetProductsByDealIDWithPagination(dealID string, page, limit int) ([]dtos.D
 			return nil, nil, err
 		}
 		p.ProductVariants = variants
-
+		tax, err := fetchProductTax(p.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		p.Tax = &tax
 		products = append(products, p)
 	}
 

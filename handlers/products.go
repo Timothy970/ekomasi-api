@@ -5,7 +5,6 @@ import (
 	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -109,31 +108,19 @@ func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
 	productID := mux.Vars(r)["product_id"]
 	product, err := models.GetProductByID(productID)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: productWithID + productID + " not found",
-					Code:        http.StatusNotFound,
-				},
-				Message:   "Product not found",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-		} else {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: "Error fetch product with ID " + productID,
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   "Error fetch product",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-		}
+		log.Printf("error fetching product with ID %s: %v", productID, err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Error fetching product with ID " + productID,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   "Error fetching product",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+
 		return
 	}
 	//check if token is passed, if so check if products belong to the users wishlist
