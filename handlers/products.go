@@ -307,7 +307,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	//first hold on to existing video links
+	//first hold on to existing media
 	existingMedia, err := models.GetProductImages(productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1794,10 +1794,10 @@ func handleProductsVariants(req dtos.ProductSpecification, state string) error {
 		"size":     req.Size,
 	}
 	// If updating, first hold existing variants
-	var variantIDs []string
+	var variantIDsExisting []string
 	var err error
 	if state == "update" {
-		variantIDs, err = models.HoldProductVariants(req.ProductID)
+		variantIDsExisting, err = models.HoldProductVariants(req.ProductID)
 		if err != nil {
 			return err
 		}
@@ -1812,7 +1812,7 @@ func handleProductsVariants(req dtos.ProductSpecification, state string) error {
 	}
 	// If updating, remove held variants
 	if state == "update" {
-		for _, variantID := range variantIDs {
+		for _, variantID := range variantIDsExisting {
 			err := models.RemoveHeldProductVariants(variantID)
 			if err != nil {
 				return err
@@ -1878,7 +1878,7 @@ func attachProductDiscount(req dtos.ProductSpecification, state string) error {
 		}
 		err = models.AddPromotionToProduct(data)
 		if err != nil {
-			return nil
+			return err
 		}
 		//if updating remove held promotions
 		if state == "update" {

@@ -116,13 +116,8 @@ func GetProductWarrantyIDs(productID string) ([]string, error) {
 	return warrantyIDs, nil
 }
 
-func RemoveProductWarranty(productID string) error {
-	//check if product exists
-	err := IsProductThere(productID)
-	if err != nil {
-		return err
-	}
-	query := `DELETE FROM product_warranties WHERE product_id = ?`
-	_, err = DB.Exec(query, productID)
+func RemoveProductWarranty(warrantyID string) error {
+	query := `DELETE FROM product_warranties WHERE warranty_id = ?`
+	_, err := DB.Exec(query, warrantyID)
 	return err
 }
