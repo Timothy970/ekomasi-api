@@ -11,9 +11,11 @@ func GetProductThroughScanning(sku string) (*dtos.Product, error) {
 	query := `
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag, dp.discount, dp.discount_type, ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
+		LEFT JOIN deal_products dp ON p.product_id = dp.product_id
+		LEFT JOIN product_specifications ps ON p.product_id = ps.product_id
 		WHERE p.sku = ?
 	`
 
@@ -21,7 +23,7 @@ func GetProductThroughScanning(sku string) (*dtos.Product, error) {
 	err := DB.QueryRow(query, sku).Scan(
 		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
 		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
-		&p.CategoryName, &p.Tag,
+		&p.CategoryName, &p.Tag, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit,
 	)
 	if err != nil {
 		return nil, err

@@ -436,6 +436,11 @@ func GetProductsByCategories(categories []string, page, size int) ([]dtos.Produc
 			return nil, dtos.PaginationMeta{}, err
 		}
 		p.ProductVariants = variants
+		tax, err := fetchProductTax(p.ID)
+		if err != nil {
+			return nil, dtos.PaginationMeta{}, err
+		}
+		p.Tax = &tax
 		products = append(products, p)
 	}
 

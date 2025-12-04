@@ -175,9 +175,16 @@ type CategoryProduct struct {
 	ProductVariants []ProductVariants `json:"products_variants"`
 	Warranty        *ProductWarranty  `json:"warranty"`
 	//only visible when user is authenticated
-	InWishlist *bool            `json:"liked_by_user,omitempty"`
-	Details    []string         `json:"details,omitempty"`
-	Features   []ProductFeature `json:"features,omitempty"`
+	InWishlist   *bool            `json:"liked_by_user,omitempty"`
+	Details      []string         `json:"details,omitempty"`
+	Features     []ProductFeature `json:"features,omitempty"`
+	Discount     *float64         `json:"discount"`
+	DiscountType *string          `json:"discount_type"`
+	Weight       *string          `json:"weight"`
+	WeightLimit  *string          `json:"weight_limit"`
+	Dimensions   *string          `json:"dimensions"`
+	Manufacturer *string          `json:"manufacturer"`
+	Tax          *ProductTax      `json:"tax"`
 }
 
 // SearchParams represents the search parameters
