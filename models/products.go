@@ -1068,10 +1068,7 @@ func getProductsForSubcategories(subIDs []string, page, size int, params dtos.Se
 	offset := (page - 1) * size
 	placeholders := strings.Repeat(",?", len(subIDs)-1)
 
-	// Base query
-	baseQuery := fmt.Sprintf(`FROM products p
-		JOIN categories c ON p.category_id = c.category_id
-		WHERE p.category_id IN (?%s)
+	baseWhere := fmt.Sprintf(`WHERE p.category_id IN (?%s)
 		AND p.product_type = 'single'`, placeholders)
 
 	args := make([]interface{}, len(subIDs))
@@ -1082,16 +1079,17 @@ func getProductsForSubcategories(subIDs []string, page, size int, params dtos.Se
 	// Apply filters
 	filterQuery, filterArgs := buildProductFilters(params)
 	args = append(args, filterArgs...)
-	whereClause := baseQuery + filterQuery
+	whereClause := baseWhere + filterQuery
 
-	// --- Count total items ---
-	countQuery := "SELECT COUNT(*) " + whereClause
+	joinClause := `FROM products p
+		JOIN categories c ON p.category_id = c.category_id`
+
+	countQuery := "SELECT COUNT(*) " + joinClause + " " + whereClause
 	var totalItems int
 	if err := DB.QueryRow(countQuery, args...).Scan(&totalItems); err != nil {
 		return nil, nil, err
 	}
 
-	// --- Fetch products ---
 	sortClause := getSortClause(params.SortBy)
 	dataQuery := fmt.Sprintf(`
 		SELECT 
