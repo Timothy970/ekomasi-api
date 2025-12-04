@@ -132,33 +132,7 @@ func AddProductVariant(variantID string, req dtos.ProductVariantRequest) error {
 	}
 
 	if exists {
-		// Update only if at least one field is provided
-		if req.StockQuantity == nil && additionalPrice == 0.0 {
-			// Nothing to update
-			return nil
-		}
-
-		query := `UPDATE product_variants SET `
-		args := []interface{}{}
-
-		if req.StockQuantity != nil {
-			query += "stock_quantity = ?, "
-			args = append(args, *req.StockQuantity)
-		}
-		if req.AdditionalPrice != nil {
-			query += "additional_price = ?, "
-			args = append(args, *req.AdditionalPrice)
-		}
-
-		// remove trailing comma and add WHERE clause
-		query = strings.TrimSuffix(query, ", ")
-		query += " WHERE variant_id = ? AND product_id = ?"
-		args = append(args, variantID, req.ProductID)
-
-		_, err = DB.Exec(query, args...)
-		if err != nil {
-			return err
-		}
+		return nil
 
 	} else {
 		// Insert new record
@@ -169,6 +143,32 @@ func AddProductVariant(variantID string, req dtos.ProductVariantRequest) error {
 		)
 	}
 
+	return err
+}
+
+func HoldProductVariants(productID string) ([]string, error) {
+	rows, err := DB.Query(`
+		SELECT variant_id FROM product_variants
+		WHERE product_id = ?`, productID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var variantIDs []string
+	for rows.Next() {
+		var variantID string
+		err := rows.Scan(&variantID)
+		if err != nil {
+			return nil, err
+		}
+		variantIDs = append(variantIDs, variantID)
+	}
+	return variantIDs, nil
+}
+
+func RemoveHeldProductVariants(variantID string) error {
+	_, err := DB.Exec(`DELETE FROM product_variants WHERE variant_id = ?`, variantID)
 	return err
 }
 

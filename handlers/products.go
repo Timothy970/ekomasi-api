@@ -267,6 +267,157 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary,
 	})
 }
+func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure admin access
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	if !ok {
+		return
+	}
+	productID, isPrimary, videoLink, err := parseUploadRequest(r)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to parse multipart form" + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	//first hold on to existing media
+	existingMedia, err := models.GetProductImages(productID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to fetch existing video links for product ID " + productID,
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	var uploadedResults []map[string]string
+
+	// handle optional video link
+	if videoLink != "" {
+		if err := models.InsertProductImage(productID, videoLink, "video", isPrimary); err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Failed to insert video link for product ID " + productID,
+					Code:        http.StatusBadRequest,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+	}
+
+	fileTypes := []string{"gallery", "thumbnail", "video"}
+	//check that if images uploaded contain the file types
+	for _, fileType := range fileTypes {
+		results, err := handleFileUploads(r, productID, fileType, isPrimary)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Failed to upload " + fileType + " for product ID " + productID,
+					Code:        http.StatusInternalServerError,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+		uploadedResults = append(uploadedResults, results...)
+	}
+
+	if len(uploadedResults) == 0 {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "No files uploaded for product ID " + productID,
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "No files were received. Please upload at least one file using the keys: 'gallery', 'thumbnail', or 'video'.",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	clearProductCache()
+	//delete media
+	for _, media := range existingMedia {
+		err := models.DeleteProductImage(media.ImageID)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Products",
+					Description: "Failed to delete existing media for product ID " + productID,
+					Code:        http.StatusInternalServerError,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product media for product with ID " + productID + " uploaded successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   uploadedResults,
+		Message:   "Product media uploaded successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
 func handleFileUploads(r *http.Request, productID, fileType string, isPrimary bool) ([]map[string]string, error) {
 	formFiles := r.MultipartForm.File[fileType]
 	if len(formFiles) == 0 {
@@ -1375,14 +1526,13 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
+	state := "add"
 	req, ok := DecodeRequestBody[dtos.ProductSpecification](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
 	//handle products specifications
-	err := handleProductSpecs(*req)
-	log.Printf("handleProductSpecs ***** %s", err)
+	err := handleProductSpecs(*req, state)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1398,7 +1548,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//handle products variants
-	err = handleProductsVariants(*req)
+	err = handleProductsVariants(*req, state)
 	log.Printf("handleProductsVariants ***** %s", err)
 
 	if err != nil {
@@ -1417,7 +1567,6 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	}
 	//handle product warranty
 	err = handleProductsWarranty(*req)
-	log.Printf("handleProductsWarranty ***** %s", err)
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1435,7 +1584,6 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	}
 	//add tax to a product
 	err = attachProductTax(*req)
-	log.Printf("attachProductTax ***** %s", err)
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1452,7 +1600,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// add discount to a product
-	err = attachProductDiscount(*req)
+	err = attachProductDiscount(*req, state)
 	log.Printf("attachProductDiscount ***** %s", err)
 
 	if err != nil {
@@ -1484,125 +1632,121 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
-// 	start := time.Now()
-// 	// Read and restore body FIRST
-// 	requestSummary := utils.GetRequestSummary(r)
-// 	// Ensure the user is an admin
-// 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
-// 	if !ok {
-// 		return
-// 	}
+func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
+	state := "update"
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure the user is an admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	if !ok {
+		return
+	}
 
-// 	req, ok := DecodeRequestBody[dtos.ProductSpecification](r, w, requestSummary, start)
-// 	if !ok {
-// 		return
-// 	}
-// 	//handle products specifications
-// 	err := handleProductSpecs(*req)
-// 	log.Printf("handleProductSpecs ***** %s", err)
-// 	if err != nil {
-// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-// 			CollectiveInfo: utils.CollectiveInfo{
-// 				Module:      "Products",
-// 				Description: "Failed to add product specifications: " + err.Error(),
-// 				Code:        http.StatusInternalServerError,
-// 			},
-// 			Message:   err.Error(),
-// 			TimeTaken: time.Since(start),
-// 			Function:  utils.GetCurrentFuncName(),
-// 			Request:   r,
-// 			RawBody:   requestSummary})
-// 		return
-// 	}
-// 	//handle products variants
-// 	err = handleProductsVariants(*req)
-// 	log.Printf("handleProductsVariants ***** %s", err)
+	req, ok := DecodeRequestBody[dtos.ProductSpecification](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	//handle products specifications
+	err := handleProductSpecs(*req, state)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to update product specifications: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//handle products variants
+	err = handleProductsVariants(*req, state)
 
-// 	if err != nil {
-// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-// 			CollectiveInfo: utils.CollectiveInfo{
-// 				Module:      "Products",
-// 				Description: "Failed to add product variants: " + err.Error(),
-// 				Code:        http.StatusInternalServerError,
-// 			},
-// 			Message:   err.Error(),
-// 			TimeTaken: time.Since(start),
-// 			Function:  utils.GetCurrentFuncName(),
-// 			Request:   r,
-// 			RawBody:   requestSummary})
-// 		return
-// 	}
-// 	//handle product warranty
-// 	err = handleProductsWarranty(*req)
-// 	log.Printf("handleProductsWarranty ***** %s", err)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to update product variants: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//handle product warranty
+	err = handleProductsWarranty(*req)
 
-// 	if err != nil {
-// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-// 			CollectiveInfo: utils.CollectiveInfo{
-// 				Module:      "Products",
-// 				Description: "Failed to add product warranty: " + err.Error(),
-// 				Code:        http.StatusInternalServerError,
-// 			},
-// 			Message:   err.Error(),
-// 			TimeTaken: time.Since(start),
-// 			Function:  utils.GetCurrentFuncName(),
-// 			Request:   r,
-// 			RawBody:   requestSummary})
-// 		return
-// 	}
-// 	//add tax to a product
-// 	err = attachProductTax(*req)
-// 	log.Printf("attachProductTax ***** %s", err)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to update product warranty: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//add tax to a product
+	err = attachProductTax(*req)
 
-// 	if err != nil {
-// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-// 			CollectiveInfo: utils.CollectiveInfo{
-// 				Module:      "Products",
-// 				Description: "Failed to add product tax: " + err.Error(),
-// 				Code:        http.StatusInternalServerError,
-// 			},
-// 			Message:   err.Error(),
-// 			TimeTaken: time.Since(start),
-// 			Function:  utils.GetCurrentFuncName(),
-// 			Request:   r,
-// 			RawBody:   requestSummary})
-// 		return
-// 	}
-// 	// add discount to a product
-// 	err = attachProductDiscount(*req)
-// 	log.Printf("attachProductDiscount ***** %s", err)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to update product tax: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	// add discount to a product
+	err = attachProductDiscount(*req, state)
 
-// 	if err != nil {
-// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-// 			CollectiveInfo: utils.CollectiveInfo{
-// 				Module:      "Products",
-// 				Description: "Failed to add product discount: " + err.Error(),
-// 				Code:        http.StatusInternalServerError,
-// 			},
-// 			Message:   err.Error(),
-// 			TimeTaken: time.Since(start),
-// 			Function:  utils.GetCurrentFuncName(),
-// 			Request:   r,
-// 			RawBody:   requestSummary})
-// 		return
-// 	}
-// 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-// 		CollectiveInfo: utils.CollectiveInfo{
-// 			Module:      "Products",
-// 			Description: "Product specifications added successfully",
-// 			Code:        http.StatusOK,
-// 		},
-// 		Payload:   nil,
-// 		Message:   "Product specifications added successfully",
-// 		TimeTaken: time.Since(start),
-// 		Function:  utils.GetCurrentFuncName(),
-// 		Request:   r,
-// 		RawBody:   requestSummary,
-// 	})
-// }
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to update product discount: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product specifications updated successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "Product specifications updated successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
 
-func handleProductSpecs(req dtos.ProductSpecification) error {
+func handleProductSpecs(req dtos.ProductSpecification, state string) error {
 	data := dtos.ProductSpecs{
 		ProductID:    req.ProductID,
 		Weight:       req.Weight,
@@ -1610,10 +1754,32 @@ func handleProductSpecs(req dtos.ProductSpecification) error {
 		Dimensions:   req.Dimensions,
 		Manufacturer: req.Manufacturer,
 	}
-	err := models.InsertProductSpecs(data)
-	return err
+	//if updating first hold existing specs
+	specs := []string{}
+	var err error
+	if state == "update" {
+		specs, err = models.HoldProductSpecs(req.ProductID)
+		if err != nil {
+			return err
+		}
+	}
+	err = models.InsertProductSpecs(data)
+	if err != nil {
+		return err
+	}
+	//if updating remove held specs
+	if state == "update" {
+		for _, specID := range specs {
+			err := models.RemoveHeldProductSpecs(specID)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
-func handleProductsVariants(req dtos.ProductSpecification) error {
+func handleProductsVariants(req dtos.ProductSpecification, state string) error {
 	data := dtos.ProductVariantRequest{
 		ProductID: req.ProductID,
 	}
@@ -1627,7 +1793,15 @@ func handleProductsVariants(req dtos.ProductSpecification) error {
 		"color":    req.Color,
 		"size":     req.Size,
 	}
-
+	// If updating, first hold existing variants
+	var variantIDsExisting []string
+	var err error
+	if state == "update" {
+		variantIDsExisting, err = models.HoldProductVariants(req.ProductID)
+		if err != nil {
+			return err
+		}
+	}
 	// Loop through each variant group
 	for variantType, variantIDs := range variantGroups {
 		for _, id := range variantIDs {
@@ -1636,9 +1810,18 @@ func handleProductsVariants(req dtos.ProductSpecification) error {
 			}
 		}
 	}
-
+	// If updating, remove held variants
+	if state == "update" {
+		for _, variantID := range variantIDsExisting {
+			err := models.RemoveHeldProductVariants(variantID)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
+
 func toSlice(value string) []string {
 	if value == "" {
 		return nil
@@ -1665,6 +1848,7 @@ func handleProductsWarranty(req dtos.ProductSpecification) error {
 		ManufacturingDate: req.ManufacturerDate,
 		ExpiryDate:        req.ExpiryDate,
 	}
+
 	err := models.AddProductWarranties(data)
 	return err
 }
@@ -1677,15 +1861,33 @@ func attachProductTax(req dtos.ProductSpecification) error {
 	err := models.AddChargeToProduct(data)
 	return err
 }
-func attachProductDiscount(req dtos.ProductSpecification) error {
+func attachProductDiscount(req dtos.ProductSpecification, state string) error {
 	data := dtos.AddPromotionToProductRequest{
 		ProductID:       req.ProductID,
 		PromotionTypeID: req.DiscountType,
 	}
 	if data.PromotionTypeID != "" {
-		err := models.AddPromotionToProduct(data)
+		//if updating first hold existing promotion
+		var promotionIDs []string
+		var err error
+		if state == "update" {
+			promotionIDs, err = models.HoldProductPromotions(req.ProductID)
+			if err != nil {
+				return err
+			}
+		}
+		err = models.AddPromotionToProduct(data)
 		if err != nil {
-			return nil
+			return err
+		}
+		//if updating remove held promotions
+		if state == "update" {
+			for _, promoID := range promotionIDs {
+				err := models.RemoveHeldProductPromotions(promoID)
+				if err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return nil
