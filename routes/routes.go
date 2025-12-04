@@ -7,13 +7,13 @@ import (
 
 	"adenzo_backend/handlers"
 	"adenzo_backend/middleware"
-	"adenzo_backend/utils"
 )
 
 const vouchersPath = "/vouchers"
 const productPath = "/product"
 
 func SetupRoutes(router *mux.Router) {
+
 	// Authentication routes
 	//handles userDecodeTokenHandler
 	api := router.PathPrefix("/api/").Subrouter()
@@ -71,6 +71,7 @@ func SetupRoutes(router *mux.Router) {
 	products.HandleFunc("/related", handlers.GetRelatedProductsHandler).Methods("GET")
 	product.HandleFunc("/{product_id}", handlers.GetProductByIDHandler).Methods("GET")
 	product.Handle("/upload-images", middleware.AuthenticateToken(http.HandlerFunc(handlers.UploadProductImageHandler))).Methods("POST")
+	product.Handle("/upload-images", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateProductImageHandler))).Methods("PATCH")
 	product.Handle("/update/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateBundleHandler))).Methods("PATCH")
 	product.Handle("/delete/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBundleHandler))).Methods("DELETE")
 	product.Handle("/add-products/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductsToBundleHandler))).Methods("POST")
@@ -118,7 +119,7 @@ func SetupRoutes(router *mux.Router) {
 	admin.Handle("/products", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateProductHandler))).Methods("POST")
 	//add product specifications
 	admin.Handle("/products/specifications", middleware.AuthenticateToken(http.HandlerFunc(handlers.HandleProductSpecifications))).Methods("POST")
-	// admin.Handle("/products/specifications", middleware.AuthenticateToken(http.HandlerFunc(handlers.HandleProductSpecificationsUpdate))).Methods("PATCH")
+	admin.Handle("/products/specifications", middleware.AuthenticateToken(http.HandlerFunc(handlers.HandleProductSpecificationsUpdate))).Methods("PATCH")
 	//Get product variants
 	products.HandleFunc("/variants-products", handlers.GetVariantProductsHandler).Methods("GET")
 	//Get variants by ID
@@ -377,10 +378,6 @@ func SetupRoutes(router *mux.Router) {
 	// # Export journal entries for January 2025 for account 123
 	// GET /journal-entries/export/csv?start_date=2025-01-01&end_date=2025-01-31&account_id=123
 	// Reports
-
-	//websocket
-	websocket := api.PathPrefix("/ws").Subrouter()
-	websocket.HandleFunc("", utils.HandleWebSocket)
 
 	// Telemetry example routes
 	api.HandleFunc("/telemetry/example", handlers.ExampleHandler).Methods("GET")
