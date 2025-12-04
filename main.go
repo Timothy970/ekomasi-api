@@ -29,7 +29,8 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 	"github.com/uptrace/uptrace-go/uptrace"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	// "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -151,17 +152,20 @@ func main() {
 	dtos.Redis = redisClient
 	// Initialize router with OpenTelemetry middleware
 	router := mux.NewRouter()
-
+	// WebSocket: No middleware
+	router.HandleFunc("/ws", utils.HandleWebSocket)
 	// Add OpenTelemetry middleware for HTTP requests
-	router.Use(otelmux.Middleware(adenzo))
+	// Create a subrouter for all other routes that need OpenTelemetry
+	apiRouter := router.PathPrefix("/").Subrouter()
+	apiRouter.Use(otelmux.Middleware(adenzo))
 
 	// Add custom telemetry middleware
-	router.Use(middleware.TelemetryMiddleware)
-	router.Use(middleware.BusinessMetricsMiddleware)
-	router.Use(middleware.ErrorHandlingMiddleware)
+	apiRouter.Use(middleware.TelemetryMiddleware)
+	apiRouter.Use(middleware.BusinessMetricsMiddleware)
+	apiRouter.Use(middleware.ErrorHandlingMiddleware)
 
 	// Swagger route
-	router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
+	apiRouter.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
 
 	// Run cart reminders every 3 days (check daily at midnight, or use cron if needed)
 	// handlers.StartCartReminderScheduler(24*time.Hour, 3)
@@ -174,12 +178,12 @@ func main() {
 	// handlers.StartWishlistReminderScheduler(24*time.Hour, 7)
 
 	//order notifications scheduler that runs every 5 minutes
-	handlers.StartOrderNotificationScheduler(5 * time.Minute)
+	// handlers.StartOrderNotificationScheduler(5 * time.Minute)
 	//low stock email scheduler that runs every day in the morning at 7am
 	handlers.StartLowStockEmailScheduler(24*time.Hour, 7)
 
 	// Define routes
-	routes.SetupRoutes(router)
+	routes.SetupRoutes(apiRouter)
 
 	// Static file serving
 	staticDir := "/static/"
@@ -195,18 +199,18 @@ func main() {
 	}
 	// CORS middleware
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:3001", "*"}, // Specify exact origins
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH"},               // Allow specific HTTP methods
-		AllowedHeaders:   []string{"Content-Type", "Authorization"},                       // Allow specific headers
+		AllowedOrigins:   []string{"http://localhost:8008/", "*"},                      // Specify exact origins
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"}, // Allow specific HTTP methods
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},                    // Allow specific headers
 		AllowCredentials: true,
 	}).Handler(router)
 
 	// Wrap with OpenTelemetry HTTP instrumentation
-	instrumentedHandler := otelhttp.NewHandler(corsHandler, adenzo)
+	// instrumentedHandler := otelhttp.NewHandler(corsHandler, adenzo)
 
 	log.Printf("Server started on port %s", port)
 	fmt.Printf("Server listening on port %s...\n", port)
-	log.Fatal(http.ListenAndServe(":"+port, instrumentedHandler))
+	log.Fatal(http.ListenAndServe(":"+port, corsHandler))
 }
 
 // Function to initialize a database connection with OpenTelemetry instrumentation
