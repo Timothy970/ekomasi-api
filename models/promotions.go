@@ -387,7 +387,7 @@ func AddPromotionToProduct(req dtos.AddPromotionToProductRequest) error {
 		return err
 	}
 	if exists {
-		return errors.New("promotion already exists for this product")
+		return nil
 	}
 	productDiscountID, _ := shortid.Generate()
 	// Insert the new association
@@ -396,4 +396,26 @@ func AddPromotionToProduct(req dtos.AddPromotionToProductRequest) error {
 		VALUES (?, ?,?)`, productDiscountID, req.ProductID, req.PromotionTypeID,
 	)
 	return err
+}
+
+func RemoveHeldProductPromotions(productDiscountID string) error {
+	_, err := DB.Exec(`DELETE FROM product_discounts WHERE product_discount_id = ?`, productDiscountID)
+	return err
+}
+
+func HoldProductPromotions(productID string) ([]string, error) {
+	rows, err := DB.Query(`SELECT product_discount_id FROM product_discounts WHERE product_id = ?`, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var heldPromotions []string
+	for rows.Next() {
+		var pdID string
+		if err := rows.Scan(&pdID); err != nil {
+			return nil, err
+		}
+		heldPromotions = append(heldPromotions, pdID)
+	}
+	return heldPromotions, nil
 }

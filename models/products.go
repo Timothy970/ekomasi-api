@@ -484,6 +484,32 @@ func InsertProductImage(productID, imageURL, fileType string, isPrimary bool) er
 	_, err := DB.Exec(query, imageID, productID, imageURL, isPrimary, fileType)
 	return err
 }
+
+func DeleteProductImage(imageID string) error {
+	_, err := DB.Exec("DELETE FROM product_images WHERE image_id = ?", imageID)
+	return err
+}
+
+func GetProductImages(productID string) ([]dtos.Image, error) {
+	query := `SELECT image_id, product_id, url, is_primary, type FROM product_images WHERE product_id = ?`
+	rows, err := DB.Query(query, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var images []dtos.Image
+	for rows.Next() {
+		var img dtos.Image
+		var productID string
+		err := rows.Scan(&img.ImageID, &productID, &img.URL, &img.IsPrimary, &img.Type)
+		if err != nil {
+			return nil, err
+		}
+		images = append(images, img)
+	}
+	return images, nil
+}
 func GetRelatedProducts(categoryID, excludeProductID string, limit, page int) ([]dtos.Product, *dtos.PaginationMeta, error) {
 	// Build query to get related products from the same category, excluding the specified product
 	query, args := buildRelatedProductsQuery(categoryID, excludeProductID, limit, page)
@@ -1793,4 +1819,31 @@ func IsProductInUserWishlist(userID, productID string) (bool, error) {
 	}
 
 	return exists, nil
+}
+
+func RemoveHeldProductSpecs(specID string) error {
+	_, err := DB.Exec(`DELETE FROM product_specifications WHERE specifications_id = ?`, specID)
+	return err
+}
+
+func HoldProductSpecs(productID string) ([]string, error) {
+	rows, err := DB.Query(`SELECT specifications_id FROM product_specifications WHERE product_id = ?`, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var specIDs []string
+	for rows.Next() {
+		var specID string
+		if err := rows.Scan(&specID); err != nil {
+			return nil, err
+		}
+		specIDs = append(specIDs, specID)
+	}
+	return specIDs, nil
+}
+
+func RemoveAllProductVariants(productID string) error {
+	_, err := DB.Exec(`DELETE FROM product_variants WHERE product_id = ?`, productID)
+	return err
 }

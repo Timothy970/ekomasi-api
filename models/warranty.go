@@ -75,7 +75,54 @@ func AddProductWarranties(pw dtos.AddProductWarrantiesRequest) error {
 		return err
 	}
 	warrantyID, _ := shortid.Generate()
+	//check if the product already has a warranty/warranties
+	// if there are there any, remove them first
+	var warrantyIDS []string
+	warrantyIDS, err = GetProductWarrantyIDs(pw.ProductID)
+	if err != nil {
+		return err
+	}
 	query := `INSERT INTO product_warranties (warranty_id, product_id, warranty_type_id, warranty_period, manufacturing_date, expiry_date) VALUES (?, ?, ?, ?, ?, ?)`
 	_, err = DB.Exec(query, warrantyID, pw.ProductID, pw.WarrantyTypeID, pw.WarrantyPeriod, pw.ManufacturingDate, pw.ExpiryDate)
+	if err != nil {
+		return err
+	}
+	//if there are existing warranties, remove them
+	for _, id := range warrantyIDS {
+		err = RemoveProductWarranty(id)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func GetProductWarrantyIDs(productID string) ([]string, error) {
+	query := `SELECT warranty_id FROM product_warranties WHERE product_id = ?`
+	rows, err := DB.Query(query, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var warrantyIDs []string
+	for rows.Next() {
+		var id string
+		err := rows.Scan(&id)
+		if err != nil {
+			return nil, err
+		}
+		warrantyIDs = append(warrantyIDs, id)
+	}
+	return warrantyIDs, nil
+}
+
+func RemoveProductWarranty(productID string) error {
+	//check if product exists
+	err := IsProductThere(productID)
+	if err != nil {
+		return err
+	}
+	query := `DELETE FROM product_warranties WHERE product_id = ?`
+	_, err = DB.Exec(query, productID)
 	return err
 }
