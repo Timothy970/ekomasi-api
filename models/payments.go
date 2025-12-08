@@ -49,12 +49,12 @@ func StoreStkResponse(response map[string]interface{}, req dtos.MpesaRequest) er
 		return nil
 	}
 }
-func UpdateStkResponse(stk dtos.STKCallbackRequest, status string) (string, string, string, error) {
+func UpdateStkResponse(checkoutRequestID string, status string) (string, string, string, error) {
 	// 1. Update status
 	_, err := DB.Exec(`
 		UPDATE stk_push_responses SET status = ?
-		WHERE checkout_request_id = ? AND merchant_request_id = ?
-	`, status, stk.Body.StkCallback.CheckoutRequestID, stk.Body.StkCallback.MerchantRequestID)
+		WHERE checkout_request_id = ?
+	`, status, checkoutRequestID)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to update status: %w", err)
 	}
@@ -64,8 +64,8 @@ func UpdateStkResponse(stk dtos.STKCallbackRequest, status string) (string, stri
 	err = DB.QueryRow(`
 		SELECT delivery_id, order_id, type
 		FROM stk_push_responses
-		WHERE checkout_request_id = ? AND merchant_request_id = ? LIMIT 1
-	`, stk.Body.StkCallback.CheckoutRequestID, stk.Body.StkCallback.MerchantRequestID).Scan(
+		WHERE checkout_request_id = ? LIMIT 1
+	`, checkoutRequestID).Scan(
 		&deliveryID, &orderID, &orderType,
 	)
 	if err != nil {
@@ -82,36 +82,37 @@ func nullToString(ns sql.NullString) string {
 	}
 	return ""
 }
-func UpdateDeliveryOrderTables(deliveryID, orderId string) error {
+func UpdateDeliveryOrderTables(deliveryID, orderId string, status string) error {
 	// Update order status
+	orderStatus := "PAID"
+	if status != "COMPLETED" {
+		orderStatus = "FAILED"
+	}
 	_, err := DB.Exec(`
-		UPDATE orders SET status = 'PAID'
+		UPDATE orders SET status = ?, payment_status = ?
 		WHERE order_id = ?
-	`, orderId)
+	`, orderStatus, orderStatus, orderId)
 	if err != nil {
 		return fmt.Errorf("failed to update orders table: %w", err)
 	}
 
-	// Update delivery status
-	_, err = DB.Exec(`
-		UPDATE deliveries SET status = 'PAID'
-		WHERE delivery_id = ?
-	`, deliveryID)
-	if err != nil {
-		return fmt.Errorf("failed to update deliveries table: %w", err)
-	}
+	// _, err = DB.Exec(`
+	// 	UPDATE deliveries SET status = 'PAID'
+	// 	WHERE delivery_id = ?
+	// `, deliveryID)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to update deliveries table: %w", err)
+	// }
 
 	return nil
 }
 
-func UpdateVoucherOrderTables(orderId string) error {
-	// Update order status
-	newStatus := "COMPLETED"
+func UpdateVoucherOrderTables(orderId string, status string) error {
 
 	_, err := DB.Exec(`
     UPDATE voucher_orders SET status = ?
     WHERE voucher_order_id = ?
-`, newStatus, orderId)
+`, status, orderId)
 	if err != nil {
 		return fmt.Errorf("failed to update voucher order status: %w", err)
 	}
