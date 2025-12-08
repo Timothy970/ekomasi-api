@@ -114,6 +114,11 @@ func SetupRoutes(router *mux.Router) {
 
 	//admin routes
 	admin := api.PathPrefix("/admin").Subrouter()
+
+	admin.Handle("/profile/addresses", middleware.AuthenticateToken(http.HandlerFunc(handlers.AdminCreateAddress))).Methods("POST")
+	admin.Handle("/profile/addresses/{address_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.AdminUpdateAddress))).Methods("PATCH")
+	admin.Handle("/profile/addresses/{address_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.AdminDeleteAddress))).Methods("DELETE")
+
 	admin.HandleFunc("/products/search", handlers.AdminSearchProductsHandler).Methods("GET")
 	//create a new product
 	admin.Handle("/products", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateProductHandler))).Methods("POST")
@@ -356,6 +361,7 @@ func SetupRoutes(router *mux.Router) {
 	order.HandleFunc("/guest-orders/{order_id}/{email}/{phone_number}", handlers.ListGuestOrders).Methods("GET")
 	//admin get all orders
 	admin.Handle("/all-orders", middleware.AuthenticateToken(http.HandlerFunc(handlers.AdminListOrders))).Methods("GET")
+	admin.Handle("/orders/pdf/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DownloadOrderInvoicePDF))).Methods("GET")
 	//csv export
 	admin.Handle("/all-orders/csv", middleware.AuthenticateToken(http.HandlerFunc(handlers.StreamOrdersCSV))).Methods("GET")
 	//order count

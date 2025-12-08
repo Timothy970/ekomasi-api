@@ -622,9 +622,9 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	paymentMethod := r.URL.Query().Get("payment_method")
 	timeRange := r.URL.Query().Get("time_range")
 	orderID := r.URL.Query().Get("order_id")
-	user := r.URL.Query().Get("user")
+	q := r.URL.Query().Get("q")
 
-	orders, pagination, err := models.ListOrdersByAdmin(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, user, page, limit)
+	orders, pagination, err := models.ListOrdersByAdmin(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, q, page, limit)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1111,4 +1111,56 @@ func deductStock(orderItems []dtos.OrderItemRequest) error {
 		}
 	}
 	return nil
+}
+
+func DownloadOrderInvoicePDF(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure the user is an admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
+	if !ok {
+		return
+	}
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	orderID := mux.Vars(r)["order_id"]
+
+	orders, _, err := models.ListOrdersByAdmin("", "", "", "", "", orderID, "", page, limit)
+	if err != nil {
+		log.Printf("%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to get order to download invoice PDF",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	pdfBytes, err := utils.GenerateInvoicePDF(orders[0])
+	if err != nil {
+		fmt.Println("Failed to generate invoice PDF error :", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to generate invoice PDF " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   "Failed to generate invoice PDF",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", "attachment; filename=invoice_"+orderID+".pdf")
+	w.WriteHeader(http.StatusOK)
+	w.Write(pdfBytes)
+
 }

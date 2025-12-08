@@ -35,6 +35,18 @@ type UserAdress struct {
 	City      string `json:"city" validate:"required"`
 	ZipCode   string `json:"zip_code" validate:"required"`
 }
+type AdminUserAddress struct {
+	Address   string `json:"address" validate:"required"`
+	Country   string `json:"country" validate:"required"`
+	Apartment string `json:"apartment" validate:"required"`
+	City      string `json:"city" validate:"required"`
+	ZipCode   string `json:"zip_code" validate:"required"`
+	UserID    string `json:"user_id" validate:"required"`
+}
+
+type AdminDeleteUserAddress struct {
+	UserID string `json:"user_id" validate:"required"`
+}
 
 // LoginRequest represents the request body for user login.
 type LoginRequest struct {

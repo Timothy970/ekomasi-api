@@ -40,6 +40,7 @@ type AdminOrder struct {
 	PaymentMethod        string               `json:"payment_method"`
 	DeliveryCharge       *float64             `json:"delivery_charge"`
 	DeliveryAddress      *string              `json:"delivery_address"`
+	DeliveredAt          *time.Time           `json:"delivered_at"`
 	GuestDeliveryAddress GuestDeliveryAddress `json:"guest_delivery_address"`
 	GuestPersonalDetails GuestPersonalDetails `json:"guest_personal_details"`
 	CreatedAt            time.Time            `json:"created_at"`
@@ -76,6 +77,7 @@ type OrderProduct struct {
 	LastUpdated   time.Time        `json:"last_updated"`
 	Images        []Image          `json:"urls,omitempty"`
 	Warranty      *ProductWarranty `json:"warranty"`
+	IsReviewed    bool             `json:"is_reviewed,omitempty"`
 }
 type UserOrder struct {
 	OrderID       string      `json:"order_id"`
@@ -102,6 +104,7 @@ type UpdateOrderStatusRequest struct {
 	PaymentMethod  *string `json:"payment_method"`
 	PaymentStatus  *string `json:"payment_status"`
 	DeliveryStatus *string `json:"delivery_status"`
+	DeliveredAt    *string `json:"delivered_at"`
 }
 type OrderResponse struct {
 	ID          int     `json:"id"`
