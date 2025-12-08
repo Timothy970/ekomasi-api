@@ -84,7 +84,6 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	//send email to the created user
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -572,11 +571,63 @@ func CreateAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	//send email to the created user
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
 			Description: "Address for user with ID " + authUser.ID + " added successfully",
+			Code:        http.StatusCreated,
+		},
+		Payload:   nil,
+		Message:   "User address added successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+func AdminCreateAddress(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	//check if user is admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	if !ok {
+		return
+	}
+	req, ok := DecodeRequestBody[dtos.AdminUserAddress](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	//Validate the request
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
+		return
+	}
+	input := dtos.UserAdress{
+		Address:   req.Address,
+		Country:   req.Country,
+		Apartment: req.Apartment,
+		City:      req.City,
+		ZipCode:   req.ZipCode,
+	}
+	err := models.CreateUserAddress(input, req.UserID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to create address for user with ID " + req.UserID,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Address for user with ID " + req.UserID + " added successfully",
 			Code:        http.StatusCreated,
 		},
 		Payload:   nil,
@@ -633,7 +684,6 @@ func GetUserAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	//send email to the created user
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -702,11 +752,61 @@ func UpdateAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	//send email to the created user
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
 			Description: userWithID + authUser.ID + " address updated successfully",
+			Code:        http.StatusCreated,
+		},
+		Payload:   nil,
+		Message:   "User address updated successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+func AdminUpdateAddress(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	//check if user is admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	addressID := mux.Vars(r)["address_id"]
+	req, ok := DecodeRequestBody[dtos.AdminUserAddress](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	//Validate the request
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
+		return
+	}
+	input := dtos.UserAdress{
+		Address:   req.Address,
+		Country:   req.Country,
+		Apartment: req.Apartment,
+		City:      req.City,
+		ZipCode:   req.ZipCode,
+	}
+	err := models.UpdateUserAddress(addressID, req.UserID, &input)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to update address for user with ID " + req.UserID,
+				Code:        http.StatusBadGateway,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: userWithID + req.UserID + " address updated successfully",
 			Code:        http.StatusCreated,
 		},
 		Payload:   nil,
@@ -763,11 +863,57 @@ func DeleteAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	//send email to the created user
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
 			Description: userWithID + authUser.ID + " address deleted successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "User address deleted successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+func AdminDeleteAddress(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	//check if user is admin
+	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	if !ok {
+		return
+	}
+	addressID := mux.Vars(r)["address_id"]
+	req, ok := DecodeRequestBody[dtos.AdminDeleteUserAddress](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	//Validate the request
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
+		return
+	}
+	err := models.DeleteUserAddress(addressID, req.UserID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to delete address for user with ID " + req.UserID,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: userWithID + req.UserID + " address deleted successfully",
 			Code:        http.StatusOK,
 		},
 		Payload:   nil,
@@ -987,7 +1133,6 @@ func AddSubscriber(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	//send email to the created user
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",

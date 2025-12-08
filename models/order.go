@@ -135,7 +135,7 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 	if paymentStatusStr != "" {
 		ord.PaymentStatus = &paymentStatusStr
 	}
-	items, err := getOrderProducts(orderID)
+	items, err := getOrderProducts(orderID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +230,7 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
 		}
 
 		// Fetch items for this order
-		items, err := getOrderProducts(ord.OrderID)
+		items, err := getOrderProducts(ord.OrderID, "")
 		if err != nil {
 			return nil, err
 		}
@@ -316,7 +316,7 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 		}
 
 		// Fetch items for this order
-		items, err := getOrderProducts(ord.OrderID)
+		items, err := getOrderProducts(ord.OrderID, "")
 		if err != nil {
 			return nil, nil, err
 		}
@@ -409,7 +409,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 		ord.PaymentStatus = &paymentStatusStr
 	}
 	// Fetch items for this order
-	items, err := getOrderProducts(orderID)
+	items, err := getOrderProducts(orderID, "")
 	if err != nil {
 		return nil, err
 	}
@@ -452,12 +452,34 @@ func UpdateOrderStatus(orderID string, req dtos.UpdateOrderStatusRequest) error 
 	}
 
 	// Update delivery status separately
+	deliveryParts := []string{}
+	deliveryArgs := []interface{}{}
+	if req.DeliveryStatus != nil && strings.ToLower(*req.DeliveryStatus) == "delivered" {
+		now := time.Now()
+		deliveryParts = append(deliveryParts, "delivered_at = ?")
+		deliveryArgs = append(deliveryArgs, now)
+	}
+	if req.DeliveredAt != nil {
+		deliveryParts = append(deliveryParts, "delivered_at = ?")
+		deliveryTime := StringToTime(*req.DeliveredAt)
+		deliveryArgs = append(deliveryArgs, deliveryTime)
+	}
 	if req.DeliveryStatus != nil {
-		if _, err := DB.Exec(
-			"UPDATE deliveries SET status = ? WHERE order_id = ?",
-			*req.DeliveryStatus,
-			orderID,
-		); err != nil {
+		deliveryParts = append(deliveryParts, "status = ?")
+		deliveryArgs = append(deliveryArgs, *req.DeliveryStatus)
+		// if _, err := DB.Exec(
+		// 	"UPDATE deliveries SET status = ? WHERE order_id = ?",
+		// 	*req.DeliveryStatus,
+		// 	orderID,
+		// ); err != nil {
+		// 	return err
+		// }
+	}
+	if len(deliveryParts) > 0 {
+		query := fmt.Sprintf("UPDATE deliveries SET %s WHERE order_id = ?", strings.Join(deliveryParts, ", "))
+		deliveryArgs = append(deliveryArgs, orderID)
+
+		if _, err := DB.Exec(query, deliveryArgs...); err != nil {
 			return err
 		}
 	}
@@ -551,7 +573,7 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 
 	}
 	// Fetch items for this order
-	items, err := getOrderProducts(orderID)
+	items, err := getOrderProducts(orderID, userID.String)
 	if err != nil {
 		return nil, err
 	}
@@ -560,7 +582,7 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 	return &ord, nil
 }
 
-func getOrderProducts(orderID string) ([]dtos.OrderProduct, error) {
+func getOrderProducts(orderID string, userID string) ([]dtos.OrderProduct, error) {
 	itemsQuery := `
         SELECT 
             p.product_id,
@@ -612,19 +634,36 @@ func getOrderProducts(orderID string) ([]dtos.OrderProduct, error) {
 			return nil, err
 		}
 		item.Warranty = &warranty
+		if userID != "" {
+			item.IsReviewed = checkIfReviewed(item.ID, userID)
+		}
 		items = append(items, item)
 	}
 
 	return items, nil
 }
 
+// function to check if product is reviewed by user
+func checkIfReviewed(productID, userID string) bool {
+	query := `SELECT COUNT(*) FROM product_reviews WHERE product_id = ? AND user_id = ?`
+	var count int
+	err := DB.QueryRow(query, productID, userID).Scan(&count)
+	if err != nil {
+		return false
+	}
+	if count > 0 {
+		return true
+	}
+	return false
+}
+
 // admin handler to get all orders with pagination and filtering
 // filter by status, time range: today, this week, this month, last month, this year
 // search by order id, user
-func ListOrdersByAdmin(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, user string, page, limit int) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
+func ListOrdersByAdmin(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, q string, page, limit int) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * limit
 
-	conds := buildAdminOrderConditions(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, user)
+	conds := buildAdminOrderConditions(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, q)
 
 	total, err := getAdminOrderCount(conds)
 	if err != nil {
@@ -663,7 +702,7 @@ type OrderConditions struct {
 	JoinDeliveries bool
 }
 
-func buildAdminOrderConditions(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, user string) OrderConditions {
+func buildAdminOrderConditions(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, q string) OrderConditions {
 	var conditions []string
 	var args []interface{}
 	joinUsers := false
@@ -722,21 +761,25 @@ func buildAdminOrderConditions(orderStatus, paymentStatus, deliveryStatus, payme
 		args = append(args, orderID)
 	}
 
-	if user != "" {
+	if q != "" {
 		joinUsers = true
+		joinDeliveries = true
 		conditions = append(conditions, `(
-			(o.user_id IS NULL AND o.guest_personal_details LIKE ?)
-			OR
-			(o.user_id IS NOT NULL AND (
-				u.email LIKE ? OR
-				u.first_name LIKE ? OR
-				u.last_name LIKE ? OR
-				u.phone_number LIKE ?
-			))
+			o.guest_personal_details LIKE ? OR
+			o.order_id LIKE ? OR
+			o.delivery_id LIKE ? OR 
+			d.delivery_address LIKE ? OR
+			o.guest_delivery_address LIKE ? OR
+			o.payment_method LIKE ? OR
+			u.first_name LIKE ? OR
+			u.last_name LIKE ? OR
+			u.email LIKE ? OR
+			u.phone LIKE ?
 		)`)
 
-		likeUser := "%" + user + "%"
-		args = append(args, likeUser, likeUser, likeUser, likeUser, likeUser)
+		likePattern := "%" + q + "%"
+		args = append(args, likePattern, likePattern, likePattern, likePattern, likePattern,
+			likePattern, likePattern, likePattern, likePattern, likePattern)
 	}
 
 	return OrderConditions{
@@ -782,7 +825,8 @@ func buildAdminOrderQuery(conds OrderConditions, limit, offset int) (string, []i
 			o.guest_delivery_address,
 			o.guest_personal_details,
 			o.created_at,
-			o.is_guest_order
+			o.is_guest_order,
+			d.delivered_at
 		FROM orders o
 		LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id`
 	if conds.JoinUsers {
@@ -817,6 +861,7 @@ func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
 		var ord dtos.AdminOrder
 		var guestAddrStr, guestDetailsStr string
 		var userID sql.NullString
+		var deliveredAt sql.NullTime
 		if err := rows.Scan(
 			&userID,
 			&ord.OrderID,
@@ -833,6 +878,7 @@ func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
 			&guestDetailsStr,
 			&ord.CreatedAt,
 			&ord.IsGuestOrder,
+			&deliveredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -847,10 +893,13 @@ func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
 		if guestDetailsStr != "" {
 			_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
 		}
-		items, err := getOrderProducts(ord.OrderID)
+		items, err := getOrderProducts(ord.OrderID, userID.String)
 		ord.ItemsCount = len(items)
 		if err != nil {
 			return nil, err
+		}
+		if deliveredAt.Valid {
+			ord.DeliveredAt = &deliveredAt.Time
 		}
 		ord.Items = items
 		var user *dtos.Users
