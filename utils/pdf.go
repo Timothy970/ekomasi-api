@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/jung-kurt/gofpdf"
@@ -207,4 +208,123 @@ func EllipseText(text string, max int) string {
 		return text[:max]
 	}
 	return text[:max-3] + "..."
+}
+
+func GenerateInventoryPDF(inv dtos.Inventory) ([]byte, error) {
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(15, 15, 15)
+	pdf.AddPage()
+
+	// ------------------------------
+	// Styles
+	// ------------------------------
+	header := func(title string) {
+		pdf.SetFont("Arial", "B", 14)
+		pdf.SetTextColor(20, 20, 20)
+		pdf.Cell(0, 10, title)
+		pdf.Ln(12)
+	}
+
+	label := func(text string) {
+		pdf.SetFont("Arial", "B", 10)
+		pdf.CellFormat(40, 6, text, "", 0, "L", false, 0, "")
+	}
+
+	value := func(text string) {
+		pdf.SetFont("Arial", "", 10)
+		pdf.CellFormat(120, 6, text, "", 0, "L", false, 0, "")
+		pdf.Ln(7)
+	}
+
+	sectionBox := func() {
+		pdf.Ln(4)
+		pdf.SetDrawColor(230, 230, 230)
+		pdf.Line(15, pdf.GetY(), 195, pdf.GetY())
+		pdf.Ln(6)
+	}
+
+	// ------------------------------
+	// Header Info — Placed On (Top Right)
+	// ------------------------------
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetXY(150, 10)
+	pdf.Cell(40, 5, "Placed on: "+inv.PlacedOn)
+	pdf.Ln(10)
+
+	// ------------------------------
+	// BASIC INFO
+	// ------------------------------
+	header("Basic Info")
+
+	label("Product Name:")
+	value(inv.Name)
+
+	label("Product ID:")
+	value(inv.ProductID)
+
+	label("Batch:")
+	value(ptrToStr(inv.BatchNumber))
+
+	label("Quantity:")
+	value(strconv.Itoa(inv.Quantity) + " units")
+
+	label("Category:")
+	value(inv.CategoryName)
+
+	sectionBox()
+
+	// ------------------------------
+	// SUPPLIER INFORMATION
+	// ------------------------------
+	header("Supplier Information")
+
+	label("Name:")
+	value(inv.SupplierInfo.Name)
+
+	label("Contact:")
+	value(inv.SupplierInfo.ContactPhone)
+
+	label("Email:")
+	value(inv.SupplierInfo.ContactEmail)
+
+	label("Buying Price:")
+	value(fmt.Sprintf("%.2f", inv.BuyingPrice))
+
+	sectionBox()
+
+	// ------------------------------
+	// STOCK SUMMARY
+	// ------------------------------
+	header("Stock Summary")
+
+	label("Total Stock:")
+	value(strconv.Itoa(inv.StockQuantity))
+
+	label("Minimum Threshold:")
+	value(strconv.Itoa(inv.LowStockThreshold))
+
+	sectionBox()
+
+	// ------------------------------
+	// ADDITIONAL INFO
+	// ------------------------------
+	header("Additional Info")
+
+	label("Manufacturing Date:")
+	value(ptrToStr(inv.ManufacturingDate))
+
+	label("Expiry Date:")
+	value(ptrToStr(inv.ExpiryDate))
+
+	label("Warranty:")
+	value(ptrToStr(inv.Warranty))
+
+	// ------------------------------
+	// Return PDF Bytes
+	// ------------------------------
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
