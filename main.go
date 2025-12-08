@@ -164,8 +164,10 @@ func main() {
 	apiRouter.Use(middleware.BusinessMetricsMiddleware)
 	apiRouter.Use(middleware.ErrorHandlingMiddleware)
 
-	// Swagger route
-	apiRouter.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
+	// Swagger route (only in non-production environments)
+	if os.Getenv("ENVIRONMENT") != "production" {
+		apiRouter.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
+	}
 
 	// Run cart reminders every 3 days (check daily at midnight, or use cron if needed)
 	// handlers.StartCartReminderScheduler(24*time.Hour, 3)
