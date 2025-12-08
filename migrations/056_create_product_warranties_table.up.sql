@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS product_warranties (
     manufacturing_date DATE NOT NULL,
     expiry_date        DATE NOT NULL,
     created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (product_id) REFERENCES products(product_id),
+    FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE CASCADE,
     FOREIGN KEY (warranty_type_id) REFERENCES warranty_types(warranty_type_id)
 
 );
