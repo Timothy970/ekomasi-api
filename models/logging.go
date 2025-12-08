@@ -189,7 +189,7 @@ func buildUserLogsFilter(module, status, role, startDate, endDate, q string) (st
 		startDate = FormatDateTimeString(startDate)
 		endDate = FormatDateTimeString(endDate)
 		where = append(where, "l.timestamp BETWEEN ? AND ?")
-		args = append(args, startDate+" 00:00:00", endDate+" 23:59:59")
+		args = append(args, startDate, endDate)
 	}
 
 	// Optimized user search

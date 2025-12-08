@@ -22,14 +22,69 @@ func CreateStockTransfer(st dtos.StockTransferDTO) error {
 	if err != nil {
 		return err
 	}
+	err = validateProductAndWarehouse(st)
+	if err != nil {
+		return err
+	}
+
 	transferID, _ := shortid.Generate()
 	query := `
 		INSERT INTO stock_transfers 
 		(transfer_id, product_id, variant_id, from_warehouse_id, to_warehouse_id, quantity, transfer_details) 
 		VALUES (?, ?, ?, ?, ?, ?, ?)`
 	_, err = DB.Exec(query, transferID, st.ProductID, st.VariantID, st.FromWarehouseID, st.ToWarehouseID, st.Quantity, st.TransferDetails)
+
+	// update inventory for from warehouse
+	_, err = DB.Exec(`
+		UPDATE inventory SET quantity = quantity - ? 
+		WHERE product_id = ? AND warehouse_id = ? AND quantity >= ?`,
+		st.Quantity, st.ProductID, st.FromWarehouseID, st.Quantity)
+
+	// update inventory for to warehouse
+	//first check if record exists
+	var count int
+	err = DB.QueryRow(`SELECT COUNT(*) FROM inventory WHERE product_id = ? AND warehouse_id = ?`, st.ProductID, st.ToWarehouseID).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		//insert record
+		_, err = DB.Exec(`INSERT INTO inventory (product_id, warehouse_id, quantity) VALUES (?, ?, ?)`, st.ProductID, st.ToWarehouseID, st.Quantity)
+		if err != nil {
+			return err
+		}
+	} else {
+		_, err = DB.Exec(`
+		UPDATE inventory SET quantity = quantity + ? 
+		WHERE product_id = ? AND warehouse_id = ?`,
+			st.Quantity, st.ProductID, st.ToWarehouseID)
+	}
 	return err
 }
+
+func validateProductAndWarehouse(st dtos.StockTransferDTO) error {
+	//check if product exists in from warehouse
+	query := `SELECT COUNT(*) FROM inventory WHERE product_id = ? AND warehouse_id = ?`
+	var count int
+	err := DB.QueryRow(query, st.ProductID, st.FromWarehouseID).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return errors.New("product does not exist in from warehouse")
+	}
+	//check if product quantity is sufficient in from warehouse
+	var availableQty int
+	err = DB.QueryRow("SELECT quantity FROM inventory WHERE product_id = ? AND warehouse_id = ?", st.ProductID, st.FromWarehouseID).Scan(&availableQty)
+	if err != nil {
+		return err
+	}
+	if availableQty < st.Quantity {
+		return errors.New("insufficient product quantity in from warehouse")
+	}
+	return nil
+}
+
 func isWarehouseThere(id, from string) error {
 	exists, err := RecordExists("warehouses", "warehouse_id = ?", id)
 	if err != nil {

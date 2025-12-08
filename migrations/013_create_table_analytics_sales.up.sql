@@ -8,5 +8,5 @@ CREATE TABLE IF NOT EXISTS  `analytics_sales` (
    KEY `idx_analytics_sales_date` (`date`),
    KEY `idx_analytics_sales_product_id` (`product_id`),
    KEY `idx_analytics_sales_date_product` (`date`,`product_id`),
-   CONSTRAINT `analytics_sales_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`) ON DELETE RESTRICT
+   CONSTRAINT `analytics_sales_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`) ON DELETE CASCADE
  );

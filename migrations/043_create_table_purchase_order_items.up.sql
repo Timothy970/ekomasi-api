@@ -10,5 +10,5 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
    KEY `variant_id` (`variant_id`),
    KEY `idx_purchase_order_items_po_id` (`po_id`),
    CONSTRAINT `purchase_order_items_ibfk_1` FOREIGN KEY (`po_id`) REFERENCES `purchase_orders` (`po_id`) ON DELETE CASCADE,
-   CONSTRAINT `purchase_order_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`) ON DELETE RESTRICT
+   CONSTRAINT `purchase_order_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`) ON DELETE CASCADE
  );
