@@ -774,7 +774,7 @@ func buildAdminOrderConditions(orderStatus, paymentStatus, deliveryStatus, payme
 			u.first_name LIKE ? OR
 			u.last_name LIKE ? OR
 			u.email LIKE ? OR
-			u.phone LIKE ?
+			u.phone_number LIKE ?
 		)`)
 
 		likePattern := "%" + q + "%"
@@ -859,8 +859,8 @@ func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
 	var orders []dtos.AdminOrder
 	for rows.Next() {
 		var ord dtos.AdminOrder
-		var guestAddrStr, guestDetailsStr string
-		var userID sql.NullString
+		var guestAddrStr, guestDetailsStr sql.NullString
+		var userID, deliveryAddressStr sql.NullString
 		var deliveredAt sql.NullTime
 		if err := rows.Scan(
 			&userID,
@@ -873,7 +873,7 @@ func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
 			&ord.DeliveryStatus,
 			&ord.PaymentMethod,
 			&ord.DeliveryCharge,
-			&ord.DeliveryAddress,
+			&deliveryAddressStr,
 			&guestAddrStr,
 			&guestDetailsStr,
 			&ord.CreatedAt,
@@ -887,11 +887,14 @@ func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
 		estimatedTax, _ := GetEstimatedTax()
 		ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 		// Parse guest JSON fields
-		if guestAddrStr != "" {
-			_ = json.Unmarshal([]byte(guestAddrStr), &ord.GuestDeliveryAddress)
+		if guestAddrStr.Valid {
+			_ = json.Unmarshal([]byte(guestAddrStr.String), &ord.GuestDeliveryAddress)
 		}
-		if guestDetailsStr != "" {
-			_ = json.Unmarshal([]byte(guestDetailsStr), &ord.GuestPersonalDetails)
+		if guestDetailsStr.Valid {
+			_ = json.Unmarshal([]byte(guestDetailsStr.String), &ord.GuestPersonalDetails)
+		}
+		if deliveryAddressStr.Valid {
+			ord.DeliveryAddress = &deliveryAddressStr.String
 		}
 		items, err := getOrderProducts(ord.OrderID, userID.String)
 		ord.ItemsCount = len(items)
