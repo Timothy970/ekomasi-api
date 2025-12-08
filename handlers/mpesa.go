@@ -431,7 +431,7 @@ func handleFailedPayment(w http.ResponseWriter, callback dtos.STKCallbackRequest
 	resultCode := callback.Body.StkCallback.ResultCode
 	resultDesc := callback.Body.StkCallback.ResultDesc
 	checkoutRequestID := callback.Body.StkCallback.CheckoutRequestID
-	deliveryID, orderID, orderType, err := models.UpdateStkResponse(checkoutRequestID, "SUCCESS")
+	deliveryID, orderID, orderType, err := models.UpdateStkResponse(checkoutRequestID, "FAILED")
 	if err != nil {
 		log.Printf("error updating STK response: %v", err)
 		return false
