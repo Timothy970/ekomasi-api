@@ -21,81 +21,6 @@ var (
 	orderWithID    = "Order with ID "
 )
 
-// CreateOrder creates a new order for the authenticated user
-// @Summary      Create order
-// @Description  Submit a new order
-// @Tags         Orders
-// @Accept       json
-// @Produce      json
-// @Param        body  body      dtos.OrderRequest true "Order payload"
-// @Success      201   {object}  map[string]interface{}
-// @Failure      400   {object}  dtos.ErrorResponse
-// @Failure      500   {object}  dtos.ErrorResponse
-// @Security     BearerAuth
-// @Router       /api/orders [post]
-func CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
-
-	req, ok := DecodeRequestBody[dtos.OrderRequest](r, w, requestSummary, start)
-	if !ok {
-		return
-	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
-		return
-	}
-	totalAmount, totalDiscount, applyFreeShipping, err := processOrderItems(req.OrderItems)
-	if err != nil {
-		log.Printf("Error processing order items: %v", err)
-		respondInternalServerError(w, r, requestSummary, start, err.Error())
-		return
-	}
-
-	if applyFreeShipping {
-		fmt.Println("Free shipping applied")
-		req.DeliveryCharge = 0
-	}
-
-	orderID, deliveryID, err := models.CreateOrder(*req, utils.ToString(totalAmount), utils.ToString(totalDiscount))
-	if err != nil {
-		log.Printf("Error creating order:::%v", err)
-		respondInternalServerError(w, r, requestSummary, start, err.Error())
-		return
-	}
-
-	if err := createOrderItems(orderID, req.OrderItems); err != nil {
-		log.Printf("Error when creating order items:::%v", err)
-		respondInternalServerError(w, r, requestSummary, start, err.Error())
-		return
-	}
-
-	err = models.CreateDeliveries(orderID, deliveryID, *req)
-	if err != nil {
-		log.Printf("Error when creating delivery:::%v", err)
-		respondInternalServerError(w, r, requestSummary, start, err.Error())
-		return
-	}
-
-	finalAmount := totalAmount + req.DeliveryCharge - totalDiscount
-	//send sms and email notification
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Orders",
-			Description: orderWithID + orderID + " created successfully",
-			Code:        http.StatusCreated,
-		},
-		Payload: map[string]interface{}{
-			"order_id":    orderID,
-			"delivery_id": deliveryID,
-			"total":       finalAmount,
-		},
-		Message:   "Order created successfully",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
-		RawBody:   requestSummary,
-	})
-}
 func checkStockAvailability(productID string, quantity int) error {
 	product, err := models.GetProductByID(productID)
 	if err != nil {
@@ -1039,7 +964,7 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := models.CreateDeliveries(orderID, deliveryID, order); err != nil {
+	if err := models.CreateDeliveries(orderID, deliveryID, order, req.StoreID); err != nil {
 		log.Printf("[%s] Error creating delivery: %v", module, err)
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return

@@ -354,7 +354,6 @@ func SetupRoutes(router *mux.Router) {
 
 	//orders endpointsProduct
 	order := api.PathPrefix("/order").Subrouter()
-	// order.HandleFunc("/create", handlers.CreateOrderHandler).Methods("POST")
 	order.HandleFunc("/create", handlers.NewCreateOrderHandler).Methods("POST")
 	order.Handle("/view", middleware.AuthenticateToken(http.HandlerFunc(handlers.ViewOrder))).Methods("GET")
 	// pos view order
