@@ -1141,6 +1141,20 @@ func DownloadOrderInvoicePDF(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	if len(orders) == 0 {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Order not found for invoice PDF download",
+				Code:        http.StatusNotFound,
+			},
+			Message:   "Order not found",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 
 	pdfBytes, err := utils.GenerateInvoicePDF(orders[0])
 	if err != nil {

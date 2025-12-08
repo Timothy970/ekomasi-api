@@ -4,7 +4,6 @@ import (
 	"adenzo_backend/dtos"
 	"bytes"
 	"fmt"
-	"log"
 	"net/http"
 	"path/filepath"
 	"runtime"
@@ -119,10 +118,9 @@ func GenerateInvoicePDF(order dtos.AdminOrder) ([]byte, error) {
 	// -----------------------------
 	pdf.SetFont("Arial", "", 10)
 	for i, item := range order.Items {
-		log.Printf("Items found**** %+v", item)
 		pdf.CellFormat(10, 14, fmt.Sprintf("%d", i+1), "1", 0, "L", false, 0, "")
 		// image if exists
-		if item.Images[0].URL != "" {
+		if len(item.Images) > 0 && item.Images[0].URL != "" {
 			img := item.Images[0].URL
 			pdf.CellFormat(50, 14, "", "1", 0, "L", false, 0, "")
 			// Insert small thumbnail from URL
@@ -131,7 +129,6 @@ func GenerateInvoicePDF(order dtos.AdminOrder) ([]byte, error) {
 				defer resp.Body.Close()
 				// Detect image type from Content-Type header
 				contentType := resp.Header.Get("Content-Type")
-				log.Printf("Image Content-Type: %s", contentType)
 				imageType := "PNG" // default
 				switch contentType {
 				case "image/jpeg", "image/jpg":
