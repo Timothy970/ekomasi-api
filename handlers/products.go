@@ -1531,6 +1531,10 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+		return
+	}
+
 	//handle products specifications
 	err := handleProductSpecs(*req, state)
 	if err != nil {
@@ -1647,6 +1651,10 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+		return
+	}
+
 	//handle products specifications
 	err := handleProductSpecs(*req, state)
 	if err != nil {
@@ -1845,8 +1853,8 @@ func handleProductsWarranty(req dtos.ProductSpecification) error {
 		ProductID:         req.ProductID,
 		WarrantyTypeID:    req.WarrantyType,
 		WarrantyPeriod:    req.WarrantyPeriod,
-		ManufacturingDate: req.ManufacturerDate,
-		ExpiryDate:        req.ExpiryDate,
+		ManufacturingDate: *req.ManufacturerDate,
+		ExpiryDate:        *req.ExpiryDate,
 	}
 
 	err := models.AddProductWarranties(data)

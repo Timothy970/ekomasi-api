@@ -243,8 +243,8 @@ type ProductSpecification struct {
 	Color            []string `json:"color"` //color variants ids
 	Dimensions       string   `json:"dimensions"`
 	DiscountType     string   `json:"discount_type"` // type id
-	ExpiryDate       string   `json:"expiry_date" validate:"required"`
-	ManufacturerDate string   `json:"manufacture_date" validate:"required"`
+	ExpiryDate       *string  `json:"expiry_date" validate:"required"`
+	ManufacturerDate *string  `json:"manufacture_date" validate:"required"`
 	Manufacturer     string   `json:"manufacturer"`
 	Material         []string `json:"material"` //material variant ids
 	Size             []string `json:"size"`     //size variant ids
