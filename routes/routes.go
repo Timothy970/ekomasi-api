@@ -282,6 +282,8 @@ func SetupRoutes(router *mux.Router) {
 	api.Handle("/inventory", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListInventory))).Methods("GET")
 	admin.Handle("/inventory", middleware.AuthenticateToken(http.HandlerFunc(handlers.StockEntry))).Methods("POST")
 	api.Handle("/inventory/{inventory_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetInventory))).Methods("GET")
+	api.Handle("/inventory/csv/{inventory_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DownloadInventoryCSV))).Methods("GET")
+	api.Handle("/inventory/pdf/{inventory_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DownloadInventoryPDF))).Methods("GET")
 	api.Handle("/inventory/stock-summary/{inventory_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetInventoryStockSummary))).Methods("GET")
 	api.Handle("/inventory/stock-history/{inventory_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetInventoryStockHistory))).Methods("GET")
 	adminInventory := admin.PathPrefix("/inventory/{inventory_id}").Subrouter()

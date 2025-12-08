@@ -177,6 +177,101 @@ func GetInventory(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+func DownloadInventoryCSV(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
+		return
+	}
+	id := mux.Vars(r)["inventory_id"]
+
+	inv, err := models.GetInventory(id)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to get inventory",
+				Code:        http.StatusNotFound,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=inventory.csv")
+
+	if err := utils.ExportInventoryCSV(w, *inv); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to export inventory CSV",
+				Code:        http.StatusNotFound,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+
+	}
+}
+
+func DownloadInventoryPDF(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Ensure user is admin
+	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
+		return
+	}
+	id := mux.Vars(r)["inventory_id"]
+
+	inv, err := models.GetInventory(id)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to get inventory",
+				Code:        http.StatusNotFound,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	pdfBytes, err := utils.GenerateInventoryPDF(*inv)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to generate inventory PDF",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+
+	}
+
+	filename := fmt.Sprintf("inventory_%s.pdf", inv.InventoryID)
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	w.Write(pdfBytes)
+}
 
 // Update inventory
 //

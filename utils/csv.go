@@ -154,3 +154,95 @@ func ParseProductsCSV(file multipart.File) ([]dtos.BulkUploadProduct, error) {
 	log.Printf("Successfully parsed %d valid products", len(products))
 	return products, nil
 }
+
+func ExportInventoryCSV(w io.Writer, inv dtos.Inventory) error {
+	writer := csv.NewWriter(w)
+
+	// ============================
+	// BASIC INFO SECTION
+	// ============================
+	writer.Write([]string{"BASIC INFO"})
+	writer.Write([]string{
+		"Inventory ID", "Product ID", "Batch Number",
+		"Name", "Description", "SKU",
+		"Quantity",
+		"Price", "Buying Price",
+		"Category ID", "Category Name",
+		"Images",
+	})
+
+	images := []string{}
+	for _, img := range inv.Images {
+		images = append(images, img.URL)
+	}
+	writer.Write([]string{
+		inv.InventoryID,
+		inv.ProductID,
+		ptrToStr(inv.BatchNumber),
+		inv.Name,
+		inv.Description,
+		inv.SKU,
+		strconv.Itoa(inv.Quantity),
+		floatToStr(inv.Price),
+		floatToStr(inv.BuyingPrice),
+		inv.CategoryID,
+		inv.CategoryName,
+		strings.Join(images, ";"),
+	})
+
+	writer.Write([]string{}) // Empty row between sections
+
+	// ============================
+	// SUPPLIER INFO SECTION
+	// ============================
+	writer.Write([]string{"SUPPLIER INFO"})
+	writer.Write([]string{
+		"Inventory ID", "Supplier ID", "Supplier Name",
+		"Contact Email", "Contact Phone",
+	})
+
+	s := inv.SupplierInfo
+	writer.Write([]string{
+		inv.InventoryID,
+		s.SupplierID,
+		s.Name,
+		s.ContactEmail,
+		s.ContactPhone,
+	})
+
+	writer.Write([]string{}) // Empty row between sections
+
+	// ============================
+	// ADDITIONAL INFO SECTION
+	// ============================
+	writer.Write([]string{"ADDITIONAL INFO"})
+	writer.Write([]string{
+		"Inventory ID",
+		"Manufacturing Date", "Expiry Date", "Warranty",
+		"Placed On", "Low Stock Threshold",
+	})
+
+	writer.Write([]string{
+		inv.InventoryID,
+		ptrToStr(inv.ManufacturingDate),
+		ptrToStr(inv.ExpiryDate),
+		ptrToStr(inv.Warranty),
+		inv.PlacedOn,
+		strconv.Itoa(inv.LowStockThreshold),
+	})
+
+	writer.Flush()
+	return writer.Error()
+}
+
+// Helpers
+func ptrToStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func floatToStr(f float64) string {
+	return strconv.FormatFloat(f, 'f', 2, 64)
+}
