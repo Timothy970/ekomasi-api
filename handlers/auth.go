@@ -595,7 +595,9 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	if user.Role != "admin" && user.Role != "superadmin" {
+
+	//only allow non-customer roles to login here
+	if user.Role != "" && strings.ToLower(user.Role) == "customer" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
