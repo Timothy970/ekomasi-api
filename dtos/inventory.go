@@ -52,7 +52,7 @@ type Inventory struct {
 	ExpiryDate        *string  `json:"expiry_date"`
 	Warranty          *string  `json:"warranty"`
 	PlacedOn          string   `json:"placed_on"`
-	BuyingPrice       float64  `json:"buying_price"`
+	BuyingPrice       *float64 `json:"buying_price"`
 	StoreID           *string  `json:"store_id"`
 }
 
@@ -78,7 +78,7 @@ type SingleInventory struct {
 	ExpiryDate        *string  `json:"expiry_date"`
 	Warranty          *string  `json:"warranty"`
 	PlacedOn          string   `json:"placed_on"`
-	BuyingPrice       float64  `json:"buying_price"`
+	BuyingPrice       *float64 `json:"buying_price"`
 	StoreID           *string  `json:"store_id"`
 
 	BatchImages      *[]string  `json:"batch_images"`

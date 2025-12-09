@@ -170,11 +170,12 @@ func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
 
 	var inv dtos.SingleInventory
 	var inspectionDate, inspectorID sql.NullString
+	var buyingPrice sql.NullFloat64
 
 	if err := row.Scan(
 		&inv.InventoryID, &inv.StoreID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold,
 		&inv.Name, &inv.Description, &inv.SKU, &inv.Tag, &inv.Price,
-		&inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector, &inv.BatchNumber, &inv.ExpiryDate, &inv.ManufacturingDate, &inv.Warranty, &inv.PlacedOn, &inv.BuyingPrice, &inspectionDate, &inspectorID, &inv.InspectionNotes, &inv.InspectionImages, &inv.BatchImages, &inv.HandlingNotes, &inv.ConditionID,
+		&inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector, &inv.BatchNumber, &inv.ExpiryDate, &inv.ManufacturingDate, &inv.Warranty, &inv.PlacedOn, &buyingPrice, &inspectionDate, &inspectorID, &inv.InspectionNotes, &inv.InspectionImages, &inv.BatchImages, &inv.HandlingNotes, &inv.ConditionID,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(noinventory)
@@ -190,6 +191,9 @@ func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+	if buyingPrice.Valid {
+		inv.BuyingPrice = &buyingPrice.Float64
 	}
 	// Fetch images for the product
 	if imgs, err := fetchProductImages(inv.ProductID); err == nil {
