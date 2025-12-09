@@ -16,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -110,19 +111,24 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Failed to store transaction log: %v", err)
 	}
+	environment := os.Getenv("ENVIRONMENT")
+
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "MPESA payment request initiated successfully",
 			Code:        http.StatusCreated,
 		},
-		Payload:   response,
+		Payload:   nil,
 		Message:   "Payment request initiated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary,
 	})
+	if environment == "development" {
+		go sendCallbackToDevEnv(req.OrderID)
+	}
 }
 
 func storeTransactionLog(req dtos.MpesaRequest) error {
@@ -329,43 +335,79 @@ func HandleMpesaCallback(w http.ResponseWriter, r *http.Request) {
 	logCallbackInfo(stk.CheckoutRequestID, stk.ResultDesc)
 
 	if stk.ResultCode == 0 {
-		isSuccess := handleSuccessfulPayment(w, callback)
-		if !isSuccess {
-			//try sending the callback to development environment
-			sendCallbackToDevEnv(bodyBytes)
-
-		}
+		handleSuccessfulPayment(w, callback)
 		return
 	}
 
-	isSuccessful := handleFailedPayment(w, callback)
-	if !isSuccessful {
-		//try sending the callback to development environment
-		sendCallbackToDevEnv(bodyBytes)
-	}
+	handleFailedPayment(w, callback)
+
 }
 
 // function to send callback to development environment
-func sendCallbackToDevEnv(body []byte) {
-	devCallbackURL := "https://api.development.adenzo.shop/api/payment/callback"
+func sendCallbackToDevEnv(orderID string) {
+	//delay for 20 seconds to simulate real payment delay
+	time.Sleep(20 * time.Second)
+	// using order_id i can get the checkout_request_id
 
-	req, err := http.NewRequest("POST", devCallbackURL, bytes.NewBuffer(body))
+	//hardcoded callback response
+	resultCode := 0
+	resultDesc := "The service request is processed successfully."
+	merchantRequestID := "12345-" + orderID
+	checkoutRequestID, err := models.GetCheckoutRequestIDByOrderID(orderID)
 	if err != nil {
-		log.Printf("error creating request to dev environment: %v", err)
-		return
+		resultCode = 1
+		resultDesc = "The service request cancelled by user"
 	}
-	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	res, err := client.Do(req)
-	if err != nil {
-		log.Printf("error sending callback to dev environment: %v", err)
-		return
+	mpesaReceiptNumber := "ABC123XYZ-" + orderID
+	transactionDate := time.Now().Format("20060102150405")
+	phoneNumber := 254700000000
+
+	req := dtos.STKCallbackRequest{}
+
+	req.Body.StkCallback.MerchantRequestID = merchantRequestID
+	req.Body.StkCallback.CheckoutRequestID = checkoutRequestID
+	req.Body.StkCallback.ResultCode = resultCode
+	req.Body.StkCallback.ResultDesc = resultDesc
+
+	// Build items
+	req.Body.StkCallback.CallbackMetadata.Item = []struct {
+		Name  string      `json:"Name"`
+		Value interface{} `json:"Value"`
+	}{
+		{
+			Name:  "Amount",
+			Value: 1,
+		},
+		{
+			Name:  "MpesaReceiptNumber",
+			Value: mpesaReceiptNumber,
+		},
+		{
+			Name:  "Balance",
+			Value: nil,
+		},
+		{
+			Name: "TransactionDate",
+			// Must convert to int because callback uses numeric timestamp
+			Value: toInt(transactionDate),
+		},
+		{
+			Name:  "PhoneNumber",
+			Value: phoneNumber,
+		},
 	}
-	defer res.Body.Close()
+	logCallbackInfo(req.Body.StkCallback.CheckoutRequestID, req.Body.StkCallback.ResultDesc)
+	if resultCode == 0 {
+		handleSuccessfulPayment(nil, req)
+	} else {
+		handleFailedPayment(nil, req)
+	}
+}
 
-	respBody, _ := io.ReadAll(res.Body)
-	log.Printf("Response from development environment: %s", string(respBody))
+func toInt(s string) int64 {
+	v, _ := strconv.ParseInt(s, 10, 64)
+	return v
 }
 
 // store mpesa receipt number
@@ -391,7 +433,7 @@ func logCallbackInfo(checkoutID, resultDesc string) {
 }
 
 // handleSuccessfulPayment processes successful Mpesa payments
-func handleSuccessfulPayment(w http.ResponseWriter, callback dtos.STKCallbackRequest) bool {
+func handleSuccessfulPayment(w http.ResponseWriter, callback dtos.STKCallbackRequest) {
 	stk := callback.Body.StkCallback
 	amount, mpesaCode, phone := extractMetadata(stk.CallbackMetadata.Item)
 
@@ -400,11 +442,9 @@ func handleSuccessfulPayment(w http.ResponseWriter, callback dtos.STKCallbackReq
 	deliveryID, orderID, orderType, err := models.UpdateStkResponse(callback.Body.StkCallback.CheckoutRequestID, "SUCCESS")
 	if err != nil {
 		log.Printf("error updating STK response: %v", err)
-		return false
 	}
 	if orderID == "" && deliveryID == "" {
 		log.Printf("orderID and deliveryID are both empty, trying sending the callback to development environment")
-		return false
 	}
 	processOrderUpdate(orderType, deliveryID, orderID, "COMPLETED")
 	//update transaction log
@@ -421,24 +461,24 @@ func handleSuccessfulPayment(w http.ResponseWriter, callback dtos.STKCallbackReq
 	//send sms and email notification
 	//store the order to order_notifications table for processing later
 	models.StoreOrderNotification(orderID)
+	if w == nil {
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Accepted"}`))
-	return true
 }
 
 // handleFailedPayment logs failed payments and responds OK
-func handleFailedPayment(w http.ResponseWriter, callback dtos.STKCallbackRequest) bool {
+func handleFailedPayment(w http.ResponseWriter, callback dtos.STKCallbackRequest) {
 	resultCode := callback.Body.StkCallback.ResultCode
 	resultDesc := callback.Body.StkCallback.ResultDesc
 	checkoutRequestID := callback.Body.StkCallback.CheckoutRequestID
 	deliveryID, orderID, orderType, err := models.UpdateStkResponse(checkoutRequestID, "FAILED")
 	if err != nil {
 		log.Printf("error updating STK response: %v", err)
-		return false
 	}
 	if orderID == "" && deliveryID == "" {
 		log.Printf("orderID and deliveryID are both empty, trying sending the callback to development environment")
-		return false
 	}
 	processOrderUpdate(orderType, deliveryID, orderID, "FAILED")
 	//update transaction log
@@ -449,7 +489,6 @@ func handleFailedPayment(w http.ResponseWriter, callback dtos.STKCallbackRequest
 	log.Printf("FAILED PAYMENT:\n- Code: %d\n- Desc: %s\n", resultCode, resultDesc)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Callback received"}`))
-	return true
 }
 
 // ✅ extractMetadata now matches the exact struct definition in your DTO

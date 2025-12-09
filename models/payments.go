@@ -521,3 +521,18 @@ func DeletePaymentOption(id string) error {
 	_, err = DB.Exec(query, id)
 	return err
 }
+
+func GetCheckoutRequestIDByOrderID(orderID string) (string, error) {
+	var checkoutRequestID sql.NullString
+	err := DB.QueryRow(`
+		SELECT checkout_request_id
+		FROM stk_push_responses
+		WHERE order_id = ? ORDER BY created_at DESC LIMIT 1`, orderID).Scan(&checkoutRequestID)
+	if err != nil {
+		return "", err
+	}
+	if !checkoutRequestID.Valid {
+		return "", errors.New("checkout request ID not found")
+	}
+	return checkoutRequestID.String, nil
+}
