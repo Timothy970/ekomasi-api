@@ -184,7 +184,7 @@ func ExportInventoryCSV(w io.Writer, inv dtos.SingleInventory) error {
 		inv.SKU,
 		strconv.Itoa(inv.Quantity),
 		floatToStr(inv.Price),
-		floatToStr(inv.BuyingPrice),
+		floatToStr(*inv.BuyingPrice),
 		inv.CategoryID,
 		inv.CategoryName,
 		strings.Join(images, ";"),

@@ -404,7 +404,7 @@ func processPendingOrderNotifications() {
 	for _, orderID := range pendingOrders {
 		// processSingleOrder encapsulates all logic for one order.
 		// This makes the main loop clean and easy to read.
-		if err := processSingleOrder(orderID); err != nil {
+		if err := processSingleOrder(orderID, "order_confirmation"); err != nil {
 			// This error means a *retryable* failure occurred (e.g., email service down).
 			// We log it and continue to the next order, leaving this one 'pending'
 			// to be picked up in the next run.
@@ -416,7 +416,7 @@ func processPendingOrderNotifications() {
 // processSingleOrder handles all logic for fetching, processing, and sending a notification for one order.
 // It returns an error *only* if the operation failed in a way that should be retried (e.g., network error).
 // Permanent failures (like "no email") are handled internally and return 'nil' to stop retries.
-func processSingleOrder(orderID string) error {
+func processSingleOrder(orderID string, emailType string) error {
 	order, err := models.GetOrderByID(orderID)
 	if err != nil {
 		// If we can't get the order, we can't process it.
@@ -453,7 +453,7 @@ func processSingleOrder(orderID string) error {
 	// 3. Build and Send Email
 	subject := "Your Order Update"
 	orderDetails := buildEmailData(order, customerName)
-	htmlBody := utils.GenerateOrderConfirmationHTML(orderDetails)
+	htmlBody := utils.GenerateOrderConfirmationHTML(orderDetails, emailType)
 
 	// IMPORTANT: Check for an error from SendEmail.
 	if err := notification.SendEmail(userEmail, subject, htmlBody); err != nil {
