@@ -169,13 +169,13 @@ func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
 	row := DB.QueryRow(query, inventoryID)
 
 	var inv dtos.SingleInventory
-	var inspectionDate, inspectorID sql.NullString
+	var inspectionDate, inspectorID, inspectionImagesJSON, batchImagesJSON sql.NullString
 	var buyingPrice sql.NullFloat64
 
 	if err := row.Scan(
 		&inv.InventoryID, &inv.StoreID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold,
 		&inv.Name, &inv.Description, &inv.SKU, &inv.Tag, &inv.Price,
-		&inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector, &inv.BatchNumber, &inv.ExpiryDate, &inv.ManufacturingDate, &inv.Warranty, &inv.PlacedOn, &buyingPrice, &inspectionDate, &inspectorID, &inv.InspectionNotes, &inv.InspectionImages, &inv.BatchImages, &inv.HandlingNotes, &inv.ConditionID,
+		&inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector, &inv.BatchNumber, &inv.ExpiryDate, &inv.ManufacturingDate, &inv.Warranty, &inv.PlacedOn, &buyingPrice, &inspectionDate, &inspectorID, &inv.InspectionNotes, &inspectionImagesJSON, &batchImagesJSON, &inv.HandlingNotes, &inv.ConditionID,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(noinventory)
@@ -190,6 +190,19 @@ func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
 		inv.Inspector, err = GetUserByUserID(inspectorID.String)
 		if err != nil {
 			return nil, err
+		}
+	}
+	if inspectionImagesJSON.Valid {
+		var imgs []string
+		if err := json.Unmarshal([]byte(inspectionImagesJSON.String), &imgs); err == nil {
+			inv.InspectionImages = &imgs
+		}
+	}
+
+	if batchImagesJSON.Valid {
+		var imgs []string
+		if err := json.Unmarshal([]byte(batchImagesJSON.String), &imgs); err == nil {
+			inv.BatchImages = &imgs
 		}
 	}
 	if buyingPrice.Valid {
