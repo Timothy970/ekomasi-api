@@ -155,7 +155,7 @@ func ParseProductsCSV(file multipart.File) ([]dtos.BulkUploadProduct, error) {
 	return products, nil
 }
 
-func ExportInventoryCSV(w io.Writer, inv dtos.Inventory) error {
+func ExportInventoryCSV(w io.Writer, inv dtos.SingleInventory) error {
 	writer := csv.NewWriter(w)
 
 	// ============================

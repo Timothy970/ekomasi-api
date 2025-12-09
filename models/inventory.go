@@ -145,7 +145,7 @@ func CreateInventory(inv dtos.CreateInventoryRequest) error {
 		inventoryID, inv.ProductID, inv.VariantID, inv.Quantity, inv.LowStockThreshold)
 	return err
 }
-func GetInventory(inventoryID string) (*dtos.Inventory, error) {
+func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
 	err := isInventoryThere(inventoryID)
 	if err != nil {
 		return nil, err
@@ -154,30 +154,43 @@ func GetInventory(inventoryID string) (*dtos.Inventory, error) {
 		SELECT 
 			inv.inventory_id, inv.warehouse_id, prd.product_id, inv.variant_id, inv.quantity, inv.low_stock_threshold,
 			prd.name, prd.description, prd.sku, prd.tag, prd.price,
-			prd.category_id, cat.name, prd.stock_quantity, prd.search_vector, invbatch.batch_number, invbatch.expiry_date, invbatch.manufacturing_date, prdWarranty.warranty_period, inv.last_updated, prd.buying_price
+			prd.category_id, cat.name, prd.stock_quantity, prd.search_vector, invbatch.batch_number, invbatch.expiry_date, invbatch.manufacturing_date, prdWarranty.warranty_period, inv.last_updated, prd.buying_price, bacthinsp.inspection_date, bacthinsp.inspector_id, bacthinsp.inspection_notes, bacthinsp.images, invbatch.images, invhandlingnotes.handling_notes, invhandlingnotes.condition_id
 		FROM inventory inv
 		JOIN products prd ON inv.product_id = prd.product_id
 		JOIN categories cat ON prd.category_id = cat.category_id
 		LEFT JOIN inventory_batches invbatch ON inv.inventory_id = invbatch.inventory_id
 		LEFT JOIN product_warranties prdWarranty ON prd.product_id = prdWarranty.product_id
+		LEFT JOIN batch_inspections bacthinsp ON invbatch.batch_id = bacthinsp.batch_id
+		LEFT JOIN inventory_handling_notes invhandlingnotes ON invbatch.batch_id = invhandlingnotes.batch_id
 		WHERE inv.inventory_id = ?
 		ORDER BY inv.last_updated DESC
 	`
 
 	row := DB.QueryRow(query, inventoryID)
 
-	var inv dtos.Inventory
+	var inv dtos.SingleInventory
+	var inspectionDate, inspectorID sql.NullString
+
 	if err := row.Scan(
 		&inv.InventoryID, &inv.StoreID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold,
 		&inv.Name, &inv.Description, &inv.SKU, &inv.Tag, &inv.Price,
-		&inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector, &inv.BatchNumber, &inv.ExpiryDate, &inv.ManufacturingDate, &inv.Warranty, &inv.PlacedOn, &inv.BuyingPrice,
+		&inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector, &inv.BatchNumber, &inv.ExpiryDate, &inv.ManufacturingDate, &inv.Warranty, &inv.PlacedOn, &inv.BuyingPrice, &inspectionDate, &inspectorID, &inv.InspectionNotes, &inv.InspectionImages, &inv.BatchImages, &inv.HandlingNotes, &inv.ConditionID,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(noinventory)
 		}
 		return nil, err
 	}
-
+	if inspectionDate.Valid {
+		inspDate := StringToTime(inspectionDate.String)
+		inv.InspectionDate = &inspDate
+	}
+	if inspectorID.Valid {
+		inv.Inspector, err = GetUserByUserID(inspectorID.String)
+		if err != nil {
+			return nil, err
+		}
+	}
 	// Fetch images for the product
 	if imgs, err := fetchProductImages(inv.ProductID); err == nil {
 		inv.Images = imgs

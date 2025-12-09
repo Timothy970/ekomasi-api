@@ -29,6 +29,7 @@ type InventoryListResponse struct {
 	Meta        PaginationMeta `json:"pagination"`
 	Inventories []Inventory    `json:"inventories"`
 }
+
 type Inventory struct {
 	InventoryID       string   `json:"inventory_id"`
 	ProductID         string   `json:"product_id"`
@@ -53,6 +54,41 @@ type Inventory struct {
 	PlacedOn          string   `json:"placed_on"`
 	BuyingPrice       float64  `json:"buying_price"`
 	StoreID           *string  `json:"store_id"`
+}
+
+type SingleInventory struct {
+	InventoryID       string   `json:"inventory_id"`
+	ProductID         string   `json:"product_id"`
+	VariantID         *string  `json:"variant_id"`
+	BatchNumber       *string  `json:"batch_number"`
+	Quantity          int      `json:"inventory_quantity"`
+	LowStockThreshold int      `json:"low_stock_threshold"`
+	Name              string   `json:"name"`
+	Description       string   `json:"description"`
+	SKU               string   `json:"sku"`
+	Tag               *string  `json:"tag"`
+	Price             float64  `json:"price"`
+	CategoryID        string   `json:"category_id"`
+	CategoryName      string   `json:"category_name"`
+	StockQuantity     int      `json:"stock_quantity"`
+	SearchVector      string   `json:"search_vector"`
+	Images            []Image  `json:"urls,omitempty"`
+	SupplierInfo      Supplier `json:"supplier_info"`
+	ManufacturingDate *string  `json:"manufacturing_date"`
+	ExpiryDate        *string  `json:"expiry_date"`
+	Warranty          *string  `json:"warranty"`
+	PlacedOn          string   `json:"placed_on"`
+	BuyingPrice       float64  `json:"buying_price"`
+	StoreID           *string  `json:"store_id"`
+
+	BatchImages      *[]string  `json:"batch_images"`
+	InspectionImages *[]string  `json:"inspection_images"`
+	InspectionDate   *time.Time `json:"inspection_date"`
+	Inspector        *Users     `json:"inspector"`
+	InspectionNotes  *string    `json:"inspection_notes"`
+	ConditionID      *string    `json:"condition_id"`
+	HandlingNotes    *string    `json:"handling_notes"`
+	PurchaseOrderID  *string    `json:"purchase_order_id"`
 }
 
 type InventoryTurnoverRequest struct {
