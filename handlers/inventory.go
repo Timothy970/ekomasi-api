@@ -153,7 +153,7 @@ func GetInventory(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
-				Description: "Failed to get inventory",
+				Description: "Failed to get inventory : " + err.Error(),
 				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),

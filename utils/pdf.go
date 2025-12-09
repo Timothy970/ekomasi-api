@@ -210,7 +210,7 @@ func EllipseText(text string, max int) string {
 	return text[:max-3] + "..."
 }
 
-func GenerateInventoryPDF(inv dtos.Inventory) ([]byte, error) {
+func GenerateInventoryPDF(inv dtos.SingleInventory) ([]byte, error) {
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.SetMargins(15, 15, 15)
 	pdf.AddPage()
