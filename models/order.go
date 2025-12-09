@@ -681,17 +681,31 @@ func checkIfReviewed(productID, userID string) bool {
 // admin handler to get all orders with pagination and filtering
 // filter by status, time range: today, this week, this month, last month, this year
 // search by order id, user
-func ListOrdersByAdmin(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, q string, page, limit int) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
-	offset := (page - 1) * limit
+type AdminOrderParameters struct {
+	OrderStatus    string
+	PaymentStatus  string
+	DeliveryStatus string
+	PaymentMethod  string
+	TimeRange      string
+	OrderID        string
+	Q              string
+	Page           int
+	Limit          int
+	StartDate      string
+	EndDate        string
+}
 
-	conds := buildAdminOrderConditions(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, q)
+func ListOrdersByAdmin(params AdminOrderParameters) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
+	offset := (params.Page - 1) * params.Limit
+
+	conds := buildAdminOrderConditions(params)
 
 	total, err := getAdminOrderCount(conds)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	query, queryArgs := buildAdminOrderQuery(conds, limit, offset)
+	query, queryArgs := buildAdminOrderQuery(conds, params.Limit, offset)
 	rows, err := DB.Query(query, queryArgs...)
 	if err != nil {
 		return nil, nil, err
@@ -704,12 +718,12 @@ func ListOrdersByAdmin(orderStatus, paymentStatus, deliveryStatus, paymentMethod
 	}
 
 	pagination := &dtos.PaginationMeta{
-		HasNext:    offset+limit < total,
-		HasPrev:    page > 1,
-		Page:       page,
-		Size:       limit,
+		HasNext:    offset+params.Limit < total,
+		HasPrev:    params.Page > 1,
+		Page:       params.Page,
+		Size:       params.Limit,
 		TotalItems: total,
-		TotalPages: (total + limit - 1) / limit,
+		TotalPages: (total + params.Limit - 1) / params.Limit,
 	}
 
 	return orders, pagination, nil
@@ -723,34 +737,34 @@ type OrderConditions struct {
 	JoinDeliveries bool
 }
 
-func buildAdminOrderConditions(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, q string) OrderConditions {
+func buildAdminOrderConditions(params AdminOrderParameters) OrderConditions {
 	var conditions []string
 	var args []interface{}
 	joinUsers := false
 	joinDeliveries := false
 
-	if orderStatus != "" {
+	if params.OrderStatus != "" {
 		conditions = append(conditions, "o.status LIKE ?")
-		args = append(args, orderStatus)
+		args = append(args, params.OrderStatus)
 	}
-	if paymentStatus != "" {
+	if params.PaymentStatus != "" {
 		conditions = append(conditions, "o.payment_status LIKE ?")
-		args = append(args, paymentStatus)
+		args = append(args, params.PaymentStatus)
 	}
-	if deliveryStatus != "" {
+	if params.DeliveryStatus != "" {
 		joinDeliveries = true
 		conditions = append(conditions, "d.status LIKE ?")
-		args = append(args, deliveryStatus)
+		args = append(args, params.DeliveryStatus)
 	}
-	if paymentMethod != "" {
+	if params.PaymentMethod != "" {
 		conditions = append(conditions, "o.payment_method LIKE ?")
-		args = append(args, paymentMethod)
+		args = append(args, params.PaymentMethod)
 	}
 
 	now := time.Now()
 	var start, end time.Time
 
-	switch timeRange {
+	switch params.TimeRange {
 	case "today":
 		start = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 		end = start.Add(24 * time.Hour)
@@ -777,12 +791,12 @@ func buildAdminOrderConditions(orderStatus, paymentStatus, deliveryStatus, payme
 		args = append(args, start, end)
 	}
 
-	if orderID != "" {
+	if params.OrderID != "" {
 		conditions = append(conditions, "o.order_id = ?")
-		args = append(args, orderID)
+		args = append(args, params.OrderID)
 	}
 
-	if q != "" {
+	if params.Q != "" {
 		joinUsers = true
 		joinDeliveries = true
 		conditions = append(conditions, `(
@@ -798,11 +812,16 @@ func buildAdminOrderConditions(orderStatus, paymentStatus, deliveryStatus, payme
 			u.phone_number LIKE ?
 		)`)
 
-		likePattern := "%" + q + "%"
+		likePattern := "%" + params.Q + "%"
 		args = append(args, likePattern, likePattern, likePattern, likePattern, likePattern,
 			likePattern, likePattern, likePattern, likePattern, likePattern)
 	}
-
+	if params.StartDate != "" && params.EndDate != "" {
+		startDate := StringToTime(params.StartDate)
+		endDate := StringToTime(params.EndDate)
+		conditions = append(conditions, "o.created_at >= ? AND o.created_at <= ?")
+		args = append(args, startDate, endDate)
+	}
 	return OrderConditions{
 		Conditions:     conditions,
 		Args:           args,

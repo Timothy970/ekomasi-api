@@ -545,11 +545,25 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	paymentStatus := r.URL.Query().Get("payment_status")
 	deliveryStatus := r.URL.Query().Get("delivery_status")
 	paymentMethod := r.URL.Query().Get("payment_method")
+	startDate := r.URL.Query().Get("start_date")
+	endDate := r.URL.Query().Get("end_date")
 	timeRange := r.URL.Query().Get("time_range")
 	orderID := r.URL.Query().Get("order_id")
 	q := r.URL.Query().Get("q")
-
-	orders, pagination, err := models.ListOrdersByAdmin(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, q, page, limit)
+	params := models.AdminOrderParameters{
+		OrderStatus:    orderStatus,
+		PaymentStatus:  paymentStatus,
+		DeliveryStatus: deliveryStatus,
+		PaymentMethod:  paymentMethod,
+		TimeRange:      timeRange,
+		OrderID:        orderID,
+		Q:              q,
+		Page:           page,
+		Limit:          limit,
+		StartDate:      startDate,
+		EndDate:        endDate,
+	}
+	orders, pagination, err := models.ListOrdersByAdmin(params)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -592,21 +606,33 @@ func StreamOrdersCSV(w http.ResponseWriter, r *http.Request) {
 		writeCSVError(w, "Failed to write CSV header: "+err.Error())
 		return
 	}
-
-	query := r.URL.Query()
+	page := 1
+	limit := 1000
 	orderStatus := r.URL.Query().Get("order_status")
 	paymentStatus := r.URL.Query().Get("payment_status")
 	deliveryStatus := r.URL.Query().Get("delivery_status")
 	paymentMethod := r.URL.Query().Get("payment_method")
-	timeRange := query.Get("time_range")
-	orderID := query.Get("order_id")
-	user := query.Get("user")
-
-	page := 1
-	limit := 1000
+	startDate := r.URL.Query().Get("start_date")
+	endDate := r.URL.Query().Get("end_date")
+	timeRange := r.URL.Query().Get("time_range")
+	orderID := r.URL.Query().Get("order_id")
+	q := r.URL.Query().Get("q")
+	params := models.AdminOrderParameters{
+		OrderStatus:    orderStatus,
+		PaymentStatus:  paymentStatus,
+		DeliveryStatus: deliveryStatus,
+		PaymentMethod:  paymentMethod,
+		TimeRange:      timeRange,
+		OrderID:        orderID,
+		Q:              q,
+		Page:           page,
+		Limit:          limit,
+		StartDate:      startDate,
+		EndDate:        endDate,
+	}
 
 	for {
-		orders, meta, err := models.ListOrdersByAdmin(orderStatus, paymentStatus, deliveryStatus, paymentMethod, timeRange, orderID, user, page, limit)
+		orders, meta, err := models.ListOrdersByAdmin(params)
 		if err != nil {
 			writeCSVError(w, "Failed to fetch orders: "+err.Error())
 			return
@@ -1049,8 +1075,12 @@ func DownloadOrderInvoicePDF(w http.ResponseWriter, r *http.Request) {
 	}
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	orderID := mux.Vars(r)["order_id"]
-
-	orders, _, err := models.ListOrdersByAdmin("", "", "", "", "", orderID, "", page, limit)
+	params := models.AdminOrderParameters{
+		OrderID: orderID,
+		Page:    page,
+		Limit:   limit,
+	}
+	orders, _, err := models.ListOrdersByAdmin(params)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
