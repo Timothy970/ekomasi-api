@@ -13,14 +13,36 @@ import (
 )
 
 func CreateStaticPage(req dtos.StaticPageRequest, userID string) error {
+	//check if title or path already exists
+	err := isStaticPageThereByTitleOrPath(req.Title, req.Path)
 	staticPageID, _ := shortid.Generate()
 	data, _ := json.Marshal(req.Sections)
 	query := `
 		INSERT INTO static_pages (static_page_id, title, description, data, path, user_id)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
-	_, err := DB.Exec(query, staticPageID, req.Title, req.Description, data, req.Path, userID)
+	_, err = DB.Exec(query, staticPageID, req.Title, req.Description, data, req.Path, userID)
 	return err
+}
+
+func isStaticPageThereByTitleOrPath(title, path string) error {
+	//first check if title exists for uniqueness
+	exists, err := RecordExists("static_pages", "LOWER(title) = LOWER(?) = LOWER(?)", title)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("static page with this title already exists")
+	}
+	//then check if path exists for uniqueness
+	exists, err = RecordExists("static_pages", "LOWER(path) = LOWER(?)", path)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("static page with this path already exists")
+	}
+	return nil
 }
 
 func GetStaticPages(query string) ([]dtos.StaticPageRequest, error) {

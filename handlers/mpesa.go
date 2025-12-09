@@ -365,7 +365,7 @@ func sendCallbackToDevEnv(body []byte) {
 	defer res.Body.Close()
 
 	respBody, _ := io.ReadAll(res.Body)
-	log.Printf("Response from dev environment: %s", string(respBody))
+	log.Printf("Response from development environment: %s", string(respBody))
 }
 
 // store mpesa receipt number
