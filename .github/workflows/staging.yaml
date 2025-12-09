@@ -1,14 +1,9 @@
-name: Build & Deploy Development
+name: Build & Deploy Staging
 
 on:
   push:
-    paths-ignore:
-      - env/staging.yaml
-      - env/production.yaml
-      - .github/**
-    branches:
-      - main
-      - master
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc'
 
 permissions:
   id-token: write
@@ -25,7 +20,7 @@ jobs:
       - name: Check values file exists
         id: values_file
         run: |
-          if test -f "env/development.yaml"; then
+          if test -f "env/staging.yaml"; then
             echo "values_file=true" >> $GITHUB_OUTPUT
           else
             echo "values_file=false" >> $GITHUB_OUTPUT
@@ -40,7 +35,7 @@ jobs:
     with:
       service_name: ${{ vars.SERVICE_NAME }}
       service_group: ${{ vars.SERVICE_GROUP }}
-      ref: ${{ github.sha }}
-      environment: development
+      ref: ${{ github.ref_name }}
+      environment: staging
     secrets: inherit
 

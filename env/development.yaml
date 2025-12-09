@@ -25,6 +25,8 @@ env:
     value: adenzo
   - name: SHORTCODE
     value: Emalify
+  - name: BUCKET_NAME
+    value: development-ecommerce-public-api-images
 
 secrets:
   - MPESA_CONSUMER_KEY
@@ -43,7 +45,6 @@ secrets:
   # - SERVICE_ACCOUNT
   - SMSAPIKEY
   - SMSPARTNERID
-  - BUCKET_NAME
   
 
 requires:
@@ -54,7 +55,7 @@ migration_type: custom
 migration_command: ["/app/app", "-migrate=true"]
 migration_image_suffix: cli
 
-gcs_buckets:
+gcs_buckets_public:
   - images
 
 allowed_networks:
