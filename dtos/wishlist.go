@@ -28,6 +28,7 @@ type ShareWishlistRequest struct {
 }
 
 type ShareWishlistPayload struct {
-	Email   string  `json:"email" validate:"required,email"`
-	Message *string `json:"message"`
+	Email      string  `json:"email" validate:"required,email"`
+	Message    *string `json:"message"`
+	SenderName string  `json:"sender_name" validate:"required"`
 }

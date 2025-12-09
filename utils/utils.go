@@ -435,7 +435,7 @@ func SendVoucherEmail(data dtos.VoucherEmailInfo) (string, string) {
 
 // Body for order placements Email
 // GenerateOrderConfirmationHTML generates a styled HTML email for order confirmation.
-func GenerateOrderConfirmationHTML(data dtos.OrderEmailData) string {
+func GenerateOrderConfirmationHTML(data dtos.OrderEmailData, orderType string) string {
 	// Calculate totals if not provided
 	if data.Subtotal == 0 {
 		data.Subtotal = calculateSubtotal(data.OrderItems)
@@ -444,13 +444,26 @@ func GenerateOrderConfirmationHTML(data dtos.OrderEmailData) string {
 		data.TotalAmount = data.Subtotal + data.ShippingFee - data.Discount
 	}
 
+	// === NEW: Dynamic Colors & Texts ===
+	bgGradient := "linear-gradient(135deg, #8B5FBF 0%, #6A3093 100%)"
+	sectionBG := "#f8f5ff"
+	headerTitle := "🎉 Order Confirmed!"
+	headerSubtitle := "Thank you for your purchase"
+
+	if strings.ToLower(orderType) == "order_receipt" {
+		bgGradient = "linear-gradient(135deg, #fd90c5ff 0%, #ff6fa3 100%)" // pink gradient
+		sectionBG = "#fff1f7"                                              // very light pink
+		headerTitle = "🧾 Order Receipt"
+		headerSubtitle = "Here is your purchase receipt"
+	}
+
 	const template = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Order Confirmation</title>
+<title>{{HeaderTitle}}</title>
 <style>
 	body {
 		font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -469,7 +482,7 @@ func GenerateOrderConfirmationHTML(data dtos.OrderEmailData) string {
 		overflow: hidden;
 	}
 	.header {
-		background: linear-gradient(135deg, #8B5FBF 0%, #6A3093 100%);
+		background: {{BGGradient}};
 		color: white;
 		text-align: center;
 		padding: 30px;
@@ -477,7 +490,7 @@ func GenerateOrderConfirmationHTML(data dtos.OrderEmailData) string {
 	.header h1 { font-size: 28px; margin-bottom: 8px; }
 	.content { padding: 30px; }
 	.order-info, .totals, .delivery-address {
-		background: #f8f5ff;
+		background: {{SectionBG}};
 		padding: 20px;
 		border-radius: 8px;
 		margin: 25px 0;
@@ -539,8 +552,8 @@ func GenerateOrderConfirmationHTML(data dtos.OrderEmailData) string {
 <body>
 	<div class="email-container">
 		<div class="header">
-			<h1>🎉 Order Confirmed!</h1>
-			<p>Thank you for your purchase</p>
+			<h1>{{HeaderTitle}}</h1>
+			<p>{{HeaderSubtitle}}</p>
 		</div>
 
 		<div class="content">
@@ -555,6 +568,7 @@ func GenerateOrderConfirmationHTML(data dtos.OrderEmailData) string {
 						<div class="info-label">Order ID</div>
 						<div class="info-value">{{.OrderID}}</div>
 					</div>
+
 					<div>
 						<div class="info-label">Order Date</div>
 						<div class="info-value">{{.OrderDate}}</div>
@@ -572,21 +586,15 @@ func GenerateOrderConfirmationHTML(data dtos.OrderEmailData) string {
 					</tr>
 				</thead>
 				<tbody>
-					{{range .OrderItems}}
-					<tr>
-						<td>{{.ProductName}}</td>
-						<td style="text-align:center;">{{.Quantity}}</td>
-						<td class="price">KES {{printf "%.2f" .UnitPrice}}</td>
-					</tr>
-					{{end}}
+					{{ItemsHTML}}
 				</tbody>
 			</table>
 
 			<div class="totals">
-				<div class="total-row"><span>Subtotal</span><span>KES {{printf "%.2f" .Subtotal}}</span></div>
-				<div class="total-row"><span>Shipping</span><span>KES {{printf "%.2f" .ShippingFee}}</span></div>
-				<div class="total-row"><span>Discount</span><span>-KES {{printf "%.2f" .Discount}}</span></div>
-				<div class="total-row"><span>Total Amount</span><span>KES {{printf "%.2f" .TotalAmount}}</span></div>
+				<div class="total-row"><span>Subtotal</span><span>KES {{Subtotal}}</span></div>
+				<div class="total-row"><span>Shipping</span><span>KES {{ShippingFee}}</span></div>
+				<div class="total-row"><span>Discount</span><span>-KES {{Discount}}</span></div>
+				<div class="total-row"><span>Total Amount</span><span>KES {{TotalAmount}}</span></div>
 			</div>
 
 			<div class="delivery-address">
@@ -594,54 +602,40 @@ func GenerateOrderConfirmationHTML(data dtos.OrderEmailData) string {
 				<p>{{.DeliveryAddress}}</p>
 			</div>
 		</div>
-
-		<div class="footer">
-			<p>If you have any questions, contact our <a href="mailto:support@example.com">customer support</a>.</p>
-			<p>© 2025 Your Company Name. All rights reserved.</p>
-		</div>
 	</div>
 </body>
 </html>`
 
-	// Build HTML manually (for production, prefer html/template)
-	html := strings.NewReplacer(
-		"{{.CustomerName}}", data.CustomerName,
-		"{{.OrderID}}", data.OrderID,
-		"{{.OrderDate}}", data.OrderDate,
-		"{{.DeliveryAddress}}", data.DeliveryAddress,
-	).Replace(template)
-
-	// Replace totals
-	html = strings.NewReplacer(
-		"{{printf \"%.2f\" .Subtotal}}", fmt.Sprintf("%.2f", data.Subtotal),
-		"{{printf \"%.2f\" .ShippingFee}}", fmt.Sprintf("%.2f", data.ShippingFee),
-		"{{printf \"%.2f\" .Discount}}", fmt.Sprintf("%.2f", data.Discount),
-		"{{printf \"%.2f\" .TotalAmount}}", fmt.Sprintf("%.2f", data.TotalAmount),
-	).Replace(html)
-
-	// Build order items HTML
+	// === Build items HTML ===
 	var itemsHTML strings.Builder
 	for _, item := range data.OrderItems {
 		itemsHTML.WriteString(fmt.Sprintf(`
 			<tr>
 				<td>%s</td>
 				<td style="text-align:center;">%d</td>
-				<td class="price">KES %.2f</td>
+				<td style="text-align:right;">KES %.2f</td>
 			</tr>`,
 			item.ProductName, item.Quantity, item.UnitPrice))
 	}
 
-	// Inject items into template
-	html = strings.ReplaceAll(html,
-		`{{range .OrderItems}}
-					<tr>
-						<td>{{.ProductName}}</td>
-						<td style="text-align:center;">{{.Quantity}}</td>
-						<td class="price">KES {{printf "%.2f" .UnitPrice}}</td>
-					</tr>
-					{{end}}`,
-		itemsHTML.String(),
-	)
+	// === Replace marker variables ===
+	html := template
+	html = strings.ReplaceAll(html, "{{HeaderTitle}}", headerTitle)
+	html = strings.ReplaceAll(html, "{{HeaderSubtitle}}", headerSubtitle)
+	html = strings.ReplaceAll(html, "{{BGGradient}}", bgGradient)
+	html = strings.ReplaceAll(html, "{{SectionBG}}", sectionBG)
+	html = strings.ReplaceAll(html, "{{ItemsHTML}}", itemsHTML.String())
+
+	html = strings.ReplaceAll(html, "{{Subtotal}}", fmt.Sprintf("%.2f", data.Subtotal))
+	html = strings.ReplaceAll(html, "{{ShippingFee}}", fmt.Sprintf("%.2f", data.ShippingFee))
+	html = strings.ReplaceAll(html, "{{Discount}}", fmt.Sprintf("%.2f", data.Discount))
+	html = strings.ReplaceAll(html, "{{TotalAmount}}", fmt.Sprintf("%.2f", data.TotalAmount))
+
+	// basic replacements for fields
+	html = strings.ReplaceAll(html, "{{.CustomerName}}", data.CustomerName)
+	html = strings.ReplaceAll(html, "{{.OrderID}}", data.OrderID)
+	html = strings.ReplaceAll(html, "{{.OrderDate}}", data.OrderDate)
+	html = strings.ReplaceAll(html, "{{.DeliveryAddress}}", data.DeliveryAddress)
 
 	return html
 }
@@ -827,16 +821,17 @@ type WishlistItem struct {
 }
 
 type wishlistTemplateData struct {
-	WishlistName string
+	SenderName   string
 	PersonalNote string
 	ShareURL     string
 	Items        []WishlistItem
 	ShowCount    int
 	GeneratedAt  string
 	HasMore      bool
+	CurrentYear  int
 }
 
-func GenerateWishlistEmailHTML(wishlistName, personalMessage, shareURL string, items []WishlistItem) (string, error) {
+func GenerateWishlistEmailHTML(senderName, personalMessage, shareURL string, items []WishlistItem) (string, error) {
 	const maxPreview = 3
 	showCount := len(items)
 	hasMore := false
@@ -844,15 +839,16 @@ func GenerateWishlistEmailHTML(wishlistName, personalMessage, shareURL string, i
 		showCount = maxPreview
 		hasMore = true
 	}
-
+	currentYear := time.Now().Year()
 	data := wishlistTemplateData{
-		WishlistName: wishlistName,
+		SenderName:   senderName,
 		PersonalNote: personalMessage,
 		ShareURL:     shareURL,
 		Items:        items[:showCount],
 		ShowCount:    showCount,
 		HasMore:      hasMore,
 		GeneratedAt:  time.Now().Format("January 2, 2006"),
+		CurrentYear:  currentYear,
 	}
 
 	tpl := template.Must(template.New("wishlistEmail").Parse(emailTemplate))
@@ -868,7 +864,7 @@ const emailTemplate = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{.WishlistName}} — Shared Wishlist</title>
+<title>{{.SenderName}}'s Wishlist</title>
 <style>
 	body {
 		font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -996,8 +992,8 @@ const emailTemplate = `<!DOCTYPE html>
 <body>
 	<div class="email-container">
 		<div class="header">
-			<h1>{{.WishlistName}}</h1>
-			<p>A special collection shared with you</p>
+			<h1>💜 Wishlist from {{.SenderName}}</h1>
+			<p>{{.SenderName}} shared their special collection with you</p>
 		</div>
 
 		<div class="content">
@@ -1054,7 +1050,7 @@ const emailTemplate = `<!DOCTYPE html>
 
 		<div class="footer">
 			<p>Shared on {{.GeneratedAt}} • <a href="{{.ShareURL}}" target="_blank">Open in browser</a></p>
-			<p>© 2025 Your Company Name. All rights reserved.</p>
+			<p>© {{.CurrentYear}} Adenzo. All rights reserved.</p>
 		</div>
 	</div>
 </body>

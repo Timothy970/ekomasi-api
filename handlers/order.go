@@ -256,6 +256,12 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	if req.DeliveryStatus != nil && strings.ToLower(*req.DeliveryStatus) == "delivered" {
+		//send order receipt email to customer
+		if err := processSingleOrder(orderID, "order_receipt"); err != nil {
+			log.Printf("Failed to send order receipt for order ID %s: %v", orderID, err)
+		}
+	}
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
