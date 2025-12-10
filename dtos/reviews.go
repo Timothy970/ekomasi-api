@@ -12,13 +12,13 @@ type ReviewResponse struct {
 
 type ReviewRequest struct {
 	UserID  string `json:"user_id" validate:"required"`
-	Score   int    `json:"score" validate:"required"`
+	Score   int    `json:"score" validate:"required,min=1,max=5"`
 	Details string `json:"details" validate:"required"`
 }
 type UpdateReview struct {
-	Score   int    `json:"score,omitempty"`
-	Details string `json:"details,omitempty"`
-	Status  string `json:"status" validate:"required"`
+	Score   int     `json:"score,omitempty" validate:"omitempty,min=1,max=5"`
+	Details string  `json:"details,omitempty"`
+	Status  *string `json:"status"`
 }
 type DetailedReviewResponse struct {
 	Reviews      []ReviewResponse `json:"reviews"`
