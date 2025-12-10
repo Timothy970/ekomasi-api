@@ -196,6 +196,10 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return &cp
 		}(),
+		StockQuantity: func() int {
+			sq, _ := strconv.Atoi(r.FormValue("stock_quantity"))
+			return sq
+		}(),
 	}
 
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
@@ -242,6 +246,7 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	bundleID := mux.Vars(r)["bundle_id"]
 	// Parse multipart form (20 MB max)
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -270,7 +275,7 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 					Description: "Failed to upload image to storage :" + err.Error(),
 					Code:        http.StatusInternalServerError,
 				},
-				Message:   uploadImageError,
+				Message:   "Failed to upload image",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
 				Request:   r,
@@ -278,25 +283,52 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		imageURL = url
+	} else {
+		// If no file uploaded, check for image URL string in form value
+		imageURL = r.FormValue("image")
 	}
 
-	req := &dtos.UpdateBundle{
+	req := &dtos.Bundle{
 		Name:        r.FormValue("bundle_name"),
 		Description: r.FormValue("bundle_description"),
 		Price:       func() float64 { p, _ := strconv.ParseFloat(r.FormValue("bundle_price"), 64); return p }(),
-		Image:       &imageURL,
+		Image:       imageURL,
+		Products: func() []dtos.BundleProducts {
+			productsStr := r.FormValue("products")
+			if productsStr == "" {
+				return []dtos.BundleProducts{}
+			}
+
+			var products []dtos.BundleProducts
+			if err := json.Unmarshal([]byte(productsStr), &products); err != nil {
+				// you may want to handle error properly instead of swallowing it
+				return []dtos.BundleProducts{}
+			}
+			return products
+		}(),
 		KeepSelling: func() *bool {
 			ks := strings.ToLower(r.FormValue("keep_selling"))
+
+			// default = true (empty or key missing)
+			defaultValue := true
+
+			if ks == "" {
+				return &defaultValue
+			}
+
 			switch ks {
 			case "true":
-				b := true
-				return &b
+				v := true
+				return &v
 			case "false":
-				b := false
-				return &b
+				v := false
+				return &v
 			}
-			return nil
+
+			// any unexpected value → default to true
+			return &defaultValue
 		}(),
+
 		CompareAtPrice: func() *float64 {
 			cp, _ := strconv.ParseFloat(r.FormValue("compare_at_price"), 64)
 			if cp == 0 {
@@ -304,18 +336,21 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return &cp
 		}(),
-		ID: r.FormValue("bundle_id"),
+		StockQuantity: func() int {
+			sq, _ := strconv.Atoi(r.FormValue("stock_quantity"))
+			return sq
+		}(),
 	}
 
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
-	err := models.UpdateBundle(*req)
+	err := models.UpdateBundle(*req, bundleID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
-				Description: "Failed to update product bundle with ID " + req.ID,
+				Description: "Failed to update product bundle with ID " + bundleID,
 				Code:        http.StatusInternalServerError,
 			},
 			Message:   err.Error(),
@@ -328,7 +363,7 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
-			Description: "Product bundle with ID " + req.ID + " updated successfully",
+			Description: "Product bundle with ID " + bundleID + " updated successfully",
 			Code:        http.StatusOK,
 		},
 		Payload:   nil,
@@ -348,19 +383,13 @@ func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.DeleteBundle](r, w, requestSummary, start)
-	if !ok {
-		return
-	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
-		return
-	}
-	err := models.DeleteBundle(req.ID)
+	bundleID := mux.Vars(r)["bundle_id"]
+	err := models.DeleteBundle(bundleID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
-				Description: "Failed to delete product bundle with ID " + req.ID,
+				Description: "Failed to delete product bundle with ID " + bundleID,
 				Code:        http.StatusInternalServerError,
 			},
 			Message:   err.Error(),
@@ -373,7 +402,7 @@ func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
-			Description: "Product bundle with ID " + req.ID + " deleted successfully",
+			Description: "Product bundle with ID " + bundleID + " deleted successfully",
 			Code:        http.StatusOK,
 		},
 		Payload:   nil,

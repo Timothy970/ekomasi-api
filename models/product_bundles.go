@@ -184,7 +184,7 @@ func CreateBundle(req dtos.Bundle, userID string) error {
 	_, err := DB.Exec(`
 		INSERT INTO products (product_id, name, description, sku, price, stock_quantity, created_by_id, buying_price, search_vector, product_type)
 		VALUES (?,?,?,?,?,?,?,?,?, 'bundle')
-	`, productID, req.Name, req.Description, "BUNDLE-"+productID, req.Price, 0, userID, req.CompareAtPrice, req.Name)
+	`, productID, req.Name, req.Description, "BUNDLE-"+productID, req.Price, req.StockQuantity, userID, req.CompareAtPrice, req.Name)
 	if err != nil {
 		return err
 	}
@@ -204,8 +204,8 @@ func CreateBundle(req dtos.Bundle, userID string) error {
 }
 
 // update bundle
-func UpdateBundle(req dtos.UpdateBundle) error {
-	err := IsProductThere(req.ID)
+func UpdateBundle(req dtos.Bundle, bundleID string) error {
+	err := IsProductThere(bundleID)
 	if err != nil {
 		return err
 	}
@@ -239,17 +239,29 @@ func UpdateBundle(req dtos.UpdateBundle) error {
 	}
 
 	query += " " + strings.Join(updates, ", ") + whereBundleID
-	args = append(args, req.ID)
+	args = append(args, bundleID)
 
 	if _, err := DB.Exec(query, args...); err != nil {
 		return fmt.Errorf("failed to update bundle: %v", err)
 	}
-	if req.Image != nil && *req.Image != "" {
+	if req.Image != "" {
 		// Update bundle image
 		imageQuery := `UPDATE product_images SET url = ? WHERE product_id = ? AND is_primary = TRUE`
-		_, err := DB.Exec(imageQuery, *req.Image, req.ID)
+		_, err := DB.Exec(imageQuery, req.Image, bundleID)
 		if err != nil {
 			return fmt.Errorf("failed to update bundle image: %v", err)
+		}
+	}
+	//delete existing products in bundle and add new ones
+	if len(req.Products) > 0 {
+		deleteQuery := `DELETE FROM bundle_products WHERE bundle_id = ?`
+		_, err := DB.Exec(deleteQuery, bundleID)
+		if err != nil {
+			return err
+		}
+		err = AddProductsToBundle(req.Products, bundleID)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -289,11 +301,7 @@ func AddProductsToBundle(req []dtos.BundleProducts, bundleID string) error {
 		}
 
 		if count > 0 {
-			//add to existing quantity
-			updateQuery := `UPDATE bundle_products SET quantity = quantity + ? WHERE bundle_id = ? AND product_id = ?`
-			if _, err := DB.Exec(updateQuery, product.Quantity, bundleID, product.ProductID); err != nil {
-				return err
-			}
+			// Skip adding this product as it already exists in the bundle
 			continue
 		}
 

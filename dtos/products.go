@@ -85,25 +85,18 @@ type Bundle struct {
 	Products       []BundleProducts `json:"products" validate:"required"`
 	KeepSelling    *bool            `json:"keep_selling"`
 	CompareAtPrice *float64         `json:"compare_at_price"`
-	// StockQuantity  int              `json:"stock_quantity"`
+	StockQuantity  int              `json:"stock_quantity" validate:"required,gte=0"`
 }
 
 type BundleProducts struct {
 	ProductID string `json:"product_id" validate:"required"`
 	Quantity  int    `json:"quantity" validate:"required,gte=1"`
 }
-type UpdateBundle struct {
-	Name           string   `json:"bundle_name"`
-	Description    string   `json:"bundle_description"`
-	Price          float64  `json:"bundle_price"`
-	Image          *string  `json:"bundle_image"`
-	KeepSelling    *bool    `json:"keep_selling"`
-	CompareAtPrice *float64 `json:"compare_at_price"`
-	ID             string   `json:"bundle_id" validate:"required"`
-}
+
 type DeleteBundle struct {
 	ID string `json:"bundle_id" validate:"required"`
 }
+
 type AddProductsToBundle struct {
 	ID         string   `json:"bundle_id" validate:"required"`
 	ProductIDs []string `json:"product_ids" validate:"required"`
