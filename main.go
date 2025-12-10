@@ -25,7 +25,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"github.com/uptrace/uptrace-go/uptrace"
@@ -57,11 +56,6 @@ const migrationDir = "migrations"
 func init() {
 	// Initialize database connection or other configurations here.
 	fmt.Println("Initializing server...")
-	fmt.Println("Initializing server...")
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("No .env file found or error loading .env file, proceeding with environment variables")
-	}
 
 }
 
