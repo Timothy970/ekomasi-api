@@ -10,20 +10,43 @@ import (
 	"github.com/teris-io/shortid"
 )
 
+func isReviewThere(reviewID string) error {
+	exists, err := RecordExists("product_reviews", "review_id = ?", reviewID)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return fmt.Errorf("review not found")
+	}
+	return nil
+}
 func GetProductReview(productID, reviewID string, limit, page int) ([]dtos.ReviewResponse, *dtos.PaginationMeta, error) {
+	err := IsProductThere(productID)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = isReviewThere(reviewID)
+
+	if err != nil {
+		return nil, nil, err
+	}
 	query := `
 			SELECT review_id, user_id, score, details, created_at
 			FROM product_reviews
-			WHERE product_id = ? AND review_id = ? AND status = 'approved'
+			WHERE product_id = ? AND review_id = ?
 			LIMIT 1
 		`
 
 	var r dtos.ReviewResponse
 	var userID string
-	err := DB.QueryRow(query, productID, reviewID).
+	err = DB.QueryRow(query, productID, reviewID).
 		Scan(&r.ID, &userID, &r.Score, &r.Details, &r.CreatedAt)
 
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil, fmt.Errorf("review for the product not found")
+		}
 		return nil, nil, err
 	}
 	r.User, err = GetUserDisplayName(userID)

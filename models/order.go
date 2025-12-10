@@ -656,7 +656,7 @@ func getOrderProducts(orderID string, userID string) ([]dtos.OrderProduct, error
 		}
 		item.Warranty = &warranty
 		if userID != "" {
-			item.IsReviewed = checkIfReviewed(item.ID, userID)
+			item.IsReviewed, item.ReviewID = checkIfReviewed(item.ID, userID)
 		}
 		items = append(items, item)
 	}
@@ -665,17 +665,17 @@ func getOrderProducts(orderID string, userID string) ([]dtos.OrderProduct, error
 }
 
 // function to check if product is reviewed by user
-func checkIfReviewed(productID, userID string) bool {
-	query := `SELECT COUNT(*) FROM product_reviews WHERE product_id = ? AND user_id = ?`
-	var count int
-	err := DB.QueryRow(query, productID, userID).Scan(&count)
+func checkIfReviewed(productID, userID string) (bool, string) {
+	query := `SELECT review_id FROM product_reviews WHERE product_id = ? AND user_id = ?`
+	var reviewID string
+	err := DB.QueryRow(query, productID, userID).Scan(&reviewID)
 	if err != nil {
-		return false
+		return false, ""
 	}
-	if count > 0 {
-		return true
+	if reviewID != "" {
+		return true, reviewID
 	}
-	return false
+	return false, ""
 }
 
 // admin handler to get all orders with pagination and filtering

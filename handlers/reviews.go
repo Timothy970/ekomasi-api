@@ -42,32 +42,19 @@ func GetReview(w http.ResponseWriter, r *http.Request) {
 
 	reviews, pagination, err := models.GetProductReview(productID, reviewID, limit, page)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: productWithID + productID + " is not found",
-					Code:        http.StatusNotFound,
-				},
-				Message:   "Product not found",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-		} else {
-			log.Printf("error getting reviews:::%v", err)
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: "Error fetching product reviews for product with ID " + productID,
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   "Error fetching product reviews",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-		}
+		log.Printf("error getting reviews:::%v", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Error fetching product reviews for product with ID " + productID,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+
 		return
 	}
 
