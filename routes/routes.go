@@ -72,8 +72,6 @@ func SetupRoutes(router *mux.Router) {
 	product.HandleFunc("/{product_id}", handlers.GetProductByIDHandler).Methods("GET")
 	product.Handle("/upload-images", middleware.AuthenticateToken(http.HandlerFunc(handlers.UploadProductImageHandler))).Methods("POST")
 	product.Handle("/upload-images", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateProductImageHandler))).Methods("PATCH")
-	product.Handle("/update/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateBundleHandler))).Methods("PATCH")
-	product.Handle("/delete/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBundleHandler))).Methods("DELETE")
 	product.Handle("/add-products/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductsToBundleHandler))).Methods("POST")
 	// featured products
 	products.HandleFunc("/featured", handlers.GetFeatured).Methods("GET")
@@ -165,11 +163,11 @@ func SetupRoutes(router *mux.Router) {
 	admin.Handle("/banners/{banner_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateBannerInfo))).Methods("PATCH")
 	admin.Handle("/banners/{banner_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBannerInfo))).Methods("DELETE")
 	//handle bundle CRUD operationsad
-	// adminbundles := admin.PathPrefix("/products/bundles/{bundle_id}").Subrouter()
+	adminbundles := admin.PathPrefix("/products/bundles/{bundle_id}").Subrouter()
 	admin.Handle("/products/bundles", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateBundleHandler))).Methods("POST")
 	api.HandleFunc("/products/bundles", handlers.GetBundleProductsHandler).Methods("GET")
-	// adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateBundleHandler))).Methods("PATCH")
-	// adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBundleHandler))).Methods("DELETE")
+	adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateBundleHandler))).Methods("PATCH")
+	adminbundles.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBundleHandler))).Methods("DELETE")
 	//add products to a bundle
 	// admin.Handle("/products/bundles/products/{bundle_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductsToBundleHandler))).Methods("POST")
 	admin.Handle("/products/bundles/products/{bundle_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveProductsFromBundleHandler))).Methods("DELETE")
