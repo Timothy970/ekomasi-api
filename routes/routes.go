@@ -150,7 +150,7 @@ func SetupRoutes(router *mux.Router) {
 	//delete deal
 	admin.Handle(dealWithID, middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteDealHandler))).Methods("DELETE")
 	//Moderate a review
-	admin.Handle("/products/{product_id}/reviews/{review_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateReview))).Methods("PATCH")
+	api.Handle("/products/{product_id}/reviews/{review_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateReview))).Methods("PATCH")
 	//Delete a reviews
 	admin.Handle("/products/{product_id}/reviews/{review_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteReview))).Methods("DELETE")
 	//update a product by id

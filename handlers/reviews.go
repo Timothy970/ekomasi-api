@@ -258,48 +258,18 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 func UpdateReview(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	req, ok := DecodeRequestBody[dtos.UpdateReview](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.UpdateReview](r, w, requestSummary, start)
-	if !ok {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
 	// ctx := r.Context()
 	productID := mux.Vars(r)["product_id"]
 	reviewID := mux.Vars(r)["review_id"]
-	//check if product exists
-	product, err := models.GetProductByID(productID)
-	if err != nil || product == nil {
-		if err == sql.ErrNoRows {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: productWithID + productID + " not found",
-					Code:        http.StatusNotFound,
-				},
-				Message:   productNotFound,
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-		} else {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: "Error fetching product reviews for product ID " + productID,
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-		}
-		return
-	}
-	err = models.UpdateReview(*req, reviewID)
+
+	err := models.UpdateReview(*req, reviewID, productID)
 	if err != nil {
 		log.Printf("Error moderating review: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -333,10 +303,10 @@ func UpdateReview(w http.ResponseWriter, r *http.Request) {
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Review moderated successfully for product ID " + productID,
-			Code:        http.StatusCreated,
+			Code:        http.StatusOK,
 		},
 		Payload:   nil,
-		Message:   "Review moderated successfully",
+		Message:   "Review updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

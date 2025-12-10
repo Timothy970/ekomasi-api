@@ -284,19 +284,32 @@ func AddNewReview(req dtos.ReviewRequest, productID string) (dtos.ReviewResponse
 	return res, nil
 }
 
-func UpdateReview(req dtos.UpdateReview, reviewID string) error {
-	exists, err := RecordExists("product_reviews", "review_id = ?", reviewID)
+func UpdateReview(req dtos.UpdateReview, reviewID string, productID string) error {
+	// Check if review exists
+	err := isReviewThere(reviewID)
 	if err != nil {
-		return fmt.Errorf("failed to check variant existence: %w", err)
+		return err
 	}
-	if !exists {
-		return fmt.Errorf("review not found")
+	//check if product exists
+	err = IsProductThere(productID)
+	if err != nil {
+		return err
+	}
+	//check if review belongs to product
+	var existingProductID string
+	reviewCheckQuery := "SELECT product_id FROM product_reviews WHERE review_id = ?"
+	err = DB.QueryRow(reviewCheckQuery, reviewID).Scan(&existingProductID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch review: %v", err)
+	}
+	if existingProductID != productID {
+		return fmt.Errorf("review does not belong to the specified product")
 	}
 	query := "UPDATE product_reviews SET"
 	args := []interface{}{}
 	updates := []string{}
 
-	if req.Status != "" {
+	if req.Status != nil {
 		updates = append(updates, "status = ?")
 		args = append(args, req.Status)
 	}
