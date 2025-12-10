@@ -78,6 +78,7 @@ type OrderProduct struct {
 	Images        []Image          `json:"urls,omitempty"`
 	Warranty      *ProductWarranty `json:"warranty"`
 	IsReviewed    bool             `json:"is_reviewed,omitempty"`
+	ReviewID      string           `json:"review_id,omitempty"`
 }
 type UserOrder struct {
 	OrderID       string      `json:"order_id"`

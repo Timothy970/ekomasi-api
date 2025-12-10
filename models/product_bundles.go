@@ -238,7 +238,7 @@ func UpdateBundle(req dtos.Bundle, bundleID string) error {
 		return nil // Nothing to update
 	}
 
-	query += " " + strings.Join(updates, ", ") + whereBundleID
+	query += " " + strings.Join(updates, ", ") + " WHERE product_id = ?"
 	args = append(args, bundleID)
 
 	if _, err := DB.Exec(query, args...); err != nil {
@@ -246,7 +246,7 @@ func UpdateBundle(req dtos.Bundle, bundleID string) error {
 	}
 	if req.Image != "" {
 		// Update bundle image
-		imageQuery := `UPDATE product_images SET url = ? WHERE product_id = ? AND is_primary = TRUE`
+		imageQuery := `UPDATE product_images SET url = ? WHERE product_id = ?`
 		_, err := DB.Exec(imageQuery, req.Image, bundleID)
 		if err != nil {
 			return fmt.Errorf("failed to update bundle image: %v", err)
@@ -257,6 +257,7 @@ func UpdateBundle(req dtos.Bundle, bundleID string) error {
 		deleteQuery := `DELETE FROM bundle_products WHERE bundle_id = ?`
 		_, err := DB.Exec(deleteQuery, bundleID)
 		if err != nil {
+			log.Printf("Delete bundle_products err::%s", err)
 			return err
 		}
 		err = AddProductsToBundle(req.Products, bundleID)

@@ -441,7 +441,18 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 		}
 		wishlistItems = append(wishlistItems, item)
 	}
-	htmlBody, err := utils.GenerateWishlistEmailHTML(req.SenderName, *req.Message, shareLink, wishlistItems)
+
+	senderDetails := ""
+
+	if user.Email != "" {
+		senderDetails += "Email: " + user.Email + " "
+	}
+
+	if user.Phone != "" {
+		senderDetails += " Phone: " + user.Phone
+	}
+
+	htmlBody, err := utils.GenerateWishlistEmailHTML(req.SenderName, senderDetails, *req.Message, shareLink, wishlistItems)
 	if err != nil {
 		log.Printf("failed to generate email HTML: %v", err)
 		return

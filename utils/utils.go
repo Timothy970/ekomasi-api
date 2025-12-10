@@ -821,17 +821,18 @@ type WishlistItem struct {
 }
 
 type wishlistTemplateData struct {
-	SenderName   string
-	PersonalNote string
-	ShareURL     string
-	Items        []WishlistItem
-	ShowCount    int
-	GeneratedAt  string
-	HasMore      bool
-	CurrentYear  int
+	SenderName    string
+	SenderDetails string
+	PersonalNote  string
+	ShareURL      string
+	Items         []WishlistItem
+	ShowCount     int
+	GeneratedAt   string
+	HasMore       bool
+	CurrentYear   int
 }
 
-func GenerateWishlistEmailHTML(senderName, personalMessage, shareURL string, items []WishlistItem) (string, error) {
+func GenerateWishlistEmailHTML(senderName, senderDetails, personalMessage, shareURL string, items []WishlistItem) (string, error) {
 	const maxPreview = 3
 	showCount := len(items)
 	hasMore := false
@@ -841,14 +842,15 @@ func GenerateWishlistEmailHTML(senderName, personalMessage, shareURL string, ite
 	}
 	currentYear := time.Now().Year()
 	data := wishlistTemplateData{
-		SenderName:   senderName,
-		PersonalNote: personalMessage,
-		ShareURL:     shareURL,
-		Items:        items[:showCount],
-		ShowCount:    showCount,
-		HasMore:      hasMore,
-		GeneratedAt:  time.Now().Format("January 2, 2006"),
-		CurrentYear:  currentYear,
+		SenderName:    senderName,
+		SenderDetails: senderDetails,
+		PersonalNote:  personalMessage,
+		ShareURL:      shareURL,
+		Items:         items[:showCount],
+		ShowCount:     showCount,
+		HasMore:       hasMore,
+		GeneratedAt:   time.Now().Format("January 2, 2006"),
+		CurrentYear:   currentYear,
 	}
 
 	tpl := template.Must(template.New("wishlistEmail").Parse(emailTemplate))
@@ -889,6 +891,11 @@ const emailTemplate = `<!DOCTYPE html>
 		padding: 30px;
 	}
 	.header h1 { font-size: 28px; margin-bottom: 8px; }
+	.header .sender-contact {
+		font-size: 14px;
+		opacity: 0.9;
+		margin-top: 8px;
+	}
 	.content { padding: 30px; }
 	.wishlist-info {
 		background: #f8f5ff;
@@ -993,7 +1000,9 @@ const emailTemplate = `<!DOCTYPE html>
 	<div class="email-container">
 		<div class="header">
 			<h1>💜 Wishlist from {{.SenderName}}</h1>
-			<p>{{.SenderName}} shared their special collection with you</p>
+			{{if .SenderDetails}}
+			<div class="sender-contact">{{.SenderDetails}}</div>
+			{{end}}
 		</div>
 
 		<div class="content">
