@@ -252,7 +252,7 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			res.DeliverCharge = loc.Charge
-			res.Final += loc.Charge
+			res.TotalAmount += loc.Charge
 
 		}
 	}
@@ -314,8 +314,8 @@ func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
 	estimatedTaxValue = math.Ceil(estimatedTaxValue)
 	res := dtos.ViewCartResponse{
 		CartItems:    items,
-		Total:        subtotal,         //this is the subtotal
-		Final:        total - discount, //this is the total, should be less the discount
+		SubTotal:     subtotal,         //this is the subtotal
+		TotalAmount:  total - discount, //this is the total, should be less the discount
 		Discount:     discount,
 		EstimatedTax: estimatedTaxValue,
 	}
@@ -587,6 +587,9 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.DiscountType = models.GetDiscountCodeType(req.Code)
+	if req.RequestType == "" {
+		req.RequestType = "check"
+	}
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Cart") {
 		return
 	}
@@ -626,7 +629,7 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			items.DeliverCharge = loc.Charge
-			items.Final += loc.Charge
+			items.TotalAmount += loc.Charge
 
 		}
 	}
@@ -654,9 +657,9 @@ func validateCodeVoucher(req dtos.CouponRequest) (dtos.ViewCartResponse, error) 
 	case "coupon":
 		return applyCoupon(cartData, req.Code)
 	case "voucher":
-		return applyVoucher(cartData, req.Code)
+		return applyVoucher(cartData, req.Code, req.RequestType)
 	case "promo_code":
-		return applyPromoCode(cartData, req.Code)
+		return applyPromoCode(cartData, req.Code, req.RequestType)
 	default:
 		return dtos.ViewCartResponse{}, errors.New("invalid promo type")
 	}
@@ -667,43 +670,43 @@ func applyCoupon(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse
 		return dtos.ViewCartResponse{}, err
 	}
 
-	if discount > cart.Total {
-		discount = cart.Total
+	if discount > cart.TotalAmount {
+		discount = cart.TotalAmount
 	}
 	cart.Discount += discount
-	cart.Total -= discount
+	cart.TotalAmount -= discount
 	return cart, nil
 }
 
-func applyVoucher(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse, error) {
+func applyVoucher(cart dtos.ViewCartResponse, code string, requestType string) (dtos.ViewCartResponse, error) {
 	voucherBalance, err := models.ValidateVoucher(code)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
 	}
 
 	var discount float64
-	if voucherBalance >= cart.Total {
-		discount = cart.Total
-		cart.Total = 0
+	if voucherBalance >= cart.TotalAmount {
+		discount = cart.TotalAmount
+		cart.TotalAmount = 0
 	} else {
 		discount = voucherBalance
-		cart.Total -= voucherBalance
+		cart.TotalAmount -= voucherBalance
 	}
 	cart.Discount += discount
-	// if requestType == "apply" {
-	// 	if err := models.UpdateVoucherBalance(code, voucherBalance-discount); err != nil {
-	// 		return dtos.ViewCartResponse{}, err
-	// 	}
-	// 	//add cart history
-	// 	if err := models.AddVoucherHistory(code, discount, cart.Items); err != nil {
-	// 		return dtos.ViewCartResponse{}, err
-	// 	}
-	// }
+	if requestType == "apply" {
+		if err := models.UpdateVoucherBalance(code, voucherBalance-discount); err != nil {
+			return dtos.ViewCartResponse{}, err
+		}
+		//add cart history
+		if err := models.AddVoucherHistory(code, discount, cart.CartItems); err != nil {
+			return dtos.ViewCartResponse{}, err
+		}
+	}
 	return cart, nil
 }
 
-func applyPromoCode(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse, error) {
-	promoData, err := models.ValidatePromoCode(code, cart.Total)
+func applyPromoCode(cart dtos.ViewCartResponse, code string, requestType string) (dtos.ViewCartResponse, error) {
+	promoData, err := models.ValidatePromoCode(code, cart.TotalAmount)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
 	}
@@ -712,26 +715,26 @@ func applyPromoCode(cart dtos.ViewCartResponse, code string) (dtos.ViewCartRespo
 	switch promoData.DiscountType {
 	case "FIXED":
 		discount = promoData.DiscountValue
-		if discount > cart.Total {
-			discount = cart.Total
+		if discount > cart.TotalAmount {
+			discount = cart.TotalAmount
 		}
 	case "PERCENTAGE":
-		discount = (cart.Total * promoData.DiscountValue) / 100
-		if discount > cart.Total {
-			discount = cart.Total
+		discount = (cart.TotalAmount * promoData.DiscountValue) / 100
+		if discount > cart.TotalAmount {
+			discount = cart.TotalAmount
 		}
 	default:
 		return dtos.ViewCartResponse{}, fmt.Errorf("unsupported discount type")
 	}
 
 	cart.Discount += discount
-	cart.Total -= discount
-	// //update promo code usage count
-	// if requestType == "apply" {
-	// 	if err := models.IncrementPromoCodeUsage(code); err != nil {
-	// 		return dtos.ViewCartResponse{}, err
-	// 	}
-	// }
+	cart.TotalAmount -= discount
+	//update promo code usage count
+	if requestType == "apply" {
+		if err := models.IncrementPromoCodeUsage(code); err != nil {
+			return dtos.ViewCartResponse{}, err
+		}
+	}
 	return cart, nil
 }
 func applyPromoCodeToOrder(totalAmount, totalDiscount float64, code string, promoCodeType string) (float64, float64, error) {
