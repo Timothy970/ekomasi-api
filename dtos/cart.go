@@ -27,9 +27,9 @@ type AddToCartResponse struct {
 
 type ViewCartResponse struct {
 	CartItems     []CartItem `json:"cart_items"`
-	Total         float64    `json:"sub_total"`
+	SubTotal      float64    `json:"sub_total"`
 	Discount      float64    `json:"discount"`
-	Final         float64    `json:"total"`
+	TotalAmount   float64    `json:"total"`
 	EstimatedTax  float64    `json:"estimated_tax"`
 	DeliverCharge float64    `json:"delivery_charge"`
 }
@@ -56,6 +56,7 @@ type CouponRequest struct {
 	Code         string `json:"code" validate:"required"`
 	CartID       string `json:"cart_id" validate:"required"`
 	LocationID   *int   `json:"location_id,omitempty"`
+	RequestType  string `json:"request_type"`
 }
 type PromotionData struct {
 	Type  string
