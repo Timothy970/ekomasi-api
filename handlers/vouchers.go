@@ -597,13 +597,6 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	voucher.Status = &active
 
 	deliveryTime := models.StringToTime(req.DeliveryTime)
-	now := time.Now()
-
-	// If delivery time is in the past, mark as active
-	if deliveryTime.Before(now) {
-		active = "active"
-		voucher.Status = &active
-	}
 
 	expiryEnv := os.Getenv("VOUCHER_EXPIRY_DATE")
 	if expiryEnv == "" {
@@ -712,13 +705,20 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	// create voucher data
 	amount := req.Amount
 	status := "scheduled"
-
-	deliveryTime := models.StringToTime(req.DeliveryTime)
-	now := time.Now()
-
-	// If delivery time is in the past, mark as active
-	if deliveryTime.Before(now) {
-		status = "active"
+	err := models.ValidateDesignID(req.DesignID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Vouchers",
+				Description: "Invalid Design ID",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
 	}
 	if req.Amount > 0 {
 		err := models.UpdateVoucher(voucherID, amount, status, req.DesignID)
@@ -738,7 +738,7 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	//insert into voucher purchases
-	err := models.UpdateVoucherPurchases(*req, voucherID)
+	err = models.UpdateVoucherPurchases(*req, voucherID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1058,8 +1058,9 @@ func GetAllVoucherDesigns(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 	name := r.URL.Query().Get("name")
+	status := r.URL.Query().Get("status")
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	designs, pagination, err := models.GetAllVoucherDesigns(page, size, name)
+	designs, pagination, err := models.GetAllVoucherDesigns(page, size, name, status)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

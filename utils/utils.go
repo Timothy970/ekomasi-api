@@ -11,6 +11,7 @@ import (
 	"log"
 	"math"
 	"math/big"
+	"os"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -403,7 +404,7 @@ func SendVoucherEmail(data dtos.VoucherEmailInfo) (string, string) {
 
 	formatted := t.Format("2006 January 02 15:04")
 	subject := fmt.Sprintf("🎁 You’ve received a KES %v e-voucher!", data.Amount)
-
+	frontEndUrl := os.Getenv("FRONT_END_BASE_URL")
 	// HTML body (simplified placeholder replacement)
 	htmlBody := fmt.Sprintf(`
 	<!doctype html>
@@ -429,7 +430,7 @@ func SendVoucherEmail(data dtos.VoucherEmailInfo) (string, string) {
 	  </div>
 	</body>
 	</html>
-	`, data.ToName, data.Amount, data.FromName, data.Code, formatted, data.PersonalizedMsg, "https://uat.app.adenzo.co.ke")
+	`, data.ToName, data.Amount, data.FromName, data.Code, formatted, data.PersonalizedMsg, frontEndUrl+"dashboard/giftcards/redeem")
 	return subject, htmlBody
 }
 

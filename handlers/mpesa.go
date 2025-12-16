@@ -573,10 +573,9 @@ func randString(n int) string {
 func HandleMpesaVoucherPayment(orderID, phoneNumber string, amount float64) error {
 
 	req := &dtos.MpesaRequest{
-		OrderID: orderID,
-		Phone:   phoneNumber,
-		// Amount:      int(amount),
-		Amount:      1,
+		OrderID:     orderID,
+		Phone:       phoneNumber,
+		Amount:      int(amount),
 		DeliveryID:  "",
 		Reference:   "ADENZO VOUCHER -" + orderID,
 		Description: fmt.Sprintf("Payment for voucher order %s", orderID),
