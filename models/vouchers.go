@@ -118,7 +118,10 @@ func UpdateVoucherPurchaseAmount(amount float64, voucherID string) (string, erro
 	return voucherOrderID, nil
 }
 func AddNewVoucher(v dtos.Voucher, userID string) (string, error) {
-
+	err := ValidateDesignID(*v.DesignID)
+	if err != nil {
+		return "", err
+	}
 	voucherID, _ := shortid.Generate()
 	status := "inactive"
 	if v.Status != nil {
@@ -130,7 +133,7 @@ func AddNewVoucher(v dtos.Voucher, userID string) (string, error) {
 		INSERT INTO vouchers (voucher_id, code, original_value, status,user_id, expiry_date, balance, design_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	_, err := DB.Exec(query, voucherID, code, v.Amount, status, userID, v.ExpiryDate, v.Amount, v.DesignID)
+	_, err = DB.Exec(query, voucherID, code, v.Amount, status, userID, v.ExpiryDate, v.Amount, v.DesignID)
 	if err != nil {
 		return "", err
 	}
@@ -558,7 +561,7 @@ func DeleteVoucherDesign(designID string) error {
 	return nil
 }
 
-func GetAllVoucherDesigns(page, size int, name string) ([]dtos.VoucherDesign, *dtos.PaginationMeta, error) {
+func GetAllVoucherDesigns(page, size int, name, status string) ([]dtos.VoucherDesign, *dtos.PaginationMeta, error) {
 	var (
 		total int
 		args  []interface{}
@@ -568,6 +571,14 @@ func GetAllVoucherDesigns(page, size int, name string) ([]dtos.VoucherDesign, *d
 	if name != "" {
 		countQuery += " WHERE name LIKE ?"
 		args = append(args, "%"+name+"%")
+	}
+	if status != "" {
+		if len(args) == 0 {
+			countQuery += " WHERE status = ?"
+		} else {
+			countQuery += " AND status = ?"
+		}
+		args = append(args, status)
 	}
 
 	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
@@ -583,6 +594,14 @@ func GetAllVoucherDesigns(page, size int, name string) ([]dtos.VoucherDesign, *d
 	if name != "" {
 		selectQuery += " WHERE name LIKE ?"
 		queryArgs = append(queryArgs, "%"+name+"%")
+	}
+	if status != "" {
+		if len(queryArgs) == 0 {
+			selectQuery += " WHERE status = ?"
+		} else {
+			selectQuery += " AND status = ?"
+		}
+		queryArgs = append(queryArgs, status)
 	}
 
 	selectQuery += " ORDER BY created_at DESC LIMIT ?, ?"
@@ -684,6 +703,31 @@ func isVoucherDesignThere(designID string) error {
 	}
 	if !exists {
 		return errors.New("voucher design not found")
+	}
+	//check if design is active
+
+	return nil
+}
+func IsVoucherDesignActive(designID string) error {
+	var status string
+	err := DB.QueryRow(`SELECT status FROM voucher_designs WHERE design_id = ?`, designID).Scan(&status)
+	if err != nil {
+		return err
+	}
+	if status != "active" {
+		return errors.New("voucher design is not active")
+	}
+	return nil
+}
+
+func ValidateDesignID(designID string) error {
+	err := isVoucherDesignThere(designID)
+	if err != nil {
+		return err
+	}
+	err = IsVoucherDesignActive(designID)
+	if err != nil {
+		return err
 	}
 	return nil
 }
