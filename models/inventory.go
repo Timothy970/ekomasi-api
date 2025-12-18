@@ -24,6 +24,7 @@ func ListInventory(page, size int, categoryID, stock, storeID, search string) ([
 		FROM inventory inv
 		JOIN products prd ON inv.product_id = prd.product_id
 		JOIN categories cat ON prd.category_id = cat.category_id
+		JOIN warehouses whse ON inv.warehouse_id = whse.warehouse_id
 	`
 
 	var filters []string
@@ -76,10 +77,11 @@ func ListInventory(page, size int, categoryID, stock, storeID, search string) ([
 			inv.inventory_id, inv.warehouse_id, prd.product_id, inv.variant_id,
 			inv.quantity, inv.low_stock_threshold, prd.name, prd.description,
 			prd.sku, prd.tag, prd.price, prd.category_id, 
-			cat.name, prd.stock_quantity, prd.search_vector
+			cat.name, prd.stock_quantity, prd.search_vector, whse.name, prd.buying_price
 		FROM inventory inv
 		JOIN products prd ON inv.product_id = prd.product_id
 		JOIN categories cat ON prd.category_id = cat.category_id
+		JOIN warehouses whse ON inv.warehouse_id = whse.warehouse_id
 	`
 
 	if len(filters) > 0 {
@@ -98,16 +100,19 @@ func ListInventory(page, size int, categoryID, stock, storeID, search string) ([
 
 	for rows.Next() {
 		var inv dtos.Inventory
+		var buyingPrice sql.NullFloat64
 		err := rows.Scan(
 			&inv.InventoryID, &inv.StoreID, &inv.ProductID, &inv.VariantID,
 			&inv.Quantity, &inv.LowStockThreshold, &inv.Name, &inv.Description,
 			&inv.SKU, &inv.Tag, &inv.Price, &inv.CategoryID,
-			&inv.CategoryName, &inv.StockQuantity, &inv.SearchVector,
+			&inv.CategoryName, &inv.StockQuantity, &inv.SearchVector, &inv.Store, &buyingPrice,
 		)
 		if err != nil {
 			return nil, nil, err
 		}
-
+		if buyingPrice.Valid {
+			inv.BuyingPrice = &buyingPrice.Float64
+		}
 		inv.Images, _ = fetchProductImages(inv.ProductID)
 		inv.SupplierInfo, _ = fetchSupplierByInventoryID(inv.InventoryID)
 
@@ -154,7 +159,7 @@ func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
 		SELECT 
 			inv.inventory_id, inv.warehouse_id, prd.product_id, inv.variant_id, inv.quantity, inv.low_stock_threshold,
 			prd.name, prd.description, prd.sku, prd.tag, prd.price,
-			prd.category_id, cat.name, prd.stock_quantity, prd.search_vector, invbatch.batch_number, invbatch.expiry_date, invbatch.manufacturing_date, prdWarranty.warranty_period, inv.last_updated, prd.buying_price, bacthinsp.inspection_date, bacthinsp.inspector_id, bacthinsp.inspection_notes, bacthinsp.images, invbatch.images, invhandlingnotes.handling_notes, invhandlingnotes.condition_id
+			prd.category_id, cat.name, prd.stock_quantity, prd.search_vector, invbatch.batch_number, invbatch.expiry_date, invbatch.manufacturing_date, prdWarranty.warranty_period, inv.last_updated, prd.buying_price, bacthinsp.inspection_date, bacthinsp.inspector_id, bacthinsp.inspection_notes, bacthinsp.images, invbatch.images, invhandlingnotes.handling_notes, invhandlingnotes.condition_id, whse.name
 		FROM inventory inv
 		JOIN products prd ON inv.product_id = prd.product_id
 		JOIN categories cat ON prd.category_id = cat.category_id
@@ -162,6 +167,7 @@ func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
 		LEFT JOIN product_warranties prdWarranty ON prd.product_id = prdWarranty.product_id
 		LEFT JOIN batch_inspections bacthinsp ON invbatch.batch_id = bacthinsp.batch_id
 		LEFT JOIN inventory_handling_notes invhandlingnotes ON invbatch.batch_id = invhandlingnotes.batch_id
+		JOIN warehouses whse ON inv.warehouse_id = whse.warehouse_id
 		WHERE inv.inventory_id = ?
 		ORDER BY inv.last_updated DESC
 	`
@@ -175,7 +181,7 @@ func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
 	if err := row.Scan(
 		&inv.InventoryID, &inv.StoreID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold,
 		&inv.Name, &inv.Description, &inv.SKU, &inv.Tag, &inv.Price,
-		&inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector, &inv.BatchNumber, &inv.ExpiryDate, &inv.ManufacturingDate, &inv.Warranty, &inv.PlacedOn, &buyingPrice, &inspectionDate, &inspectorID, &inv.InspectionNotes, &inspectionImagesJSON, &batchImagesJSON, &inv.HandlingNotes, &inv.ConditionID,
+		&inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector, &inv.BatchNumber, &inv.ExpiryDate, &inv.ManufacturingDate, &inv.Warranty, &inv.PlacedOn, &buyingPrice, &inspectionDate, &inspectorID, &inv.InspectionNotes, &inspectionImagesJSON, &batchImagesJSON, &inv.HandlingNotes, &inv.ConditionID, &inv.Store,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(noinventory)
@@ -207,6 +213,7 @@ func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
 	}
 	if buyingPrice.Valid {
 		inv.BuyingPrice = &buyingPrice.Float64
+		inv.UnitCost = &buyingPrice.Float64
 	}
 	// Fetch images for the product
 	if imgs, err := fetchProductImages(inv.ProductID); err == nil {
@@ -508,7 +515,21 @@ func StoreInventoryTracking(req dtos.InventoryTracking) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	//update product total quantity
+	err = UpdateProductTotalQuantity(req.ProductID, req.Quantity)
+	if err != nil {
+		return "", err
+	}
 	return inventoryID, nil
+}
+
+func UpdateProductTotalQuantity(productID string, quantityToAdd int) error {
+	_, err := DB.Exec(`
+		UPDATE products
+		SET stock_quantity = stock_quantity + ?
+		WHERE product_id = ?`,
+		quantityToAdd, productID)
+	return err
 }
 
 //get stock summary using inventoryID and optioanal storeID filter

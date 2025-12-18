@@ -9,7 +9,7 @@ type CreateProduct struct {
 	SKU           string   `json:"sku" validate:"required"`
 	Price         float64  `json:"price" validate:"required,gt=0"`
 	CategoryID    string   `json:"category_id" validate:"required"`
-	StockQuantity int      `json:"stock_quantity" validate:"required,gte=0"`
+	StockQuantity int      `json:"stock_quantity" validate:"gte=0"`
 	SearchVector  string   `json:"search_vector" validate:"required"`
 	Tag           *string  `json:"tag,omitempty"`
 	LowStockAlert int      `json:"low_stock_quantity_warning" validate:"gte=0"`
@@ -236,8 +236,8 @@ type ProductSpecification struct {
 	Color            []string `json:"color"` //color variants ids
 	Dimensions       string   `json:"dimensions"`
 	DiscountType     string   `json:"discount_type"` // type id
-	ExpiryDate       *string  `json:"expiry_date" validate:"required"`
-	ManufacturerDate *string  `json:"manufacture_date" validate:"required"`
+	ExpiryDate       *string  `json:"expiry_date"`
+	ManufacturerDate *string  `json:"manufacture_date"`
 	Manufacturer     string   `json:"manufacturer"`
 	Material         []string `json:"material"` //material variant ids
 	Size             []string `json:"size"`     //size variant ids

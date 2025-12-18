@@ -595,6 +595,7 @@ func HandleMpesaVoucherPayment(orderID, phoneNumber string, amount float64) erro
 	}
 	return nil
 }
+
 func loadPublicKey(certPath string) (*rsa.PublicKey, error) {
 	certBytes, err := os.ReadFile(certPath)
 	if err != nil {
@@ -614,6 +615,7 @@ func loadPublicKey(certPath string) (*rsa.PublicKey, error) {
 	}
 	return pubKey, nil
 }
+
 func generateSecurityCredential(pubKey *rsa.PublicKey, initiatorPassword string) (string, error) {
 	encrypted, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey, []byte(initiatorPassword))
 	if err != nil {
@@ -621,6 +623,7 @@ func generateSecurityCredential(pubKey *rsa.PublicKey, initiatorPassword string)
 	}
 	return base64.StdEncoding.EncodeToString(encrypted), nil
 }
+
 func (m *MpesaClient) FetchPayBillBalance() (map[string]any, error) {
 
 	payload := map[string]interface{}{

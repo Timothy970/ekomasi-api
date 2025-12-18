@@ -522,9 +522,13 @@ func CreateVoucherDesign(url, name, status string) (string, error) {
 }
 
 func GetVoucherDesign(designID string) (dtos.VoucherDesign, error) {
+	err := isVoucherDesignThere(designID)
+	if err != nil {
+		return dtos.VoucherDesign{}, err
+	}
 	var design dtos.VoucherDesign
 	query := `SELECT url, name, status, created_at FROM voucher_designs WHERE design_id = ? LIMIT 1`
-	err := DB.QueryRow(query, designID).Scan(&design.URL, &design.Name, &design.Status, &design.Created_At)
+	err = DB.QueryRow(query, designID).Scan(&design.URL, &design.Name, &design.Status, &design.Created_At)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return dtos.VoucherDesign{}, fmt.Errorf("design not found")
@@ -533,13 +537,24 @@ func GetVoucherDesign(designID string) (dtos.VoucherDesign, error) {
 	}
 	return design, nil
 }
-func EditVoucherDesign(designID, newURL, newName, newStatus string) error {
+func EditVoucherDesign(designID string, newURL *string, newName, newStatus string) error {
 	err := isVoucherDesignThere(designID)
 	if err != nil {
 		return err
 	}
-	query := `UPDATE voucher_designs SET url = ?, name = ?, status = ? WHERE design_id = ?`
-	_, err = DB.Exec(query, newURL, newName, newStatus, designID)
+	
+	query := `UPDATE voucher_designs SET name = ?, status = ?`
+	args := []interface{}{newName, newStatus}
+	
+	if newURL != nil && *newURL != "" {
+		query += `, url = ?`
+		args = append(args, *newURL)
+	}
+	
+	query += ` WHERE design_id = ?`
+	args = append(args, designID)
+	
+	_, err = DB.Exec(query, args...)
 	if err != nil {
 		return err
 	}

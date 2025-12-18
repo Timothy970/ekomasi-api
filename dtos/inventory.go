@@ -54,6 +54,8 @@ type Inventory struct {
 	PlacedOn          string   `json:"placed_on"`
 	BuyingPrice       *float64 `json:"buying_price"`
 	StoreID           *string  `json:"store_id"`
+	Store             *string  `json:"store"`
+	UnitCost          *float64 `json:"unit_cost"`
 }
 
 type SingleInventory struct {
@@ -80,6 +82,8 @@ type SingleInventory struct {
 	PlacedOn          string   `json:"placed_on"`
 	BuyingPrice       *float64 `json:"buying_price"`
 	StoreID           *string  `json:"store_id"`
+	Store             *string  `json:"store"`
+	UnitCost          *float64 `json:"unit_cost"`
 
 	BatchImages      *[]string  `json:"batch_images"`
 	InspectionImages *[]string  `json:"inspection_images"`

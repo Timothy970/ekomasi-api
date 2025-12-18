@@ -1853,8 +1853,8 @@ func handleProductsWarranty(req dtos.ProductSpecification) error {
 		ProductID:         req.ProductID,
 		WarrantyTypeID:    req.WarrantyType,
 		WarrantyPeriod:    req.WarrantyPeriod,
-		ManufacturingDate: *req.ManufacturerDate,
-		ExpiryDate:        *req.ExpiryDate,
+		ManufacturingDate: req.ManufacturerDate,
+		ExpiryDate:        req.ExpiryDate,
 	}
 
 	err := models.AddProductWarranties(data)

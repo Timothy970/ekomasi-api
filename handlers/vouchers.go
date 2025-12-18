@@ -926,7 +926,7 @@ func EditVoucherDesign(w http.ResponseWriter, r *http.Request) {
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Vouchers"); !ok {
 		return
 	}
-	designID := mux.Vars(r)["design_id"]
+	designID := mux.Vars(r)["voucher_id"]
 
 	// Parse multipart form (20 MB max)
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
@@ -944,42 +944,30 @@ func EditVoucherDesign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get image file
+	// Get image file (optional)
+	var url string
 	file, header, err := r.FormFile("image")
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Vouchers",
-				Description: "Image is required and was not provided",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   "Image is required",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-		})
-		return
-	}
-	defer file.Close()
-
-	// Upload image to GCS
-	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Vouchers",
-				Description: err.Error(),
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-		})
-		return
+	if err == nil {
+		defer file.Close()
+		// Upload image to GCS
+		url, err = utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Vouchers",
+					Description: err.Error(),
+					Code:        http.StatusInternalServerError,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+			})
+			return
+		}
 	}
 	// Insert category into DB
-	err = models.EditVoucherDesign(designID, url, r.FormValue("name"), r.FormValue("status"))
+	err = models.EditVoucherDesign(designID, &url, r.FormValue("name"), r.FormValue("status"))
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1054,6 +1042,7 @@ func DeleteVoucherDesign(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary,
 	})
 }
+
 func GetAllVoucherDesigns(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -1086,6 +1075,43 @@ func GetAllVoucherDesigns(w http.ResponseWriter, r *http.Request) {
 		},
 		Payload:   map[string]any{"designs": designs, "pagination": pagination},
 		Message:   "Voucher designs fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+func GetVoucherDesignByID(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	designID := mux.Vars(r)["voucher_id"]
+	designs, err := models.GetVoucherDesign(designID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Vouchers",
+				Description: "Failed to fetch voucher design",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Respond success
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Vouchers",
+			Description: "Voucher design fetched successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   designs,
+		Message:   "Voucher design fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

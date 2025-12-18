@@ -799,23 +799,47 @@ func buildAdminOrderConditions(params AdminOrderParameters) OrderConditions {
 	if params.Q != "" {
 		joinUsers = true
 		joinDeliveries = true
+
+		words := strings.Fields(params.Q)
+
 		conditions = append(conditions, `(
-			o.guest_personal_details LIKE ? OR
-			o.order_id LIKE ? OR
-			o.delivery_id LIKE ? OR 
-			d.delivery_address LIKE ? OR
-			o.guest_delivery_address LIKE ? OR
-			o.payment_method LIKE ? OR
-			u.first_name LIKE ? OR
-			u.last_name LIKE ? OR
-			u.email LIKE ? OR
-			u.phone_number LIKE ?
-		)`)
+        o.guest_personal_details LIKE ? OR
+        o.order_id LIKE ? OR
+        o.delivery_id LIKE ? OR 
+        d.delivery_address LIKE ? OR
+        o.guest_delivery_address LIKE ? OR
+        o.payment_method LIKE ? OR
+        u.email LIKE ? OR
+        u.phone_number LIKE ? OR
+        (
+            (u.first_name LIKE ? AND u.last_name LIKE ?)
+            OR
+            (u.first_name LIKE ? AND u.last_name LIKE ?)
+        )
+    )`)
 
 		likePattern := "%" + params.Q + "%"
-		args = append(args, likePattern, likePattern, likePattern, likePattern, likePattern,
-			likePattern, likePattern, likePattern, likePattern, likePattern)
+
+		args = append(args,
+			likePattern, likePattern, likePattern, likePattern,
+			likePattern, likePattern, likePattern, likePattern,
+		)
+
+		if len(words) > 1 {
+			args = append(
+				args,
+				"%"+words[0]+"%", "%"+words[1]+"%",
+				"%"+words[1]+"%", "%"+words[0]+"%",
+			)
+		} else {
+			args = append(
+				args,
+				"%"+params.Q+"%", "%"+params.Q+"%",
+				"%"+params.Q+"%", "%"+params.Q+"%",
+			)
+		}
 	}
+
 	if params.StartDate != "" && params.EndDate != "" {
 		startDate := StringToTime(params.StartDate)
 		endDate := StringToTime(params.EndDate)
