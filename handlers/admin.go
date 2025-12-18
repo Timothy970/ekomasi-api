@@ -320,6 +320,8 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
+	//when adding a new product, stock quantity is always 0
+	req.StockQuantity = 0
 	product, err := models.AddNewProduct(*req, authuser.ID)
 	if err != nil {
 		log.Printf("Error for adding new product %s", err)

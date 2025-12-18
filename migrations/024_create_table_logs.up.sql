@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS `logs` (
    `timestamp` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
    `user_id` CHAR(36) DEFAULT NULL,
    `metadata` JSON DEFAULT NULL,
+   `module` VARCHAR(100),
+   `role` VARCHAR(50),
    PRIMARY KEY (`log_id`),
 
    KEY `idx_logs_timestamp` (`timestamp`),
@@ -14,7 +16,9 @@ CREATE TABLE IF NOT EXISTS `logs` (
    KEY `idx_logs_userid_timestamp` (`user_id`, `timestamp` DESC),
    KEY `idx_logs2_timestamp` (`timestamp` DESC),
    KEY `idx_logs_module` (`module`),
-   KEY `idx_logs_role` (`role`)
+   KEY `idx_logs_role` (`role`),
+   KEY `idx_logs_user_module` (`user_id`, `module`),
+   KEY `idx_logs_timestamp_module` (`timestamp`, `module`)
 );
 
 

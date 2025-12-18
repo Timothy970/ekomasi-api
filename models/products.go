@@ -377,6 +377,7 @@ func AddNewProduct(input dtos.CreateProduct, userID string) (*dtos.CreateProduct
 	} else {
 		detailsJSON = nil
 	}
+
 	_, err = DB.Exec(`
 		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, created_by_id, buying_price, details)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

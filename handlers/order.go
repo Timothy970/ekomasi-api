@@ -983,7 +983,9 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create order and delivery records
-	orderID, deliveryID, err := models.CreateOrder(order, utils.ToString(totalAmount), utils.ToString(totalDiscount))
+	finalAmount := totalAmount - totalDiscount
+
+	orderID, deliveryID, err := models.CreateOrder(order, utils.ToString(finalAmount), utils.ToString(totalDiscount))
 	if err != nil {
 		log.Printf("[%s] Error creating order: %v", module, err)
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
@@ -1008,8 +1010,6 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
-
-	finalAmount := totalAmount - totalDiscount
 
 	// Success response
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
