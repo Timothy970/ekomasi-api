@@ -24,9 +24,23 @@ type UserLogFilters struct {
 func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.PaginationMeta, error) {
 	offset := (filters.Page - 1) * filters.Limit
 
-	// Use CTE for better performance with complex joins
-	query := `
-	WITH filtered_logs AS (
+	whereSQL, args := buildUserLogsFilter(filters)
+
+	// Separate count query for better MySQL performance
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM logs l
+		LEFT JOIN users u ON l.user_id = u.user_id
+		%s
+	`, whereSQL)
+
+	var total int
+	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		return nil, nil, fmt.Errorf("count query failed: %w", err)
+	}
+
+	// Main data query without CTE
+	query := fmt.Sprintf(`
 		SELECT 
 			l.log_id,
 			l.user_id,
@@ -47,33 +61,20 @@ func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.Paginat
 		FROM logs l
 		LEFT JOIN users u ON l.user_id = u.user_id
 		%s
-	),
-	total_count AS (
-		SELECT COUNT(*) as total FROM filtered_logs
-	)
-	SELECT 
-		fl.*,
-		tc.total
-	FROM filtered_logs fl
-	CROSS JOIN total_count tc
-	ORDER BY fl.timestamp DESC
-	LIMIT ? OFFSET ?
-	`
-
-	whereSQL, args := buildUserLogsFilter(filters)
-	finalQuery := fmt.Sprintf(query, whereSQL)
+		ORDER BY l.timestamp DESC
+		LIMIT ? OFFSET ?
+	`, whereSQL)
 
 	// Add pagination parameters
 	args = append(args, filters.Limit, offset)
 
-	rows, err := DB.Query(finalQuery, args...)
+	rows, err := DB.Query(query, args...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("query failed: %w", err)
 	}
 	defer rows.Close()
 
 	var logs []dtos.UserLog
-	var total int
 
 	for rows.Next() {
 		var (
@@ -112,7 +113,6 @@ func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.Paginat
 			&lastLogin,
 			&createdAt,
 			&phone,
-			&total,
 		); err != nil {
 			return nil, nil, fmt.Errorf("scan failed: %w", err)
 		}
@@ -350,7 +350,7 @@ func buildUserLogsFilter(filters UserLogFilters) (string, []interface{}) {
 	}
 
 	if filters.Role != "" && filters.Role != "all" {
-		conditions = append(conditions, "u.role = ?")
+		conditions = append(conditions, "l.role = ?")
 		args = append(args, filters.Role)
 	}
 
