@@ -82,6 +82,16 @@ func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.Paginat
 			meta      string
 			ts        time.Time
 			logUserID sql.NullString
+			// User fields that can be NULL
+			userID     sql.NullString
+			firstName  sql.NullString
+			lastName   sql.NullString
+			email      sql.NullString
+			role       sql.NullString
+			userStatus sql.NullString
+			lastLogin  sql.NullString
+			createdAt  sql.NullString
+			phone      sql.NullString
 		)
 
 		// Scan all fields including total
@@ -93,15 +103,15 @@ func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.Paginat
 			&log.Action,
 			&ts,
 			&log.Module,
-			&user.ID,
-			&user.FirstName,
-			&user.LastName,
-			&user.Email,
-			&user.Role,
-			&user.Status,
-			&user.LastLogin,
-			&user.DateJoined,
-			&user.Phone,
+			&userID,
+			&firstName,
+			&lastName,
+			&email,
+			&role,
+			&userStatus,
+			&lastLogin,
+			&createdAt,
+			&phone,
 			&total,
 		); err != nil {
 			return nil, nil, fmt.Errorf("scan failed: %w", err)
@@ -116,8 +126,17 @@ func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.Paginat
 			// log.Printf("Failed to parse metadata for log %s: %v", log.LogID, err)
 		}
 
-		// Set user info
-		if user.ID != "" && user.ID != "unknown" {
+		// Set user info from nullable fields
+		if userID.Valid && userID.String != "" && userID.String != "unknown" {
+			user.ID = userID.String
+			user.FirstName = firstName.String
+			user.LastName = lastName.String
+			user.Email = email.String
+			user.Role = role.String
+			user.Status = userStatus.String
+			user.LastLogin = lastLogin.String
+			user.DateJoined = createdAt.String
+			user.Phone = phone.String
 			log.User = &user
 		} else {
 			log.User = UnknownUser()
@@ -318,61 +337,53 @@ func formatNullTime(t sql.NullTime) string {
 // buildUserLogsFilter creates the WHERE clause and args for filtering logs.
 func buildUserLogsFilter(filters UserLogFilters) (string, []interface{}) {
 	var args []interface{}
-	argIndex := 1
 	var conditions []string
 
 	if filters.Module != "" && filters.Module != "all" {
-		conditions = append(conditions, fmt.Sprintf("l.module = $%d", argIndex))
+		conditions = append(conditions, "l.module = ?")
 		args = append(args, filters.Module)
-		argIndex++
 	}
 
 	if filters.Status != "" && filters.Status != "all" {
-		conditions = append(conditions, fmt.Sprintf("l.level = $%d", argIndex))
+		conditions = append(conditions, "l.level = ?")
 		args = append(args, filters.Status)
-		argIndex++
 	}
 
 	if filters.Role != "" && filters.Role != "all" {
-		conditions = append(conditions, fmt.Sprintf("u.role = $%d", argIndex))
+		conditions = append(conditions, "u.role = ?")
 		args = append(args, filters.Role)
-		argIndex++
 	}
 
 	// Date range with index usage
 	if filters.StartDate != "" && filters.EndDate != "" {
 		start := FormatDateTimeString(filters.StartDate)
 		end := FormatDateTimeString(filters.EndDate)
-		conditions = append(conditions, fmt.Sprintf("l.timestamp BETWEEN $%d AND $%d", argIndex, argIndex+1))
+		conditions = append(conditions, "l.timestamp BETWEEN ? AND ?")
 		args = append(args, start, end)
-		argIndex += 2
 	} else if filters.StartDate != "" {
 		start := FormatDateTimeString(filters.StartDate)
-		conditions = append(conditions, fmt.Sprintf("l.timestamp >= $%d", argIndex))
+		conditions = append(conditions, "l.timestamp >= ?")
 		args = append(args, start)
-		argIndex++
 	} else if filters.EndDate != "" {
 		end := FormatDateTimeString(filters.EndDate)
-		conditions = append(conditions, fmt.Sprintf("l.timestamp <= $%d", argIndex))
+		conditions = append(conditions, "l.timestamp <= ?")
 		args = append(args, end)
-		argIndex++
 	}
 
 	// Optimized search - use full-text search if available, otherwise be careful with wildcards
 	if filters.Search != "" {
 		searchTerm := "%" + strings.ToLower(filters.Search) + "%"
 		// Only search on indexed columns
-		conditions = append(conditions, fmt.Sprintf(`
-			(l.message LIKE $%d OR 
+		conditions = append(conditions, `
+			(l.message LIKE ? OR 
 			EXISTS (
 				SELECT 1 FROM users u2 
 				WHERE u2.user_id = l.user_id 
-				AND (LOWER(u2.first_name) LIKE $%d OR 
-					 LOWER(u2.last_name) LIKE $%d OR 
-					 LOWER(u2.email) LIKE $%d)
-			))`, argIndex, argIndex, argIndex, argIndex))
+				AND (LOWER(u2.first_name) LIKE ? OR 
+					 LOWER(u2.last_name) LIKE ? OR 
+					 LOWER(u2.email) LIKE ?)
+			))`)
 		args = append(args, searchTerm, searchTerm, searchTerm, searchTerm)
-		argIndex++
 	}
 
 	whereClause := ""
