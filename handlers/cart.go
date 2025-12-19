@@ -610,6 +610,12 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	if items.TotalAmount <= 0 {
+		items.SubTotal = 0
+		items.EstimatedTax = 0
+	}
+
 	if req.LocationID != nil {
 		locationIDInt := *req.LocationID
 		if locationIDInt != 0 {
