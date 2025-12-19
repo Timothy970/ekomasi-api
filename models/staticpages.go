@@ -227,8 +227,8 @@ func FormatDateTimeString(dt string) string {
 	for _, layout := range layouts {
 		t, err = time.Parse(layout, dt)
 		if err == nil {
-			// Successful parse
-			return t.Format("2006-01-02 15:04")
+			// Successful parse - return with seconds
+			return t.Format("2006-01-02 15:04:05")
 		}
 	}
 
