@@ -54,9 +54,13 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("order found %v", order)
-	req.Amount = int(order.TotalAmount) - int(order.TotalDiscount)
-	if req.Amount <= 0 {
+	computedAmount := int(order.TotalAmount) - int(order.TotalDiscount)
+	if computedAmount < 0 {
+		log.Printf("negative MPESA payment amount computed for order %s: total=%v, discount=%v, computedAmount=%d; clamping to 0",
+			order.OrderID, order.TotalAmount, order.TotalDiscount, computedAmount)
 		req.Amount = 0
+	} else {
+		req.Amount = computedAmount
 	}
 	req.DeliveryID = order.DeliveryID
 	req.Reference = "ADENZO - " + order.OrderID
@@ -131,7 +135,12 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary,
 	})
-	if environment == "development" || req.Amount == 0 {
+	if environment == "development" {
+		// In development, always simulate the M-Pesa callback instead of calling the real API.
+		go sendCallbackToDevEnv(req.OrderID)
+	} else if req.Amount == 0 {
+		// For zero-amount orders we never call M-Pesa, even in production.
+		// We reuse the simulated callback helper to complete the order flow.
 		go sendCallbackToDevEnv(req.OrderID)
 	}
 }
