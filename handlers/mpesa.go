@@ -55,57 +55,62 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("order found %v", order)
 	req.Amount = int(order.TotalAmount) - int(order.TotalDiscount)
+	if req.Amount <= 0 {
+		req.Amount = 0
+	}
 	req.DeliveryID = order.DeliveryID
 	req.Reference = "ADENZO - " + order.OrderID
 	req.Description = fmt.Sprintf("Payment for order %s", order.OrderID)
-	client, err := NewMpesaClient()
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Payments",
-				Description: "Failed to initialize MPESA client",
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   fmt.Sprintf("Failed to initialize MPESA client %s", err),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary,
-		})
-		return
-	}
+	if req.Amount > 0 {
+		client, err := NewMpesaClient()
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Payments",
+					Description: "Failed to initialize MPESA client",
+					Code:        http.StatusInternalServerError,
+				},
+				Message:   fmt.Sprintf("Failed to initialize MPESA client %s", err),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
 
-	response, err := client.LipaNaMpesaOnline(*req)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Payments",
-				Description: "Failed to initiate MPESA payment",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary,
-		})
-		return
-	}
-	err = models.StoreStkResponse(response, *req)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Payments",
-				Description: "Failed to store MPESA payment request",
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary,
-		})
-		return
+		response, err := client.LipaNaMpesaOnline(*req)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Payments",
+					Description: "Failed to initiate MPESA payment",
+					Code:        http.StatusBadRequest,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+		err = models.StoreStkResponse(response, *req)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Payments",
+					Description: "Failed to store MPESA payment request",
+					Code:        http.StatusInternalServerError,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
 	}
 	err = storeTransactionLog(*req)
 	if err != nil {
@@ -126,7 +131,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary,
 	})
-	if environment == "development" {
+	if environment == "development" || req.Amount == 0 {
 		go sendCallbackToDevEnv(req.OrderID)
 	}
 }
