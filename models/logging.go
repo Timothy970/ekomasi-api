@@ -357,7 +357,10 @@ func buildUserLogsFilter(filters UserLogFilters) (string, []interface{}) {
 	// Date range with index usage
 	if filters.StartDate != "" && filters.EndDate != "" {
 		start := FormatDateTimeString(filters.StartDate)
-		end := FormatDateTimeString(filters.EndDate)
+		//add 23hr 59min to end date
+		end := FormatDateTimeString(filters.EndDate + " 23:59:59")
+		log.Printf("Start date filter applied: %s", start)
+		log.Printf("End date filter applied: %s", end)
 		conditions = append(conditions, "l.timestamp BETWEEN ? AND ?")
 		args = append(args, start, end)
 	} else if filters.StartDate != "" {
@@ -365,7 +368,7 @@ func buildUserLogsFilter(filters UserLogFilters) (string, []interface{}) {
 		conditions = append(conditions, "l.timestamp >= ?")
 		args = append(args, start)
 	} else if filters.EndDate != "" {
-		end := FormatDateTimeString(filters.EndDate)
+		end := FormatDateTimeString(filters.EndDate + " 23:59:59")
 		conditions = append(conditions, "l.timestamp <= ?")
 		args = append(args, end)
 	}
