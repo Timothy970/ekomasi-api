@@ -321,13 +321,7 @@ func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
 	}
 	return res, nil
 }
-func getOrderItemsByOrderID(orderID string) (*dtos.Order, error) {
-	items, err := models.GetOrderByID(orderID)
-	if err != nil {
-		return nil, err
-	}
-	return items, nil
-}
+
 func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartItem) (float64, error) {
 	switch promo.Type {
 	case "Percentage":

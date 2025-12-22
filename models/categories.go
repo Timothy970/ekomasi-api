@@ -298,39 +298,52 @@ func CategoryExists(id string) error {
 func GetAdminCategories(page, limit int, categoryName string) ([]dtos.AdminCategoryData, *dtos.PaginationMeta, error) {
 	//get total count
 	var total int
-	err := DB.QueryRow("SELECT COUNT(*) FROM categories").Scan(&total)
+	args := []any{}
+	countQuery := "SELECT COUNT(*) FROM categories"
+	if categoryName != "" {
+		countQuery += " WHERE name LIKE ?"
+		args = append(args, "%"+categoryName+"%")
+	}
+	err := DB.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
 		return nil, nil, err
 	}
 	offset := (page - 1) * limit
-	// Parent Categories have the parent is null
-	// Subcategories will have the subcategories count as  _
-	// The items count for for parent categories will be the total products in all its subcategories
-	rows, err := DB.Query(`
-    SELECT 
-        c.category_id,
-        c.name,
-        IF(c.parent_category_id IS NULL, 'Parent', 'Subcategory') AS type,
-        CASE 
-            WHEN c.parent_category_id IS NULL 
-                THEN (
-                    SELECT COUNT(*) 
-                    FROM products p 
-                    JOIN categories sc ON sc.category_id = p.category_id
-                    WHERE sc.parent_category_id = c.category_id
-                )
-            ELSE (
-                SELECT COUNT(*) 
-                FROM products p 
-                WHERE p.category_id = c.category_id
-            )
-        END AS items,
-        (SELECT COUNT(*) FROM categories sc WHERE sc.parent_category_id = c.category_id) AS subcategories,
-        c.description
-    FROM categories c
-    ORDER BY c.updated_at DESC
-    LIMIT ? OFFSET ?`, limit, offset)
+	
+	// Build main query with optional name filter
+	mainQuery := `
+	SELECT 
+		c.category_id,
+		c.name,
+		IF(c.parent_category_id IS NULL, 'Parent', 'Subcategory') AS type,
+		CASE 
+			WHEN c.parent_category_id IS NULL 
+				THEN (
+					SELECT COUNT(*) 
+					FROM products p 
+					JOIN categories sc ON sc.category_id = p.category_id
+					WHERE sc.parent_category_id = c.category_id
+				)
+			ELSE (
+				SELECT COUNT(*) 
+				FROM products p 
+				WHERE p.category_id = c.category_id
+			)
+		END AS items,
+		(SELECT COUNT(*) FROM categories sc WHERE sc.parent_category_id = c.category_id) AS subcategories,
+		c.description
+	FROM categories c`
+	
+	queryArgs := []any{}
+	if categoryName != "" {
+		mainQuery += " WHERE c.name LIKE ?"
+		queryArgs = append(queryArgs, "%"+categoryName+"%")
+	}
+	
+	mainQuery += " ORDER BY c.updated_at DESC LIMIT ? OFFSET ?"
+	queryArgs = append(queryArgs, limit, offset)
 
+	rows, err := DB.Query(mainQuery, queryArgs...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -353,7 +366,6 @@ func GetAdminCategories(page, limit int, categoryName string) ([]dtos.AdminCateg
 		HasNext:    offset+limit < total,
 	}
 	return categories, pagination, nil
-
 }
 
 // GetCategoriesWithSubCategories returns all parent categories and their subcategories

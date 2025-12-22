@@ -582,6 +582,84 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Inventory") {
 		return
 	}
+	// Parse dates for comparison
+	expiryDate, err := time.Parse("2006-01-02", req.ExpiryDate)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Invalid expiry date format when creating stock entry",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Invalid expiry date format. Expected YYYY-MM-DD",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	mfgDate, err := time.Parse("2006-01-02", req.ManufacturingDate)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Invalid manufacturing date format when creating stock entry",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Invalid manufacturing date format. Expected YYYY-MM-DD",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	inspectionDate, err := time.Parse("2006-01-02", req.InspectionDate)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Invalid inspection date format when creating stock entry",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Invalid inspection date format. Expected YYYY-MM-DD",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	//inspection date cannot be in the future
+	if inspectionDate.After(time.Now()) {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Inspection date cannot be in the future when creating stock entry",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Inspection date cannot be in the future",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	if expiryDate.Before(mfgDate) || expiryDate.Equal(mfgDate) {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Expiry date must be after manufacturing date when creating stock entry",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Expiry date must be after manufacturing date",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 	var invetoryIDS []string
 	for _, warehouse := range req.StoreQuantity {
 		storeID := warehouse.StoreID
@@ -660,6 +738,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
 func handleImageUpload(r *http.Request, field string) ([]string, error) {
 	files := r.MultipartForm.File[field]
 	if len(files) == 0 {

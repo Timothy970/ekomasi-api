@@ -78,7 +78,7 @@ func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.Paginat
 
 	for rows.Next() {
 		var (
-			log       dtos.UserLog
+			singleLog dtos.UserLog
 			user      dtos.Users
 			meta      string
 			ts        time.Time
@@ -97,13 +97,13 @@ func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.Paginat
 
 		// Scan all fields including total
 		if err := rows.Scan(
-			&log.LogID,
+			&singleLog.LogID,
 			&logUserID,
-			&log.Status,
+			&singleLog.Status,
 			&meta,
-			&log.Action,
+			&singleLog.Action,
 			&ts,
-			&log.Module,
+			&singleLog.Module,
 			&userID,
 			&firstName,
 			&lastName,
@@ -117,13 +117,12 @@ func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.Paginat
 			return nil, nil, fmt.Errorf("scan failed: %w", err)
 		}
 
-		log.CreatedAt = ts.Format("2006-01-02 15:04:05")
+		singleLog.CreatedAt = ts.Format("2006-01-02 15:04:05")
 
 		// Parse metadata
-		if err := parseMetadata(&log, meta); err != nil {
-			// Log but don't fail the entire request
-			// log.Printf("Failed to parse metadata for log %s: %v", log.LogID, err)
-			// log.Printf("Failed to parse metadata for log %s: %v", log.LogID, err)
+		err := parseMetadata(&singleLog, meta)
+		if err != nil {
+			log.Printf("Failed to parse metadata for log %s: %v", singleLog.LogID, err)
 		}
 
 		// Set user info from nullable fields
@@ -137,12 +136,12 @@ func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.Paginat
 			user.LastLogin = lastLogin.String
 			user.DateJoined = createdAt.String
 			user.Phone = phone.String
-			log.User = &user
+			singleLog.User = &user
 		} else {
-			log.User = UnknownUser()
+			singleLog.User = UnknownUser()
 		}
 
-		logs = append(logs, log)
+		logs = append(logs, singleLog)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -179,144 +178,6 @@ func parseMetadata(log *dtos.UserLog, meta string) error {
 	return nil
 }
 
-// func GetUserLogs(
-// 	filters UserLogFilters,
-// ) ([]dtos.UserLog, *dtos.PaginationMeta, error) {
-
-// 	offset := (filters.Page - 1) * filters.Limit
-
-// 	whereSQL, args := buildUserLogsFilter(filters)
-
-// 	// Count query
-// 	countQuery := fmt.Sprintf(`
-// 		SELECT COUNT(*)
-// 		FROM logs l
-// 		LEFT JOIN users u ON l.user_id = u.user_id
-// 		%s
-// 	`, whereSQL)
-
-// 	var total int
-// 	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
-// 		return nil, nil, err
-// 	}
-
-// 	// Main query
-// 	query := fmt.Sprintf(`
-// 		SELECT
-// 			l.log_id,
-// 			l.user_id,
-// 			l.level,
-// 			l.metadata,
-// 			l.message,
-// 			l.timestamp,
-
-// 			u.user_id,
-// 			u.first_name,
-// 			u.last_name,
-// 			u.email,
-// 			u.role,
-// 			u.status,
-// 			u.last_login,
-// 			u.created_at,
-// 			u.phone_number
-
-// 		FROM logs l
-// 		LEFT JOIN users u ON l.user_id = u.user_id
-// 		%s
-// 		ORDER BY l.timestamp DESC
-// 		LIMIT ? OFFSET ?
-// 	`, whereSQL)
-
-// 	args = append(args, limit, offset)
-
-// 	rows, err := DB.Query(query, args...)
-// 	if err != nil {
-// 		return nil, nil, err
-// 	}
-// 	defer rows.Close()
-
-// 	var logs []dtos.UserLog
-
-// 	for rows.Next() {
-
-// 		var log dtos.UserLog
-// 		var meta string
-// 		var ts sql.NullTime
-
-// 		var user dtos.Users
-
-// 		// Raw scanned database values
-// 		var (
-// 			logUserID sql.NullString
-// 			dbUserID  sql.NullString
-// 			firstName sql.NullString
-// 			lastName  sql.NullString
-// 			email     sql.NullString
-// 			roleStr   sql.NullString
-// 			statusStr sql.NullString
-// 			lastLogin sql.NullTime
-// 			createdAt sql.NullTime
-// 			phone     sql.NullString
-// 		)
-
-// 		if err := rows.Scan(
-// 			&log.LogID,
-// 			&logUserID,
-// 			&log.Status,
-// 			&meta,
-// 			&log.Action,
-// 			&ts,
-
-// 			&dbUserID,
-// 			&firstName,
-// 			&lastName,
-// 			&email,
-// 			&roleStr,
-// 			&statusStr,
-// 			&lastLogin,
-// 			&createdAt,
-// 			&phone,
-// 		); err != nil {
-// 			return nil, nil, err
-// 		}
-
-// 		// Timestamp
-// 		if ts.Valid {
-// 			log.CreatedAt = ts.Time.Format("2006-01-02 15:04:05")
-// 		}
-
-// 		// Metadata JSON
-// 		if err := mapMetadataToLogger(&log, meta); err != nil {
-// 			return nil, nil, err
-// 		}
-
-// 		// If user exists (not "unknown")
-// 		if dbUserID.Valid && dbUserID.String != "unknown" {
-
-// 			user.ID = dbUserID.String
-// 			user.FirstName = firstName.String
-// 			user.LastName = lastName.String
-// 			user.Email = email.String
-// 			user.Role = roleStr.String
-// 			user.Status = statusStr.String
-// 			user.LastLogin = formatNullTime(lastLogin)
-// 			user.DateJoined = formatNullTime(createdAt)
-// 			user.Phone = phone.String
-
-// 			log.User = &user
-
-// 		} else {
-// 			// Unknown user
-// 			log.User = UnknownUser()
-// 		}
-
-// 		logs = append(logs, log)
-// 	}
-
-// 	meta := buildPagination(limit, offset, total)
-// 	return logs, meta, nil
-// }
-
 func UnknownUser() *dtos.Users {
 	return &dtos.Users{
 		ID:        "unknown",
@@ -326,12 +187,6 @@ func UnknownUser() *dtos.Users {
 		Role:      "unknown",
 		Status:    "unknown",
 	}
-}
-func formatNullTime(t sql.NullTime) string {
-	if !t.Valid {
-		return ""
-	}
-	return t.Time.Format("2006-01-02 15:04:05")
 }
 
 // buildUserLogsFilter creates the WHERE clause and args for filtering logs.
@@ -395,14 +250,6 @@ func buildUserLogsFilter(filters UserLogFilters) (string, []interface{}) {
 	}
 
 	return whereClause, args
-}
-
-// countUserLogs returns the total count of logs for the given filter.
-func countUserLogs(whereSQL string, args []interface{}) (int, error) {
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM logs %s", whereSQL)
-	var total int
-	err := DB.QueryRow(countQuery, args...).Scan(&total)
-	return total, err
 }
 
 // processUserLogRows processes the rows and returns the logs.

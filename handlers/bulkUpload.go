@@ -89,7 +89,7 @@ func BulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
-					Description: "Duplicate SKU found in CSV: " + product.SKU + "" + err.Error(),
+					Description: "Duplicate SKU found in CSV: " + product.SKU,
 					Code:        http.StatusBadRequest,
 				},
 				Message:   "Duplicate SKU found in CSV: " + product.SKU,

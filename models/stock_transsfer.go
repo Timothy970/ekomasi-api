@@ -40,26 +40,20 @@ func CreateStockTransfer(st dtos.StockTransferDTO) error {
 		WHERE product_id = ? AND warehouse_id = ? AND quantity >= ?`,
 		st.Quantity, st.ProductID, st.FromWarehouseID, st.Quantity)
 
-	// update inventory for to warehouse
-	//first check if record exists
-	var count int
-	err = DB.QueryRow(`SELECT COUNT(*) FROM inventory WHERE product_id = ? AND warehouse_id = ?`, st.ProductID, st.ToWarehouseID).Scan(&count)
+	// create new inventory for to warehouse
+	//first get inventory record for to warehouse
+	toInventoryQuery := `SELECT low_stock_threshold, supplier FROM inventory WHERE product_id = ? AND warehouse_id = ?`
+	var lowStockThreshold sql.NullInt64
+	var supplier sql.NullString
+	err = DB.QueryRow(toInventoryQuery, st.ProductID, st.ToWarehouseID).Scan(&lowStockThreshold, &supplier)
+
+	//insert record
+	_, err = DB.Exec(`INSERT INTO inventory (product_id, warehouse_id, quantity, low_stock_threshold, supplier) VALUES (?, ?, ?, ?, ?)`, st.ProductID, st.ToWarehouseID, st.Quantity, lowStockThreshold, supplier)
 	if err != nil {
 		return err
 	}
-	if count == 0 {
-		//insert record
-		_, err = DB.Exec(`INSERT INTO inventory (product_id, warehouse_id, quantity) VALUES (?, ?, ?)`, st.ProductID, st.ToWarehouseID, st.Quantity)
-		if err != nil {
-			return err
-		}
-	} else {
-		_, err = DB.Exec(`
-		UPDATE inventory SET quantity = quantity + ? 
-		WHERE product_id = ? AND warehouse_id = ?`,
-			st.Quantity, st.ProductID, st.ToWarehouseID)
-	}
-	return err
+
+	return nil
 }
 
 func validateProductAndWarehouse(st dtos.StockTransferDTO) error {

@@ -13,13 +13,11 @@ import (
 )
 
 var nobundle = "bundle not found"
-var fetchbundle = "bundle_id = ?"
 var limtOffset = " LIMIT ? OFFSET ?"
 var lowerCname = " AND LOWER(c.name) LIKE ?"
 var lowerPname = " AND LOWER(p.name) LIKE ?"
 var lowerVariant = "(LOWER(v.variant_type) = ?)"
 var lowerVariantTypeName = "(LOWER(v.variant_type) = ? AND LOWER(v.name) = ?)"
-var whereBundleID = " WHERE bundle_id = ?"
 
 func GetAllProducts(categoryFilter, productFilter, categoryID string, page, limit int) ([]dtos.Product, *dtos.PaginationMeta, error) {
 	if categoryID != "" {
