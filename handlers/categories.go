@@ -132,7 +132,7 @@ func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	categoryName := r.URL.Query().Get("category_name")
+	categoryName := r.URL.Query().Get("q")
 	categories, pagination, err := models.GetAdminCategories(page, limit, categoryName)
 	if err != nil {
 		log.Printf("Failed to get categories: %v", err)

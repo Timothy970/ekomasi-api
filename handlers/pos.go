@@ -237,7 +237,7 @@ func ProcessSplitPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	for _, paymentMethod := range req.PaymentMethods {
 		switch strings.ToLower(paymentMethod.Type) {
 		case "cash":
-			if err := processCashPayment(order, &change, totalAmount, paymentMethod.Amount); err != nil {
+			if err := processCashPayment(order); err != nil {
 				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 					CollectiveInfo: utils.CollectiveInfo{
 						Module:      "Payments",
@@ -369,7 +369,7 @@ func ProcessSplitPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func processCashPayment(order *dtos.Order, change *float64, totalAmount, paymentAmount float64) error {
+func processCashPayment(order *dtos.Order) error {
 	method := "CASH"
 	paymentStatus := "SUCCESS"
 	status := "SUCCESS"
@@ -381,11 +381,6 @@ func processCashPayment(order *dtos.Order, change *float64, totalAmount, payment
 
 	if err := models.UpdateOrderStatus(order.OrderID, orderStatusData); err != nil {
 		return err
-	}
-
-	*change = totalAmount - order.TotalAmount
-	if *change < 0 {
-		*change = 0
 	}
 
 	logEntry := &dtos.TransactionsList{
