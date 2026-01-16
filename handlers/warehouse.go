@@ -53,7 +53,6 @@ func CreateWarehouse(w http.ResponseWriter, r *http.Request) {
 	// Validate all required fields (name, address, capacity, etc.)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Warehouse") {
 		// Validation failed, ValidateStructAndRespond already sent error response
-		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 
@@ -145,7 +144,6 @@ func ListWarehouses(w http.ResponseWriter, r *http.Request) {
 		_ = utils.SetCache(cacheKeyWarehouses, cachedWarehouses)
 		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
 	} else {
-		// Cache hit - use cached data
 		// Cache hit - use cached data
 		warehouses = cachedWarehouses
 		meta = cachedPagination

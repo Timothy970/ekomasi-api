@@ -143,7 +143,7 @@ func GetRolesHandler(w http.ResponseWriter, r *http.Request) {
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
 
-	// Validate date format if date range date range provided
+	// Validate date format if date range provided
 	if startDate != "" && endDate != "" {
 		// Validate start_date format (YYYY-MM-DD)
 		if _, err := time.Parse("2006-01-02", startDate); err != nil {

@@ -215,7 +215,6 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 	// Validate all required fields
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
 		// Validation failed, ValidateStructAndRespond already sent error response
-		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Create new voucher record in database
@@ -972,7 +971,6 @@ func RedeemVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Validate voucher code format
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
-		// Validation failed, ValidateStructAndRespond already sent error response
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}

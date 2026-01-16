@@ -41,7 +41,6 @@ func GetShippingCostHandler(w http.ResponseWriter, r *http.Request) {
 	req, ok := DecodeRequestBody[dtos.ShippingCostRequest](r, w, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
-		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// TODO1: Implement Redis caching for delivery rates to improve performance
@@ -129,7 +128,6 @@ func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
 	// Validate all required fields in the request
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Shipping") {
 		// Validation failed, ValidateStructAndRespond already sent error response
-		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Create new shipping rate record in database
@@ -188,7 +186,6 @@ func SubmitFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 	// Decode and parse JSON request body with feedback details
 	req, ok := DecodeRequestBody[dtos.DeliveryFeedback](r, w, requestSummary, start)
 	if !ok {
-		// Request body parsing failed, DecodeRequestBody already sent error response
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
@@ -392,7 +389,6 @@ func DecodeRequestBody[T any](r *http.Request, w http.ResponseWriter, requestSum
 				e.Field, e.Offset, e.Type)
 		default:
 			// Generic decoding error
-			// Generic decoding error
 			msg = "Invalid request body: " + err.Error()
 		}
 
@@ -585,7 +581,6 @@ func UpdateLocation(w http.ResponseWriter, r *http.Request) {
 	// Validate all required fields in the request
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Shipping") {
 		// Validation failed, ValidateStructAndRespond already sent error response
-		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 
@@ -646,7 +641,6 @@ func DeleteLocation(w http.ResponseWriter, r *http.Request) {
 	// Verify user has admin privileges (only admins can delete locations)
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Shipping")
 	if !ok {
-		// Authorization failed, RequireAdmin already sent error response
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}

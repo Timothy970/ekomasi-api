@@ -53,7 +53,6 @@ func CreateSupplier(w http.ResponseWriter, r *http.Request) {
 	// Validate all required fields (name, contact info, etc.)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Suppliers") {
 		// Validation failed, ValidateStructAndRespond already sent error response
-		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 
@@ -151,7 +150,6 @@ func ListSuppliers(w http.ResponseWriter, r *http.Request) {
 		_ = utils.SetCache(cacheKeySuppliers, cachedSupplier)
 		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
 	} else {
-		// Cache hit - use cached data
 		// Cache hit - use cached data
 		suppliers = cachedSupplier
 		meta = cachedPagination

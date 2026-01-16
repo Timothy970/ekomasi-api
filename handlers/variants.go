@@ -54,7 +54,6 @@ func CreateVariant(w http.ResponseWriter, r *http.Request) {
 	// Validate all required fields (name, type, etc.)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		// Validation failed, ValidateStructAndRespond already sent error response
-		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 
@@ -130,7 +129,7 @@ func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit < 1 {
-		limit = 10 // Default to 10 items per page // Default to 10 items per page
+		limit = 10 // Default to 10 items per page
 	}
 
 	// Fetch products matching variant criteria with pagination

@@ -180,7 +180,6 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 	// Validate status field in request
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
 		// Validation failed, ValidateStructAndRespond already sent error response
-		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Update transaction status in database and retrieve associated order ID

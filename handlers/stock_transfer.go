@@ -49,7 +49,6 @@ func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
 	// Validate all required fields (from/to warehouse, product, quantity, etc.)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Warehouse") {
 		// Validation failed, ValidateStructAndRespond already sent error response
-		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Prevent transfers within the same warehouse (business rule validation)
