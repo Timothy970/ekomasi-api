@@ -578,43 +578,18 @@ func isEmailAndPhoneThere(email, phone, userID string) error {
 	return nil
 }
 
-// FindByIdAndUpdate updates user profile fields with validation.
+// buildUpdateFields constructs the SET clause and values for the user update query.
 //
-// This function performs comprehensive validation before updating:
-//   - Validates user existence
-//   - Validates role existence if role_id is being changed
-//   - Validates email/phone uniqueness against other users
-//   - Builds dynamic UPDATE query for only provided fields
-//   - Retrieves and returns updated user object
+// This helper function extracts the field-building logic to reduce complexity.
 //
 // Parameters:
-//   - input: RegisterRequest DTO containing fields to update (empty fields are skipped)
-//   - userID: The user_id to update
+//   - input: RegisterRequest DTO containing fields to update
+//   - role: The role name string (if role is being updated)
 //
 // Returns:
-//   - *dtos.Users: Pointer to updated user object with complete profile including addresses
-//   - error: Validation error, "no fields to update" error, or database error if update fails
-//
-// Only non-empty fields in input will be updated. Empty strings are ignored.
-func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, error) {
-	// Validate that user exists before attempting update
-	err := isUserThere(userID)
-	if err != nil {
-		return nil, err
-	}
-	// Validate role exists if role_id is being changed
-	if input.RoleID != "" {
-		err = isRoleThere(input.RoleID)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// Validate email/phone uniqueness against other users (excluding current user)
-	err = isEmailAndPhoneThere(input.Email, input.Phonenumber, userID)
-	if err != nil {
-		return nil, err
-	}
-	// Build SET clause dynamically - only update non-empty fields
+//   - []string: Array of SET clauses for the UPDATE query
+//   - []interface{}: Array of values corresponding to the SET clauses
+func buildUpdateFields(input dtos.RegisterRequest, role string) ([]string, []interface{}) {
 	setClauses := []string{}
 	values := []interface{}{}
 
@@ -643,6 +618,60 @@ func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, 
 		setClauses = append(setClauses, "role_id = ?")
 		values = append(values, input.RoleID)
 	}
+	// Add role name to update if role_id provided
+	if role != "" {
+		setClauses = append(setClauses, "role = ?")
+		values = append(values, role)
+	}
+
+	return setClauses, values
+}
+
+// FindByIdAndUpdate updates user profile fields with validation.
+//
+// This function performs comprehensive validation before updating:
+//   - Validates user existence
+//   - Validates role existence if role_id is being changed
+//   - Validates email/phone uniqueness against other users
+//   - Builds dynamic UPDATE query for only provided fields
+//   - Retrieves and returns updated user object
+//
+// Parameters:
+//   - input: RegisterRequest DTO containing fields to update (empty fields are skipped)
+//   - userID: The user_id to update
+//
+// Returns:
+//   - *dtos.Users: Pointer to updated user object with complete profile including addresses
+//   - error: Validation error, "no fields to update" error, or database error if update fails
+//
+// Only non-empty fields in input will be updated. Empty strings are ignored.
+func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, error) {
+	// Validate that user exists before attempting update
+	err := isUserThere(userID)
+	if err != nil {
+		return nil, err
+	}
+	role := ""
+	// Validate role exists if role_id is being changed
+	if input.RoleID != "" {
+		err = isRoleThere(input.RoleID)
+		if err != nil {
+			return nil, err
+		}
+		// Fetch role name for update
+		role, err = GetRoleNameByID(input.RoleID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// Validate email/phone uniqueness against other users (excluding current user)
+	err = isEmailAndPhoneThere(input.Email, input.Phonenumber, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build SET clause dynamically - only update non-empty fields
+	setClauses, values := buildUpdateFields(input, role)
 
 	// Validate that at least one field is being updated
 	if len(setClauses) == 0 {
