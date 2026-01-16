@@ -343,7 +343,7 @@ func openingBalance(accountID string, from time.Time) (float64, error) {
 	err := DB.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(%s), 0)
 		FROM journal_entries je
-		LEFT JOIN chart_of_accounts ca
+		INNER JOIN chart_of_accounts ca
 			ON ca.account_id = je.account_id
 		WHERE je.account_id = ?
 		  AND je.entry_date < ?
