@@ -1,0 +1,21 @@
+CREATE TABLE  IF NOT EXISTS `journal_entries` (
+   `entry_id` char(36) NOT NULL,
+   `order_id` char(36) DEFAULT NULL,
+   `payment_id` char(36) DEFAULT NULL,
+   `po_id` char(36) DEFAULT NULL,
+   `account_id` char(36) NOT NULL,
+   `debit` decimal(10,2) NOT NULL DEFAULT '0.00',
+   `credit` decimal(10,2) NOT NULL DEFAULT '0.00',
+   `entry_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   `description` varchar(255) DEFAULT NULL,
+   PRIMARY KEY (`entry_id`),
+   KEY `idx_journal_entries_account_id` (`account_id`),
+   KEY `idx_journal_entries_entry_date` (`entry_date`),
+   KEY `idx_journal_entries_order_id` (`order_id`),
+   KEY `idx_journal_entries_payment_id` (`payment_id`),
+   KEY `idx_journal_entries_po_id` (`po_id`),
+   CONSTRAINT `journal_entries_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`) ON DELETE SET NULL,
+   CONSTRAINT `journal_entries_ibfk_2` FOREIGN KEY (`payment_id`) REFERENCES `payments` (`payment_id`) ON DELETE SET NULL,
+   CONSTRAINT `journal_entries_ibfk_3` FOREIGN KEY (`po_id`) REFERENCES `purchase_orders` (`po_id`) ON DELETE SET NULL,
+   CONSTRAINT `journal_entries_ibfk_4` FOREIGN KEY (`account_id`) REFERENCES `chart_of_accounts` (`account_id`) ON DELETE RESTRICT
+ );
