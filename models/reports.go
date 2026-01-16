@@ -16,11 +16,12 @@ package models
 
 import (
 	"adenzo_backend/dtos"
-	"context"
 	"database/sql"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 	"time"
 )
@@ -287,21 +288,38 @@ func toAny(ss []string) []interface{} {
 // This is an internal helper function used by the Ledger function.
 //
 // Parameters:
-//   - ctx: context.Context - Request context for cancellation
 //   - accountID: string - The account_id to retrieve
 //
 // Returns:
 //   - dtos.AcctInfo: Account information (ID, Code, Name, Type)
 //   - error: sql.ErrNoRows if not found, database error, or nil on success
-func getAccount(ctx context.Context, accountID string) (dtos.AcctInfo, error) {
+func getAccount(accountID string) (dtos.AcctInfo, error) {
 	var a dtos.AcctInfo
-
+	err := isAccountThere(accountID)
+	if err != nil {
+		return a, err
+	}
 	// Query account details from chart of accounts
-	err := DB.QueryRowContext(ctx, `
+	err = DB.QueryRow(`
 		SELECT account_id, account_code, account_name, account_type
 		FROM chart_of_accounts WHERE account_id = ?`, accountID).
 		Scan(&a.ID, &a.Code, &a.Name, &a.Type)
 	return a, err
+}
+
+// helper function to check if account is there
+func isAccountThere(accountID string) error {
+	// Check if account code exists in chart_of_accounts table
+	exists, err := RecordExists("chart_of_accounts", "account_id = ?", accountID)
+	if err != nil {
+		// Database query failed
+		return err
+	}
+	if !exists {
+		// Account not found in chart of accounts
+		return errors.New("account not found")
+	}
+	return nil
 }
 
 // openingBalance calculates the account balance before a specified date.
@@ -310,23 +328,25 @@ func getAccount(ctx context.Context, accountID string) (dtos.AcctInfo, error) {
 // journal entries from the beginning of time up to (but not including) the from date.
 //
 // Parameters:
-//   - ctx: context.Context - Request context for cancellation
 //   - accountID: string - The account to calculate opening balance for
 //   - from: time.Time - The date from which the ledger period begins (exclusive)
 //
 // Returns:
 //   - float64: Opening balance using normal balance calculation (debit-credit or credit-debit)
 //   - error: Database error or nil on success
-func openingBalance(ctx context.Context, accountID string, from time.Time) (float64, error) {
+func openingBalance(accountID string, from time.Time) (float64, error) {
 	// Use normal balance expression for proper sign calculation
 	expr := normalBalanceExpr("je")
 	var bal float64
 
 	// Sum all entries before the from date
-	err := DB.QueryRowContext(ctx, fmt.Sprintf(`
-		SELECT COALESCE(SUM(%s),0)
+	err := DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(SUM(%s), 0)
 		FROM journal_entries je
-		WHERE je.account_id = ? AND je.entry_date < ?
+		INNER JOIN chart_of_accounts ca
+			ON ca.account_id = je.account_id
+		WHERE je.account_id = ?
+		  AND je.entry_date < ?
 	`, expr), accountID, from).Scan(&bal)
 	return bal, err
 }
@@ -364,17 +384,17 @@ func Ledger(accountID string, from, to time.Time, page, size int) (acct dtos.Acc
 	Credit  float64
 }, metaCount int, err error) {
 
-	ctx := context.Background()
-
 	// Retrieve account details
-	acct, err = getAccount(ctx, accountID)
+	acct, err = getAccount(accountID)
 	if err != nil {
+		log.Printf("get account error : %s", err)
 		return
 	}
 
 	// Calculate opening balance before period start
-	opening, err = openingBalance(ctx, accountID, from)
+	opening, err = openingBalance(accountID, from)
 	if err != nil {
+		log.Printf("opening balance error : %s", err)
 		return
 	}
 
@@ -385,6 +405,7 @@ func Ledger(accountID string, from, to time.Time, page, size int) (acct dtos.Acc
 		  AND entry_date >= ? AND entry_date < DATE_ADD(?, INTERVAL 1 DAY)
 	`, accountID, from, to).Scan(&metaCount)
 	if err != nil {
+		log.Printf("count entries error : %s", err)
 		return
 	}
 
@@ -401,6 +422,7 @@ func Ledger(accountID string, from, to time.Time, page, size int) (acct dtos.Acc
 		LIMIT ? OFFSET ?
 	`, accountID, from, to, size, offset)
 	if err != nil {
+		log.Printf("query entries error : %s", err)
 		return
 	}
 	defer rows.Close()

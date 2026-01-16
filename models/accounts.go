@@ -34,9 +34,9 @@ func isChartAccountCodeThere(code string) error {
 		// Database query failed
 		return err
 	}
-	if !exists {
-		// Account code not found in chart of accounts
-		return errors.New("variant not found")
+	if exists {
+		// Account code found
+		return errors.New("account code already exists")
 	}
 	return nil
 }
