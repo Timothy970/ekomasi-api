@@ -658,6 +658,7 @@ func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, 
 		if err != nil {
 			return nil, err
 		}
+		// Fetch role name for update
 		role, err = GetRoleNameByID(input.RoleID)
 		if err != nil {
 			return nil, err
@@ -668,7 +669,7 @@ func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Build SET clause dynamically - only update non-empty fields
 	setClauses, values := buildUpdateFields(input, role)
 
