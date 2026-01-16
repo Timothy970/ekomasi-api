@@ -17,30 +17,38 @@ var (
 	userWithID = "User with ID "
 )
 
-// AddUser for Admins only
+// AddUser creates a new user in the system.
+// This endpoint is restricted to administrators.
 //
 // @Summary      Create a user
-// @Description  Create a user
+// @Description  Create a new user with the provided details. Requires admin privileges.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "User created successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      "User not found"
+// @Param        user  body      dtos.RegisterRequest  true  "User Registration Details"
+// @Success      201   {object}  map[string]interface{} "User created successfully"
+// @Failure      400   {object}  map[string]string      "Invalid request payload or missing mandatory fields"
+// @Failure      401   {object}  map[string]string      "Unauthorized"
+// @Failure      500   {object}  map[string]string      "Internal server error"
 // @Router       /api/admin/users [post]
 func AddUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+
+	// Check if the requesting user has admin privileges
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
+
+	// Decode the request body into the RegisterRequest struct
 	input, ok := DecodeRequestBody[dtos.RegisterRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+
+	// Validate mandatory field: RoleID
 	if input.RoleID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -55,6 +63,8 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Validate mandatory fields: Email or Phone number must be present
 	if input.Email == "" && input.Phonenumber == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -69,6 +79,8 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Create the user in the database
 	user, err := models.CreateUser(*input)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -84,6 +96,8 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with the created user details
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -98,26 +112,35 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// GetAllUsers handles GET /users?page=1&limit=10
+// GetAllUsers retrieves a paginated list of all users.
+// This endpoint is restricted to administrators.
 //
 // @Summary      List all Users
-// @Description  List all users
+// @Description  Retrieve a list of users with pagination and optional filtering. Requires admin privileges.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "Users fetched successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      "User not found"
+// @Param        page   query     int     false  "Page number (default 1)"
+// @Param        limit  query     int     false  "Number of items per page (default 10)"
+// @Param        q      query     string  false  "Search query (name, phone, email)"
+// @Param        role   query     string  false  "Filter by role"
+// @Success      200    {object}  map[string]interface{} "Users fetched successfully"
+// @Failure      400    {object}  map[string]string      "Invalid request parameters"
+// @Failure      401    {object}  map[string]string      "Unauthorized"
+// @Failure      500    {object}  map[string]string      "Internal server error"
 // @Router       /api/admin/users [GET]
 func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+
+	// Check if the requesting user has admin privileges
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
+
+	// Parse pagination parameters
 	pageStr := r.URL.Query().Get("page")
 	limitStr := r.URL.Query().Get("limit")
 
@@ -129,10 +152,13 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	if limit < 1 {
 		limit = 10
 	}
-	// support query by user name,phone,email
+
+	// Get filter parameters: query (name, phone, email) and role
 	q := r.URL.Query().Get("q")
 	role := r.URL.Query().Get("role")
 	offset := (page - 1) * limit
+
+	// Fetch users from database with pagination and filters
 	users, meta, err := models.GetAllUsersWithPagination(limit, offset, q, role)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -148,6 +174,8 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Construct response with users and pagination metadata
 	response := map[string]interface{}{
 		"users":      users,
 		"pagination": meta,
@@ -166,25 +194,35 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// GetUserByID retrieves a specific user by their ID.
+// This endpoint is restricted to administrators.
+//
 // @Summary      Get user by id
-// @Description  Det user by id
+// @Description  Retrieve details of a specific user by their unique ID. Requires admin privileges.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "User fetched successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      "User not found"
+// @Param        user_id  path      string  true  "User ID"
+// @Success      200      {object}  map[string]interface{} "User fetched successfully"
+// @Failure      401      {object}  map[string]string      "Unauthorized"
+// @Failure      404      {object}  map[string]string      "User not found"
+// @Failure      500      {object}  map[string]string      "Internal server error"
 // @Router       /api/admin/users/{user_id} [GET]
 func GetUserByID(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+
+	// Check if the requesting user has admin privileges
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
+
+	// Extract user ID from path variables
 	userID := mux.Vars(r)["user_id"]
+
+	// Fetch user details from database
 	user, err := models.GetUserByUserID(userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -201,6 +239,7 @@ func GetUserByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with user details
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -215,20 +254,26 @@ func GetUserByID(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// UpdateUser
+// UpdateUser updates the authenticated user's profile details.
+//
 // @Summary      Update a user
-// @Description  Update user details by ID
+// @Description  Update the profile details of the currently authenticated user.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "User updated successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      "User not found"
-// @Router       /api/user/{id} [put]
+// @Param        user  body      dtos.RegisterRequest  true  "User Update Details"
+// @Success      200   {object}  map[string]interface{} "User updated successfully"
+// @Failure      400   {object}  map[string]string      "Invalid request payload or validation error"
+// @Failure      401   {object}  map[string]string      "Unauthorized"
+// @Failure      404   {object}  map[string]string      "User not found"
+// @Failure      500   {object}  map[string]string      "Internal server error"
+// @Router       /api/user/me [patch]
 func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Get authenticated user from context
 	authuser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -244,11 +289,15 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Decode request body
 	input, ok := DecodeRequestBody[dtos.RegisterRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
 
+	// Validate mandatory fields: Email or Phone number must be present if provided (though this logic seems to imply at least one must be present if updating?)
+	// Actually, this check implies that if both are empty, it's an error.
 	if input.Email == "" && input.Phonenumber == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -264,6 +313,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate Kenyan phone number format if provided
 	if input.Phonenumber != "" {
 		if !utils.IsValidKenyanPhone(input.Phonenumber) {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -280,6 +330,8 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	// Update user in database
 	user, err := models.FindByIdAndUpdate(*input, authuser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -296,6 +348,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with updated user details
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -310,26 +363,35 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// DeleteUser handles DELETE api/user/{id}
+// DeleteUserByAdmin deletes a user by their ID.
+// This endpoint is restricted to administrators.
+//
 // @Summary      Delete a user by an admin
-// @Description  Delete user details by ID
+// @Description  Permanently remove a user from the system by their ID. Requires admin privileges.
 // @Tags         Admin
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "User deleted successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      "User not found"
+// @Param        user_id  path      string  true  "User ID"
+// @Success      200      {object}  map[string]interface{} "User deleted successfully"
+// @Failure      401      {object}  map[string]string      "Unauthorized"
+// @Failure      404      {object}  map[string]string      "User not found"
+// @Failure      500      {object}  map[string]string      "Internal server error"
 // @Router       /api/admin/users/{user_id} [DELETE]
 func DeleteUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+
+	// Check if the requesting user has admin privileges
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
+
+	// Extract user ID from path variables
 	userID := mux.Vars(r)["user_id"]
+
+	// Delete user from database
 	err := models.DeleteUserByID(userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -346,6 +408,7 @@ func DeleteUserByAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -360,26 +423,35 @@ func DeleteUserByAdmin(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Activate user
+// ActivateUserByAdmin activates a user account.
+// This endpoint is restricted to administrators.
+//
 // @Summary      Activate a user by an admin
-// @Description  Activate user details by ID
+// @Description  Activate a user account by their ID. Requires admin privileges.
 // @Tags         Admin
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "User activated successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      "User not found"
+// @Param        user_id  path      string  true  "User ID"
+// @Success      200      {object}  map[string]interface{} "User activated successfully"
+// @Failure      401      {object}  map[string]string      "Unauthorized"
+// @Failure      404      {object}  map[string]string      "User not found"
+// @Failure      500      {object}  map[string]string      "Internal server error"
 // @Router       /api/admin/users/{user_id}/activate [PATCH]
 func ActivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+
+	// Check if the requesting user has admin privileges
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
+
+	// Extract user ID from path variables
 	userID := mux.Vars(r)["user_id"]
+
+	// Activate user in database
 	err := models.ActivateUserByID(userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -396,6 +468,7 @@ func ActivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -410,26 +483,35 @@ func ActivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Deactivate user
+// DeactivateUserByAdmin deactivates a user account.
+// This endpoint is restricted to administrators.
+//
 // @Summary      Deactivate a user by an admin
-// @Description  Deactivate user details by ID
+// @Description  Deactivate a user account by their ID. Requires admin privileges.
 // @Tags         Admin
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "User activated successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      "User not found"
+// @Param        user_id  path      string  true  "User ID"
+// @Success      200      {object}  map[string]interface{} "User deactivated successfully"
+// @Failure      401      {object}  map[string]string      "Unauthorized"
+// @Failure      404      {object}  map[string]string      "User not found"
+// @Failure      500      {object}  map[string]string      "Internal server error"
 // @Router       /api/admin/users/{user_id}/de-activate [DELETE]
 func DeactivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+
+	// Check if the requesting user has admin privileges
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
+
+	// Extract user ID from path variables
 	userID := mux.Vars(r)["user_id"]
+
+	// Deactivate user in database
 	err := models.DeactivateUserByID(userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -446,6 +528,7 @@ func DeactivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -461,17 +544,22 @@ func DeactivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// GetUserDetails handles GET api/users/me
-// @Summary View User Details
-// @Description Get user details
-// @Tags Users
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Router /api/user/me [get]
+// GetUserDetails retrieves the profile details of the currently authenticated user.
+//
+// @Summary      View User Details
+// @Description  Get the profile details of the currently authenticated user.
+// @Tags         Users
+// @Produce      json
+// @Success      200  {object}  map[string]interface{} "User details fetched successfully"
+// @Failure      401  {object}  map[string]string      "Unauthorized"
+// @Failure      500  {object}  map[string]string      "Internal server error"
+// @Router       /api/user/me [get]
 func GetUserDetails(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Get authenticated user from context
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -487,8 +575,9 @@ func GetUserDetails(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	user, err := models.GetUserByUserID(authUser.ID)
 
+	// Fetch user details from database
+	user, err := models.GetUserByUserID(authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -504,6 +593,7 @@ func GetUserDetails(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with user details
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -518,21 +608,25 @@ func GetUserDetails(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Create user Address
+// CreateAddress adds a new address for the authenticated user.
 //
 // @Summary      Create user address
-// @Description  Create User Address
+// @Description  Add a new address to the user's profile.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "User address added successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      "User not found"
+// @Param        address  body      dtos.UserAdress  true  "Address Details"
+// @Success      201      {object}  map[string]interface{} "User address added successfully"
+// @Failure      400      {object}  map[string]string      "Invalid request payload"
+// @Failure      401      {object}  map[string]string      "Unauthorized"
+// @Failure      500      {object}  map[string]string      "Internal server error"
 // @Router       /api/user/profile/addresses [post]
 func CreateAddress(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Get authenticated user from context
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -548,14 +642,19 @@ func CreateAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Decode request body
 	input, ok := DecodeRequestBody[dtos.UserAdress](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
-	//Validate the request
+
+	// Validate the request payload
 	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start, "Users") {
 		return
 	}
+
+	// Create address in database
 	err := models.CreateUserAddress(*input, authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -571,6 +670,8 @@ func CreateAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -585,23 +686,43 @@ func CreateAddress(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// AdminCreateAddress allows an admin to create an address for a specific user.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Create user address (Admin)
+// @Description  Create an address for a user as an admin.
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        address  body      dtos.AdminUserAddress  true  "Admin User Address Details"
+// @Success      201      {object}  map[string]interface{} "User address added successfully"
+// @Failure      400      {object}  map[string]string      "Invalid request payload"
+// @Failure      401      {object}  map[string]string      "Unauthorized"
+// @Failure      500      {object}  map[string]string      "Internal server error"
+// @Router       /api/admin/profile/addresses [post]
 func AdminCreateAddress(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+
+	// Check if the requesting user has admin privileges
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
+
+	// Decode request body
 	req, ok := DecodeRequestBody[dtos.AdminUserAddress](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
-	//Validate the request
+
+	// Validate the request payload
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
+
+	// Map AdminUserAddress to UserAdress struct
 	input := dtos.UserAdress{
 		Address:   req.Address,
 		Country:   req.Country,
@@ -609,6 +730,8 @@ func AdminCreateAddress(w http.ResponseWriter, r *http.Request) {
 		City:      req.City,
 		ZipCode:   req.ZipCode,
 	}
+
+	// Create address in database
 	err := models.CreateUserAddress(input, req.UserID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -624,6 +747,8 @@ func AdminCreateAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -638,21 +763,23 @@ func AdminCreateAddress(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Create user Address
+// GetUserAddress retrieves all addresses associated with the authenticated user.
 //
-// @Summary      Get user address
-// @Description  Get User Address
+// @Summary      Get user addresses
+// @Description  Retrieve a list of addresses for the currently authenticated user.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "User address fetched successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      "User not found"
+// @Success      200  {object}  map[string]interface{} "User addresses fetched successfully"
+// @Failure      401  {object}  map[string]string      "Unauthorized"
+// @Failure      500  {object}  map[string]string      "Internal server error"
 // @Router       /api/user/profile/addresses [get]
 func GetUserAddress(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Get authenticated user from context
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -669,6 +796,7 @@ func GetUserAddress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch addresses from database
 	addresses, err := models.GetUserAddresses(authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -684,6 +812,8 @@ func GetUserAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with list of addresses
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -698,21 +828,26 @@ func GetUserAddress(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Update user address
+// UpdateAddress updates an existing address for the authenticated user.
 //
 // @Summary      Update user address
-// @Description  Update User Address
+// @Description  Update details of an existing address for the user.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "User address updated successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      "User not found"
-// @Router       /api/user/profile/addresses [get]
+// @Param        address_id  path      string           true  "Address ID"
+// @Param        address     body      dtos.UserAdress  true  "Updated Address Details"
+// @Success      200         {object}  map[string]interface{} "User address updated successfully"
+// @Failure      400         {object}  map[string]string      "Invalid request payload"
+// @Failure      401         {object}  map[string]string      "Unauthorized"
+// @Failure      500         {object}  map[string]string      "Internal server error"
+// @Router       /api/user/profile/addresses/{address_id} [patch]
 func UpdateAddress(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Get authenticated user from context
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -728,15 +863,22 @@ func UpdateAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Extract address ID from path variables
 	addressID := mux.Vars(r)["address_id"]
+
+	// Decode request body
 	input, ok := DecodeRequestBody[dtos.UserAdress](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
-	//Validate the request
+
+	// Validate the request payload
 	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start, "Users") {
 		return
 	}
+
+	// Update address in database
 	err := models.UpdateUserAddress(addressID, authUser.ID, input)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -752,6 +894,8 @@ func UpdateAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -817,21 +961,24 @@ func AdminUpdateAddress(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// delete user address
+// DeleteAddress deletes an address for the authenticated user.
 //
 // @Summary      Delete user address
-// @Description  Delete User Address
+// @Description  Delete an address from the user's profile.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "User address deleted successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      "User not found"
-// @Router       /api/user/profile/addresses [delete]
+// @Param        address_id  path      string  true  "Address ID"
+// @Success      200         {object}  map[string]interface{} "User address deleted successfully"
+// @Failure      401         {object}  map[string]string      "Unauthorized"
+// @Failure      500         {object}  map[string]string      "Internal server error"
+// @Router       /api/user/profile/addresses/{address_id} [delete]
 func DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Get authenticated user from context
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -847,7 +994,11 @@ func DeleteAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Extract address ID from path variables
 	addressID := mux.Vars(r)["address_id"]
+
+	// Delete address from database
 	err := models.DeleteUserAddress(addressID, authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -863,6 +1014,8 @@ func DeleteAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -877,24 +1030,47 @@ func DeleteAddress(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// AdminDeleteAddress allows an admin to delete an address for a specific user.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Delete user address (Admin)
+// @Description  Delete an address for a user as an admin.
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        address_id  path      string                  true  "Address ID"
+// @Param        user        body      dtos.AdminDeleteUserAddress true "User ID Details"
+// @Success      200         {object}  map[string]interface{} "User address deleted successfully"
+// @Failure      400         {object}  map[string]string      "Invalid request payload"
+// @Failure      401         {object}  map[string]string      "Unauthorized"
+// @Failure      500         {object}  map[string]string      "Internal server error"
+// @Router       /api/admin/profile/addresses/{address_id} [delete]
 func AdminDeleteAddress(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+
+	// Check if the requesting user has admin privileges
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
+
+	// Extract address ID from path variables
 	addressID := mux.Vars(r)["address_id"]
+
+	// Decode request body
 	req, ok := DecodeRequestBody[dtos.AdminDeleteUserAddress](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
-	//Validate the request
+
+	// Validate the request payload
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
+
+	// Delete address from database
 	err := models.DeleteUserAddress(addressID, req.UserID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -910,6 +1086,8 @@ func AdminDeleteAddress(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -924,31 +1102,43 @@ func AdminDeleteAddress(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Update user Admin
-// UpdateUser
+// UpdateUserByAdmin updates a user's details by an admin.
+// This endpoint is restricted to administrators.
+//
 // @Summary      Update a user by an admin
-// @Description  Update user details by ID
+// @Description  Update details of a user by their ID. Requires admin privileges.
 // @Tags         Admin
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "User updated successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      "User not found"
+// @Param        user_id  path      string                true  "User ID"
+// @Param        user     body      dtos.RegisterRequest  true  "User Update Details"
+// @Success      200      {object}  map[string]interface{} "User updated successfully"
+// @Failure      400      {object}  map[string]string      "Invalid request payload"
+// @Failure      401      {object}  map[string]string      "Unauthorized"
+// @Failure      404      {object}  map[string]string      "User not found"
+// @Failure      500      {object}  map[string]string      "Internal server error"
 // @Router       /api/admin/users/{user_id} [PATCH]
 func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+
+	// Check if the requesting user has admin privileges
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
 		return
 	}
+
+	// Extract user ID from path variables
 	userID := mux.Vars(r)["user_id"]
+
+	// Decode request body
 	input, ok := DecodeRequestBody[dtos.RegisterRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+
+	// Validate mandatory fields
 	if (input.Email == "" || input.Phonenumber == "") && input.RoleID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -963,6 +1153,8 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Update user in database
 	user, err := models.FindByIdAndUpdate(*input, userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -979,6 +1171,7 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with updated user details
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -993,12 +1186,27 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-//get recommended user products based on purchase history and wishlist
-
+// GetUserBasedProductsRecommendations retrieves product recommendations for the authenticated user.
+// Recommendations are based on purchase history and wishlist.
+//
+// @Summary      Get recommended products
+// @Description  Retrieve product recommendations for the authenticated user based on their purchase history and wishlist.
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        page   query     int     false  "Page number (default 1)"
+// @Param        size   query     int     false  "Number of items per page (default 10)"
+// @Success      200    {object}  map[string]interface{} "Recommended products fetched successfully"
+// @Failure      401    {object}  map[string]string      "Unauthorized"
+// @Failure      404    {object}  map[string]string      "No recommendations found"
+// @Failure      500    {object}  map[string]string      "Internal server error"
+// @Router       /api/user/products/recommendations [get]
 func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Get authenticated user from context
 	authUser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1014,6 +1222,7 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 			RawBody:   requestSummary})
 		return
 	}
+
 	// Parse pagination params
 	page := 1
 	limit := 10
@@ -1025,7 +1234,8 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 	if pageStr != "" {
 		page, _ = strconv.Atoi(pageStr)
 	}
-	// get categories from purchase history & wishlist
+
+	// Get categories from purchase history
 	purchaseCats, err := models.GetPurchasedCategories(authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1042,6 +1252,7 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Get categories from wishlist
 	wishlistCats, err := models.GetWishlistCategories(authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1058,10 +1269,10 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// merge categories
+	// Merge categories
 	categories := append(purchaseCats, wishlistCats...)
 
-	// fetch recommended products
+	// Fetch recommended products based on merged categories
 	recommended, pagination, err := models.GetProductsByCategories(categories, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1078,6 +1289,7 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Respond with recommended products
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
@@ -1095,29 +1307,36 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 		RawBody:   requestSummary})
 }
 
-// Add subcribers
+// AddSubscriber adds a new subscriber to the mailing list.
 //
 // @Summary      Create a subscriber
-// @Description  Create a subscriber
+// @Description  Add a new email to the subscriber list.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  map[string]interface{} "subscriber created successfully"
-// @Failure      400  {object}  map[string]string      "Invalid request payload"
-// @Failure      404  {object}  map[string]string      ""
-// @Router       /api/admin/users [post]
+// @Param        subscriber  body      dtos.Subscriber  true  "Subscriber Details"
+// @Success      201         {object}  map[string]interface{} "Subscriber created successfully"
+// @Failure      400         {object}  map[string]string      "Invalid request payload"
+// @Failure      404         {object}  map[string]string      "Resource not found"
+// @Failure      500         {object}  map[string]string      "Internal server error"
+// @Router       /api/subscribe [post]
 func AddSubscriber(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
+	// Decode request body
 	input, ok := DecodeRequestBody[dtos.Subscriber](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+
+	// Validate the request payload
 	if !utils.ValidateStructAndRespond(input, w, r, requestSummary, start, "Users") {
 		return
 	}
+
+	// Create subscriber in database
 	err := models.CreateSubscribers(input.Email)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1133,6 +1352,8 @@ func AddSubscriber(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",

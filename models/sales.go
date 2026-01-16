@@ -1,3 +1,11 @@
+// Package models provides data access functions for the Adenzo e-commerce backend.
+//
+// sales.go handles sales analytics and reporting including:
+//   - Sales trends and growth analysis
+//   - Revenue vs expenses tracking
+//   - Customer segmentation by region
+//   - Sales overview dashboards
+//   - Period-over-period comparisons
 package models
 
 import (
@@ -6,52 +14,76 @@ import (
 	"time"
 )
 
+// nowTime defines the datetime format used throughout sales analytics
 var nowTime = "2006-01-02 15:04:05"
 
+// SalesSummaryOverTime represents sales metrics for a specific time period.
+// Used for period-over-period comparison with growth analysis.
 type SalesSummaryOverTime struct {
 	Period struct {
-		Start string  `json:"start"`
-		End   string  `json:"end"`
-		Type  *string `json:"type"`
+		Start string  `json:"start"` // Period start timestamp
+		End   string  `json:"end"`   // Period end timestamp
+		Type  *string `json:"type"`  // Period type (day, week, month, etc.)
 	} `json:"period"`
 	Metrics struct {
-		SalesVolume      int     `json:"sales_volume"`
-		Revenue          float64 `json:"revenue"`
-		GrowthPercentage float64 `json:"growth_percentage"`
+		SalesVolume      int     `json:"sales_volume"`      // Total units sold
+		Revenue          float64 `json:"revenue"`           // Total revenue
+		GrowthPercentage float64 `json:"growth_percentage"` // Growth vs previous period
 	} `json:"metrics"`
 	Comparison struct {
 		PreviousPeriod struct {
-			SalesVolume int     `json:"sales_volume"`
-			Revenue     float64 `json:"revenue"`
+			SalesVolume int     `json:"sales_volume"` // Previous period units sold
+			Revenue     float64 `json:"revenue"`      // Previous period revenue
 		} `json:"previous_period"`
 	} `json:"comparison"`
 }
+
+// SalesTrendsSummary represents sales comparison between two custom periods.
+// Provides flexibility for comparing any two date ranges.
 type SalesTrendsSummary struct {
 	Period struct {
 		StartPeriod struct {
-			Start string `json:"start"`
-			End   string `json:"end"`
+			Start string `json:"start"` // First period start
+			End   string `json:"end"`   // First period end
 		} `json:"start_period"`
 		EndPeriod struct {
-			Start string `json:"start"`
-			End   string `json:"end"`
+			Start string `json:"start"` // Second period start
+			End   string `json:"end"`   // Second period end
 		} `json:"end_period"`
 	} `json:"period"`
 	Metrics struct {
-		SalesVolume      int     `json:"sales_volume"`
-		Revenue          float64 `json:"revenue"`
-		GrowthPercentage float64 `json:"growth_percentage"`
+		SalesVolume      int     `json:"sales_volume"`      // Current period units sold
+		Revenue          float64 `json:"revenue"`           // Current period revenue
+		GrowthPercentage float64 `json:"growth_percentage"` // Growth vs previous period
 	} `json:"metrics"`
 	Comparison struct {
 		PreviousPeriod struct {
-			SalesVolume int     `json:"sales_volume"`
-			Revenue     float64 `json:"revenue"`
+			SalesVolume int     `json:"sales_volume"` // Previous period units sold
+			Revenue     float64 `json:"revenue"`      // Previous period revenue
 		} `json:"previous_period"`
 	} `json:"comparison"`
 }
 
+// GetSalesTrendsSummary compares sales between two custom date ranges.
+//
+// This function provides flexible period comparison for trend analysis,
+// calculating sales volume, revenue, and growth percentage.
+//
+// Parameters:
+//   - start: time.Time - Current period start date
+//   - end: time.Time - Current period end date
+//   - prevStart: time.Time - Comparison period start date
+//   - prevEnd: time.Time - Comparison period end date
+//
+// Returns:
+//   - SalesTrendsSummary: Comparison metrics containing:
+//   - Period definitions (start/end for both periods)
+//   - Current metrics (sales volume, revenue, growth %)
+//   - Previous period metrics for comparison
+//   - error: Database error or nil on success
 func GetSalesTrendsSummary(start, end, prevStart, prevEnd time.Time) (SalesTrendsSummary, error) {
 
+	// Query current period sales metrics
 	var currentVolume int
 	var currentRevenue float64
 	err := DB.QueryRow(`
@@ -65,6 +97,7 @@ func GetSalesTrendsSummary(start, end, prevStart, prevEnd time.Time) (SalesTrend
 		return SalesTrendsSummary{}, err
 	}
 
+	// Query previous period sales metrics for comparison
 	var prevVolume int
 	var prevRevenue float64
 	err = DB.QueryRow(`
@@ -78,11 +111,13 @@ func GetSalesTrendsSummary(start, end, prevStart, prevEnd time.Time) (SalesTrend
 		return SalesTrendsSummary{}, err
 	}
 
+	// Calculate growth percentage (avoid division by zero)
 	growth := 0.0
 	if prevRevenue > 0 {
 		growth = ((currentRevenue - prevRevenue) / prevRevenue) * 100
 	}
 
+	// Build response structure
 	response := SalesTrendsSummary{}
 	response.Period.StartPeriod.Start = fmt.Sprintf("%s", start.Format(nowTime))
 	response.Period.StartPeriod.End = fmt.Sprintf("%s", end.Format(nowTime))
@@ -97,24 +132,49 @@ func GetSalesTrendsSummary(start, end, prevStart, prevEnd time.Time) (SalesTrend
 	return response, nil
 }
 
+// SalesTrendPoint represents sales metrics for a single time point.
+// Used in time-series sales trend analysis.
 type SalesTrendPoint struct {
-	Date             string  `json:"date"`
-	SalesVolume      int     `json:"sales_volume"`
-	Revenue          float64 `json:"revenue"`
-	GrowthPercentage float64 `json:"growth_percentage"`
+	Date             string  `json:"date"`              // Date/period identifier
+	SalesVolume      int     `json:"sales_volume"`      // Units sold in this period
+	Revenue          float64 `json:"revenue"`           // Revenue for this period
+	GrowthPercentage float64 `json:"growth_percentage"` // Growth vs previous point
 }
 
+// SalesTrendsOverTime represents a time-series of sales data.
+// Provides trend analysis over multiple time periods.
 type SalesTrendsOverTime struct {
 	Period struct {
-		Start string `json:"start"`
-		End   string `json:"end"`
-		Type  string `json:"type"`
+		Start string `json:"start"` // Overall start date
+		End   string `json:"end"`   // Overall end date
+		Type  string `json:"type"`  // Grouping type (day/week/month/quarter/year)
 	} `json:"period"`
-	Data []SalesTrendPoint `json:"data"`
+	Data []SalesTrendPoint `json:"data"` // Array of trend points
 }
 
+// GetSalesTrendsOverTime retrieves sales trends grouped by time period.
+//
+// This function provides time-series analysis of sales data with dynamic
+// grouping (daily, weekly, monthly, quarterly, or yearly).
+//
+// Parameters:
+//   - period: string - Grouping type:
+//   - "day" (default): Daily breakdown
+//   - "week": Weekly aggregation (YEARWEEK)
+//   - "month": Monthly aggregation (YYYY-MM)
+//   - "quarter": Quarterly aggregation (YYYY-Q#)
+//   - "year": Yearly aggregation
+//   - start: time.Time - Date range start
+//   - end: time.Time - Date range end
+//
+// Returns:
+//   - SalesTrendsOverTime: Time-series data containing:
+//   - Period definition (start, end, type)
+//   - Data array with sales volume, revenue, and growth % for each period
+//   - error: Database error or nil on success
 func GetSalesTrendsOverTime(period string, start, end time.Time) (SalesTrendsOverTime, error) {
 
+	// Determine SQL grouping expression based on period type
 	var groupBy string
 	switch period {
 	case "week":
@@ -125,10 +185,11 @@ func GetSalesTrendsOverTime(period string, start, end time.Time) (SalesTrendsOve
 		groupBy = "CONCAT(YEAR(o.created_at), '-Q', QUARTER(o.created_at))"
 	case "year":
 		groupBy = "YEAR(o.created_at)"
-	default:
+	default: // Default to daily
 		groupBy = "DATE(o.created_at)"
 	}
 
+	// Build dynamic query with period-specific grouping
 	query := fmt.Sprintf(`
 		SELECT %s AS period_date,
 		       COALESCE(SUM(oi.quantity), 0) AS sales_volume,
@@ -147,7 +208,7 @@ func GetSalesTrendsOverTime(period string, start, end time.Time) (SalesTrendsOve
 	defer rows.Close()
 
 	var data []SalesTrendPoint
-	var prevRevenue float64
+	var prevRevenue float64 // Track previous period for growth calculation
 
 	for rows.Next() {
 		var periodDate string
@@ -158,11 +219,12 @@ func GetSalesTrendsOverTime(period string, start, end time.Time) (SalesTrendsOve
 			return SalesTrendsOverTime{}, err
 		}
 
+		// Calculate growth vs previous period (0 for first period)
 		growth := 0.0
 		if prevRevenue > 0 {
 			growth = ((revenue - prevRevenue) / prevRevenue) * 100
 		}
-		prevRevenue = revenue
+		prevRevenue = revenue // Update for next iteration
 
 		data = append(data, SalesTrendPoint{
 			Date:             periodDate,
@@ -172,6 +234,7 @@ func GetSalesTrendsOverTime(period string, start, end time.Time) (SalesTrendsOve
 		})
 	}
 
+	// Build response with period metadata
 	response := SalesTrendsOverTime{}
 	response.Period.Start = fmt.Sprintf("%s", start.Format(nowTime))
 	response.Period.End = fmt.Sprintf("%s", end.Format(nowTime))
@@ -181,7 +244,20 @@ func GetSalesTrendsOverTime(period string, start, end time.Time) (SalesTrendsOve
 	return response, nil
 }
 
-// Customer segmentation by delivery location
+// GetCustomerSegmentation analyzes customers by delivery location.
+//
+// This function provides customer insights grouped by delivery address,
+// calculating order count, total sales, and average values per segment.
+//
+// Parameters:
+//   - start: time.Time - Date range start
+//   - end: time.Time - Date range end
+//
+// Returns:
+//   - []dtos.CustomerSegment: Array of segments containing:
+//   - SegmentName: Delivery address
+//   - OrderCount, TotalSales, AvgPurchaseValue, AvgOrderValue, Transactions
+//   - error: Database error or nil on success
 func GetCustomerSegmentation(start, end time.Time) ([]dtos.CustomerSegment, error) {
 	query := `
         SELECT 
@@ -215,7 +291,21 @@ func GetCustomerSegmentation(start, end time.Time) ([]dtos.CustomerSegment, erro
 	return segments, nil
 }
 
-// Sales by region
+// GetSalesByRegion analyzes sales performance by delivery region.
+//
+// This function provides regional sales breakdown with percentage contribution
+// to total sales.
+//
+// Parameters:
+//   - start: time.Time - Date range start
+//   - end: time.Time - Date range end
+//
+// Returns:
+//   - []dtos.RegionSales: Array of regions containing:
+//   - Region: Delivery address
+//   - TotalSales, AvgOrderValue, Transactions
+//   - Percentage: Region's % of total sales
+//   - error: Database error or nil on success
 func GetSalesByRegion(start, end time.Time) ([]dtos.RegionSales, error) {
 	query := `
         SELECT 
@@ -229,6 +319,8 @@ func GetSalesByRegion(start, end time.Time) ([]dtos.RegionSales, error) {
         WHERE o.created_at BETWEEN ? AND ?
         GROUP BY d.delivery_address
     `
+
+	// Calculate total sales across all regions for percentage calculation
 	var totalSales float64
 	err := DB.QueryRow(`
 		SELECT 
@@ -250,6 +342,8 @@ func GetSalesByRegion(start, end time.Time) ([]dtos.RegionSales, error) {
 		if err := rows.Scan(&rgn.Region, &rgn.TotalSales, &rgn.AvgOrderValue, &rgn.Transactions); err != nil {
 			return nil, err
 		}
+
+		// Calculate region's percentage of total sales
 		if totalSales > 0 {
 			rgn.Percentage = (rgn.TotalSales / totalSales) * 100
 		}
@@ -258,10 +352,25 @@ func GetSalesByRegion(start, end time.Time) ([]dtos.RegionSales, error) {
 	return regions, nil
 }
 
-// get sales overview, return total sales, monthly sales, today's sales, percentage of increase/decrease from previous month
+// GetSalesOverview provides a quick sales dashboard summary.
+//
+// This function calculates key sales metrics:
+//   - Total sales (all time)
+//   - Monthly sales (current month)
+//   - Today's sales
+//   - Month-over-month percentage change
+//
+// Returns:
+//   - map[string]any: Dashboard metrics containing:
+//   - "total_sales": float64 - All-time sales
+//   - "monthly_sales": float64 - Current month sales
+//   - "todays_sales": float64 - Today's sales
+//   - "percentage_change": float64 - Current vs previous month % change
+//   - error: Database error or nil on success
 func GetSalesOverview() (map[string]any, error) {
 	overview := make(map[string]any)
-	// Total Sales
+
+	// Total Sales (all time)
 	var totalSales float64
 	err := DB.QueryRow(`SELECT COALESCE(SUM(oi.unit_price * oi.quantity), 0) FROM order_items oi`).Scan(&totalSales)
 	if err != nil {
@@ -269,7 +378,7 @@ func GetSalesOverview() (map[string]any, error) {
 	}
 	overview["total_sales"] = totalSales
 
-	// Monthly Sales
+	// Monthly Sales (current month)
 	var monthlySales float64
 	err = DB.QueryRow(`
 		SELECT COALESCE(SUM(oi.unit_price * oi.quantity), 0)
@@ -308,6 +417,8 @@ func GetSalesOverview() (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Calculate month-over-month percentage change
 	percentageChange := 0.0
 	if prevMonthlySales > 0 {
 		percentageChange = ((monthlySales - prevMonthlySales) / prevMonthlySales) * 100
@@ -316,17 +427,36 @@ func GetSalesOverview() (map[string]any, error) {
 	return overview, nil
 }
 
-// get sales vs orders per month, filteres by range of year eg 2025, 2024 , 2026 etc.
-// sales are orders with a status of Delivered/delivered/DELIVERED orders are not yet
-// so will return orders and sales by month, january to december
+// GetSalesVsOrdersPerMonth compares total orders vs delivered sales by month.
+//
+// This function distinguishes between:
+//   - Orders: All orders (any status)
+//   - Sales: Only orders with "Delivered" status (case-insensitive)
+//
+// Parameters:
+//   - year: int - The year to analyze (e.g., 2024, 2025)
+//
+// Returns:
+//   - map[string]any: Contains:
+//   - "year": int - The queried year
+//   - "data": []MonthData - Array of 12 months with:
+//   - Month: Month name (January-December)
+//   - TotalOrders: Count of all orders
+//   - TotalSales: Revenue from delivered orders only
+//   - error: Database error or nil on success
 func GetSalesVsOrdersPerMonth(year int) (map[string]any, error) {
 	salesVsOrders := make(map[string]any)
+
+	// MonthData represents order and sales data for a single month
 	type MonthData struct {
-		Month       string  `json:"month"`
-		TotalOrders int     `json:"total_orders"`
-		TotalSales  float64 `json:"total_sales"`
+		Month       string  `json:"month"`        // Month name
+		TotalOrders int     `json:"total_orders"` // All orders (any status)
+		TotalSales  float64 `json:"total_sales"`  // Revenue from delivered orders only
 	}
+
 	var data []MonthData
+
+	// Query orders and sales by month for the specified year
 	query := `
 	SELECT 
 	    MONTHNAME(o.created_at) AS month,
@@ -344,11 +474,12 @@ func GetSalesVsOrdersPerMonth(year int) (map[string]any, error) {
 `
 
 	rows, err := DB.Query(query, year)
-
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+
+	// Build monthly data array
 	for rows.Next() {
 		var md MonthData
 		if err := rows.Scan(&md.Month, &md.TotalOrders, &md.TotalSales); err != nil {
@@ -356,20 +487,24 @@ func GetSalesVsOrdersPerMonth(year int) (map[string]any, error) {
 		}
 		data = append(data, md)
 	}
+
 	salesVsOrders["year"] = year
 	salesVsOrders["data"] = data
 	return salesVsOrders, nil
 }
 
+// RevenueExpense represents revenue and expense data for a time period.
 type RevenueExpense struct {
-	Period   string  `json:"period"` // day (YYYY-MM-DD) or month name
-	Revenue  float64 `json:"revenue"`
-	Expenses float64 `json:"expenses"`
+	Period   string  `json:"period"`   // Day (YYYY-MM-DD) or month name
+	Revenue  float64 `json:"revenue"`  // Sales revenue from orders
+	Expenses float64 `json:"expenses"` // Inventory costs (buying price * quantity)
 }
 
+// RevenueExpenseFilter defines filtering options for revenue/expense queries.
+// Currently unused but provided for future expansion.
 type RevenueExpenseFilter struct {
-	Year int `json:"year"`
-	Week int `json:"week"` // optional
+	Year int `json:"year"` // Year to filter
+	Week int `json:"week"` // Optional week number
 }
 
 func GetRevenueVsExpenses(filterType string) ([]RevenueExpense, error) {
@@ -448,6 +583,7 @@ func GetRevenueVsExpenses(filterType string) ([]RevenueExpense, error) {
 		args = []interface{}{currentYear, currentYear, currentYear}
 	}
 
+	// Execute query and collect results
 	rows, err := DB.Query(query, args...)
 	if err != nil {
 		return nil, err
@@ -466,39 +602,64 @@ func GetRevenueVsExpenses(filterType string) ([]RevenueExpense, error) {
 	return results, nil
 }
 
+// getISOWeek returns the ISO week number for a given date.
+//
+// Parameters:
+//   - t: time.Time - Date to get week number for
+//
+// Returns:
+//   - int: ISO week number (1-53)
 func getISOWeek(t time.Time) int {
 	_, week := t.ISOWeek()
 	return week
 }
 
-//return total revenue, revenue for that month, percentage increase/decrease from previous month
-//return total customers, new customers for that month, percentage increase/decrease from previous month
-//return total orders, orders for that month, percentage increase/decrease from previous month
-
+// RevenueCustomersOrdersOverview provides comprehensive business metrics dashboard.
+// Aggregates key performance indicators for revenue, customers, and orders.
 type RevenueCustomersOrdersOverview struct {
-	Revenue   RevenueOverview   `json:"revenue"`
-	Customers CustomersOverview `json:"customers"`
-	Orders    OrdersOverview    `json:"orders"`
-}
-type RevenueOverview struct {
-	TotalRevenue            float64 `json:"total_revenue"`
-	MonthlyRevenue          float64 `json:"monthly_revenue"`
-	RevenuePercentageChange float64 `json:"revenue_percentage_change"`
-}
-type CustomersOverview struct {
-	TotalCustomers            int     `json:"total_customers"`
-	MonthlyNewCustomers       int     `json:"monthly_new_customers"`
-	CustomersPercentageChange float64 `json:"customers_percentage_change"`
-}
-type OrdersOverview struct {
-	TotalOrders            int     `json:"total_orders"`
-	MonthlyOrders          int     `json:"monthly_orders"`
-	OrdersPercentageChange float64 `json:"orders_percentage_change"`
+	Revenue   RevenueOverview   `json:"revenue"`   // Revenue metrics with growth
+	Customers CustomersOverview `json:"customers"` // Customer acquisition metrics
+	Orders    OrdersOverview    `json:"orders"`    // Order volume metrics
 }
 
+// RevenueOverview tracks revenue performance and growth.
+type RevenueOverview struct {
+	TotalRevenue            float64 `json:"total_revenue"`             // All-time revenue from delivered orders
+	MonthlyRevenue          float64 `json:"monthly_revenue"`           // Current month revenue
+	RevenuePercentageChange float64 `json:"revenue_percentage_change"` // Month-over-month % change
+}
+
+// CustomersOverview tracks customer acquisition and growth.
+type CustomersOverview struct {
+	TotalCustomers            int     `json:"total_customers"`             // Total registered users
+	MonthlyNewCustomers       int     `json:"monthly_new_customers"`       // New users this month
+	CustomersPercentageChange float64 `json:"customers_percentage_change"` // Month-over-month % change
+}
+
+// OrdersOverview tracks order volume and growth.
+type OrdersOverview struct {
+	TotalOrders            int     `json:"total_orders"`             // All-time order count
+	MonthlyOrders          int     `json:"monthly_orders"`           // Orders this month
+	OrdersPercentageChange float64 `json:"orders_percentage_change"` // Month-over-month % change
+}
+
+// GetRevenueCustomersOrdersOverview provides comprehensive business metrics.
+//
+// This dashboard function aggregates:
+//   - Revenue metrics (total, monthly, growth %)
+//   - Customer metrics (total, new this month, growth %)
+//   - Order metrics (total, monthly, growth %)
+//
+// All metrics include month-over-month comparison.
+//
+// Returns:
+//   - RevenueCustomersOrdersOverview: Complete dashboard metrics
+//   - error: Database error or nil on success
 func GetRevenueCustomersOrdersOverview() (RevenueCustomersOrdersOverview, error) {
 	overview := RevenueCustomersOrdersOverview{}
-	//revenue is for orders with status Delivered/delivered/DELIVERED
+
+	// ----- REVENUE METRICS -----
+	// Total revenue from all delivered orders (all time)
 	var totalRevenue float64
 	err := DB.QueryRow(`
 		SELECT COALESCE(SUM(oi.unit_price * oi.quantity), 0)
@@ -510,7 +671,8 @@ func GetRevenueCustomersOrdersOverview() (RevenueCustomersOrdersOverview, error)
 		return RevenueCustomersOrdersOverview{}, err
 	}
 	overview.Revenue.TotalRevenue = totalRevenue
-	// Revenue for this month
+
+	// Revenue for current month from delivered orders
 	var monthlyRevenue float64
 	err = DB.QueryRow(`
 		SELECT COALESCE(SUM(oi.unit_price * oi.quantity), 0)
@@ -524,7 +686,8 @@ func GetRevenueCustomersOrdersOverview() (RevenueCustomersOrdersOverview, error)
 		return RevenueCustomersOrdersOverview{}, err
 	}
 	overview.Revenue.MonthlyRevenue = monthlyRevenue
-	// Percentage change from previous month
+
+	// Previous month revenue for comparison
 	var prevMonthlyRevenue float64
 	err = DB.QueryRow(`
 		SELECT COALESCE(SUM(oi.unit_price * oi.quantity), 0)
@@ -537,20 +700,24 @@ func GetRevenueCustomersOrdersOverview() (RevenueCustomersOrdersOverview, error)
 	if err != nil {
 		return RevenueCustomersOrdersOverview{}, err
 	}
+
+	// Calculate revenue growth percentage
 	percentageChange := 0.0
 	if prevMonthlyRevenue > 0 {
 		percentageChange = ((monthlyRevenue - prevMonthlyRevenue) / prevMonthlyRevenue) * 100
 	}
 	overview.Revenue.RevenuePercentageChange = percentageChange
 
-	// Total Customers
+	// ----- CUSTOMERS METRICS -----
+	// Total registered customers (all time)
 	var totalCustomers int
 	err = DB.QueryRow(`SELECT COUNT(DISTINCT user_id) FROM users`).Scan(&totalCustomers)
 	if err != nil {
 		return RevenueCustomersOrdersOverview{}, err
 	}
 	overview.Customers.TotalCustomers = totalCustomers
-	// New Customers for this month
+
+	// New customers registered this month
 	var monthlyNewCustomers int
 	err = DB.QueryRow(`
 		SELECT COUNT(DISTINCT user_id)
@@ -562,7 +729,8 @@ func GetRevenueCustomersOrdersOverview() (RevenueCustomersOrdersOverview, error)
 		return RevenueCustomersOrdersOverview{}, err
 	}
 	overview.Customers.MonthlyNewCustomers = monthlyNewCustomers
-	// Percentage change from previous month
+
+	// Previous month new customers for comparison
 	var prevMonthlyNewCustomers int
 	err = DB.QueryRow(`
 		SELECT COUNT(DISTINCT user_id)
@@ -573,20 +741,24 @@ func GetRevenueCustomersOrdersOverview() (RevenueCustomersOrdersOverview, error)
 	if err != nil {
 		return RevenueCustomersOrdersOverview{}, err
 	}
+
+	// Calculate customer growth percentage
 	percentageChange = 0.0
 	if prevMonthlyNewCustomers > 0 {
 		percentageChange = ((float64(monthlyNewCustomers) - float64(prevMonthlyNewCustomers)) / float64(prevMonthlyNewCustomers)) * 100
 	}
 	overview.Customers.CustomersPercentageChange = percentageChange
 
-	// Total Orders
+	// ----- ORDERS METRICS -----
+	// Total orders (all time, any status)
 	var totalOrders int
 	err = DB.QueryRow(`SELECT COUNT(order_id) FROM orders`).Scan(&totalOrders)
 	if err != nil {
 		return RevenueCustomersOrdersOverview{}, err
 	}
 	overview.Orders.TotalOrders = totalOrders
-	// Orders for this month
+
+	// Orders created this month
 	var monthlyOrders int
 	err = DB.QueryRow(`
 		SELECT COUNT(order_id)
@@ -598,7 +770,8 @@ func GetRevenueCustomersOrdersOverview() (RevenueCustomersOrdersOverview, error)
 		return RevenueCustomersOrdersOverview{}, err
 	}
 	overview.Orders.MonthlyOrders = monthlyOrders
-	// Percentage change from previous month
+
+	// Previous month orders for comparison
 	var prevMonthlyOrders int
 	err = DB.QueryRow(`
 		SELECT COUNT(order_id)
@@ -609,10 +782,13 @@ func GetRevenueCustomersOrdersOverview() (RevenueCustomersOrdersOverview, error)
 	if err != nil {
 		return RevenueCustomersOrdersOverview{}, err
 	}
+
+	// Calculate order growth percentage
 	percentageChange = 0.0
 	if prevMonthlyOrders > 0 {
 		percentageChange = ((float64(monthlyOrders) - float64(prevMonthlyOrders)) / float64(prevMonthlyOrders)) * 100
 	}
 	overview.Orders.OrdersPercentageChange = percentageChange
+
 	return overview, nil
 }

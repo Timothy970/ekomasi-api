@@ -1,3 +1,7 @@
+// Package handlers provides HTTP request handlers for role-based access control (RBAC).
+// Implements role and permission management for granular authorization control.
+// Supports multi-level permission hierarchy with categories (Inventory, Orders, Products, Users, etc.).
+// All operations require admin privileges and include cache invalidation for permission changes.
 package handlers
 
 import (
@@ -11,30 +15,55 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// Package-level cache key prefixes for Redis caching
 var (
-	rolePerms        = "role_permissions:"
+	// rolePerms is the Redis cache prefix for role-permission associations
+	rolePerms = "role_permissions:"
+	// permissionWithID is a reusable string template for permission messages
 	permissionWithID = "Permission with ID "
 )
 
-// CreateRoleHandler handles POST /api/roles
+// CreateRoleHandler creates a new role with associated permissions.
+// Admin-only operation for defining new access control roles.
+// Validates all permission IDs before creating role.
+//
+// @Summary      Create new role
+// @Description  Create a new role with name, description, and permission assignments (admin only)
+// @Tags         Roles
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string               true  "Bearer token"
+// @Param        role           body      dtos.RoleRequest     true  "Role details with permissions"
+// @Success      201            {object}  dtos.SuccessResponse "Role created"
+// @Failure      400            {object}  dtos.ErrorResponse   "Invalid permission ID or validation error"
+// @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/roles [post]
 func CreateRoleHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
-	// Ensure user is admin
+	// Verify user has admin privileges (only admins can create roles)
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Decode JSON request body into RoleRequest DTO
 	req, ok := DecodeRequestBody[dtos.RoleRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+	// Validate required fields (name, description)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
+	// Validate all permission IDs exist before creating role
 	for _, permissionID := range req.PermissionIDs {
+		// Check if permission exists in database
 		err := models.IsPermissionThere(permissionID)
 		if err != nil {
+			// Permission ID invalid - reject role creation
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Users",
@@ -49,8 +78,10 @@ func CreateRoleHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Create role in database with permission associations
 	err := models.CreateRole(req.Name, req.Description, req.PermissionIDs)
 	if err != nil {
+		// Role creation failed (e.g., duplicate name, database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
@@ -64,6 +95,7 @@ func CreateRoleHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate role-permission cache to ensure fresh data
 	_ = utils.DeleteCacheByPrefix(rolePerms)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -80,21 +112,42 @@ func CreateRoleHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// GetRolesHandler handles GET /api/roles?name=admin&start_date=2025-01-01&end_date=2025-12-31
+// GetRolesHandler retrieves roles with optional filtering.
+// Admin-only operation for viewing role configuration.
+// Supports filtering by role name and creation date range.
+//
+// @Summary      List roles
+// @Description  Retrieve all roles with optional name and date range filters (admin only)
+// @Tags         Roles
+// @Produce      json
+// @Param        Authorization  header    string                 true   "Bearer token"
+// @Param        name           query     string                 false  "Filter by role name"
+// @Param        start_date     query     string                 false  "Filter from date (YYYY-MM-DD)"
+// @Param        end_date       query     string                 false  "Filter to date (YYYY-MM-DD)"
+// @Success      200            {object}  dtos.SuccessResponse   "Roles list"
+// @Failure      400            {object}  dtos.ErrorResponse     "Invalid date format"
+// @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/roles [get]
 func GetRolesHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	// Ensure user is admin
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Extract optional query parameters for filtering
 	name := r.URL.Query().Get("name")
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
 
-	// Validate date format if provided
+	// Validate date format if date range date range provided
 	if startDate != "" && endDate != "" {
+		// Validate start_date format (YYYY-MM-DD)
 		if _, err := time.Parse("2006-01-02", startDate); err != nil {
+			// Invalid start_date format
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Users",
@@ -108,7 +161,9 @@ func GetRolesHandler(w http.ResponseWriter, r *http.Request) {
 				RawBody:   requestSummary})
 			return
 		}
+		// Validate end_date format (YYYY-MM-DD)
 		if _, err := time.Parse("2006-01-02", endDate); err != nil {
+			// Invalid end_date format
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Users",
@@ -124,8 +179,10 @@ func GetRolesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Fetch roles from database with optional filters
 	roles, err := models.GetRoles(name, startDate, endDate)
 	if err != nil {
+		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
@@ -139,6 +196,8 @@ func GetRolesHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Return filtered roles list
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -154,26 +213,49 @@ func GetRolesHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// UpdateRoleHandler handles PUT /api/roles/{name}
+// UpdateRoleHandler updates an existing role's name and description.
+// Admin-only operation for modifying role configuration.
+// Does not modify permission associations (use AddPermissionsToRoleHandler/RemovePermissionsFromRoleHandler).
+//
+// @Summary      Update role
+// @Description  Update role name and description by ID (admin only)
+// @Tags         Roles
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string               true  "Bearer token"
+// @Param        role_id        path      string               true  "Role ID"
+// @Param        role           body      dtos.RoleRequest     true  "Updated role details"
+// @Success      200            {object}  dtos.SuccessResponse "Role updated"
+// @Failure      400            {object}  dtos.ErrorResponse   "Validation error or role not found"
+// @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/roles/{role_id} [put]
 func UpdateRoleHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
-	// Ensure user is admin
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Decode JSON request body
 	req, ok := DecodeRequestBody[dtos.RoleRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+	// Validate required fields
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
+	// Extract role ID from URL path
 	params := mux.Vars(r)
 	roleID := params["role_id"]
 
+	// Update role in database (name and description only)
 	if err := models.UpdateRole(req.Name, req.Description, roleID); err != nil {
+		// Update failed (role not found or duplicate name)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
@@ -187,6 +269,7 @@ func UpdateRoleHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate role-permission cache
 	_ = utils.DeleteCacheByPrefix(rolePerms)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -203,18 +286,37 @@ func UpdateRoleHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// DeleteRoleHandler handles DELETE /api/roles/{name}
+// DeleteRoleHandler removes a role from the system.
+// Admin-only operation for deleting role configuration.
+// Also removes all role-permission associations.
+//
+// @Summary      Delete role
+// @Description  Delete role by ID (admin only)
+// @Tags         Roles
+// @Produce      json
+// @Param        Authorization  header    string                 true  "Bearer token"
+// @Param        role_id        path      string                 true  "Role ID"
+// @Success      200            {object}  dtos.SuccessResponse   "Role deleted"
+// @Failure      400            {object}  dtos.ErrorResponse     "Role not found or in use"
+// @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/roles/{role_id} [delete]
 func DeleteRoleHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	// Ensure user is admin
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Extract role ID from URL path
 	params := mux.Vars(r)
 	roleID := params["role_id"]
 
+	// Delete role from database (cascades to role_permissions)
 	if err := models.DeleteRole(roleID); err != nil {
+		// Deletion failed (role not found or still assigned to users)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
@@ -228,6 +330,7 @@ func DeleteRoleHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate role-permission cache
 	_ = utils.DeleteCacheByPrefix(rolePerms)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -243,22 +346,44 @@ func DeleteRoleHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Create permissions handler
+// CreatePermissionHandler creates a new permission.
+// Admin-only operation for defining granular access control permissions.
+// Permissions are organized by category (Inventory, Orders, Products, etc.).
+//
+// @Summary      Create permission
+// @Description  Create a new permission with category and unique key (admin only)
+// @Tags         Permissions
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string               true  "Bearer token"
+// @Param        permission     body      dtos.Permission      true  "Permission details"
+// @Success      201            {object}  dtos.SuccessResponse "Permission created"
+// @Failure      400            {object}  dtos.ErrorResponse   "Validation error or duplicate key"
+// @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/permissions [post]
 func CreatePermissionHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Decode JSON request body
 	req, ok := DecodeRequestBody[dtos.Permission](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+	// Validate required fields (name, category, key)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
+	// Create permission in database
 	err := models.CreatePermission(req.Name, req.Description, req.Category, req.Key)
 	if err != nil {
+		// Permission creation failed (duplicate key or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
@@ -272,6 +397,7 @@ func CreatePermissionHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate permission cache
 	_ = utils.DeleteCacheByPrefix(rolePerms)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -288,23 +414,47 @@ func CreatePermissionHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// Update a permission handler
+// UpdatePermissionHandler updates an existing permission's details.
+// Admin-only operation for modifying permission configuration.
+// Updates name, description, category, and key.
+//
+// @Summary      Update permission
+// @Description  Update permission details by ID (admin only)
+// @Tags         Permissions
+// @Accept       json
+// @Produce      json
+// @Param        Authorization   header    string               true  "Bearer token"
+// @Param        permission_id   path      string               true  "Permission ID"
+// @Param        permission      body      dtos.Permission      true  "Updated permission details"
+// @Success      200             {object}  dtos.SuccessResponse "Permission updated"
+// @Failure      400             {object}  dtos.ErrorResponse   "Validation error or permission not found"
+// @Failure      401             {object}  dtos.ErrorResponse   "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/permissions/{permission_id} [put]
 func UpdatePermissionHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Decode JSON request body
 	req, ok := DecodeRequestBody[dtos.Permission](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+	// Validate required fields
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
+	// Extract permission ID from URL path
 	permissionID := mux.Vars(r)["permission_id"]
+	// Update permission in database
 	err := models.UpdatePermission(req.Name, req.Description, permissionID, req.Category, req.Key)
 	if err != nil {
+		// Update failed (permission not found or duplicate key)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
@@ -318,6 +468,7 @@ func UpdatePermissionHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate permission cache
 	_ = utils.DeleteCacheByPrefix(rolePerms)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -334,15 +485,36 @@ func UpdatePermissionHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// DeletePermissionHandler removes a permission from the system.
+// Admin-only operation for deleting permission configuration.
+// Also removes permission from all role associations.
+//
+// @Summary      Delete permission
+// @Description  Delete permission by ID (admin only)
+// @Tags         Permissions
+// @Produce      json
+// @Param        Authorization   header    string                 true  "Bearer token"
+// @Param        permission_id   path      string                 true  "Permission ID"
+// @Success      200             {object}  dtos.SuccessResponse   "Permission deleted"
+// @Failure      400             {object}  dtos.ErrorResponse     "Permission not found or in use"
+// @Failure      401             {object}  dtos.ErrorResponse     "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/permissions/{permission_id} [delete]
 func DeletePermissionHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Extract permission ID from URL path
 	permissionID := mux.Vars(r)["permission_id"]
+	// Delete permission from database (cascades to role_permissions)
 	err := models.DeletePermission(permissionID)
 	if err != nil {
+		// Deletion failed (permission not found or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
@@ -356,6 +528,7 @@ func DeletePermissionHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate permission cache
 	_ = utils.DeleteCacheByPrefix(rolePerms)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -371,16 +544,37 @@ func DeletePermissionHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// GetPermissionsHandler retrieves all permissions with optional category filter.
+// Admin-only operation for viewing permission configuration.
+// Categories include: Inventory, Orders, Products, Users, Reports, Payments, etc.
+//
+// @Summary      List permissions
+// @Description  Retrieve all permissions with optional category filter (admin only)
+// @Tags         Permissions
+// @Produce      json
+// @Param        Authorization  header    string                 true   "Bearer token"
+// @Param        category       query     string                 false  "Filter by category"
+// @Success      200            {object}  dtos.SuccessResponse   "Permissions list"
+// @Failure      400            {object}  dtos.ErrorResponse     "Database error"
+// @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/permissions [get]
 func GetPermissionsHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	// Ensure user is admin
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Extract optional category filter from query string
 	category := r.URL.Query().Get("category")
+	// Fetch permissions from database with optional category filter
 	permissions, err := models.GetPermissions(category)
 	if err != nil {
+		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
@@ -408,16 +602,35 @@ func GetPermissionsHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// GetPermissionByIDHandler retrieves a single permission by its ID.
+// Admin-only operation for viewing detailed permission configuration.
+//
+// @Summary      Get permission by ID
+// @Description  Retrieve detailed permission information by ID (admin only)
+// @Tags         Permissions
+// @Produce      json
+// @Param        Authorization   header    string                 true  "Bearer token"
+// @Param        permission_id   path      string                 true  "Permission ID"
+// @Success      200             {object}  dtos.SuccessResponse   "Permission details"
+// @Failure      400             {object}  dtos.ErrorResponse     "Permission not found"
+// @Failure      401             {object}  dtos.ErrorResponse     "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/permissions/{permission_id} [get]
 func GetPermissionByIDHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	// Ensure user is admin
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Extract permission ID from URL path
 	permissionID := mux.Vars(r)["permission_id"]
+	// Fetch permission from database
 	permission, err := models.GetPermissionByID(permissionID)
 	if err != nil {
+		// Permission not found
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
@@ -445,24 +658,50 @@ func GetPermissionByIDHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// AddPermissionsToRoleHandler adds permissions to an existing role.
+// Admin-only operation for expanding role capabilities.
+// Validates all permission IDs before adding to role.
+//
+// @Summary      Add permissions to role
+// @Description  Associate multiple permissions with an existing role (admin only)
+// @Tags         Roles
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string               true  "Bearer token"
+// @Param        role_id        path      string               true  "Role ID"
+// @Param        permissions    body      dtos.PermissionIDs   true  "Permission IDs to add"
+// @Success      200            {object}  dtos.SuccessResponse "Permissions added"
+// @Failure      400            {object}  dtos.ErrorResponse   "Invalid permission ID or role not found"
+// @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/roles/{role_id}/permissions [post]
 func AddPermissionsToRoleHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Decode JSON request body containing permission IDs
 	req, ok := DecodeRequestBody[dtos.PermissionIDs](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
 
+	// Validate request structure
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
+	// Extract role ID from URL path
 	roleID := mux.Vars(r)["role_id"]
+	// Validate all permission IDs exist before adding to role
 	for _, permissionID := range req.PermissionIDs {
+		// Verify each permission exists in database
 		err := models.IsPermissionThere(permissionID)
 		if err != nil {
+			// Permission ID invalid - reject entire operation
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Users",
@@ -477,8 +716,10 @@ func AddPermissionsToRoleHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Add permissions to role (creates role_permission associations)
 	err := models.AddPermissionsToRole(roleID, req.PermissionIDs)
 	if err != nil {
+		// Association failed (role not found or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
@@ -492,6 +733,7 @@ func AddPermissionsToRoleHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate role-permission cache
 	_ = utils.DeleteCacheByPrefix(rolePerms)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -508,25 +750,50 @@ func AddPermissionsToRoleHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Remove permissions from role handler
+// RemovePermissionsFromRoleHandler removes permissions from an existing role.
+// Admin-only operation for restricting role capabilities.
+// Validates all permission IDs before removing from role.
+//
+// @Summary      Remove permissions from role
+// @Description  Disassociate multiple permissions from an existing role (admin only)
+// @Tags         Roles
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string               true  "Bearer token"
+// @Param        role_id        path      string               true  "Role ID"
+// @Param        permissions    body      dtos.PermissionIDs   true  "Permission IDs to remove"
+// @Success      200            {object}  dtos.SuccessResponse "Permissions removed"
+// @Failure      400            {object}  dtos.ErrorResponse   "Invalid permission ID or role not found"
+// @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/roles/{role_id}/permissions [delete]
 func RemovePermissionsFromRoleHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Decode JSON request body containing permission IDs
 	req, ok := DecodeRequestBody[dtos.PermissionIDs](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
 
+	// Validate request structure
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
+	// Extract role ID from URL path
 	roleID := mux.Vars(r)["role_id"]
+	// Validate all permission IDs exist before removing from role
 	for _, permissionID := range req.PermissionIDs {
+		// Verify each permission exists in database
 		err := models.IsPermissionThere(permissionID)
 		if err != nil {
+			// Permission ID invalid - reject entire operation
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Users",
@@ -541,8 +808,10 @@ func RemovePermissionsFromRoleHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Remove permissions from role (deletes role_permission associations)
 	err := models.RemovePermissionsFromRole(roleID, req.PermissionIDs)
 	if err != nil {
+		// Disassociation failed (role not found or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
@@ -556,6 +825,7 @@ func RemovePermissionsFromRoleHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate role-permission cache
 	_ = utils.DeleteCacheByPrefix(rolePerms)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -571,6 +841,10 @@ func RemovePermissionsFromRoleHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// supportedPermissions defines the complete permission hierarchy for the application.
+// Organized by functional categories for granular access control.
+// Each permission has a unique key (e.g., "inventory.create"), category, and description.
+// Used as fallback when database permissions are unavailable.
 var supportedPermissions = []dtos.AvailablePermission{
 	// INVENTORY
 	{Category: "Inventory", Key: "inventory.create", Description: "Add new inventory item"},
@@ -636,13 +910,33 @@ var supportedPermissions = []dtos.AvailablePermission{
 	{Category: "Logs", Key: "logs.export", Description: "Export system logs for analysis"},
 }
 
+// GetAvailablePermissions retrieves the complete permission catalog.
+// Admin-only operation for viewing all available permissions.
+// Returns from Redis cache if available, otherwise fetches from database with fallback to hardcoded list.
+//
+// @Summary      Get available permissions
+// @Description  Retrieve complete catalog of available permissions with optional category filter (admin only)
+// @Tags         Permissions
+// @Produce      json
+// @Param        Authorization  header    string                 true   "Bearer token"
+// @Param        category       query     string                 false  "Filter by category"
+// @Success      200            {object}  dtos.SuccessResponse   "Available permissions"
+// @Failure      400            {object}  dtos.ErrorResponse     "Database error"
+// @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/permissions/available [get]
 func GetAvailablePermissions(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Extract optional category filter
 	category := r.URL.Query().Get("category")
+	// Generate Redis cache key based on category
 	redisKey := "available_permissions"
 	if category != "" {
 		redisKey = fmt.Sprintf("%s:%s", redisKey, category)
@@ -650,16 +944,20 @@ func GetAvailablePermissions(w http.ResponseWriter, r *http.Request) {
 	var availablePermissions []dtos.AvailablePermission
 	var cachedAvailablePermissions []dtos.AvailablePermission
 	var err error
+	// Try to fetch from Redis cache first
 	_ = utils.GetCache(redisKey, &cachedAvailablePermissions)
 	if len(cachedAvailablePermissions) > 0 {
+		// Cache hit - use cached permissions
 		availablePermissions = cachedAvailablePermissions
 	} else {
-		// availablePermissions = supportedPermissions
+		// Cache miss - fetch from database
 		availablePermissions, err = models.GetAvailablePermissions(category)
 		if availablePermissions == nil {
+			// Database returned nothing - use hardcoded fallback
 			availablePermissions = supportedPermissions
 		}
 		if err != nil {
+			// Database query failed
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Users",
@@ -673,6 +971,7 @@ func GetAvailablePermissions(w http.ResponseWriter, r *http.Request) {
 				RawBody:   requestSummary})
 			return
 		}
+		// Cache the fetched permissions for future requests
 		_ = utils.SetCache(redisKey, availablePermissions)
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -688,19 +987,41 @@ func GetAvailablePermissions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// AddAvailablePermission adds a new permission to the available permissions catalog.
+// Admin-only operation for extending the permission system.
+// Used to dynamically add custom permissions beyond the hardcoded list.
+//
+// @Summary      Add available permission
+// @Description  Add a new permission to the system catalog (admin only)
+// @Tags         Permissions
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string                      true  "Bearer token"
+// @Param        permission     body      dtos.AvailablePermission    true  "Permission details"
+// @Success      200            {object}  dtos.SuccessResponse        "Permission added"
+// @Failure      400            {object}  dtos.ErrorResponse          "Validation error or duplicate key"
+// @Failure      401            {object}  dtos.ErrorResponse          "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/permissions/available [post]
 func AddAvailablePermission(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Decode JSON request body
 	req, ok := DecodeRequestBody[dtos.AvailablePermission](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+	// Validate required fields (category, key, description)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
+	// Add to available permissions catalog
 	err := models.AddAvailablePermission(req.Category, req.Key, req.Description)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -729,19 +1050,41 @@ func AddAvailablePermission(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// RemoveAvailablePermission removes a permission from the available permissions catalog.
+// Admin-only operation for removing custom permissions.
+// Does not affect existing role-permission associations.
+//
+// @Summary      Remove available permission
+// @Description  Remove a permission from the system catalog (admin only)
+// @Tags         Permissions
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string                      true  "Bearer token"
+// @Param        permission     body      dtos.AvailablePermission    true  "Permission category and key"
+// @Success      200            {object}  dtos.SuccessResponse        "Permission removed"
+// @Failure      400            {object}  dtos.ErrorResponse          "Permission not found"
+// @Failure      401            {object}  dtos.ErrorResponse          "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/permissions/available [delete]
 func RemoveAvailablePermission(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Decode JSON request body
 	req, ok := DecodeRequestBody[dtos.AvailablePermission](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+	// Validate required fields (category, key)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
+	// Remove from available permissions catalog
 	err := models.RemoveAvailablePermission(req.Category, req.Key)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -770,19 +1113,41 @@ func RemoveAvailablePermission(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// UpdateAvailablePermission updates an existing permission in the catalog.
+// Admin-only operation for modifying permission metadata.
+// Can update category, key, and description.
+//
+// @Summary      Update available permission
+// @Description  Update permission metadata in the system catalog (admin only)
+// @Tags         Permissions
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string                            true  "Bearer token"
+// @Param        permission     body      dtos.UpdateAvailablePermission    true  "Permission update details"
+// @Success      200            {object}  dtos.SuccessResponse              "Permission updated"
+// @Failure      400            {object}  dtos.ErrorResponse                "Permission not found or validation error"
+// @Failure      401            {object}  dtos.ErrorResponse                "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/permissions/available [put]
 func UpdateAvailablePermission(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users"); !ok {
 		return
 	}
+	// Decode JSON request body
 	req, ok := DecodeRequestBody[dtos.UpdateAvailablePermission](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+	// Validate required fields (category, key, and at least one new field)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Users") {
 		return
 	}
+	// Update permission in catalog (by category and key)
 	err := models.UpdateAvailablePermission(req.Category, req.Key, req.Description, req.NewDescription, req.NewKey, req.NewCategory)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

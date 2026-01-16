@@ -22,6 +22,20 @@ var dealWithID = "Deal with ID "
 // Add and remove products from deals
 // Get deals with their products
 
+// CreateDealHandler creates a new deal.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Create a new deal
+// @Description  Create a new promotional deal
+// @Tags         Deals
+// @Accept       json
+// @Produce      json
+// @Param        deal  body      dtos.CreateDeal  true  "Deal Details"
+// @Success      201   {object}  map[string]interface{}
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      500   {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/deals [post]
 func CreateDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -67,6 +81,17 @@ func CreateDealHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// GetDealsHandler retrieves all deals.
+//
+// @Summary      Get all deals
+// @Description  Retrieve a list of all deals with pagination
+// @Tags         Deals
+// @Produce      json
+// @Param        page  query     int     false  "Page number"
+// @Param        size  query     int     false  "Page size"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      404   {object}  dtos.ErrorResponse
+// @Router       /api/deals [get]
 func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -101,6 +126,26 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// UpdateDealHandler updates an existing deal.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Update a deal
+// @Description  Update an existing deal by ID
+// @Tags         Deals
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        deal_id    path      string  true   "Deal ID"
+// @Param        name       formData  string  false  "Deal Name"
+// @Param        image      formData  file    false  "Deal Image"
+// @Param        start_date formData  string  false  "Start Date"
+// @Param        end_date   formData  string  false  "End Date"
+// @Param        is_active  formData  bool    false  "Is Active"
+// @Success      200        {object}  map[string]interface{}
+// @Failure      400        {object}  dtos.ErrorResponse
+// @Failure      500        {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/deals/{deal_id} [put]
 func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -191,6 +236,19 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// DeleteDealHandler deletes a deal.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Delete a deal
+// @Description  Delete a deal by ID
+// @Tags         Deals
+// @Produce      json
+// @Param        deal_id  path      string  true  "Deal ID"
+// @Success      200      {object}  map[string]interface{}
+// @Failure      500      {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/deals/{deal_id} [delete]
 func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -228,6 +286,20 @@ func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// AddProductToDealHandler adds a product to a deal.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Add product to deal
+// @Description  Associate a product with a deal
+// @Tags         Deals
+// @Accept       json
+// @Produce      json
+// @Param        deal_product  body      dtos.ProductDeal  true  "Deal Product Details"
+// @Success      200           {object}  map[string]interface{}
+// @Failure      400           {object}  dtos.ErrorResponse
+// @Failure      500           {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/deals/products [post]
 func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -271,6 +343,20 @@ func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// RemoveProductFromDealHandler removes a product from a deal.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Remove product from deal
+// @Description  Remove a product association from a deal
+// @Tags         Deals
+// @Accept       json
+// @Produce      json
+// @Param        deal_product  body      dtos.ProductDeal  true  "Deal Product Details"
+// @Success      200           {object}  map[string]interface{}
+// @Failure      400           {object}  dtos.ErrorResponse
+// @Failure      500           {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/deals/products [delete]
 func RemoveProductFromDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -313,6 +399,19 @@ func RemoveProductFromDealHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// GetDealWithProductsHandler retrieves a deal and its associated products.
+//
+// @Summary      Get deal with products
+// @Description  Retrieve a deal and its products by deal ID
+// @Tags         Deals
+// @Produce      json
+// @Param        deal_id  path      string  true   "Deal ID"
+// @Param        page     query     int     false  "Page number"
+// @Param        size     query     int     false  "Page size"
+// @Success      200      {object}  map[string]interface{}
+// @Failure      500      {object}  dtos.ErrorResponse
+// @Router       /api/deals/{deal_id}/products [get]
 func GetDealWithProductsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -347,6 +446,24 @@ func GetDealWithProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// CreateDealProductHandler creates a new deal with associated products.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Create deal with products
+// @Description  Create a new deal and associate products with it
+// @Tags         Deals
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        title     formData  string  true   "Deal Title"
+// @Param        image     formData  file    true   "Deal Image"
+// @Param        duration  formData  string  true   "Duration (YYYY-MM-DD to YYYY-MM-DD)"
+// @Param        products  formData  string  true   "JSON array of products"
+// @Success      201       {object}  map[string]interface{}
+// @Failure      400       {object}  dtos.ErrorResponse
+// @Failure      500       {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/deals/create [post]
 func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)

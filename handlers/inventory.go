@@ -14,16 +14,24 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// List all inventories
+// ListInventory retrieves a paginated list of inventories.
+// This endpoint is restricted to administrators.
 //
-// @Summary List all inventories
-// @Description List all inventories
-// @Tags Inventories
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/inventories [get]
+// @Summary      List all inventories
+// @Description  List all inventories
+// @Tags         Inventories
+// @Produce      json
+// @Param        page         query     int     false  "Page number"
+// @Param        size         query     int     false  "Page size"
+// @Param        category_id  query     string  false  "Category ID"
+// @Param        stock        query     string  false  "Stock Status"
+// @Param        store_id     query     string  false  "Store ID"
+// @Param        q            query     string  false  "Search Query"
+// @Success      200          {object}  dtos.InventoryListResponse
+// @Failure      400          {object}  dtos.ErrorResponse
+// @Failure      409          {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/inventories [get]
 func ListInventory(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -70,16 +78,20 @@ func ListInventory(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Add a new inventory
+// CreateInventory creates a new inventory item.
+// This endpoint is restricted to administrators.
 //
-// @Summary Add a new inventory
-// @Description Add a new inventory
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/admin/inventories [post]
+// @Summary      Add a new inventory
+// @Description  Add a new inventory
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        inventory  body      dtos.CreateInventoryRequest  true  "Inventory Details"
+// @Success      200        {object}  map[string]interface{}
+// @Failure      400        {object}  dtos.ErrorResponse
+// @Failure      409        {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/inventories [post]
 func CreateInventory(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -128,16 +140,19 @@ func CreateInventory(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Get inventory by ID
+// GetInventory retrieves an inventory item by ID.
+// This endpoint is restricted to administrators.
 //
-// @Summary List inventory by ID
-// @Description List inventory by ID
-// @Tags Inventories
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/inventories/{inventory_id} [get]
+// @Summary      List inventory by ID
+// @Description  List inventory by ID
+// @Tags         Inventories
+// @Produce      json
+// @Param        inventory_id  path      string  true  "Inventory ID"
+// @Success      200           {object}  dtos.Inventory
+// @Failure      400           {object}  dtos.ErrorResponse
+// @Failure      409           {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/inventories/{inventory_id} [get]
 func GetInventory(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -177,6 +192,19 @@ func GetInventory(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// DownloadInventoryCSV downloads inventory data as a CSV file.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Download inventory CSV
+// @Description  Download inventory data as CSV
+// @Tags         Inventories
+// @Produce      text/csv
+// @Param        inventory_id  path      string  true  "Inventory ID"
+// @Success      200           {file}    file
+// @Failure      404           {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/inventories/{inventory_id}/csv [get]
 func DownloadInventoryCSV(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -223,6 +251,18 @@ func DownloadInventoryCSV(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// DownloadInventoryPDF downloads inventory data as a PDF file.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Download inventory PDF
+// @Description  Download inventory data as PDF
+// @Tags         Inventories
+// @Produce      application/pdf
+// @Param        inventory_id  path      string  true  "Inventory ID"
+// @Success      200           {file}    file
+// @Failure      404           {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/inventories/{inventory_id}/pdf [get]
 func DownloadInventoryPDF(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -273,16 +313,21 @@ func DownloadInventoryPDF(w http.ResponseWriter, r *http.Request) {
 	w.Write(pdfBytes)
 }
 
-// Update inventory
+// UpdateInventory updates an existing inventory item.
+// This endpoint is restricted to administrators.
 //
-// @Summary Update inventory by ID
-// @Description Update inventory by ID
-// @Tags Inventories
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/admin/inventories/{inventory_id} [patch]
+// @Summary      Update inventory by ID
+// @Description  Update inventory by ID
+// @Tags         Inventories
+// @Accept       json
+// @Produce      json
+// @Param        inventory_id  path      string                      true  "Inventory ID"
+// @Param        inventory     body      dtos.UpdateInventoryRequest true  "Inventory Details"
+// @Success      200           {object}  map[string]interface{}
+// @Failure      400           {object}  dtos.ErrorResponse
+// @Failure      409           {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/inventories/{inventory_id} [patch]
 func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -345,16 +390,19 @@ func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Delete an inventory
+// DeleteInventory deletes an inventory item.
+// This endpoint is restricted to administrators.
 //
-// @Summary Delete inventory by ID
-// @Description Delete inventory by ID
-// @Tags Inventories
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/admin/inventories/{inventory_id} [delete]
+// @Summary      Delete inventory by ID
+// @Description  Delete inventory by ID
+// @Tags         Inventories
+// @Produce      json
+// @Param        inventory_id  path      string  true  "Inventory ID"
+// @Success      200           {object}  map[string]interface{}
+// @Failure      400           {object}  dtos.ErrorResponse
+// @Failure      409           {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/inventories/{inventory_id} [delete]
 func DeleteInventory(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -396,6 +444,18 @@ func DeleteInventory(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// GetInventoryTurnover retrieves inventory turnover report.
+//
+// @Summary      Get inventory turnover report
+// @Description  Get inventory turnover report
+// @Tags         Reports
+// @Produce      json
+// @Param        period  query     string  false  "Period (weekly, monthly, etc.)"
+// @Param        start   query     string  false  "Start Date (YYYY-MM-DD)"
+// @Param        end     query     string  false  "End Date (YYYY-MM-DD)"
+// @Success      200     {object}  dtos.InventoryTurnoverResponse
+// @Failure      404     {object}  dtos.ErrorResponse
+// @Router       /api/reports/inventory/turnover [get]
 func GetInventoryTurnover(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -444,6 +504,19 @@ func GetInventoryTurnover(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// GetInventoryTurnoverByProduct retrieves inventory turnover report for a specific product.
+//
+// @Summary      Get inventory turnover report by product
+// @Description  Get inventory turnover report by product
+// @Tags         Reports
+// @Produce      json
+// @Param        product_id  path      string  true   "Product ID"
+// @Param        period      query     string  false  "Period (weekly, monthly, etc.)"
+// @Param        start       query     string  false  "Start Date (YYYY-MM-DD)"
+// @Param        end         query     string  false  "End Date (YYYY-MM-DD)"
+// @Success      200         {object}  dtos.InventoryTurnoverResponse
+// @Failure      404         {object}  dtos.ErrorResponse
+// @Router       /api/reports/inventory/turnover/{product_id} [get]
 func GetInventoryTurnoverByProduct(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -495,11 +568,38 @@ func GetInventoryTurnoverByProduct(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Manage inventory stock entry
-// Insert Batch details
-// Insert Inspection details
-// Update inventory
-// Store handling notes
+// StockEntry manages inventory stock entry.
+// It handles batch details, inspection details, inventory updates, and handling notes.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Manage inventory stock entry
+// @Description  Create a new stock entry with batch and inspection details
+// @Tags         Inventory
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        product_id           formData  string  true   "Product ID"
+// @Param        batch_number         formData  string  true   "Batch Number"
+// @Param        expiry_date          formData  string  true   "Expiry Date (YYYY-MM-DD)"
+// @Param        manufacturing_date   formData  string  true   "Manufacturing Date (YYYY-MM-DD)"
+// @Param        inspection_date      formData  string  true   "Inspection Date (YYYY-MM-DD)"
+// @Param        inspector_id         formData  string  true   "Inspector ID"
+// @Param        inspection_notes     formData  string  false  "Inspection Notes"
+// @Param        quantity_received    formData  int     true   "Quantity Received"
+// @Param        minimum_stock_level  formData  int     true   "Minimum Stock Level"
+// @Param        store_quantity       formData  string  true   "Store Quantity JSON"
+// @Param        supplier_id          formData  string  true   "Supplier ID"
+// @Param        purchase_order_id    formData  string  true   "Purchase Order ID"
+// @Param        buying_price         formData  number  true   "Buying Price"
+// @Param        condition_id         formData  string  true   "Condition ID"
+// @Param        handling_notes       formData  string  false  "Handling Notes"
+// @Param        batch_images         formData  file    false  "Batch Images"
+// @Param        inspection_images    formData  file    false  "Inspection Images"
+// @Success      201                  {object}  map[string]interface{}
+// @Failure      400                  {object}  dtos.ErrorResponse
+// @Failure      404                  {object}  dtos.ErrorResponse
+// @Failure      500                  {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/inventory/stock-entry [post]
 func StockEntry(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)

@@ -15,6 +15,16 @@ var (
 	categorySuccess = "Categories fetched successfully"
 )
 
+// GetCategoriesHandler retrieves all product categories.
+// It utilizes caching for performance.
+//
+// @Summary      Get all categories
+// @Description  Retrieve a list of all product categories
+// @Tags         Categories
+// @Produce      json
+// @Success      200  {object}  []dtos.CategoryData
+// @Failure      404  {object}  dtos.ErrorResponse
+// @Router       /api/categories [get]
 func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -58,7 +68,8 @@ func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// GetCategoryByIDHandler handles fetching a single category by ID
+// GetCategoryByIDHandler handles fetching a single category by ID.
+//
 // @Summary      Get a category by ID
 // @Description  Retrieve a category using its unique ID
 // @Tags         Categories
@@ -66,9 +77,9 @@ func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        id   path      string  true  "Category ID"
 // @Success      200  {object}  dtos.Category
-// @Failure      400  {object}  map[string]string "Invalid category ID"
-// @Failure      404  {object}  map[string]string "Category not found"
-// @Failure      500  {object}  map[string]string "Internal server error"
+// @Failure      400  {object}  dtos.ErrorResponse
+// @Failure      404  {object}  dtos.ErrorResponse
+// @Failure      500  {object}  dtos.ErrorResponse
 // @Router       /api/categories/{id} [get]
 func GetCategoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
@@ -121,8 +132,21 @@ func GetCategoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Admin Handler to get categries with pagination
-// To return name, type,items,subactegories,description
+// AdminGetCategoriesHandler retrieves categories with pagination for admin view.
+// It returns detailed category information including subcategories and descriptions.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Get categories (Admin)
+// @Description  Retrieve paginated categories with details for admin
+// @Tags         Admin
+// @Produce      json
+// @Param        page  query     int     false  "Page number"
+// @Param        size  query     int     false  "Page size"
+// @Param        q     query     string  false  "Search query"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/categories [get]
 func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -165,6 +189,15 @@ func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetCategoriesWithSubCategoriesHandler retrieves all categories including their subcategories.
+//
+// @Summary      Get categories with subcategories
+// @Description  Retrieve a hierarchical list of categories and their subcategories
+// @Tags         Categories
+// @Produce      json
+// @Success      200  {object}  []dtos.CategoryWithSubcategories
+// @Failure      400  {object}  dtos.ErrorResponse
+// @Router       /api/categories/tree [get]
 func GetCategoriesWithSubCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST

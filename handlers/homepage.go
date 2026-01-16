@@ -21,13 +21,14 @@ var (
 )
 
 // HomePageData returns homepage footer, social links, and menu links.
-// @Summary Homepage Data
-// @Description Get footer, social, and menu links for homepage.
-// @Tags Home
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 404 {object} map[string]string
-// @Router /api/home/data [get]
+//
+// @Summary      Homepage Data
+// @Description  Get footer, social, and menu links for homepage.
+// @Tags         Home
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Failure      404  {object}  dtos.ErrorResponse
+// @Router       /api/home/data [get]
 func HomePageData(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -90,13 +91,14 @@ func HomePageData(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// GetSliderData returns homepage banner sliders.
-// @Summary Slider Data
-// @Description Get banner/slider data for homepage.
-// @Tags Home
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Router /api/home/banners [get]
+// GetHomeBannersData returns homepage banner sliders.
+//
+// @Summary      Slider Data
+// @Description  Get banner/slider data for homepage.
+// @Tags         Home
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/home/banners [get]
 func GetHomeBannersData(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -131,12 +133,13 @@ func GetHomeBannersData(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetSliderData returns homepage banner sliders.
-// @Summary Slider Data
-// @Description Get banner/slider data for homepage.
-// @Tags Home
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Router /api/home/sliders [get]
+//
+// @Summary      Slider Data
+// @Description  Get banner/slider data for homepage.
+// @Tags         Home
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/home/sliders [get]
 func GetSliderData(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -204,13 +207,14 @@ func GetSliderData(w http.ResponseWriter, r *http.Request) {
 // }
 
 // GetPromotionsHandler handles GET /api/promotions
-// @Summary Get active promotions
-// @Description Retrieve all active promotions with products and category info
-// @Tags Promotions
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/home/promotions [get]
+//
+// @Summary      Get active promotions
+// @Description  Retrieve all active promotions with products and category info
+// @Tags         Promotions
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Failure      500  {object}  dtos.ErrorResponse
+// @Router       /api/home/promotions [get]
 func GetPromotionsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -256,14 +260,27 @@ func GetPromotionsHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// func to add banners
-// @Summary Add banner info
-// @Description Add banner info
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/banners [POST]
+// AddBannerInfo adds new banner information.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Add banner info
+// @Description  Add banner info
+// @Tags         Admin
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        banner_image   formData  file    true   "Banner Image"
+// @Param        text           formData  string  false  "Banner Text"
+// @Param        heading        formData  string  false  "Banner Heading"
+// @Param        button_text    formData  string  false  "Button Text"
+// @Param        button_url     formData  string  false  "Button URL"
+// @Param        display_order  formData  int     false  "Display Order"
+// @Param        is_active      formData  bool    false  "Is Active"
+// @Param        type           formData  string  false  "Banner Type"
+// @Success      201            {object}  map[string]interface{}
+// @Failure      400            {object}  dtos.ErrorResponse
+// @Failure      500            {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/banners [post]
 func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -370,14 +387,21 @@ func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Update Banner Info
-// @Summary Update banner info
-// @Description Update banner info
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/banners [PATCH]
+// UpdateBannerInfo updates existing banner information.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Update banner info
+// @Description  Update banner info
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        banner_id  path      string                true  "Banner ID"
+// @Param        banner     body      dtos.UpdateBannerInfo true  "Banner Details"
+// @Success      200        {object}  map[string]interface{}
+// @Failure      400        {object}  dtos.ErrorResponse
+// @Failure      500        {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/banners/{banner_id} [patch]
 func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -424,14 +448,19 @@ func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Delete Banner Info
-// @Summary Delete banner info
-// @Description Delete banner info
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/banners [DELETE]
+// DeleteBannerInfo deletes a banner.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Delete banner info
+// @Description  Delete banner info
+// @Tags         Admin
+// @Produce      json
+// @Param        banner_id  path      string  true  "Banner ID"
+// @Success      200        {object}  map[string]interface{}
+// @Failure      400        {object}  dtos.ErrorResponse
+// @Failure      500        {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/banners/{banner_id} [delete]
 func DeleteBannerInfo(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -473,15 +502,15 @@ func DeleteBannerInfo(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Get promotions types
-// GetPromotionsHandler handles GET /api/promotions
-// @Summary Get active promotions
-// @Description Retrieve all active promotions with products and category info
-// @Tags Promotions
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/home/promotions/types [get]
+// GetPromotionsTypesHandler handles GET /api/promotions/types
+//
+// @Summary      Get active promotions types
+// @Description  Retrieve all active promotions types
+// @Tags         Promotions
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Failure      500  {object}  dtos.ErrorResponse
+// @Router       /api/home/promotions/types [get]
 func GetPromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
@@ -538,15 +567,20 @@ func GetPromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// create a new promotion
+// NewPromotionHandler creates a new promotion.
+// This endpoint is restricted to administrators.
 //
-// @Summary Create new promotions
-// @Description Create Promotion
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/promotions [POST]
+// @Summary      Create new promotions
+// @Description  Create Promotion
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        promotion  body      dtos.NewPromotion  true  "Promotion Details"
+// @Success      201        {object}  map[string]interface{}
+// @Failure      400        {object}  dtos.ErrorResponse
+// @Failure      500        {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/promotions [post]
 func NewPromotionHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -610,17 +644,21 @@ func NewPromotionHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Delete a promotion
-// @Summary Delete a promotion
-// @Description Deletes a promotion
-// @Tags Admin
-// @Accept json
-// @Produce json
-// @Param Authorization header string true "Bearer token"
-// @Success 201 {object} map[string]interface{}
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Router /api/admin/promotions/{promotion_id} [delete]
+// DeletePromotionHandler deletes a promotion.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Delete a promotion
+// @Description  Deletes a promotion
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        promotion_id  path      string  true  "Promotion ID"
+// @Success      200           {object}  map[string]interface{}
+// @Failure      400           {object}  dtos.ErrorResponse
+// @Failure      401           {object}  dtos.ErrorResponse
+// @Failure      500           {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/promotions/{promotion_id} [delete]
 func DeletePromotionHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -661,17 +699,22 @@ func DeletePromotionHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Edit a promotion
-// @Summary Edit a promotion
-// @Description Edit a promotion
-// @Tags Admin
-// @Accept json
-// @Produce json
-// @Param Authorization header string true "Bearer token"
-// @Success 201 {object} map[string]interface{}
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Router /api/admin/promotions/{promotion_id} [PATCH]
+// EditPromotionHandler edits an existing promotion.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Edit a promotion
+// @Description  Edit a promotion
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        promotion_id  path      string              true  "Promotion ID"
+// @Param        promotion     body      dtos.EditPromotion  true  "Promotion Details"
+// @Success      200           {object}  map[string]interface{}
+// @Failure      400           {object}  dtos.ErrorResponse
+// @Failure      401           {object}  dtos.ErrorResponse
+// @Failure      500           {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/promotions/{promotion_id} [patch]
 func EditPromotionHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -716,17 +759,22 @@ func EditPromotionHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Attach a product to a promotion
-// @Summary Attach a product to promotion
-// @Description Attach a product to promotion
-// @Tags Admin
-// @Accept json
-// @Produce json
-// @Param Authorization header string true "Bearer token"
-// @Success 201 {object} map[string]interface{}
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Router /api/admin/promotions/{promotion_id} [POST]
+// AttachProductToPromotionHandler attaches a product to a promotion.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Attach a product to promotion
+// @Description  Attach a product to promotion
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        promotion_id  path      string                       true  "Promotion ID"
+// @Param        attachment    body      dtos.AttachProductToPromotion true  "Attachment Details"
+// @Success      201           {object}  map[string]interface{}
+// @Failure      400           {object}  dtos.ErrorResponse
+// @Failure      401           {object}  dtos.ErrorResponse
+// @Failure      500           {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/promotions/{promotion_id} [post]
 func AttachProductToPromotionHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -775,6 +823,22 @@ func AttachProductToPromotionHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// RemoveProductFromPromotionHandler removes a product from a promotion.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Remove product from promotion
+// @Description  Remove a product from a promotion
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        promotion_id  path      string                       true  "Promotion ID"
+// @Param        attachment    body      dtos.AttachProductToPromotion true  "Attachment Details"
+// @Success      200           {object}  map[string]interface{}
+// @Failure      400           {object}  dtos.ErrorResponse
+// @Failure      500           {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/promotions/{promotion_id}/products [delete]
 func RemoveProductFromPromotionHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -847,14 +911,19 @@ func checkIfPromotionExists(promotionID string, r *http.Request, w http.Response
 	return true
 }
 
-// Create blog
-// @Summary Create new blog
-// @Description Create blog
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/blogs [POST]
+// CreateBlogHandler creates a new blog post.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Create new blog
+// @Description  Create blog
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        blog  body      dtos.BlogRequest  true  "Blog Details"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      500   {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/blogs [post]
 func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -937,14 +1006,16 @@ func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Get blog
-// @Summary Get blog by ID
-// @Description Get blog by ID
-// @Tags Blogs
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/blogs/{blog_id} [GET]
+// GetBlogHandler retrieves a blog by ID.
+//
+// @Summary      Get blog by ID
+// @Description  Get blog by ID
+// @Tags         Blogs
+// @Produce      json
+// @Param        blog_id  path      string  true  "Blog ID"
+// @Success      200      {object}  dtos.Blog
+// @Failure      500      {object}  dtos.ErrorResponse
+// @Router       /api/admin/blogs/{blog_id} [get]
 func GetBlogHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -979,14 +1050,20 @@ func GetBlogHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// update blog
-// @Summary Update blog
-// @Description Update blog
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/blogs/{blog_id} [PATCH]
+// UpdateBlogHandler updates an existing blog post.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Update blog
+// @Description  Update blog
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        blog_id  path      string            true  "Blog ID"
+// @Param        blog     body      dtos.BlogRequest  true  "Blog Details"
+// @Success      200      {object}  map[string]interface{}
+// @Failure      500      {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/blogs/{blog_id} [patch]
 func UpdateBlogHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -1034,14 +1111,18 @@ func UpdateBlogHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Delete Blog
-// @Summary Delete blog
-// @Description Delete blog
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/blogs/{blog_id} [DELETE]
+// DeleteBlogHandler deletes a blog post.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Delete blog
+// @Description  Delete blog
+// @Tags         Admin
+// @Produce      json
+// @Param        blog_id  path      string  true  "Blog ID"
+// @Success      200      {object}  map[string]interface{}
+// @Failure      500      {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/blogs/{blog_id} [delete]
 func DeleteBlogHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -1079,14 +1160,18 @@ func DeleteBlogHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// List all blogs
-// @Summary List blogs
-// @Description List blogs
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/blogs [GET]
+// ListBlogsHandler retrieves a paginated list of blogs.
+//
+// @Summary      List blogs
+// @Description  List blogs
+// @Tags         Admin
+// @Produce      json
+// @Param        page    query     int     false  "Page number"
+// @Param        size    query     int     false  "Page size"
+// @Param        status  query     string  false  "Blog Status"
+// @Success      200     {object}  map[string]interface{}
+// @Failure      500     {object}  dtos.ErrorResponse
+// @Router       /api/admin/blogs [get]
 func ListBlogsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -1140,14 +1225,19 @@ func ListBlogsHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// CreateMenuLink - POST api/admin/menu-links
-// @Summary  Create Menu links
-// @Description Create Menu Links
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/menu-links [POST]
+// CreateMenuLink creates a new menu link.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Create Menu links
+// @Description  Create Menu Links
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        menu_link  body      dtos.MenuLinkRequest  true  "Menu Link Details"
+// @Success      200        {object}  map[string]interface{}
+// @Failure      500        {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/menu-links [post]
 func CreateMenuLink(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -1196,14 +1286,20 @@ func CreateMenuLink(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// UpdateMenuLink - PATCH admin/menu-links/{menulink_id}
-// @Summary  Update Menu links
-// @Description Update Menu Links
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/menu-links/{menulink_id} [PATCH]
+// UpdateMenuLink updates an existing menu link.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Update Menu links
+// @Description  Update Menu Links
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        menulink_id  path      string                true  "Menu Link ID"
+// @Param        menu_link    body      dtos.MenuLinkRequest  true  "Menu Link Details"
+// @Success      200          {object}  map[string]interface{}
+// @Failure      500          {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/menu-links/{menulink_id} [patch]
 func UpdateMenuLink(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -1251,14 +1347,18 @@ func UpdateMenuLink(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// DeleteMenuLink - DELETE /menu-links/{id}
-// @Summary  Delete Menu links
-// @Description Delete Menu Links
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/menu-links/{menulink_id} [DELETE]
+// DeleteMenuLink deletes a menu link.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Delete Menu links
+// @Description  Delete Menu Links
+// @Tags         Admin
+// @Produce      json
+// @Param        menulink_id  path      string  true  "Menu Link ID"
+// @Success      200          {object}  map[string]interface{}
+// @Failure      500          {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/menu-links/{menulink_id} [delete]
 func DeleteMenuLink(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -1298,13 +1398,19 @@ func DeleteMenuLink(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// @Summary  Create Social
-// @Description Create Social
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/socials [POST]
+// CreateSocialLinkHandler creates a new social link.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Create Social
+// @Description  Create Social
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        social_link  body      dtos.SocialLinkRequest  true  "Social Link Details"
+// @Success      200          {object}  map[string]interface{}
+// @Failure      500          {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/socials [post]
 func CreateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -1349,13 +1455,20 @@ func CreateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// @Summary  Update Social
-// @Description Update Social
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/socials/{social_id} [PATCH]
+// UpdateSocialLinkHandler updates an existing social link.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Update Social
+// @Description  Update Social
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        social_id    path      string                  true  "Social Link ID"
+// @Param        social_link  body      dtos.SocialLinkRequest  true  "Social Link Details"
+// @Success      200          {object}  map[string]interface{}
+// @Failure      500          {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/socials/{social_id} [patch]
 func UpdateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -1405,13 +1518,18 @@ func UpdateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// @Summary  Delete Social
-// @Description Delete Social
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/socials/{social_id} [DELETE]
+// DeleteSocialLinkHandler deletes a social link.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Delete Social
+// @Description  Delete Social
+// @Tags         Admin
+// @Produce      json
+// @Param        social_id  path      string  true  "Social Link ID"
+// @Success      200        {object}  map[string]interface{}
+// @Failure      500        {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/socials/{social_id} [delete]
 func DeleteSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -1452,13 +1570,18 @@ func DeleteSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Add product to featured
-// @Summary Add product to featured
-// @Description Add product to featured
-// @Tags Products
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Router /api/admin/products/featured/{product_id} [post]
+// AddFeaturedProduct adds a product to the featured list.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Add product to featured
+// @Description  Add product to featured
+// @Tags         Products
+// @Produce      json
+// @Param        product_id  path      string  true  "Product ID"
+// @Success      200         {object}  map[string]interface{}
+// @Failure      500         {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/products/featured/{product_id} [post]
 func AddFeaturedProduct(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -1499,14 +1622,18 @@ func AddFeaturedProduct(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Remove product from featured
-// Remove product from featured
-// @Summary Remove product from featured
-// @Description Remove product from featured
-// @Tags Products
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Router /api/admin/products/featured/{product_id} [delete]
+// RemoveFeatured removes a product from the featured list.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Remove product from featured
+// @Description  Remove product from featured
+// @Tags         Products
+// @Produce      json
+// @Param        product_id  path      string  true  "Product ID"
+// @Success      200         {object}  map[string]interface{}
+// @Failure      500         {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/products/featured/{product_id} [delete]
 func RemoveFeatured(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST

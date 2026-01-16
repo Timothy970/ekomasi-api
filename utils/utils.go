@@ -1,3 +1,31 @@
+// Package utils provides general utility functions for the Adenzo e-commerce platform.
+//
+// This file contains a wide range of utilities:
+//   - Pagination helpers for category listings
+//   - Token generation (OTP, reset tokens, secure tokens)
+//   - Email HTML templates (OTP, orders, wishlists, carts, vouchers, low stock alerts)
+//   - SMS message templates
+//   - Phone number validation (Kenyan format)
+//   - Type conversion utilities
+//   - Pointer helpers for optional fields
+//   - Time zone handling (Nairobi)
+//   - Function name extraction for logging
+//
+// Email Templates:
+//   - OTP verification emails
+//   - Order confirmation and receipts
+//   - Wishlist sharing and reminders
+//   - Cart abandonment reminders
+//   - E-voucher notifications
+//   - Low stock alerts
+//
+// Token Generation:
+//   - OTP: 4-digit codes for verification
+//   - Reset tokens: Base64 encoded random bytes
+//   - Secure tokens: URL-safe base64 tokens
+//
+// Validation:
+//   - Kenyan phone numbers (07/01/2547/2541 formats)
 package utils
 
 import (
@@ -19,11 +47,35 @@ import (
 	"time"
 )
 
+// PaginatedResponse wraps category data with pagination metadata.
+//
+// Used for returning paginated category listings with pagination controls.
+//
+// Fields:
+//   - Data: Category items for current page
+//   - Pagination: Metadata about pagination state
 type PaginatedResponse struct {
 	Data       []dtos.CategoryWithProducts `json:"data"`
 	Pagination PaginationMeta              `json:"pagination"`
 }
 
+// PaginationMeta contains pagination state and navigation information.
+//
+// Provides clients with:
+//   - Current page position
+//   - Total items and pages
+//   - Navigation flags (has previous/next)
+//   - Optional previous/next page numbers
+//
+// Fields:
+//   - Page: Current page number (1-based)
+//   - Size: Items per page
+//   - TotalItems: Total number of items across all pages
+//   - TotalPages: Total number of pages
+//   - HasPrev: true if previous page exists
+//   - HasNext: true if next page exists
+//   - PrevPage: Previous page number (omitted if HasPrev is false)
+//   - NextPage: Next page number (omitted if HasNext is false)
 type PaginationMeta struct {
 	Page       int  `json:"page"`
 	Size       int  `json:"size"`
@@ -35,13 +87,16 @@ type PaginationMeta struct {
 	NextPage   int  `json:"next_page,omitempty"`
 }
 
-// func CheckPasswordHash(password, hash string) bool {
-// 	log.Printf("password:::%s", password)
-// 	log.Printf("hash:::%s", hash)
-// 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-// 	return err == nil
-// }
-
+// ExtractToken extracts the JWT token from the Authorization header.
+//
+// Removes the "Bearer " prefix from the Authorization header value.
+// Returns empty string if header doesn't start with "Bearer ".
+//
+// Parameters:
+//   - authHeader: string - Authorization header value (e.g., "Bearer eyJhbGc...")
+//
+// Returns:
+//   - string: JWT token without "Bearer " prefix, or empty string
 func ExtractToken(authHeader string) string {
 	if strings.HasPrefix(authHeader, "Bearer ") {
 		return strings.TrimPrefix(authHeader, "Bearer ")
@@ -62,6 +117,18 @@ func ToString(value interface{}) string {
 		return fmt.Sprintf("%v", v)
 	}
 }
+
+// GenerateResetPasswordToken generates a cryptographically secure random token.
+//
+// Creates a URL-safe base64-encoded token of specified byte length.
+// Used for password reset links and secure verification tokens.
+//
+// Parameters:
+//   - n: int - Number of random bytes to generate
+//
+// Returns:
+//   - string: Base64-encoded token
+//   - error: Random number generation error
 func GenerateResetPasswordToken(n int) (string, error) {
 	bytes := make([]byte, n)
 	_, err := rand.Read(bytes)
@@ -71,7 +138,13 @@ func GenerateResetPasswordToken(n int) (string, error) {
 	return base64.StdEncoding.EncodeToString(bytes), nil
 }
 
-// NowInNairobi returns the current time in Africa/Nairobi timezone
+// NowInNairobi returns the current time in Africa/Nairobi timezone (EAT - UTC+3).
+//
+// Loads the Africa/Nairobi timezone and returns current time in that zone.
+// Fatal error if timezone cannot be loaded.
+//
+// Returns:
+//   - time.Time: Current time in Nairobi timezone
 func NowInNairobi() time.Time {
 	loc, err := time.LoadLocation("Africa/Nairobi")
 	if err != nil {
@@ -79,30 +152,54 @@ func NowInNairobi() time.Time {
 	}
 	return time.Now().In(loc)
 }
+
+// PaginateCategories paginates category data and returns page slice with metadata.
+//
+// This function:
+// 1. Calculates start and end indices based on page and size
+// 2. Handles boundary conditions (start >= total, end > total)
+// 3. Extracts data slice for current page
+// 4. Calculates total pages using ceiling division
+// 5. Generates pagination metadata with navigation flags
+//
+// Parameters:
+//   - data: []dtos.CategoryWithProducts - Full category list to paginate
+//   - page: int - Current page number (1-based)
+//   - size: int - Number of items per page
+//
+// Returns:
+//   - PaginatedResponse: Data slice for current page with pagination metadata
 func PaginateCategories(data []dtos.CategoryWithProducts, page, size int) PaginatedResponse {
+	// Calculate total items
 	total := len(data)
+	// Calculate slice boundaries
 	start := (page - 1) * size
 	end := start + size
 
+	// Handle boundary conditions
 	if start >= total {
-		start = total
+		start = total // Empty page if beyond data
 	}
 	if end > total {
-		end = total
+		end = total // Cap at data length
 	}
 
+	// Extract data slice for current page
 	paginatedData := data[start:end]
+	// Calculate total pages (ceiling division)
 	totalPages := int(math.Ceil(float64(total) / float64(size)))
 
+	// Build pagination metadata
 	meta := PaginationMeta{
 		Page:       page,
 		Size:       size,
 		TotalItems: total,
 		TotalPages: totalPages,
-		HasPrev:    page > 1,
-		HasNext:    page < totalPages,
+		HasPrev:    page > 1,          // Previous page exists
+		HasNext:    page < totalPages, // Next page exists
 	}
 
+	// Add optional prev/next page numbers
 	if meta.HasPrev {
 		meta.PrevPage = page - 1
 	}
@@ -116,16 +213,38 @@ func PaginateCategories(data []dtos.CategoryWithProducts, page, size int) Pagina
 	}
 }
 
-// GenerateOTP generates a random 4-digit OTP
+// GenerateOTP generates a random 4-digit one-time password.
+//
+// Creates cryptographically secure random number between 0000-9999.
+// Pads with leading zeros to ensure 4-digit format.
+//
+// Returns:
+//   - string: 4-digit OTP (e.g., "0042", "5831")
+//   - error: Random number generation error
 func GenerateOTP() (string, error) {
-	n, err := rand.Int(rand.Reader, big.NewInt(10000)) // 0 to 999999
+	// Generate random number from 0 to 9999
+	n, err := rand.Int(rand.Reader, big.NewInt(10000))
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%04d", n.Int64()), nil // pad with leading zeros
+	// Format with leading zeros to ensure 4 digits
+	return fmt.Sprintf("%04d", n.Int64()), nil
 }
 
-// GenerateOTPEmailHTML returns the HTML content for an OTP email
+// GenerateOTPEmailHTML returns styled HTML content for OTP verification email.
+//
+// Creates responsive email template with:
+//   - Centered layout with white card on gray background
+//   - Large, bold OTP display
+//   - 5-minute expiry notice
+//   - Security warning message
+//   - Adenzo branding
+//
+// Parameters:
+//   - otp: string - 4-digit OTP to display
+//
+// Returns:
+//   - string: Complete HTML email body
 func GenerateOTPEmailHTML(otp string) string {
 	return fmt.Sprintf(`
 <!DOCTYPE html>
@@ -153,36 +272,68 @@ func GenerateOTPEmailHTML(otp string) string {
 `, otp)
 }
 
+// GetCurrentFuncName returns the name of the calling function.
+//
+// Uses runtime package to inspect call stack and extract function name.
+// Returns "unknown" if call stack cannot be inspected.
+// Strips package path to return only function name.
+//
+// Returns:
+//   - string: Function name without package path, or "unknown"
 func GetCurrentFuncName() string {
+	// Get program counter at caller's position
 	pc, _, _, ok := runtime.Caller(1)
 	if !ok {
 		return "unknown"
 	}
 
+	// Get function from program counter
 	fn := runtime.FuncForPC(pc)
 	if fn == nil {
 		return "unknown"
 	}
 
-	// Trim package path if you just want the function name
+	// Extract function name without package path
 	fullName := fn.Name()
 	parts := strings.Split(fullName, ".")
-	return parts[len(parts)-1]
+	return parts[len(parts)-1] // Return last part (function name)
 }
 
+// GenerateSecureTokenBase64 generates a cryptographically secure URL-safe base64 token.
+//
+// This function:
+// 1. Validates token length is positive
+// 2. Calculates required byte length (base64 encodes 3 bytes to 4 chars)
+// 3. Generates random bytes using crypto/rand
+// 4. Encodes to URL-safe base64 without padding
+// 5. Trims to exact length if needed
+//
+// Token Properties:
+//   - Cryptographically secure randomness
+//   - URL-safe characters (no +, /, =)
+//   - No padding characters
+//   - Specified exact length
+//
+// Parameters:
+//   - length: int - Desired token length in characters
+//
+// Returns:
+//   - string: URL-safe base64 token
+//   - error: Invalid length or random generation error
 func GenerateSecureTokenBase64(length int) (string, error) {
+	// Validate length
 	if length <= 0 {
 		return "", errors.New("token length must be positive")
 	}
 
-	// Calculate how many bytes we need for the desired length
+	// Calculate byte length needed for base64 encoding
 	// Base64 encodes 3 bytes into 4 characters
 	byteLength := (length * 3) / 4
 	if (length*3)%4 != 0 {
-		byteLength++
+		byteLength++ // Round up for partial bytes
 	}
 
-	// Generate random bytes
+	// Generate cryptographically secure random bytes
 	bytes := make([]byte, byteLength)
 	_, err := rand.Read(bytes)
 	if err != nil {
@@ -192,18 +343,42 @@ func GenerateSecureTokenBase64(length int) (string, error) {
 	// Encode to URL-safe base64 without padding
 	token := base64.RawURLEncoding.EncodeToString(bytes)
 
-	// Trim to exact length if needed (shouldn't be necessary with proper calculation)
+	// Trim to exact length if needed
 	if len(token) > length {
 		token = token[:length]
 	}
 
 	return token, nil
 }
+
+// IsValidKenyanPhone validates Kenyan phone number formats.
+//
+// Accepts these formats:
+//   - +2547XXXXXXXX (international with 07)
+//   - +2541XXXXXXXX (international with 01)
+//   - 07XXXXXXXX (local mobile)
+//   - 01XXXXXXXX (local landline)
+//
+// Parameters:
+//   - phone: string - Phone number to validate
+//
+// Returns:
+//   - bool: true if valid Kenyan format, false otherwise
 func IsValidKenyanPhone(phone string) bool {
-	// added for numbers starting with 2541 or 01
+	// Regex for Kenyan phone numbers (07/01 local, +2547/+2541 international)
 	re := regexp.MustCompile(`^(?:\+?2547\d{8}|\+?2541\d{8}|07\d{8}|01\d{8})$`)
 	return re.MatchString(phone)
 }
+
+// StringPtr returns pointer to string, or nil if string is empty.
+//
+// Useful for optional database fields that need nil for empty values.
+//
+// Parameters:
+//   - s: string - String value
+//
+// Returns:
+//   - *string: Pointer to string, or nil if empty
 func StringPtr(s string) *string {
 	if s == "" {
 		return nil
@@ -211,14 +386,48 @@ func StringPtr(s string) *string {
 	return &s
 }
 
+// IntPtr returns pointer to int.
+//
+// Useful for optional integer fields in structs.
+//
+// Parameters:
+//   - i: int - Integer value
+//
+// Returns:
+//   - *int: Pointer to integer
 func IntPtr(i int) *int {
 	return &i
 }
 
+// BoolPtr returns pointer to bool.
+//
+// Useful for optional boolean fields in structs.
+//
+// Parameters:
+//   - b: bool - Boolean value
+//
+// Returns:
+//   - *bool: Pointer to boolean
 func BoolPtr(b bool) *bool {
 	return &b
 }
 
+// CartReminderEmail generates HTML email for cart abandonment reminders.
+//
+// Creates responsive email template with:
+//   - Purple gradient theme matching brand colors
+//   - Prominent call-to-action button
+//   - Cart link for completing purchase
+//   - Support contact information
+//   - Mobile-responsive design
+//
+// Parameters:
+//   - cartLink: string - URL to user's shopping cart
+//   - supportEmail: string - Support email address
+//   - phone: string - Support phone number
+//
+// Returns:
+//   - string: Complete HTML email body
 func CartReminderEmail(cartLink, supportEmail, phone string) string {
 	return `
 	<!DOCTYPE html>
@@ -303,7 +512,23 @@ func CartReminderEmail(cartLink, supportEmail, phone string) string {
 	`
 }
 
-// Wishlist Reminder Email (returns HTML string)
+// WishlistReminderEmail generates HTML email for wishlist reminders.
+//
+// Creates responsive email template with:
+//   - Purple gradient theme
+//   - Personalized greeting with customer name
+//   - Wishlist link with call-to-action
+//   - Support contact information
+//   - Urgency messaging (items may not be available forever)
+//
+// Parameters:
+//   - customerName: string - Customer's name for personalization
+//   - wishlistLink: string - URL to customer's wishlist
+//   - supportEmail: string - Support email address
+//   - phone: string - Support phone number
+//
+// Returns:
+//   - string: Complete HTML email body
 func WishlistReminderEmail(customerName, wishlistLink, supportEmail, phone string) string {
 	return `
 	<!DOCTYPE html>
@@ -387,7 +612,20 @@ func WishlistReminderEmail(customerName, wishlistLink, supportEmail, phone strin
 	</html>`
 }
 
-// Wishlist Reminder SMS (plain text)
+// WishlistReminderSMS generates plain text SMS for wishlist reminders.
+//
+// Creates short, friendly SMS message with:
+//   - Personalized greeting
+//   - Wishlist link
+//   - Emojis for visual appeal
+//   - Brand signature
+//
+// Parameters:
+//   - customerName: string - Customer's name
+//   - wishlistLink: string - URL to wishlist (shortened recommended for SMS)
+//
+// Returns:
+//   - string: Plain text SMS message
 func WishlistReminderSMS(customerName, wishlistLink string) string {
 	return fmt.Sprintf(
 		"Hi %s, your wishlist is waiting 💜. Don’t miss out on your favorite items! Check it here 👉 %s. – The Adenzo Team",
@@ -434,8 +672,37 @@ func SendVoucherEmail(data dtos.VoucherEmailInfo) (string, string) {
 	return subject, htmlBody
 }
 
-// Body for order placements Email
-// GenerateOrderConfirmationHTML generates a styled HTML email for order confirmation.
+// GenerateOrderConfirmationHTML generates styled HTML email for order confirmation or receipt.
+//
+// This function:
+// 1. Calculates totals if not provided (subtotal, total amount)
+// 2. Sets color scheme based on order type
+// 3. Builds order items table HTML
+// 4. Replaces template placeholders with actual data
+// 5. Returns complete HTML email
+//
+// Order Types:
+//   - "order_confirmation": Purple gradient theme
+//   - "order_receipt": Pink gradient theme
+//
+// Email Sections:
+//   - Header with order type indicator
+//   - Customer greeting
+//   - Order details (ID, date)
+//   - Items table (product, quantity, price)
+//   - Totals (subtotal, shipping, discount, total)
+//   - Delivery address
+//
+// Parameters:
+//   - data: dtos.OrderEmailData - Order information including:
+//   - CustomerName, OrderID, OrderDate
+//   - OrderItems: Product details
+//   - Subtotal, ShippingFee, Discount, TotalAmount
+//   - DeliveryAddress
+//   - orderType: string - "order_confirmation" or "order_receipt"
+//
+// Returns:
+//   - string: Complete HTML email body
 func GenerateOrderConfirmationHTML(data dtos.OrderEmailData, orderType string) string {
 	// Calculate totals if not provided
 	if data.Subtotal == 0 {
@@ -445,9 +712,9 @@ func GenerateOrderConfirmationHTML(data dtos.OrderEmailData, orderType string) s
 		data.TotalAmount = data.Subtotal + data.ShippingFee - data.Discount
 	}
 
-	// === NEW: Dynamic Colors & Texts ===
-	bgGradient := "linear-gradient(135deg, #8B5FBF 0%, #6A3093 100%)"
-	sectionBG := "#f8f5ff"
+	// Dynamic colors and text based on order type
+	bgGradient := "linear-gradient(135deg, #8B5FBF 0%, #6A3093 100%)" // Purple for confirmation
+	sectionBG := "#f8f5ff"                                            // Light purple background
 	headerTitle := "🎉 Order Confirmed!"
 	headerSubtitle := "Thank you for your purchase"
 
@@ -641,7 +908,29 @@ func GenerateOrderConfirmationHTML(data dtos.OrderEmailData, orderType string) s
 	return html
 }
 
-// generate low stock alert body
+// GenerateLowStockAlertHTML generates HTML email for low stock inventory alerts.
+//
+// This function:
+// 1. Builds email template with red gradient theme
+// 2. Injects store name and alert date
+// 3. Builds product table rows with images
+// 4. Replaces template placeholders with generated HTML
+// 5. Returns complete email with product details
+//
+// Email Contents:
+//   - Red gradient header (alert urgency)
+//   - Alert date and store name
+//   - Products table (image, name, SKU, quantity)
+//   - Restock reminder message
+//
+// Parameters:
+//   - data: dtos.LowStockEmailData - Alert information including:
+//   - StoreName: Store identifier
+//   - AlertDate: When alert was generated
+//   - Products: Array of low stock products with images
+//
+// Returns:
+//   - string: Complete HTML email body
 func GenerateLowStockAlertHTML(data dtos.LowStockEmailData) string {
 	const template = `
 <!DOCTYPE html>
@@ -805,15 +1094,31 @@ func GenerateLowStockAlertHTML(data dtos.LowStockEmailData) string {
 	return html
 }
 
-// calculateSubtotal computes subtotal from order items.
+// calculateSubtotal computes the subtotal from order items.
+//
+// Multiplies quantity by unit price for each item and sums the results.
+//
+// Parameters:
+//   - items: []dtos.OrderNotificationItemRequest - Array of order items
+//
+// Returns:
+//   - float64: Total subtotal before shipping and discounts
 func calculateSubtotal(items []dtos.OrderNotificationItemRequest) float64 {
 	var subtotal float64
+	// Sum up (quantity * unit price) for each item
 	for _, item := range items {
 		subtotal += float64(item.Quantity) * item.UnitPrice
 	}
 	return subtotal
 }
 
+// WishlistItem represents a product item in a wishlist email.
+//
+// Fields:
+//   - Title: Product name
+//   - ImageURL: Product image URL
+//   - Price: Formatted price string (e.g., "KES 2,999")
+//   - ProductURL: Link to product page
 type WishlistItem struct {
 	Title      string
 	ImageURL   string
@@ -821,6 +1126,20 @@ type WishlistItem struct {
 	ProductURL string
 }
 
+// wishlistTemplateData holds data for wishlist email template execution.
+//
+// Internal type used by GenerateWishlistEmailHTML for template rendering.
+//
+// Fields:
+//   - SenderName: Person sharing wishlist
+//   - SenderDetails: Contact info for sender
+//   - PersonalNote: Custom message from sender
+//   - ShareURL: Link to full wishlist
+//   - Items: Products to display in email
+//   - ShowCount: Number of items shown
+//   - GeneratedAt: Formatted generation date
+//   - HasMore: true if more items exist beyond preview
+//   - CurrentYear: For copyright footer
 type wishlistTemplateData struct {
 	SenderName    string
 	SenderDetails string
@@ -833,27 +1152,57 @@ type wishlistTemplateData struct {
 	CurrentYear   int
 }
 
+// GenerateWishlistEmailHTML generates HTML email for wishlist sharing.
+//
+// This function:
+// 1. Limits preview to first 3 items (maxPreview)
+// 2. Sets HasMore flag if more items exist
+// 3. Prepares template data with current year
+// 4. Executes HTML template with data
+// 5. Returns complete HTML email
+//
+// Email Features:
+//   - Purple gradient theme
+//   - Sender name and details
+//   - Personal note from sender
+//   - Product preview (max 3 items)
+//   - "View Full Wishlist" button
+//   - Responsive design
+//
+// Parameters:
+//   - senderName: string - Name of wishlist sender
+//   - senderDetails: string - Contact info for sender
+//   - personalMessage: string - Custom message
+//   - shareURL: string - Link to full wishlist
+//   - items: []WishlistItem - Products to display
+//
+// Returns:
+//   - string: Complete HTML email body
+//   - error: Template execution error
 func GenerateWishlistEmailHTML(senderName, senderDetails, personalMessage, shareURL string, items []WishlistItem) (string, error) {
-	const maxPreview = 3
+	const maxPreview = 3 // Show max 3 items in email preview
+	// Determine how many items to show
 	showCount := len(items)
 	hasMore := false
 	if len(items) > maxPreview {
-		showCount = maxPreview
-		hasMore = true
+		showCount = maxPreview // Limit to 3 items
+		hasMore = true         // Flag for "more items" message
 	}
 	currentYear := time.Now().Year()
+	// Prepare template data
 	data := wishlistTemplateData{
 		SenderName:    senderName,
 		SenderDetails: senderDetails,
 		PersonalNote:  personalMessage,
 		ShareURL:      shareURL,
-		Items:         items[:showCount],
+		Items:         items[:showCount], // Slice to max preview
 		ShowCount:     showCount,
 		HasMore:       hasMore,
 		GeneratedAt:   time.Now().Format("January 2, 2006"),
 		CurrentYear:   currentYear,
 	}
 
+	// Parse and execute template
 	tpl := template.Must(template.New("wishlistEmail").Parse(emailTemplate))
 	var buf bytes.Buffer
 	if err := tpl.Execute(&buf, data); err != nil {
@@ -862,6 +1211,13 @@ func GenerateWishlistEmailHTML(senderName, senderDetails, personalMessage, share
 	return buf.String(), nil
 }
 
+// emailTemplate is the HTML template for wishlist sharing emails.
+//
+// Contains responsive HTML with Go template placeholders:
+//   - {{.SenderName}}, {{.SenderDetails}}, {{.PersonalNote}}
+//   - {{.ShareURL}}, {{.GeneratedAt}}, {{.CurrentYear}}
+//   - {{range .Items}} for product iteration
+//   - {{if .HasMore}} for conditional sections
 const emailTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>

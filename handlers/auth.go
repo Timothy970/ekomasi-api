@@ -45,32 +45,46 @@ var verificationRedisKey = "pending_signup:"
 // JWT secret key for token signing
 var jwtSecret = []byte("Q7wcj5g0cDNRxoknR5uu")
 
-/*
-RegisterHandler processes new user registration requests.
-It validates input, checks for existing users, creates the account,
-generates and sends OTP for verification.
-
-Flow:
-1. Validates request body
-2. Checks if email/phone is provided
-3. Validates phone number format if provided
-4. Checks for existing user
-5. Stores user in redis temporarily
-6. Generates and stores OTP
-7. Sends OTP via email/SMS
-*/
+// RegisterHandler processes new user registration requests.
+// It validates input, checks for existing users, creates the account,
+// generates and sends OTP for verification.
+//
+// Flow:
+// 1. Validates request body
+// 2. Checks if email/phone is provided
+// 3. Validates phone number format if provided
+// 4. Checks for existing user
+// 5. Stores user in redis temporarily
+// 6. Generates and stores OTP
+// 7. Sends OTP via email/SMS
+//
+// @Summary      Register a new user
+// @Description  Register a new user with email or phone number
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      dtos.RegisterRequest  true  "Registration details"
+// @Success      201   {object}  dtos.GenericResponse
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      409   {object}  dtos.ErrorResponse
+// @Router       /api/auth/register [post]
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Decode request body
 	req, ok := DecodeRequestBody[dtos.RegisterRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+
+	// Validate request payload
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Auth") {
 		return
 	}
-	// Validate request
+
+	// Validate required fields (email or phone)
 	if req.Phonenumber == "" && req.Email == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -85,6 +99,8 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Validate phone number format
 	if req.Phonenumber != "" {
 		if !utils.IsValidKenyanPhone(req.Phonenumber) {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -101,17 +117,20 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// check if existing user
+
+	// Check if user already exists
 	if !CheckUserExistsByEmailOrPhone(w, r, *req, start, requestSummary) {
 		return
 	}
-	//commented in order to use a hardcode otp for testing - 2025
+
+	// Generate OTP (hardcoded for testing environment)
 	otp := "2025"
 	// otp, err := utils.GenerateOTP()
 	// if err != nil {
 	// 	log.Println("Failed to create OTP:", err)
 	// 	return
 	// }
+
 	// Store temporary registration info in Redis for 10 minutes
 	tempKey := getVerificationRedisKey(req.Email, req.Phonenumber)
 
@@ -128,7 +147,8 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to store temporary registration: %v", err)
 		return
 	}
-	//no sending for now - testing purposes
+
+	// Send OTP (disabled for testing)
 	// if req.Email != "" {
 	// 	htmlBody := utils.GenerateOTPEmailHTML(otp)
 	// 	notification.SendEmail(req.Email, subject, htmlBody)
@@ -136,6 +156,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// if req.Phonenumber != "" {
 	// 	notification.SendSmsMessages(req.Phonenumber, fmt.Sprintf(message, otp))
 	// }
+
 	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -199,21 +220,32 @@ func CheckUserExistsByEmailOrPhone(w http.ResponseWriter, r *http.Request, req d
 	return true
 }
 
-/*
-VerifySignupOTPHandler verifies OTP during signup process.
-It validates the OTP sent during registration and generates auth tokens
-on successful verification.
-
-Flow:
-1. Validates request (email/phone + OTP)
-2. Looks up user
-3. Validates OTP
-4. Generates auth tokens
-5. Updates last login
-6. Returns tokens
-*/
+// VerifySignupOTPHandler verifies OTP during signup process.
+// It validates the OTP sent during registration and generates auth tokens
+// on successful verification.
+//
+// Flow:
+// 1. Validates request (email/phone + OTP)
+// 2. Looks up user
+// 3. Validates OTP
+// 4. Generates auth tokens
+// 5. Updates last login
+// 6. Returns tokens
+//
+// @Summary      Verify signup OTP
+// @Description  Verify OTP for new user registration
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      dtos.VerifyOTP  true  "OTP verification details"
+// @Success      200   {object}  dtos.LoginResponse
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      404   {object}  dtos.ErrorResponse
+// @Failure      500   {object}  dtos.ErrorResponse
+// @Router       /api/auth/verify-otp [post]
 func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Decode request body
@@ -471,38 +503,52 @@ func validateOtp(userID string, req dtos.VerifyOTP) error {
 	return nil
 }
 
-/*
-LoginHandler processes user login requests.
-It implements rate limiting and jail mechanism for failed attempts.
-Sends OTP for two-factor authentication.
-
-Flow:
-1. Validates login request
-2. Checks if user is jailed
-3. Verifies user exists
-4. Generates and sends OTP
-5. Clears failed attempts on success
-*/
+// LoginHandler processes user login requests.
+// It implements rate limiting and jail mechanism for failed attempts.
+// Sends OTP for two-factor authentication.
+//
+// Flow:
+// 1. Validates login request
+// 2. Checks if user is jailed
+// 3. Verifies user exists
+// 4. Generates and sends OTP
+// 5. Clears failed attempts on success
+//
+// @Summary      User Login
+// @Description  Authenticate user and send OTP
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      dtos.LoginRequest  true  "Login credentials"
+// @Success      200   {object}  dtos.GenericResponse
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      429   {object}  dtos.ErrorResponse
+// @Router       /api/auth/login [post]
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
+	// Decode request body
 	req, err := decodeLoginRequest(r)
 	if err != nil {
 		respondBadRequest(w, "Invalid Payload", start, r, requestSummary)
 		return
 	}
+	// Validate request payload
 	if err := validateLoginRequest(req); err != nil {
 		respondBadRequest(w, err.Error(), start, r, requestSummary)
 		return
 	}
 
+	// Check for rate limiting/jail
 	identifier := getIdentifier(req)
 	if jailed, _ := isUserJailed(identifier); jailed {
 		respondTooManyAttempts(w, start, r, requestSummary)
 		return
 	}
 
+	// Check if user exists
 	user, err := fetchUser(req.Email, req.Phone)
 	if err != nil {
 		log.Printf("%v", err)
@@ -524,22 +570,26 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// hardcoded otp for testing - 2025
+	// Generate OTP (hardcoded for testing)
 	otp := "2025"
 	// otp, err := utils.GenerateOTP()
 	// if err != nil {
 	// 	log.Println("Failed to generate:", err)
 	// 	return
 	// }
+
+	// Store OTP in Redis
 	if err := StoreOTPInRedis(user.ID, otp, 5*time.Minute); err != nil {
 		log.Println("Failed to store:", err)
 		respondInternalError(w, "Failed to generate OTP", start, r, requestSummary)
 		return
 	}
 
+	// Clear failed login attempts
 	clearLoginAttempts(identifier)
 	// dispatchOTP(user, otp, *req)
 
+	// Respond with success
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Auth",
@@ -555,26 +605,45 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// AdminLoginHandler processes admin login requests.
+// It enforces role-based access control, allowing only non-customer roles.
+//
+// @Summary      Admin Login
+// @Description  Authenticate admin user and send OTP
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      dtos.LoginRequest  true  "Login credentials"
+// @Success      200   {object}  dtos.GenericResponse
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      401   {object}  dtos.ErrorResponse
+// @Failure      429   {object}  dtos.ErrorResponse
+// @Router       /api/admin/login [post]
 func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
+	// Decode request body
 	req, err := decodeLoginRequest(r)
 	if err != nil {
 		respondBadRequest(w, "Invalid request", start, r, requestSummary)
 		return
 	}
+	// Validate request payload
 	if err := validateLoginRequest(req); err != nil {
 		respondBadRequest(w, err.Error(), start, r, requestSummary)
 		return
 	}
 
+	// Check for rate limiting/jail
 	identifier := getIdentifier(req)
 	if jailed, _ := isUserJailed(identifier); jailed {
 		respondTooManyAttempts(w, start, r, requestSummary)
 		return
 	}
 
+	// Check if user exists
 	user, err := fetchUser(req.Email, req.Phone)
 	if err != nil {
 		log.Printf("%v", err)
@@ -596,7 +665,7 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//only allow non-customer roles to login here
+	// Enforce role-based access (non-customers only)
 	if user.Role != "" && strings.ToLower(user.Role) == "customer" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -611,7 +680,8 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	// hardcoded otp for testing - 2025
+
+	// Generate OTP (hardcoded for testing)
 	otp := "2025"
 	//
 	// otp, err := utils.GenerateOTP()
@@ -619,15 +689,19 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 	// 	log.Println("Failed to generate one time password:", err)
 	// 	return
 	// }
+
+	// Store OTP in Redis
 	if err := StoreOTPInRedis(user.ID, otp, 5*time.Minute); err != nil {
 		log.Println("Failed to store one time password:", err)
 		respondInternalError(w, "Failed to store OTP", start, r, requestSummary)
 		return
 	}
 
+	// Clear failed login attempts
 	clearLoginAttempts(identifier)
 	// dispatchOTP(user, otp, *req)
 
+	// Respond with success
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Auth",
@@ -643,36 +717,51 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-/*
-RefreshTokenHandler handles token refresh requests.
-Issues new access and refresh tokens if the refresh token is valid.
-
-Flow:
-1. Validates refresh token
-2. Verifies user still exists
-3. Generates new token pair
-4. Updates last login time
-*/
+// RefreshTokenHandler handles token refresh requests.
+// Issues new access and refresh tokens if the refresh token is valid.
+//
+// Flow:
+// 1. Validates refresh token
+// 2. Verifies user still exists
+// 3. Generates new token pair
+// 4. Updates last login time
+//
+// @Summary      Refresh Token
+// @Description  Refresh access and refresh tokens
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      dtos.RefreshTokenRequest  true  "Refresh token"
+// @Success      200   {object}  dtos.LoginResponse
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      401   {object}  dtos.ErrorResponse
+// @Failure      500   {object}  dtos.ErrorResponse
+// @Router       /api/auth/refresh-token [post]
 func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
+	// Decode request body
 	req, err := decodeLoginRequest(r)
 	if err != nil {
 		respondBadRequest(w, "Invalid request", start, r, requestSummary)
 		return
 	}
+	// Validate request payload
 	if err := validateLoginRequest(req); err != nil {
 		respondBadRequest(w, err.Error(), start, r, requestSummary)
 		return
 	}
 
+	// Check for rate limiting/jail
 	identifier := getIdentifier(req)
 	if jailed, _ := isUserJailed(identifier); jailed {
 		respondTooManyAttempts(w, start, r, requestSummary)
 		return
 	}
 
+	// Check if user exists
 	user, err := fetchUser(req.Email, req.Phone)
 	if err != nil {
 		log.Printf("ERR:::::::::::%v", err)
@@ -693,7 +782,8 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	// validate it a good refresh token
+
+	// Generate new tokens
 	// Generate token that expires after 7 days
 	tokenExpirationTime := 7 * 24 * time.Hour
 	// for admin the token expiration time is 1 day
@@ -742,19 +832,26 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-/*
-LogoutHandler invalidates the current user's token.
-Adds token to blacklist in Redis until original expiration.
-
-Flow:
-1. Extracts token
-2. Gets token expiration
-3. Adds to blacklist
-*/
+// LogoutHandler invalidates the current user's token.
+// Adds token to blacklist in Redis until original expiration.
+//
+// Flow:
+// 1. Extracts token
+// 2. Gets token expiration
+// 3. Adds to blacklist
+//
+// @Summary      Logout
+// @Description  Invalidate current session token
+// @Tags         Auth
+// @Success      200   {object}  dtos.GenericResponse
+// @Security     BearerAuth
+// @Router       /api/auth/logout [post]
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	token := utils.ExtractToken(r.Header.Get("Authorization"))
+
 	// Parse token to get expiration time
 	claims := &dtos.CustomClaims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
@@ -775,6 +872,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Respond with success
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Auth",

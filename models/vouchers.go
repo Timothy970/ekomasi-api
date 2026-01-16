@@ -1,3 +1,13 @@
+// Package models provides data access functions for the Adenzo e-commerce platform.
+//
+// This file contains functions for managing vouchers (gift certificates):
+//   - Voucher CRUD operations (create, retrieve, update, delete)
+//   - Voucher code generation and validation
+//   - Voucher purchase and redemption workflow
+//   - Voucher design management
+//   - Voucher history tracking and usage analytics
+//   - Email scheduling for voucher delivery
+//   - Pagination support for voucher listings
 package models
 
 import (
@@ -18,12 +28,25 @@ import (
 	"github.com/teris-io/shortid"
 )
 
+// StringToTime parses a datetime string into a time.Time object.
+//
+// This utility function attempts multiple common datetime formats:
+//   - "2006-01-02 15:04:05" (datetime with seconds)
+//   - "2006-01-02" (date only)
+//
+// Parameters:
+//   - str: string - The datetime string to parse
+//
+// Returns:
+//   - time.Time: Parsed time, or zero time if parsing fails
 func StringToTime(str string) time.Time {
+	// Define supported datetime formats
 	formats := []string{
 		"2006-01-02 15:04:05",
 		"2006-01-02",
 	}
 
+	// Try each format until one succeeds
 	for _, layout := range formats {
 		t, err := time.Parse(layout, str)
 		if err == nil {
@@ -31,12 +54,34 @@ func StringToTime(str string) time.Time {
 		}
 	}
 
+	// Log error and return zero time if no format matched
 	fmt.Println("Error parsing time:", str)
 	return time.Time{}
 }
+
+// StringToBool converts a string to a boolean value.
+//
+// This utility function treats "true" and "1" as true,
+// all other values as false.
+//
+// Parameters:
+//   - str: string - The string to convert ("true", "1", etc.)
+//
+// Returns:
+//   - bool: true if str is "true" or "1", false otherwise
 func StringToBool(str string) bool {
 	return str == "true" || str == "1"
 }
+
+// StringToFloat64 converts a string to a float64 value.
+//
+// This utility function parses numeric strings, returning 0 on error.
+//
+// Parameters:
+//   - str: string - The numeric string to convert
+//
+// Returns:
+//   - float64: Parsed float value, or 0.0 if parsing fails
 func StringToFloat64(str string) float64 {
 	value, err := strconv.ParseFloat(str, 64)
 	if err != nil {
@@ -44,7 +89,19 @@ func StringToFloat64(str string) float64 {
 	}
 	return value
 }
+
+// IsVoucherThere validates that a voucher exists in the database.
+//
+// This helper function is used before voucher operations to ensure
+// the voucher ID is valid.
+//
+// Parameters:
+//   - voucherID: string - The unique voucher ID to check
+//
+// Returns:
+//   - error: "voucher not found", database error, or nil if voucher exists
 func IsVoucherThere(voucherID string) error {
+	// Check voucher existence
 	exists, err := RecordExists("vouchers", "voucher_id = ?", voucherID)
 	if err != nil {
 		return err
@@ -55,10 +112,22 @@ func IsVoucherThere(voucherID string) error {
 	return nil
 }
 
+// secureRandomString generates a cryptographically secure random string.
+//
+// This helper function uses crypto/rand for secure random character selection
+// from the alphabet (a-z, A-Z).
+//
+// Parameters:
+//   - length: int - Number of characters to generate
+//
+// Returns:
+//   - string: Random string of specified length
+//   - error: Cryptographic error or nil on success
 func secureRandomString(length int) (string, error) {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	result := make([]byte, length)
 
+	// Generate each character using crypto/rand
 	for i := 0; i < length; i++ {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
 		if err != nil {
@@ -69,26 +138,52 @@ func secureRandomString(length int) (string, error) {
 	return string(result), nil
 }
 
-// GenerateVoucherCode creates a secure voucher code like "AbCD-1a2b3c4d5e"
+// GenerateVoucherCode creates a unique, secure voucher code.
+//
+// The generated code format is: "AbCD-1a2b3c4d5e"
+//   - First 4 characters: Random letters (a-z, A-Z)
+//   - Hyphen separator
+//   - Last 12 characters: Hexadecimal (from 6 random bytes)
+//
+// Returns:
+//   - string: Generated voucher code in format "XXXX-XXXXXXXXXXXX"
+//   - error: Cryptographic error or nil on success
 func GenerateVoucherCode() (string, error) {
-	// generate 4 random letters
+	// Generate 4 random letters for prefix
 	prefix, err := secureRandomString(4)
 	if err != nil {
 		return "", err
 	}
 
-	// generate 6 random bytes (12 hex chars)
+	// Generate 6 random bytes (12 hex characters) for suffix
 	bytes := make([]byte, 6)
-	if _, err := rand.Read(bytes); err != nil { // ✅ crypto/rand.Read
+	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}
 	suffix := hex.EncodeToString(bytes)
 
+	// Combine with hyphen separator
 	return fmt.Sprintf("%s-%s", prefix, suffix), nil
 }
+
+// CreateVoucherOrder creates a new voucher purchase order.
+//
+// This function creates a pending order record for voucher purchase,
+// tracking the amount and payment method.
+//
+// Parameters:
+//   - amount: float64 - Voucher purchase amount
+//   - voucherID: string - The voucher ID being purchased
+//   - paymentMethod: string - Payment method (e.g., "MPESA", "CARD")
+//
+// Returns:
+//   - string: Generated voucher order ID
+//   - error: Database error or nil on success
 func CreateVoucherOrder(amount float64, voucherID string, paymentMethod string) (string, error) {
+	// Generate unique voucher order ID
 	voucherOrderID, _ := shortid.Generate()
-	// generate unique code
+
+	// Insert voucher order with PENDING status
 	query := `
 		INSERT INTO voucher_orders (voucher_order_id, voucher_id, amount, status, payment_method)
 		VALUES (?, ?, ?, ?,?)
@@ -99,7 +194,21 @@ func CreateVoucherOrder(amount float64, voucherID string, paymentMethod string) 
 	}
 	return voucherOrderID, nil
 }
+
+// UpdateVoucherPurchaseAmount increments the amount of an existing voucher order.
+//
+// This function adds to the existing voucher order amount and returns
+// the voucher order ID.
+//
+// Parameters:
+//   - amount: float64 - Amount to add to the existing order
+//   - voucherID: string - The voucher ID to update
+//
+// Returns:
+//   - string: The voucher order ID
+//   - error: Database error or nil on success
 func UpdateVoucherPurchaseAmount(amount float64, voucherID string) (string, error) {
+	// Increment voucher order amount
 	query := `
 		UPDATE voucher_orders SET amount = amount + ? WHERE voucher_id = ?
 	`
@@ -107,6 +216,8 @@ func UpdateVoucherPurchaseAmount(amount float64, voucherID string) (string, erro
 	if err != nil {
 		return "", err
 	}
+
+	// Retrieve the voucher order ID
 	selectQuery := `
 		SELECT voucher_order_id FROM voucher_orders WHERE voucher_id = ?
 	`
@@ -117,18 +228,43 @@ func UpdateVoucherPurchaseAmount(amount float64, voucherID string) (string, erro
 	}
 	return voucherOrderID, nil
 }
+
+// AddNewVoucher creates a new voucher with design validation.
+//
+// This function validates the design ID, generates a unique voucher code,
+// and creates a voucher with the specified amount and expiry date.
+//
+// Parameters:
+//   - v: dtos.Voucher containing:
+//   - Amount: Voucher value
+//   - ExpiryDate: Expiration date
+//   - DesignID: Pointer to design ID (must be valid and active)
+//   - Status: Pointer to status (defaults to "inactive" if nil)
+//   - userID: string - ID of the user creating the voucher
+//
+// Returns:
+//   - string: Generated voucher ID
+//   - error: "design not found", "design not active", database error, or nil on success
 func AddNewVoucher(v dtos.Voucher, userID string) (string, error) {
+	// Validate design exists and is active
 	err := ValidateDesignID(*v.DesignID)
 	if err != nil {
 		return "", err
 	}
+
+	// Generate unique voucher ID
 	voucherID, _ := shortid.Generate()
+
+	// Set default status
 	status := "inactive"
 	if v.Status != nil {
 		status = *v.Status
 	}
-	// generate unique code
+
+	// Generate unique voucher code
 	code, _ := GenerateVoucherCode()
+
+	// Insert new voucher (balance initially equals original value)
 	query := `
 		INSERT INTO vouchers (voucher_id, code, original_value, status,user_id, expiry_date, balance, design_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -139,9 +275,29 @@ func AddNewVoucher(v dtos.Voucher, userID string) (string, error) {
 	}
 	return voucherID, nil
 }
+
+// InsertIntoVoucherPurchases creates a voucher purchase record.
+//
+// This function tracks the voucher purchase details including sender, recipient,
+// personalized message, and delivery scheduling.
+//
+// Parameters:
+//   - v: dtos.BuyVoucherData containing:
+//   - ToName: Recipient name
+//   - ToEmail: Recipient email address
+//   - Message: Personalized message
+//   - DeliveryTime: Scheduled delivery time
+//   - FromName: Sender name
+//   - userID: string - ID of the purchasing user
+//   - voucherID: string - The voucher ID being purchased
+//
+// Returns:
+//   - error: Database error or nil on success
 func InsertIntoVoucherPurchases(v dtos.BuyVoucherData, userID, voucherID string) error {
+	// Generate unique purchase ID
 	purchaseID, _ := shortid.Generate()
-	// generate unique code
+
+	// Insert voucher purchase record with PENDING status
 	query := `
 		INSERT INTO voucher_purchases (purchase_id, voucher_id, from_user_id, to_name, to_email,personalized_msg, delivery_time, status, from_name)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -152,7 +308,26 @@ func InsertIntoVoucherPurchases(v dtos.BuyVoucherData, userID, voucherID string)
 	}
 	return nil
 }
+
+// ListVouchers retrieves vouchers with pagination and dynamic filtering.
+//
+// This function supports filtering by redemption status, voucher status,
+// code search, and customer search (name or email).
+//
+// Parameters:
+//   - page: int - Page number (minimum 1)
+//   - size: int - Items per page (minimum 1, defaults to 10)
+//   - isRedeemed: string - Filter by redemption status ("true"/"false", empty for all)
+//   - status: string - Filter by voucher status (e.g., "active", "inactive")
+//   - code: string - Search by voucher code (partial match)
+//   - customer: string - Search by customer name or email (partial match)
+//
+// Returns:
+//   - []dtos.VoucherData: Array of vouchers with participant info
+//   - *dtos.PaginationMeta: Pagination metadata
+//   - error: Database error or nil on success
 func ListVouchers(page, size int, isRedeemed, status, code, customer string) ([]dtos.VoucherData, *dtos.PaginationMeta, error) {
+	// Validate and set defaults for pagination
 	if page < 1 {
 		page = 1
 	}
@@ -161,7 +336,7 @@ func ListVouchers(page, size int, isRedeemed, status, code, customer string) ([]
 	}
 	offset := (page - 1) * size
 
-	// Build base query and args dynamically
+	// Build base query with dynamic filters
 	baseQuery := `
 		FROM vouchers v
 		LEFT JOIN voucher_purchases vp ON v.voucher_id = vp.voucher_id
@@ -169,34 +344,39 @@ func ListVouchers(page, size int, isRedeemed, status, code, customer string) ([]
 	`
 	args := []interface{}{}
 
-	// Optional filters
+	// Apply isRedeemed filter
 	if isRedeemed != "" {
 		baseQuery += " AND v.is_redeemed = ?"
 		redeemed := isRedeemed == "true"
 		args = append(args, redeemed)
 	}
 
+	// Apply status filter
 	if status != "" {
 		baseQuery += " AND v.status = ?"
 		args = append(args, status)
 	}
+
+	// Apply code search filter (partial match)
 	if code != "" {
 		baseQuery += " AND v.code LIKE ?"
 		args = append(args, "%"+code+"%")
 	}
+
+	// Apply customer search filter (matches name or email)
 	if customer != "" {
 		baseQuery += " AND (vp.to_email LIKE ? OR vp.to_name LIKE ? OR vp.from_name LIKE ?)"
 		args = append(args, "%"+customer+"%", "%"+customer+"%", "%"+customer+"%")
 	}
 
-	// Count total
+	// Count total matching vouchers
 	countQuery := "SELECT COUNT(*) " + baseQuery
 	var total int
 	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
 		return nil, nil, fmt.Errorf("failed to count vouchers: %w", err)
 	}
 
-	// Fetch vouchers with pagination
+	// Fetch paginated vouchers
 	selectQuery := `
 		SELECT v.voucher_id, v.code, v.balance, v.original_value, v.status, v.created_at, v.expiry_date, v.user_id, v.is_redeemed
 	` + baseQuery + `
@@ -211,6 +391,7 @@ func ListVouchers(page, size int, isRedeemed, status, code, customer string) ([]
 	}
 	defer rows.Close()
 
+	// Process each voucher
 	var vouchers []dtos.VoucherData
 	for rows.Next() {
 		var v dtos.VoucherData
@@ -223,7 +404,7 @@ func ListVouchers(page, size int, isRedeemed, status, code, customer string) ([]
 			return nil, nil, fmt.Errorf("failed to scan voucher: %w", err)
 		}
 
-		// Get participants
+		// Get sender and recipient information
 		v.To, v.From, err = getVoucherParticipants(v.VoucherID, userID)
 		if err != nil {
 			return nil, nil, err
@@ -232,11 +413,12 @@ func ListVouchers(page, size int, isRedeemed, status, code, customer string) ([]
 		vouchers = append(vouchers, v)
 	}
 
+	// Build pagination metadata
 	meta := dtos.PaginationMeta{
 		Page:       page,
 		Size:       size,
 		TotalItems: total,
-		TotalPages: (total + size - 1) / size,
+		TotalPages: (total + size - 1) / size, // Ceiling division
 		HasPrev:    page > 1,
 		HasNext:    page*size < total,
 	}
@@ -244,11 +426,25 @@ func ListVouchers(page, size int, isRedeemed, status, code, customer string) ([]
 	return vouchers, &meta, nil
 }
 
+// getVoucherParticipants retrieves sender and recipient contact information.
+//
+// This helper function fetches the sender's contact info (email/phone) and
+// recipient's email from voucher_purchases. Falls back to user table if
+// voucher purchase record is not found.
+//
+// Parameters:
+//   - voucherID: string - The voucher ID to get participants for
+//   - userID: string - Fallback user ID if purchase record not found
+//
+// Returns:
+//   - *string: Sender contact (email or phone)
+//   - *string: Recipient email
+//   - error: Database error or nil on success
 func getVoucherParticipants(voucherID, userID string) (*string, *string, error) {
 	log.Printf("getting voucher participants****")
 	var phone, email, toEmail sql.NullString
 
-	// Fetch sender details and recipient email
+	// Fetch sender details and recipient email from purchase record
 	err := DB.QueryRow(`
 		SELECT u.phone_number, u.email, v.to_email
 		FROM voucher_purchases v
@@ -258,7 +454,7 @@ func getVoucherParticipants(voucherID, userID string) (*string, *string, error) 
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// Fallback: get phone/email for provided userID if no voucher record found
+			// Fallback: Get phone/email for provided userID
 			var fallbackPhone, fallbackEmail sql.NullString
 			fallbackErr := DB.QueryRow(`
 				SELECT phone_number, email FROM users WHERE user_id = ?
@@ -268,6 +464,7 @@ func getVoucherParticipants(voucherID, userID string) (*string, *string, error) 
 				return nil, nil, fallbackErr
 			}
 
+			// Return email if available, otherwise phone
 			if fallbackEmail.Valid {
 				return &fallbackEmail.String, &fallbackEmail.String, nil
 			}
@@ -279,72 +476,121 @@ func getVoucherParticipants(voucherID, userID string) (*string, *string, error) 
 		return nil, nil, fmt.Errorf("failed to fetch voucher participants: %w", err)
 	}
 
-	// Prefer email if available; otherwise, use phone
+	// Return email if available, otherwise phone
 	if email.Valid {
 		return &email.String, &toEmail.String, nil
 	}
 	return &phone.String, &toEmail.String, nil
 }
 
+// GetVoucherByID retrieves detailed voucher information by ID.
+//
+// This function fetches complete voucher details including participant info
+// and usage history.
+//
+// Parameters:
+//   - voucherID: string - The unique voucher ID
+//
+// Returns:
+//   - dtos.SingleVoucherData: Complete voucher data with history
+//   - error: "voucher not found", database error, or nil on success
 func GetVoucherByID(voucherID string) (dtos.SingleVoucherData, error) {
+	// Validate voucher exists
 	err := IsVoucherThere(voucherID)
 	if err != nil {
 		return dtos.SingleVoucherData{}, err
 	}
+
 	var v dtos.SingleVoucherData
 	var userID string
 	query := `SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date, is_redeemed, user_id FROM vouchers WHERE voucher_id = ?`
 
+	// Retrieve voucher basic info
 	err = DB.QueryRow(query, voucherID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.Status, &v.CreatedAt, &v.ExpiryDate, &v.IsReedemed, &userID)
 	if err != nil {
 		return dtos.SingleVoucherData{}, err
 	}
+
+	// Get sender and recipient information
 	v.To, v.From, err = getVoucherParticipants(v.VoucherID, userID)
 	if err != nil {
 		return dtos.SingleVoucherData{}, err
 	}
-	//get voucher history
+
+	// Get voucher usage history
 	v.VoucherHistory, err = GetVoucherHistoryByVoucherID(voucherID)
 	if err != nil {
 		return dtos.SingleVoucherData{}, err
 	}
+
 	return v, nil
 }
+
+// GetUserVoucherByID retrieves a specific voucher for a user.
+//
+// This function is similar to GetVoucherByID but validates user ownership.
+//
+// Parameters:
+//   - voucherID: string - The unique voucher ID
+//   - userID: string - The user ID to validate ownership
+//
+// Returns:
+//   - dtos.SingleVoucherData: Complete voucher data with history
+//   - error: "voucher not found", database error, or nil on success
 func GetUserVoucherByID(voucherID, userID string) (dtos.SingleVoucherData, error) {
+	// Validate voucher exists
 	err := IsVoucherThere(voucherID)
 	if err != nil {
 		return dtos.SingleVoucherData{}, err
 	}
+
 	var v dtos.SingleVoucherData
+	// Query voucher with user ownership validation
 	query := `SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date, is_redeemed FROM vouchers WHERE voucher_id = ? AND user_id = ?`
 
 	err = DB.QueryRow(query, voucherID, userID).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.Status, &v.CreatedAt, &v.ExpiryDate, &v.IsReedemed)
 	if err != nil {
 		return dtos.SingleVoucherData{}, err
 	}
+
+	// Get participant information
 	v.To, v.From, err = getVoucherParticipants(v.VoucherID, userID)
 	if err != nil {
 		return dtos.SingleVoucherData{}, err
 	}
-	//get voucher history
+
+	// Get voucher usage history
 	v.VoucherHistory, err = GetVoucherHistoryByVoucherID(voucherID)
 	if err != nil {
 		return dtos.SingleVoucherData{}, err
 	}
+
 	return v, nil
 }
-func GetUserVouchers(userID string, page, limit int) ([]dtos.VoucherData, *PaginationMeta, error) {
 
+// GetUserVouchers retrieves all vouchers belonging to a user with pagination.
+//
+// Parameters:
+//   - userID: string - The user ID to retrieve vouchers for
+//   - page: int - Page number (1-based)
+//   - limit: int - Items per page
+//
+// Returns:
+//   - []dtos.VoucherData: Array of user's vouchers
+//   - *PaginationMeta: Pagination metadata
+//   - error: Database error or nil on success
+func GetUserVouchers(userID string, page, limit int) ([]dtos.VoucherData, *PaginationMeta, error) {
+	// Calculate offset for pagination
 	offset := (page - 1) * limit
 
-	// Count total vouchers
+	// Count total vouchers for user
 	var total int
 	countQuery := `SELECT COUNT(*) FROM vouchers WHERE user_id = ?`
 	if err := DB.QueryRow(countQuery, userID).Scan(&total); err != nil {
 		return nil, nil, err
 	}
 
-	// Fetch vouchers with pagination
+	// Fetch paginated vouchers
 	query := `
 		SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date
 		FROM vouchers
@@ -358,6 +604,7 @@ func GetUserVouchers(userID string, page, limit int) ([]dtos.VoucherData, *Pagin
 	}
 	defer rows.Close()
 
+	// Process results
 	var vouchers []dtos.VoucherData
 	for rows.Next() {
 		var v dtos.VoucherData
@@ -367,7 +614,7 @@ func GetUserVouchers(userID string, page, limit int) ([]dtos.VoucherData, *Pagin
 		vouchers = append(vouchers, v)
 	}
 
-	// Calculate pagination metadata
+	// Build pagination metadata
 	totalPages := int(math.Ceil(float64(total) / float64(limit)))
 	pagination := &PaginationMeta{
 		Page:       page,
@@ -381,11 +628,21 @@ func GetUserVouchers(userID string, page, limit int) ([]dtos.VoucherData, *Pagin
 	return vouchers, pagination, nil
 }
 
+// DeleteVoucher permanently removes a voucher from the system.
+//
+// Parameters:
+//   - voucherID: string - The voucher ID to delete
+//
+// Returns:
+//   - error: "voucher not found", database error, or nil on success
 func DeleteVoucher(voucherID string) error {
+	// Validate voucher exists
 	err := IsVoucherThere(voucherID)
 	if err != nil {
 		return err
 	}
+
+	// Delete voucher record
 	_, err = DB.Exec(`DELETE FROM vouchers WHERE voucher_id = ?`, voucherID)
 	if err != nil {
 		return err
@@ -393,7 +650,19 @@ func DeleteVoucher(voucherID string) error {
 	return nil
 }
 
+// VoucherUpdate updates voucher and purchase details.
+//
+// This function updates both the voucher table (amount, expiry, status)
+// and the voucher_purchases table (recipient info, message, delivery time).
+//
+// Parameters:
+//   - input: dtos.VoucherDataUpdate containing updated voucher data
+//   - voucherID: string - The voucher ID to update
+//
+// Returns:
+//   - error: "voucher not found", database error, or nil on success
 func VoucherUpdate(input dtos.VoucherDataUpdate, voucherID string) error {
+	// Validate voucher exists
 	err := IsVoucherThere(voucherID)
 	if err != nil {
 		return err
@@ -424,7 +693,19 @@ func VoucherUpdate(input dtos.VoucherDataUpdate, voucherID string) error {
 	}
 	return nil
 }
+
+// isTransactionIDUnique checks if a transaction ID is already in use.
+//
+// This validation prevents duplicate payment processing by ensuring
+// each transaction ID is used only once.
+//
+// Parameters:
+//   - id: string - The transaction ID to check
+//
+// Returns:
+//   - error: "duplicate transaction id" if exists, database error, or nil if unique
 func isTransactionIDUnique(id string) error {
+	// Check if transaction ID exists in payments table
 	exists, err := RecordExists("payments", "transaction_id = ?", id)
 	if err != nil {
 		return err
@@ -434,7 +715,16 @@ func isTransactionIDUnique(id string) error {
 	}
 	return nil
 }
+
+// IsVoucherThereByCode validates if a voucher code exists in the system.
+//
+// Parameters:
+//   - code: string - The voucher code to validate
+//
+// Returns:
+//   - error: "voucher with this code not found" or database error, nil if exists
 func IsVoucherThereByCode(code string) error {
+	// Check if voucher code exists
 	exists, err := RecordExists("vouchers", "code = ?", code)
 	if err != nil {
 		return err
@@ -444,28 +734,59 @@ func IsVoucherThereByCode(code string) error {
 	}
 	return nil
 }
+
+// RedeemVoucher processes voucher redemption by a user.
+//
+// This function validates the voucher (exists, active, not expired) and
+// assigns it to the redeeming user. The voucher balance remains unchanged
+// until used in a transaction.
+//
+// Parameters:
+//   - code: string - The voucher code to redeem
+//   - userID: string - The user redeeming the voucher
+//
+// Returns:
+//   - *dtos.VoucherData: The redeemed voucher data
+//   - error: Validation error (not found, inactive, expired) or database error
 func RedeemVoucher(code, userID string) (*dtos.VoucherData, error) {
+	// Validate voucher exists
 	err := IsVoucherThereByCode(code)
 	if err != nil {
 		return nil, err
 	}
+
+	// Retrieve voucher details
 	voucher, err := GetVoucherByCode(code)
 	if err != nil {
 		return nil, err
 	}
+
+	// Validate status is active
 	if voucher.Status != "active" {
 		return nil, fmt.Errorf("voucher is not active")
 	}
+
+	// Check voucher has not expired
 	if voucher.ExpiryDate.Before(time.Now()) {
 		return nil, fmt.Errorf("voucher has expired")
 	}
-	//set user id to the one passed
+
+	// Assign voucher to redeeming user
 	_, err = DB.Exec(`UPDATE vouchers SET user_id = ? WHERE code = ?`, userID, code)
 	return &voucher, err
 }
 
+// GetVoucherByCode retrieves voucher details using the code.
+//
+// Parameters:
+//   - code: string - The voucher code to retrieve
+//
+// Returns:
+//   - dtos.VoucherData: Voucher data
+//   - error: "voucher not found", database error, or nil on success
 func GetVoucherByCode(code string) (dtos.VoucherData, error) {
 	var v dtos.VoucherData
+	// Retrieve voucher by code
 	query := `SELECT voucher_id, code, balance, original_value, status, created_at, expiry_date FROM vouchers WHERE code = ?`
 
 	err := DB.QueryRow(query, code).Scan(&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.Status, &v.CreatedAt, &v.ExpiryDate)
@@ -475,9 +796,17 @@ func GetVoucherByCode(code string) (dtos.VoucherData, error) {
 	return v, nil
 }
 
-// fetch voucher_id, from name, toname, to email, personalized msg, delivery time which is equal or less than now and status is PENDING from voucher_purchases table
-// then get voucher original value from vouchers table using voucher_id
+// GetUsersWithUnsentVoucherEmails retrieves vouchers ready for email delivery.
+//
+// This function finds all voucher purchases where:
+// - Delivery time has arrived (delivery_time <= current time)
+// - Email status is still PENDING
+//
+// Returns:
+//   - []dtos.VoucherEmailInfo: Array of vouchers ready to send with sender/recipient details
+//   - error: Database error or nil on success
 func GetUsersWithUnsentVoucherEmails() ([]dtos.VoucherEmailInfo, error) {
+	// Fetch vouchers ready for delivery
 	rows, err := DB.Query(`
 		SELECT vp.voucher_id, vp.from_name, vp.to_name, vp.to_email, vp.personalized_msg, vp.delivery_time, v.original_value, v.expiry_date, v.code
 		FROM voucher_purchases vp
@@ -488,6 +817,7 @@ func GetUsersWithUnsentVoucherEmails() ([]dtos.VoucherEmailInfo, error) {
 	}
 	defer rows.Close()
 
+	// Process each pending voucher
 	var infos []dtos.VoucherEmailInfo
 	for rows.Next() {
 		var info dtos.VoucherEmailInfo
@@ -501,15 +831,40 @@ func GetUsersWithUnsentVoucherEmails() ([]dtos.VoucherEmailInfo, error) {
 	return infos, nil
 }
 
-// mark voucher email as sent by updating status to SENT in voucher_purchases table
+// MarkVoucherEmailAsSent updates email delivery status to SENT.
+//
+// Call this after successfully sending the voucher email to prevent
+// duplicate deliveries.
+//
+// Parameters:
+//   - voucherID: string - The voucher ID that was emailed
+//
+// Returns:
+//   - error: Database error or nil on success
 func MarkVoucherEmailAsSent(voucherID string) error {
+	// Update email status to SENT
 	_, err := DB.Exec(`UPDATE voucher_purchases SET status = 'SENT' WHERE voucher_id = ?`, voucherID)
 	return err
 }
 
+// CreateVoucherDesign creates a new voucher design template.
+//
+// Design templates define the visual appearance of vouchers and can be
+// reused for multiple vouchers. Designs can be active or inactive.
+//
+// Parameters:
+//   - url: string - URL to the design image/template
+//   - name: string - Name of the design template
+//   - status: string - Status ("active" or "inactive")
+//
+// Returns:
+//   - string: The generated design ID
+//   - error: Database error or nil on success
 func CreateVoucherDesign(url, name, status string) (string, error) {
+	// Generate unique design ID
 	designID, _ := shortid.Generate()
-	// generate unique code
+
+	// Insert design template
 	query := `
 		INSERT INTO voucher_designs (design_id, url, name, status)
 		VALUES (?, ?, ?, ?)
@@ -521,12 +876,23 @@ func CreateVoucherDesign(url, name, status string) (string, error) {
 	return designID, nil
 }
 
+// GetVoucherDesign retrieves a specific design template.
+//
+// Parameters:
+//   - designID: string - The unique design ID
+//
+// Returns:
+//   - dtos.VoucherDesign: Design template data with URL, name, status, created date
+//   - error: "design not found", database error, or nil on success
 func GetVoucherDesign(designID string) (dtos.VoucherDesign, error) {
+	// Validate design exists
 	err := isVoucherDesignThere(designID)
 	if err != nil {
 		return dtos.VoucherDesign{}, err
 	}
+
 	var design dtos.VoucherDesign
+	// Retrieve design by ID
 	query := `SELECT url, name, status, created_at FROM voucher_designs WHERE design_id = ? LIMIT 1`
 	err = DB.QueryRow(query, designID).Scan(&design.URL, &design.Name, &design.Status, &design.Created_At)
 	if err != nil {
@@ -537,23 +903,38 @@ func GetVoucherDesign(designID string) (dtos.VoucherDesign, error) {
 	}
 	return design, nil
 }
+
+// EditVoucherDesign updates an existing design template.
+//
+// The URL is optional - if nil or empty, it won't be updated.
+//
+// Parameters:
+//   - designID: string - The design ID to update
+//   - newURL: *string - Optional new design URL (nil to keep existing)
+//   - newName: string - New design name
+//   - newStatus: string - New status ("active" or "inactive")
+//
+// Returns:
+//   - error: "design not found", database error, or nil on success
 func EditVoucherDesign(designID string, newURL *string, newName, newStatus string) error {
+	// Validate design exists
 	err := isVoucherDesignThere(designID)
 	if err != nil {
 		return err
 	}
-	
+
+	// Build dynamic query - only update URL if provided
 	query := `UPDATE voucher_designs SET name = ?, status = ?`
 	args := []interface{}{newName, newStatus}
-	
+
 	if newURL != nil && *newURL != "" {
 		query += `, url = ?`
 		args = append(args, *newURL)
 	}
-	
+
 	query += ` WHERE design_id = ?`
 	args = append(args, designID)
-	
+
 	_, err = DB.Exec(query, args...)
 	if err != nil {
 		return err
@@ -562,11 +943,21 @@ func EditVoucherDesign(designID string, newURL *string, newName, newStatus strin
 	return nil
 }
 
+// DeleteVoucherDesign permanently removes a design template.
+//
+// Parameters:
+//   - designID: string - The design ID to delete
+//
+// Returns:
+//   - error: "design not found", database error, or nil on success
 func DeleteVoucherDesign(designID string) error {
+	// Validate design exists
 	err := isVoucherDesignThere(designID)
 	if err != nil {
 		return err
 	}
+
+	// Delete design template
 	query := `DELETE FROM voucher_designs WHERE design_id = ?`
 	_, err = DB.Exec(query, designID)
 	if err != nil {
@@ -576,12 +967,25 @@ func DeleteVoucherDesign(designID string) error {
 	return nil
 }
 
+// GetAllVoucherDesigns retrieves design templates with pagination and filtering.
+//
+// Parameters:
+//   - page: int - Page number (1-based)
+//   - size: int - Items per page
+//   - name: string - Filter by design name (partial match, optional)
+//   - status: string - Filter by status (exact match, optional)
+//
+// Returns:
+//   - []dtos.VoucherDesign: Array of design templates
+//   - *dtos.PaginationMeta: Pagination metadata
+//   - error: Database error or nil on success
 func GetAllVoucherDesigns(page, size int, name, status string) ([]dtos.VoucherDesign, *dtos.PaginationMeta, error) {
 	var (
 		total int
 		args  []interface{}
 	)
 
+	// Build count query with optional filters
 	countQuery := `SELECT COUNT(*) FROM voucher_designs`
 	if name != "" {
 		countQuery += " WHERE name LIKE ?"
@@ -596,10 +1000,12 @@ func GetAllVoucherDesigns(page, size int, name, status string) ([]dtos.VoucherDe
 		args = append(args, status)
 	}
 
+	// Count total matching designs
 	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
 		return nil, nil, fmt.Errorf("count query failed: %w", err)
 	}
 
+	// Build select query with same filters
 	selectQuery := `
 		SELECT design_id, url, created_at, name, status
 		FROM voucher_designs
@@ -659,7 +1065,19 @@ func GetAllVoucherDesigns(page, size int, name, status string) ([]dtos.VoucherDe
 	return designs, meta, nil
 }
 
+// GetVoucherHistoryByVoucherID retrieves usage history for a voucher.
+//
+// This function fetches all redemption records including dates, amounts,
+// and items purchased (stored as JSON).
+//
+// Parameters:
+//   - voucherID: string - The voucher ID to get history for
+//
+// Returns:
+//   - []map[string]any: Array of history records with items_log unmarshaled from JSON
+//   - error: Database error, JSON unmarshal error, or nil on success
 func GetVoucherHistoryByVoucherID(voucherID string) ([]map[string]any, error) {
+	// Fetch all history records for voucher
 	query := `
 		SELECT history_id, redeemed_date, amount_redeemed, items_log
 		FROM vouchers_history
@@ -675,6 +1093,7 @@ func GetVoucherHistoryByVoucherID(voucherID string) ([]map[string]any, error) {
 
 	var histories []map[string]any
 
+	// Process each history record
 	for rows.Next() {
 		var (
 			historyID      string
@@ -686,7 +1105,8 @@ func GetVoucherHistoryByVoucherID(voucherID string) ([]map[string]any, error) {
 		if err := rows.Scan(&historyID, &redeemedDate, &amountRedeemed, &itemsLog); err != nil {
 			return nil, err
 		}
-		//convert itemsLog from json string to map[string]any
+
+		// Unmarshal items log from JSON string
 		var itemsLogSlice []map[string]any
 		if itemsLog != "" {
 			itemsLogSlice = make([]map[string]any, 0)
@@ -695,6 +1115,7 @@ func GetVoucherHistoryByVoucherID(voucherID string) ([]map[string]any, error) {
 			}
 		}
 
+		// Build history record
 		history := map[string]any{
 			"history_id":      historyID,
 			"redeemed_date":   redeemedDate,
@@ -711,7 +1132,16 @@ func GetVoucherHistoryByVoucherID(voucherID string) ([]map[string]any, error) {
 
 	return histories, nil
 }
+
+// isVoucherDesignThere checks if a design template exists.
+//
+// Parameters:
+//   - designID: string - The design ID to validate
+//
+// Returns:
+//   - error: "voucher design not found" or database error, nil if exists
 func isVoucherDesignThere(designID string) error {
+	// Check if design exists
 	exists, err := RecordExists("voucher_designs", "design_id = ?", designID)
 	if err != nil {
 		return err
@@ -719,27 +1149,49 @@ func isVoucherDesignThere(designID string) error {
 	if !exists {
 		return errors.New("voucher design not found")
 	}
-	//check if design is active
 
 	return nil
 }
+
+// IsVoucherDesignActive checks if a design template is active.
+//
+// Parameters:
+//   - designID: string - The design ID to check
+//
+// Returns:
+//   - error: "voucher design is not active" or database error, nil if active
 func IsVoucherDesignActive(designID string) error {
 	var status string
+	// Retrieve design status
 	err := DB.QueryRow(`SELECT status FROM voucher_designs WHERE design_id = ?`, designID).Scan(&status)
 	if err != nil {
 		return err
 	}
+
+	// Validate status is active
 	if status != "active" {
 		return errors.New("voucher design is not active")
 	}
 	return nil
 }
 
+// ValidateDesignID performs complete design validation.
+//
+// This function checks both existence and active status in one call.
+//
+// Parameters:
+//   - designID: string - The design ID to validate
+//
+// Returns:
+//   - error: "design not found", "design not active", database error, or nil if valid
 func ValidateDesignID(designID string) error {
+	// Check design exists
 	err := isVoucherDesignThere(designID)
 	if err != nil {
 		return err
 	}
+
+	// Check design is active
 	err = IsVoucherDesignActive(designID)
 	if err != nil {
 		return err
@@ -747,15 +1199,33 @@ func ValidateDesignID(designID string) error {
 	return nil
 }
 
+// CreateNewVoucher creates a complete voucher with purchase tracking.
+//
+// This is the main voucher creation workflow that:
+// 1. Validates design exists
+// 2. Generates unique voucher ID and code
+// 3. Creates voucher record with initial balance = original value
+// 4. Creates purchase record with sender/recipient details
+//
+// Parameters:
+//   - v: dtos.VoucherDataCreate containing voucher details (design, amount, expiry, recipient info)
+//   - userID: string - The purchasing user ID
+//
+// Returns:
+//   - string: The generated voucher ID
+//   - error: "design not found", database error, or nil on success
 func CreateNewVoucher(v dtos.VoucherDataCreate, userID string) (string, error) {
+	// Validate design exists
 	err := isVoucherDesignThere(v.DesignID)
 	if err != nil {
 		return "", err
 	}
-	// Generate a new voucher ID
+
+	// Generate unique voucher ID and code
 	voucherID, _ := shortid.Generate()
 	code, _ := GenerateVoucherCode()
-	// Insert the new voucher into the database
+
+	// Create voucher record with initial balance = original value
 	query := `
 		INSERT INTO vouchers (voucher_id, design_id, user_id, code, balance, original_value, expiry_date, status, is_redeemed, notes)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -764,8 +1234,11 @@ func CreateNewVoucher(v dtos.VoucherDataCreate, userID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// Parse and format delivery time
 	deliveryTime := StringToTime(v.DeliveryTime)
-	//insert into voucher_purchases table
+
+	// Create purchase record with sender/recipient details
 	err = InsertIntoVoucherPurchases(dtos.BuyVoucherData{
 		DesignID:     v.DesignID,
 		Amount:       v.Amount,
@@ -778,9 +1251,24 @@ func CreateNewVoucher(v dtos.VoucherDataCreate, userID string) (string, error) {
 	return voucherID, nil
 }
 
+// ListVoucherPurchases retrieves voucher purchases with pagination and filtering.
+//
+// This function fetches purchase records with participant details and design info.
+//
+// Parameters:
+//   - page: int - Page number (1-based)
+//   - size: int - Items per page
+//   - name: string - Filter by sender/recipient name or email (partial match, optional)
+//
+// Returns:
+//   - []dtos.VoucherPurchaseData: Array of voucher purchases
+//   - *dtos.PaginationMeta: Pagination metadata
+//   - error: Database error or nil on success
 func ListVoucherPurchases(page, size int, name string) ([]dtos.VoucherPurchaseData, *dtos.PaginationMeta, error) {
+	// Calculate offset for pagination
 	offset := (page - 1) * size
 
+	// Build base query with optional name filter
 	baseQuery := `
 		FROM voucher_purchases vp
 		JOIN vouchers v ON vp.voucher_id = v.voucher_id
@@ -789,6 +1277,7 @@ func ListVoucherPurchases(page, size int, name string) ([]dtos.VoucherPurchaseDa
 	`
 	args := []interface{}{}
 
+	// Apply name filter (matches sender/recipient name or email)
 	if name != "" {
 		baseQuery += " AND (vp.from_name LIKE ? OR vp.to_name LIKE ? OR vp.to_email LIKE ?)"
 		nameLike := "%" + name + "%"
@@ -871,6 +1360,18 @@ func ListVoucherPurchases(page, size int, name string) ([]dtos.VoucherPurchaseDa
 
 	return vouchers, &meta, nil
 }
+
+// GetVoucherPurchases retrieves detailed purchase information for a voucher.
+//
+// This function fetches purchase details including sender/recipient info,
+// delivery time, personalized message, and design URL.
+//
+// Parameters:
+//   - voucherID: string - The voucher ID to get purchase details for
+//
+// Returns:
+//   - dtos.VoucherPurchaseData: Complete purchase data with participant info
+//   - error: Database error or nil on success
 func GetVoucherPurchases(voucherID string) (dtos.VoucherPurchaseData, error) {
 	var (
 		result          dtos.VoucherPurchaseData
@@ -951,11 +1452,27 @@ func GetVoucherPurchases(voucherID string) (dtos.VoucherPurchaseData, error) {
 	return result, nil
 }
 
+// UpdateVoucher updates voucher balance, status, and design.
+//
+// This function increments the voucher balance (for adding value) and
+// updates status and design ID.
+//
+// Parameters:
+//   - voucherID: string - The voucher ID to update
+//   - amount: float64 - Amount to add to balance (can be negative)
+//   - status: string - New voucher status
+//   - designID: string - New design ID
+//
+// Returns:
+//   - error: "voucher not found", database error, or nil on success
 func UpdateVoucher(voucherID string, amount float64, status string, designID string) error {
+	// Validate voucher exists
 	err := IsVoucherThere(voucherID)
 	if err != nil {
 		return err
 	}
+
+	// Update balance, status, and design
 	query := `
 		UPDATE vouchers SET balance = balance + ?, status = ?, design_id = ?
 		WHERE voucher_id = ?
@@ -967,7 +1484,19 @@ func UpdateVoucher(voucherID string, amount float64, status string, designID str
 	return nil
 }
 
+// UpdateVoucherPurchases updates purchase details for a voucher.
+//
+// This function modifies sender/recipient information, personalized message,
+// and delivery time for an existing voucher purchase.
+//
+// Parameters:
+//   - v: dtos.BuyVoucherData containing updated purchase details
+//   - voucherID: string - The voucher ID to update
+//
+// Returns:
+//   - error: Database error or nil on success
 func UpdateVoucherPurchases(v dtos.BuyVoucherData, voucherID string) error {
+	// Update purchase details (recipient info, message, delivery time, sender name)
 	query := `
 		UPDATE voucher_purchases SET  to_name = ?, to_email = ?, personalized_msg = ?, delivery_time = ?, from_name = ?
 		WHERE voucher_id = ?

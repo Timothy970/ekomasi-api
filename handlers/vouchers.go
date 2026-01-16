@@ -1,3 +1,7 @@
+// Package handlers provides HTTP request handlers for voucher/gift card management.
+// This file contains handlers for creating, purchasing, redeeming, and managing vouchers
+// in the e-commerce platform. Vouchers allow customers to purchase gift cards with custom
+// designs, messages, and scheduled delivery. Essential for gift-giving and promotional campaigns.
 package handlers
 
 import (
@@ -16,19 +20,42 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// voucherWithID is a constant prefix for voucher-related log messages
 var voucherWithID = "Voucher with ID "
 
+// CreateVoucherDesign creates a new voucher design template.
+// Admin-only operation for adding visual designs that customers can choose when purchasing vouchers.
+// Uploads design image to GCS and stores design metadata in database.
+//
+// @Summary      Create voucher design
+// @Description  Create a new voucher design template with image upload (admin only)
+// @Tags         Voucher Designs
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        image   formData  file                    true  "Voucher design image"
+// @Param        name    formData  string                  true  "Design name"
+// @Param        status  formData  string                  true  "Design status (active/inactive)"
+// @Success      201     {object}  dtos.SuccessResponse    "Design created successfully"
+// @Failure      400     {object}  dtos.ErrorResponse      "Invalid form data or image required"
+// @Failure      401     {object}  dtos.ErrorResponse      "Admin authorization required"
+// @Failure      500     {object}  dtos.ErrorResponse      "Image upload or database error"
+// @Security     BearerAuth
+// @Router       /api/admin/voucher-designs [post]
 func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
-	// Ensure user is admin
+	// Verify user has admin privileges (only admins can create voucher designs)
 	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Vouchers"); !ok {
+		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 
-	// Parse multipart form (20 MB max)
+	// Parse multipart form data (20 MB maximum file size)
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		// Form parsing failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
@@ -43,9 +70,10 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get image file
+	// Extract image file from form data
 	file, header, err := r.FormFile("image")
 	if err != nil {
+		// Image file is required
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
@@ -61,9 +89,10 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Upload image to GCS
+	// Upload design image to Google Cloud Storage
 	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 	if err != nil {
+		// Image upload to GCS failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
@@ -77,19 +106,24 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// Extract design name and status from form values
 	name := r.FormValue("name")
 	status := r.FormValue("status")
+	// Construct design DTO for validation
 	req := dtos.VoucherDesign{
 		URL:    url,
 		Name:   &name,
 		Status: &status,
 	}
+	// Validate required fields (name, status)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
+		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
-	// Insert category into DB
+	// Insert voucher design record into database
 	_, err = models.CreateVoucherDesign(url, name, status)
 	if err != nil {
+		// Database insertion failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
@@ -105,7 +139,7 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Respond success
+	// Return success response with image URL
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
@@ -121,25 +155,36 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Create Voucher
-// @Description Create Voucher details
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/admin/vouchers [post]
+// CreateVoucherHandlerTest creates a new voucher with purchase record.
+// Admin-only operation for creating vouchers directly (test/admin mode).
+// Automatically sets expiry dates based on IsToExpire flag and records purchase details.
+//
+// @Summary      Create voucher (admin)
+// @Description  Create voucher with purchase record and automatic expiry calculation (admin only)
+// @Tags         Vouchers
+// @Accept       json
+// @Produce      json
+// @Param        voucher  body      dtos.VoucherDataCreate  true  "Voucher creation details"
+// @Success      201      {object}  dtos.SuccessResponse    "Voucher created successfully"
+// @Failure      400      {object}  dtos.ErrorResponse      "Invalid request or creation failed"
+// @Failure      401      {object}  dtos.ErrorResponse      "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/admin/vouchers [post]
 func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+	// Verify user has admin privileges (only admins can create vouchers)
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Vouchers")
 	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
+	// Get authenticated user from context for creator tracking
 	authuser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
+		// User not authenticated
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
@@ -153,23 +198,30 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Decode and parse JSON request body with voucher details
 	req, ok := DecodeRequestBody[dtos.VoucherDataCreate](r, w, requestSummary, start)
 	if !ok {
+		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
+	// Calculate expiry date based on IsToExpire flag
 	if req.IsToExpire {
-		//set expiry date to 90 days from now if is_to_expire is true
+		// Set expiry date to 90 days from now for limited-time vouchers
 		req.ExpiryDate = time.Now().Add(90 * 24 * time.Hour).Format("2006-01-02")
 	} else {
-		//set expiry date to 30 years from now if is_to_expire is false
+		// Set expiry date to 30 years from now for permanent vouchers
 		req.ExpiryDate = time.Now().Add(30 * 365 * 24 * time.Hour).Format("2006-01-02")
 	}
-	//Validate the request
+	// Validate all required fields
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
+		// Validation failed, ValidateStructAndRespond already sent error response
+		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
+	// Create new voucher record in database
 	voucherID, err := models.CreateNewVoucher(*req, authuser.ID)
 	if err != nil {
+		// Voucher creation failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
@@ -183,6 +235,7 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Prepare purchase data for recording
 	data := dtos.BuyVoucherData{
 		Amount:       req.Amount,
 		FromName:     req.FromName,
@@ -191,8 +244,10 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 		Message:      req.Message,
 		DeliveryTime: req.DeliveryTime,
 	}
+	// Record voucher purchase details in database
 	err = models.InsertIntoVoucherPurchases(data, authuser.ID, voucherID)
 	if err != nil {
+		// Purchase recording failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
@@ -206,6 +261,7 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate voucher caches to ensure fresh data
 	utils.DeleteCacheByPrefix("vouchers_")
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -222,31 +278,48 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// @Summary List Voucher
-// @Description List Voucher
-// @Tags Vouchers
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/vouchers [get]
+// ListVouchersHandler retrieves a paginated list of all vouchers with filtering.
+// Admin-only operation with multiple filter options: redemption status, voucher status, code, and customer.
+// Essential for voucher management and tracking.
+//
+// @Summary      List vouchers
+// @Description  Retrieve paginated list of vouchers with multiple filters (admin only)
+// @Tags         Vouchers
+// @Produce      json
+// @Param        page         query     int                       false  "Page number (default: 1)"
+// @Param        size         query     int                       false  "Page size (default: 10)"
+// @Param        is_redeemed  query     string                    false  "Filter by redemption status (true/false)"
+// @Param        status       query     string                    false  "Filter by voucher status"
+// @Param        code         query     string                    false  "Filter by voucher code"
+// @Param        customer     query     string                    false  "Filter by customer name"
+// @Success      200          {object}  map[string]interface{}    "Vouchers with pagination metadata"
+// @Failure      401          {object}  dtos.ErrorResponse        "Admin authorization required"
+// @Failure      500          {object}  dtos.ErrorResponse        "Failed to fetch vouchers"
+// @Security     BearerAuth
+// @Router       /api/admin/vouchers [get]
 func ListVouchersHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+	// Verify user has admin privileges (only admins can list all vouchers)
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Vouchers")
 	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
+	// Extract filter parameters from query string
 	isRedeemed := r.URL.Query().Get("is_redeemed")
 	status := r.URL.Query().Get("status")
 	r.URL.Query().Get("page")
 	code := r.URL.Query().Get("code")
 	customer := r.URL.Query().Get("customer")
+	// Parse pagination parameters
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	// Fetch filtered and paginated vouchers from database
 	vouchers, pagination, err := models.ListVouchers(page, size, isRedeemed, status, code, customer)
 	if err != nil {
+		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
@@ -279,27 +352,38 @@ func ListVouchersHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// @Summary List Voucher by ID
-// @Description List Voucher details
-// @Tags Vouchers
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/vouchers/{voucher_id} [get]
+// GetVoucherHandler retrieves detailed information for a specific voucher.
+// Admin-only operation for viewing complete voucher details including purchase info.
+// Essential for voucher verification and customer support.
+//
+// @Summary      Get voucher by ID
+// @Description  Retrieve detailed information for a specific voucher (admin only)
+// @Tags         Vouchers
+// @Produce      json
+// @Param        voucher_id  path      string               true  "Voucher ID"
+// @Success      200         {object}  dtos.Voucher         "Voucher details"
+// @Failure      401         {object}  dtos.ErrorResponse   "Admin authorization required"
+// @Failure      404         {object}  dtos.ErrorResponse   "Voucher not found"
+// @Security     BearerAuth
+// @Router       /api/admin/vouchers/{voucher_id} [get]
 func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+	// Verify user has admin privileges (only admins can view voucher details)
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Vouchers")
 	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
+	// Extract voucher ID from URL path parameters
 	voucherID := mux.Vars(r)["voucher_id"]
 
+	// Fetch specific voucher details from database
 	voucher, err := models.GetVoucherByID(voucherID)
 	if err != nil {
+		// Voucher not found or database error
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
@@ -326,28 +410,39 @@ func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// @Summary Update Voucher by ID
-// @Description Update Voucher details
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/vouchers/{voucher_id} [delete]
+// DeleteVoucherHandler removes a voucher from the system.
+// Admin-only operation for deleting vouchers (may perform soft delete).
+// Essential for managing invalid or expired vouchers.
+//
+// @Summary      Delete voucher
+// @Description  Delete or deactivate a voucher (admin only)
+// @Tags         Vouchers
+// @Produce      json
+// @Param        voucher_id  path      string                  true  "Voucher ID"
+// @Success      200         {object}  dtos.SuccessResponse    "Voucher deleted successfully"
+// @Failure      401         {object}  dtos.ErrorResponse      "Admin authorization required"
+// @Failure      500         {object}  dtos.ErrorResponse      "Delete operation failed"
+// @Security     BearerAuth
+// @Router       /api/admin/vouchers/{voucher_id} [delete]
 func DeleteVoucherHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+	// Verify user has admin privileges (only admins can delete vouchers)
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Vouchers")
 	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
+	// Extract voucher ID from URL path parameters
 	voucherID := mux.Vars(r)["voucher_id"]
 
+	// Delete voucher from database (may be soft delete)
 	err := models.DeleteVoucher(voucherID)
 
 	if err != nil {
+		// Deletion failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
@@ -361,6 +456,7 @@ func DeleteVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate voucher caches to ensure fresh data
 	utils.DeleteCacheByPrefix("vouchers_")
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -377,30 +473,44 @@ func DeleteVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// @Summary Update Voucher by ID
-// @Description Update Voucher details
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/vouchers/{voucher_id} [patch]
+// UpdateVoucherHandler modifies an existing voucher's information.
+// Admin-only operation for updating voucher details like amount, status, or expiry.
+// Essential for voucher management and corrections.
+//
+// @Summary      Update voucher
+// @Description  Update voucher information (admin only)
+// @Tags         Vouchers
+// @Accept       json
+// @Produce      json
+// @Param        voucher_id  path      string                   true  "Voucher ID"
+// @Param        voucher     body      dtos.VoucherDataUpdate   true  "Updated voucher details"
+// @Success      200         {object}  dtos.SuccessResponse     "Voucher updated successfully"
+// @Failure      400         {object}  dtos.ErrorResponse       "Invalid request or update failed"
+// @Failure      401         {object}  dtos.ErrorResponse       "Admin authorization required"
+// @Security     BearerAuth
+// @Router       /api/admin/vouchers/{voucher_id} [patch]
 func UpdateVoucherHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+	// Verify user has admin privileges (only admins can update vouchers)
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Vouchers")
 	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
+	// Extract voucher ID from URL path parameters
 	voucherID := mux.Vars(r)["voucher_id"]
+	// Decode and parse JSON request body with updated voucher data
 	req, ok := DecodeRequestBody[dtos.VoucherDataUpdate](r, w, requestSummary, start)
 	if !ok {
+		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
-	//Validate the request
+	// Validate all required fields
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
+		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	err := models.VoucherUpdate(*req, voucherID)
@@ -817,13 +927,30 @@ func voucherPaymentProcessor(paymentMethod string, voucherOrderID, phoneNumber s
 	return nil
 }
 
-// Handler to make voucher mine(redeem to my account)
+// RedeemVoucherHandler allows a user to redeem a voucher to their account.
+// User must be authenticated and provide a valid voucher code.
+// Transfers voucher ownership to the user for future use on purchases.
+//
+// @Summary      Redeem voucher
+// @Description  Redeem a voucher code to user's account
+// @Tags         Vouchers
+// @Accept       json
+// @Produce      json
+// @Param        voucher  body      dtos.RedeemVoucherRequest  true  "Voucher redemption details"
+// @Success      200      {object}  dtos.SuccessResponse       "Voucher redeemed successfully"
+// @Failure      400      {object}  dtos.ErrorResponse         "Invalid code or redemption failed"
+// @Failure      401      {object}  dtos.ErrorResponse         "User authentication required"
+// @Security     BearerAuth
+// @Router       /api/vouchers/redeem [post]
 func RedeemVoucherHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+	// Get authenticated user from context
 	authuser, ok := middleware.UserFromContext(r.Context())
 	if !ok {
+		// User not authenticated
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
@@ -837,16 +964,22 @@ func RedeemVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Decode and parse JSON request body with voucher code
 	req, ok := DecodeRequestBody[dtos.RedeemVoucherRequest](r, w, requestSummary, start)
 	if !ok {
+		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
-	//Validate the request
+	// Validate voucher code format
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
+		// Validation failed, ValidateStructAndRespond already sent error response
+		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
+	// Redeem voucher code to user's account
 	_, err := models.RedeemVoucher(req.Code, authuser.ID)
 	if err != nil {
+		// Redemption failed (invalid code, already redeemed, expired, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
@@ -861,6 +994,7 @@ func RedeemVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate voucher caches to reflect redemption status
 	utils.DeleteCacheByPrefix("vouchers_")
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -877,19 +1011,26 @@ func RedeemVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Sheduler to send bought for voucher emails
+// StartVoucherEmailScheduler initializes a background scheduler for sending voucher emails.
+// Runs at specified intervals to process scheduled voucher deliveries.
+// The scheduler can run indefinitely or for a specified number of iterations.
 func StartVoucherEmailScheduler(interval time.Duration, repeat int) {
+	// Create ticker for periodic execution
 	ticker := time.NewTicker(interval)
 
 	go func() {
 		defer ticker.Stop()
 
+		// Execute on each tick
 		for range ticker.C {
+			// Process and send scheduled voucher emails
 			SendBoughtForVoucherEmails()
 
+			// Decrement repeat counter if limited execution
 			if repeat > 0 {
 				repeat--
 				if repeat == 0 {
+					// Stop scheduler after specified iterations
 					return
 				}
 			}
@@ -897,19 +1038,26 @@ func StartVoucherEmailScheduler(interval time.Duration, repeat int) {
 	}()
 }
 
+// SendBoughtForVoucherEmails processes and sends scheduled voucher delivery emails.
+// Fetches vouchers with unsent emails and sends them to recipients.
+// Updates email sent status after successful delivery.
 func SendBoughtForVoucherEmails() {
+	// Fetch all users with vouchers pending email delivery
 	users, err := models.GetUsersWithUnsentVoucherEmails()
 	if err != nil {
 		fmt.Printf("error fetching users with unsent voucher emails: %v", err)
 		return
 	}
+	// Process each voucher email
 	for _, u := range users {
-		// notify.SendEmail
+		// Send email if recipient email is provided
 		if u.ToEmail != "" {
+			// Generate email subject and HTML body
 			subject, htmlBody := utils.SendVoucherEmail(u)
+			// Send email notification
 			notification.SendEmail(u.ToEmail, subject, htmlBody)
 
-			//update email sent status
+			// Mark voucher email as sent in database
 			err := models.MarkVoucherEmailAsSent(u.VoucherID)
 			if err != nil {
 				log.Printf("error marking voucher email as sent for user: %v", err)

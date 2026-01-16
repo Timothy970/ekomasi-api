@@ -122,7 +122,9 @@ func calculateDifferentPromotionTypes(promo *dtos.PromotionData, item dtos.Order
 	}
 }
 
-// ViewOrderAdminHandler returns details for ANY order (admin access only)
+// ViewOrderAdminHandler retrieves details for any order.
+// This endpoint is restricted to administrators.
+//
 // @Summary      View order (admin)
 // @Description  Retrieve a single order by ID – admin privileges required
 // @Tags         Admin
@@ -135,17 +137,23 @@ func calculateDifferentPromotionTypes(promo *dtos.PromotionData, item dtos.Order
 // @Router       /admin/orders/{id} [get]
 func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Check if the requesting user has admin privileges
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
 	if !ok {
 		return
 	}
+
+	// Extract query parameters
 	orderID := r.URL.Query().Get("order_id")
 	statusParam := r.URL.Query().Get("status")
 	var status *string
 	if statusParam != "" {
 		status = &statusParam
 	}
+
 	functionName := utils.GetCurrentFuncName()
 	respondWithError := func(code int, message string) {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -178,6 +186,7 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// If order ID is provided, fetch specific order
 	if orderID != "" {
 		order, err := models.GetOrderByID(orderID)
 		if err != nil {
@@ -189,6 +198,7 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Otherwise, fetch all orders (optionally filtered by status)
 	orders, err := models.GetAllOrders(status)
 	if err != nil {
 		log.Printf("%s", err)
@@ -202,7 +212,9 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 	respondWithSuccess(orders)
 }
 
-// UpdateOrderStatusHandler updates an order status (admin)
+// UpdateOrderStatusHandler updates the status of an order.
+// This endpoint is restricted to administrators.
+//
 // @Summary      Update order status (admin)
 // @Description  Change the status of an order
 // @Tags         Orders
@@ -217,8 +229,10 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 // @Router       /admin/orders/{id}/status [put]
 func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Extract order ID from query parameters
 	orderID := r.URL.Query().Get("order_id")
 	if orderID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -235,11 +249,13 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Decode request body
 	req, ok := DecodeRequestBody[dtos.UpdateOrderStatusRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
 
+	// Update order status in database
 	if err := models.UpdateOrderStatus(orderID, *req); err != nil {
 		log.Printf("%s", err)
 
@@ -256,6 +272,8 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Send receipt email if delivered
 	if req.DeliveryStatus != nil && strings.ToLower(*req.DeliveryStatus) == "delivered" {
 		//send order receipt email to customer
 		if err := processSingleOrder(orderID, "order_receipt"); err != nil {
@@ -263,6 +281,7 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
@@ -277,7 +296,8 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// ListOrders returns all orders for the authenticated user
+// ListOrders retrieves all orders for the authenticated user.
+//
 // @Summary      List orders
 // @Description  Fetch all orders for current user
 // @Tags         Orders
@@ -288,8 +308,10 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 // @Router       /api/orders [get]
 func ListOrders(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Get authenticated user from context
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -305,7 +327,11 @@ func ListOrders(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Parse pagination parameters
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+
+	// Fetch orders for user
 	orders, pagination, err := models.ListOrdersByUser(user.ID, page, limit)
 	if err != nil {
 		log.Printf("%s", err)
@@ -323,6 +349,7 @@ func ListOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with orders
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
@@ -337,7 +364,8 @@ func ListOrders(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// ViewOrder returns details of a specific order for the authenticated user
+// ViewOrder retrieves details of a specific order for the authenticated user.
+//
 // @Summary      View order
 // @Description  Fetch a single order by ID (must belong to current user)
 // @Tags         Orders
@@ -350,8 +378,10 @@ func ListOrders(w http.ResponseWriter, r *http.Request) {
 // @Router       /api/orders/{id} [get]
 func ViewOrder(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Extract order ID from query parameters
 	orderID := r.URL.Query().Get("order_id")
 	if orderID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -367,6 +397,8 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Get authenticated user from context
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -382,6 +414,8 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Fetch order for user
 	order, err := models.GetOrderByUser(orderID, user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -404,7 +438,7 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 				Description: "Order not found with order ID " + orderID + " and user ID " + user.ID,
 				Code:        http.StatusNotFound,
 			},
-			Message:   "Order not found",
+			Message:   "Order is not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -412,6 +446,7 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with order details
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
@@ -425,10 +460,25 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// ViewOrderPOS retrieves details of a specific order for POS systems.
+//
+// @Summary      View order (POS)
+// @Description  Fetch a single order by ID for POS
+// @Tags         Orders
+// @Produce      json
+// @Param        order_id   query     string  true  "Order ID"
+// @Success      200        {object}  map[string]interface{}
+// @Failure      400        {object}  dtos.ErrorResponse
+// @Failure      404        {object}  dtos.ErrorResponse
+// @Failure      500        {object}  dtos.ErrorResponse
+// @Router       /api/pos/orders/view [get]
 func ViewOrderPOS(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Extract order ID from query parameters
 	orderID := r.URL.Query().Get("order_id")
 	if orderID == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -444,6 +494,8 @@ func ViewOrderPOS(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Fetch order by ID
 	order, err := models.GetOrderByID(orderID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -474,6 +526,7 @@ func ViewOrderPOS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with order details
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
@@ -488,23 +541,30 @@ func ViewOrderPOS(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// List Guest orders by order id, email and phone number
+// ListGuestOrders retrieves orders for a guest user based on order ID, email, and phone number.
+//
 // @Summary      List order for guest
 // @Description  Fetch all order for guest user
 // @Tags         Orders
 // @Produce      json
-// @Success      200  {array}   map[string]interface{}
-// @Failure      500  {object}  dtos.ErrorResponse
+// @Param        order_id      path      string  true  "Order ID"
+// @Param        email         path      string  true  "Email"
+// @Param        phone_number  path      string  true  "Phone Number"
+// @Success      200           {array}   map[string]interface{}
+// @Failure      500           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/guest-orders/{order_id}/{email}/{phone_number} [get]
 func ListGuestOrders(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Extract parameters from path variables
 	orderID := mux.Vars(r)["order_id"]
 	email := mux.Vars(r)["email"]
 	phone := mux.Vars(r)["phone_number"]
 
+	// Fetch guest orders
 	orders, err := models.ListGuestOrders(orderID, email, phone)
 	if err != nil {
 		log.Printf("%s", err)
@@ -522,6 +582,7 @@ func ListGuestOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with orders
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
@@ -536,16 +597,41 @@ func ListGuestOrders(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// List all orders for admin
+// AdminListOrders retrieves all orders with optional filtering for administrators.
+// This endpoint is restricted to administrators.
+//
+// @Summary      List all orders (admin)
+// @Description  Fetch all orders with optional filtering (status, date, etc.)
+// @Tags         Admin
+// @Produce      json
+// @Param        page             query     int     false  "Page number"
+// @Param        size             query     int     false  "Page size"
+// @Param        order_status     query     string  false  "Filter by order status"
+// @Param        payment_status   query     string  false  "Filter by payment status"
+// @Param        delivery_status  query     string  false  "Filter by delivery status"
+// @Param        payment_method   query     string  false  "Filter by payment method"
+// @Param        start_date       query     string  false  "Start date (YYYY-MM-DD)"
+// @Param        end_date         query     string  false  "End date (YYYY-MM-DD)"
+// @Param        time_range       query     string  false  "Time range (e.g., 'today', 'week')"
+// @Param        order_id         query     string  false  "Filter by Order ID"
+// @Param        q                query     string  false  "Search query"
+// @Success      200              {object}  map[string]interface{}
+// @Failure      401              {object}  dtos.ErrorResponse
+// @Failure      500              {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /admin/orders [get]
 func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
 	// Ensure the user is an admin
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
 	if !ok {
 		return
 	}
+
+	// Parse pagination and filter parameters
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	orderStatus := r.URL.Query().Get("order_status")
 	paymentStatus := r.URL.Query().Get("payment_status")
@@ -556,6 +642,7 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	timeRange := r.URL.Query().Get("time_range")
 	orderID := r.URL.Query().Get("order_id")
 	q := r.URL.Query().Get("q")
+
 	params := models.AdminOrderParameters{
 		OrderStatus:    orderStatus,
 		PaymentStatus:  paymentStatus,
@@ -569,6 +656,8 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 		StartDate:      startDate,
 		EndDate:        endDate,
 	}
+
+	// Fetch orders based on parameters
 	orders, pagination, err := models.ListOrdersByAdmin(params)
 	if err != nil {
 		log.Printf("%s", err)
@@ -586,6 +675,7 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with filtered orders
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
@@ -600,7 +690,26 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// StreamOrdersCSV handles CSV export with streaming for large datasets
+// StreamOrdersCSV exports orders as a CSV file with streaming.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Export orders CSV
+// @Description  Stream all orders as a CSV file download
+// @Tags         Admin
+// @Produce      text/csv
+// @Param        order_status     query     string  false  "Filter by order status"
+// @Param        payment_status   query     string  false  "Filter by payment status"
+// @Param        delivery_status  query     string  false  "Filter by delivery status"
+// @Param        payment_method   query     string  false  "Filter by payment method"
+// @Param        start_date       query     string  false  "Start date (YYYY-MM-DD)"
+// @Param        end_date         query     string  false  "End date (YYYY-MM-DD)"
+// @Param        time_range       query     string  false  "Time range"
+// @Param        order_id         query     string  false  "Filter by Order ID"
+// @Param        q                query     string  false  "Search query"
+// @Success      200              {file}    file
+// @Failure      500              {string}  string "Internal Server Error"
+// @Security     BearerAuth
+// @Router       /admin/orders/export/csv [get]
 func StreamOrdersCSV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", "attachment; filename=orders_export.csv")
@@ -745,16 +854,30 @@ func formatOrderItems(items []dtos.OrderProduct) string {
 	return strings.Join(formatted, "; ")
 }
 
-// Get order counts grouped by status
+// GetOrderCountsByStatus retrieves order counts grouped by status.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Get order counts by status
+// @Description  Retrieve the count of orders for each status
+// @Tags         Admin
+// @Produce      json
+// @Success      200  {object}  map[string]int
+// @Failure      401  {object}  dtos.ErrorResponse
+// @Failure      500  {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /admin/orders/counts [get]
 func GetOrderCountsByStatus(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
 	// Ensure the user is an admin
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
 	if !ok {
 		return
 	}
+
+	// Fetch order counts
 	counts, err := models.GetOrderCountsByStatus()
 	if err != nil {
 		log.Printf("%s", err)
@@ -771,6 +894,8 @@ func GetOrderCountsByStatus(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with counts
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
@@ -785,11 +910,26 @@ func GetOrderCountsByStatus(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// HoldOrderHandler places an order on hold.
+//
+// @Summary      Hold order
+// @Description  Place an order on hold status
+// @Tags         Orders
+// @Produce      json
+// @Param        order_id   path      string  true  "Order ID"
+// @Success      200        {object}  dtos.GenericResponse
+// @Failure      500        {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/orders/{order_id}/hold [put]
 func HoldOrderHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
+	// Extract order ID from path variables
 	orderID := mux.Vars(r)["order_id"]
+
+	// Update order status to hold
 	err := models.HoldOrder(orderID)
 	if err != nil {
 		log.Printf("%s", err)
@@ -806,6 +946,8 @@ func HoldOrderHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
@@ -820,10 +962,26 @@ func HoldOrderHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// ReleaseOrderHandler releases an order from hold.
+//
+// @Summary      Release order
+// @Description  Release an order from hold status
+// @Tags         Orders
+// @Produce      json
+// @Param        order_id   path      string  true  "Order ID"
+// @Success      200        {object}  map[string]interface{}
+// @Failure      500        {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/orders/{order_id}/release [put]
 func ReleaseOrderHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Extract order ID from path variables
 	orderID := mux.Vars(r)["order_id"]
+
+	// Update order status to release hold
 	err := models.ReleaseOrder(orderID)
 	if err != nil {
 		log.Printf("%s", err)
@@ -840,6 +998,8 @@ func ReleaseOrderHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Fetch updated order details
 	order, err := models.GetOrderByID(orderID)
 	if err != nil {
 		log.Printf("%s", err)
@@ -856,6 +1016,8 @@ func ReleaseOrderHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with order details
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
@@ -870,10 +1032,9 @@ func ReleaseOrderHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// New function to create a new order
-// CreateOrderHandler handles the creation of a new order
-// Removes the delivery charge from the payload for security purposes
-//Removed product price from the payload to avoid manipulation
+// NewCreateOrderHandler handles the creation of a new order.
+// It processes order items, calculates totals, applies discounts, and manages stock.
+//
 // @Summary      Create new order
 // @Description  Create a new order with order items and delivery details
 // @Tags         Orders
@@ -884,134 +1045,39 @@ func ReleaseOrderHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      400   {object}  dtos.ErrorResponse
 // @Failure      500   {object}  dtos.ErrorResponse
 // @Router       /api/orders/new [post]
-
 func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 	module := "Orders"
 
-	// Decode request body
 	req, ok := DecodeRequestBody[dtos.CreateOrderPayload](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
 
-	// Validate request payload
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, module) {
 		return
 	}
-	// Fetch order items using product IDs
-	orderItems, err := getOrderItems(req.OrderItems)
+
+	order, err := buildOrderRequest(req, w, r, requestSummary, start, module)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      module,
-				Description: "Failed to retrieve order items",
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary,
-		})
 		return
 	}
 
-	// Determine user ID (guest or authenticated)
-	var userID *string
-	if req.IsGuestOrder == nil || !*req.IsGuestOrder {
-		ok, authUser := middleware.GetTokenAndAuthenticatedUser(w, r)
-		if !ok {
-			return
-		}
-		userID = &authUser.ID
-	}
-
-	// Build order payload
-	order := dtos.OrderRequest{
-		OrderItems:           orderItems,
-		IsGuestOrder:         req.IsGuestOrder,
-		GuestPersonalDetails: req.GuestPersonalDetails,
-		GuestDeliveryAddress: req.GuestDeliveryAddress,
-		UserID:               userID,
-	}
-
-	// Fetch delivery charge
-	if req.DeliveryAddressID != nil && *req.DeliveryAddressID != 0 {
-		order.DeliveryCharge, err = getOrderDeliveryCharge(int(*req.DeliveryAddressID))
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      module,
-					Description: fmt.Sprintf("Failed to get delivery charge for ID %d: %v", req.DeliveryAddressID, err),
-					Code:        http.StatusUnauthorized,
-				},
-				Message:   "Failed to get delivery charge",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-	} else {
-		order.DeliveryCharge = 0
-	}
-	// Process order items: discounts, totals, and stock checks
-	totalAmount, totalDiscount, freeShipping, err := processOrderItems(order.OrderItems)
+	finalAmount, totalDiscount, err := calculateOrderTotals(order, req.PromoCode, module)
 	if err != nil {
-		log.Printf("[%s] Error processing order items: %v", module, err)
+		log.Printf("[%s] Error calculating totals: %v", module, err)
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
-	if freeShipping {
-		order.DeliveryCharge = 0
-	}
-	totalAmount += order.DeliveryCharge
 
-	// Apply promo code if present
-	if req.PromoCode != nil && *req.PromoCode != "" {
-		promoCodeType := models.GetDiscountCodeType(*req.PromoCode)
-
-		totalAmount, totalDiscount, err = applyPromoCodeToOrder(totalAmount, totalDiscount, *req.PromoCode, promoCodeType)
-		if err != nil {
-			log.Printf("[%s] Error applying promo code: %v", module, err)
-			respondInternalServerError(w, r, requestSummary, start, err.Error())
-			return
-		}
-	}
-
-	// Create order and delivery records
-	finalAmount := totalAmount - totalDiscount
-
-	orderID, deliveryID, err := models.CreateOrder(order, utils.ToString(finalAmount), utils.ToString(totalDiscount))
+	orderID, deliveryID, err := createOrderAndDelivery(order, req.StoreID, finalAmount, totalDiscount, module)
 	if err != nil {
 		log.Printf("[%s] Error creating order: %v", module, err)
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
 
-	if err := createOrderItems(orderID, order.OrderItems); err != nil {
-		log.Printf("[%s] Error creating order items: %v", module, err)
-		respondInternalServerError(w, r, requestSummary, start, err.Error())
-		return
-	}
-
-	if err := models.CreateDeliveries(orderID, deliveryID, order, req.StoreID); err != nil {
-		log.Printf("[%s] Error creating delivery: %v", module, err)
-		respondInternalServerError(w, r, requestSummary, start, err.Error())
-		return
-	}
-
-	// Deduct stock quantities
-	if err := deductStock(order.OrderItems); err != nil {
-		log.Printf("[%s] Error deducting stock: %v", module, err)
-		respondInternalServerError(w, r, requestSummary, start, err.Error())
-		return
-	}
-
-	// Success response
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      module,
@@ -1029,6 +1095,121 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary,
 	})
+}
+
+func buildOrderRequest(req *dtos.CreateOrderPayload, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time, module string) (*dtos.OrderRequest, error) {
+	orderItems, err := getOrderItems(req.OrderItems)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      module,
+				Description: "Failed to retrieve order items",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return nil, err
+	}
+
+	userID, err := determineUserID(req, w, r)
+	if err != nil {
+		return nil, err
+	}
+
+	deliveryCharge, err := fetchDeliveryCharge(req.DeliveryAddressID, w, r, requestSummary, start, module)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dtos.OrderRequest{
+		OrderItems:           orderItems,
+		IsGuestOrder:         req.IsGuestOrder,
+		GuestPersonalDetails: req.GuestPersonalDetails,
+		GuestDeliveryAddress: req.GuestDeliveryAddress,
+		UserID:               userID,
+		DeliveryCharge:       deliveryCharge,
+	}, nil
+}
+
+func determineUserID(req *dtos.CreateOrderPayload, w http.ResponseWriter, r *http.Request) (*string, error) {
+	if req.IsGuestOrder != nil && *req.IsGuestOrder {
+		return nil, nil
+	}
+	ok, authUser := middleware.GetTokenAndAuthenticatedUser(w, r)
+	if !ok {
+		return nil, fmt.Errorf("authentication failed")
+	}
+	return &authUser.ID, nil
+}
+
+func fetchDeliveryCharge(addressID *int64, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time, module string) (float64, error) {
+	if addressID == nil || *addressID == 0 {
+		return 0, nil
+	}
+	charge, err := getOrderDeliveryCharge(int(*addressID))
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      module,
+				Description: fmt.Sprintf("Failed to get delivery charge for ID %d: %v", addressID, err),
+				Code:        http.StatusUnauthorized,
+			},
+			Message:   "Failed to get delivery charge",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return 0, err
+	}
+	return charge, nil
+}
+
+func calculateOrderTotals(order *dtos.OrderRequest, promoCode *string, module string) (float64, float64, error) {
+	totalAmount, totalDiscount, freeShipping, err := processOrderItems(order.OrderItems)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if freeShipping {
+		order.DeliveryCharge = 0
+	}
+	totalAmount += order.DeliveryCharge
+
+	if promoCode != nil && *promoCode != "" {
+		promoCodeType := models.GetDiscountCodeType(*promoCode)
+		totalAmount, totalDiscount, err = applyPromoCodeToOrder(totalAmount, totalDiscount, *promoCode, promoCodeType)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+
+	return totalAmount - totalDiscount, totalDiscount, nil
+}
+
+func createOrderAndDelivery(order *dtos.OrderRequest, storeID *string, finalAmount, totalDiscount float64, module string) (string, string, error) {
+	orderID, deliveryID, err := models.CreateOrder(*order, utils.ToString(finalAmount), utils.ToString(totalDiscount))
+	if err != nil {
+		return "", "", err
+	}
+
+	if err := createOrderItems(orderID, order.OrderItems); err != nil {
+		return "", "", err
+	}
+
+	if err := models.CreateDeliveries(orderID, deliveryID, *order, storeID); err != nil {
+		return "", "", err
+	}
+
+	if err := deductStock(order.OrderItems); err != nil {
+		return "", "", err
+	}
+
+	return orderID, deliveryID, nil
 }
 
 func getOrderDeliveryCharge(locationID int) (float64, error) {
@@ -1070,17 +1251,35 @@ func deductStock(orderItems []dtos.OrderItemRequest) error {
 	return nil
 }
 
+// DownloadOrderInvoicePDF generates and downloads an invoice PDF for a specific order.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Download order invoice
+// @Description  Generate and download PDF invoice for an order
+// @Tags         Admin
+// @Produce      application/pdf
+// @Param        order_id  path      string  true  "Order ID"
+// @Success      200       {file}    file
+// @Failure      404       {object}  dtos.ErrorResponse
+// @Failure      500       {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /admin/orders/{order_id}/invoice [get]
 func DownloadOrderInvoicePDF(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
 	// Ensure the user is an admin
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
 	if !ok {
 		return
 	}
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+
+	// Extract order ID from path variables
 	orderID := mux.Vars(r)["order_id"]
+
+	// Fetch order details
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	params := models.AdminOrderParameters{
 		OrderID: orderID,
 		Page:    page,
@@ -1117,6 +1316,7 @@ func DownloadOrderInvoicePDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate PDF invoice
 	pdfBytes, err := utils.GenerateInvoicePDF(orders[0])
 	if err != nil {
 		fmt.Println("Failed to generate invoice PDF error :", err)
@@ -1133,9 +1333,10 @@ func DownloadOrderInvoicePDF(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Serve PDF file
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", "attachment; filename=invoice_"+orderID+".pdf")
 	w.WriteHeader(http.StatusOK)
 	w.Write(pdfBytes)
-
 }
