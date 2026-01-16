@@ -984,6 +984,11 @@ func ptr[T any](v T) *T {
 
 // products reports
 func GetProductPerformance(start, end time.Time, categoryID string) ([]map[string]interface{}, error) {
+	//check if category exists
+	err := isCategoryThere(categoryID)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := DB.Query(`
 		SELECT 
 			p.product_id,
@@ -991,12 +996,12 @@ func GetProductPerformance(start, end time.Time, categoryID string) ([]map[strin
 			c.name AS category,
 			COALESCE(SUM(oi.quantity), 0) AS sales_volume,
 			COALESCE(SUM(r.quantity), 0) AS total_returns,
-			COALESCE(SUM(oi.quantity * (oi.unit_price - p.price)) / NULLIF(SUM(oi.quantity * oi.unit_price), 0), 0) AS profit_margin,
-			COALESCE(SUM(oi.quantity * (oi.unit_price - p.price)), 0) AS net_profit
+			COALESCE(SUM(oi.quantity * (oi.unit_price - p.buying_price)) / NULLIF(SUM(oi.quantity * oi.unit_price), 0), 0) AS profit_margin,
+			COALESCE(SUM(oi.quantity * (oi.unit_price - p.buying_price)), 0) AS net_profit
 		FROM products p
 		JOIN categories c ON p.category_id = c.category_id
 		LEFT JOIN order_items oi ON p.product_id = oi.product_id
-		LEFT JOIN returns r ON p.product_id = r.product_id
+		LEFT JOIN return_products r ON p.product_id = r.product_id
 		JOIN orders o ON oi.order_id = o.order_id
 		WHERE o.created_at BETWEEN ? AND ?
 		  AND c.category_id = ?
@@ -1046,12 +1051,12 @@ func GetSingleProductPerformance(productID string, start, end time.Time) (map[st
 			COALESCE(SUM(oi.quantity), 0) AS sales_volume,
 			COALESCE(SUM(r.quantity), 0) AS total_returns,
 			(COALESCE(SUM(r.quantity), 0) / NULLIF(SUM(oi.quantity), 0)) * 100 AS return_rate,
-			COALESCE(SUM(oi.quantity * (oi.unit_price - p.price)) / NULLIF(SUM(oi.quantity * oi.unit_price), 0), 0) AS profit_margin,
-			COALESCE(SUM(oi.quantity * (oi.unit_price - p.price)), 0) AS net_profit
+			COALESCE(SUM(oi.quantity * (oi.unit_price - p.buying_price)) / NULLIF(SUM(oi.quantity * oi.unit_price), 0), 0) AS profit_margin,
+			COALESCE(SUM(oi.quantity * (oi.unit_price - p.buying_price)), 0) AS net_profit
 		FROM products p
 		JOIN categories c ON p.category_id = c.category_id
 		LEFT JOIN order_items oi ON p.product_id = oi.product_id
-		LEFT JOIN returns r ON p.product_id = r.product_id
+		LEFT JOIN return_products r ON p.product_id = r.product_id
 		JOIN orders o ON oi.order_id = o.order_id
 		WHERE o.created_at BETWEEN ? AND ?
 		  AND p.product_id = ?
