@@ -1086,19 +1086,27 @@ func GetResultParameterValue(params []dtos.ResultParameter, key string) string {
 }
 
 func (m *MpesaClient) CheckMpesaTransactionStatus(req dtos.MpesaTransactionStatus) (*dtos.MpesaTransactionStatusRequest, error) {
-	timestamp := time.Now().Format("20060102150405")
-	password := base64.StdEncoding.EncodeToString([]byte(m.HeadOffice + m.Passkey + timestamp))
+	pubKey, err := loadPublicKey(os.Getenv("MPESA_CERTIFICATE_PATH"))
+	if err != nil {
+		log.Printf("Error loading public key %s", err.Error())
+		return nil, err
+	}
+	securityCredential, err := generateSecurityCredential(pubKey, m.InitiatorPassword)
+	if err != nil {
+		log.Printf("Error generating security credential %s", err.Error())
+		return nil, err
+	}
 	payload := map[string]interface{}{
 		"Initiator":          "Adenzo",
-		"SecurityCredential": password,
+		"SecurityCredential": securityCredential,
 		"CommandID":          "TransactionStatusQuery",
 		"TransactionID":      req.TransactionID,
-		"PartyA":             m.HeadOffice,
-		"IdentifierType":     2,
+		"PartyA":             m.ShortCode,
+		"IdentifierType":     4,
 		"Remarks":            "Checking Transaction Status",
-		"QueueTimeOutURL":    m.CallbackURL,
-		"ResultURL":          m.CallbackURL,
-		"Occassion":          "",
+		"QueueTimeOutURL":    m.ReturnURL,
+		"ResultURL":          m.ReturnURL,
+		"Occassion":          "Payment Status",
 	}
 
 	jsonData, err := json.Marshal(payload)
@@ -1129,6 +1137,8 @@ func (m *MpesaClient) CheckMpesaTransactionStatus(req dtos.MpesaTransactionStatu
 		return nil, err
 	}
 	log.Printf("MPESA Transaction Status Response: %+v", result)
+	log.Printf("response code: %s", result.ResponseCode)
+	log.Printf("response code type: %T", result.ResponseCode)
 	return &result, nil
 }
 

@@ -1,3 +1,7 @@
+// Package handlers provides HTTP request handlers for notification management.
+// This file contains handlers for creating, listing, updating, and deleting notifications,
+// as well as background schedulers for automated notifications (order confirmations, low stock alerts).
+// Supports multi-channel delivery: email, SMS, WhatsApp, and push notifications via WebSocket.
 package handlers
 
 import (
@@ -15,36 +19,51 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// Delete Blog
-// @Summary Create notification
-// @Description Create notification
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/notifications [POST]
+// CreateNotificationHandler creates and sends a notification to a user.
+// Admin-only operation for manually triggering notifications via various channels.
+// Supports email, SMS, WhatsApp, and push notifications. Essential for customer communication.
+//
+// @Summary      Create notification
+// @Description  Create and send notification to user via specified channel (admin only)
+// @Tags         Notifications
+// @Accept       json
+// @Produce      json
+// @Param        Authorization   header    string                 true   "Bearer token"
+// @Param        notification    body      dtos.Notification      true   "Notification details"
+// @Success      201             {object}  dtos.SuccessResponse   "Notification created and sent"
+// @Failure      400             {object}  dtos.ErrorResponse     "Invalid request or channel"
+// @Failure      401             {object}  dtos.ErrorResponse     "Admin authorization required"
+// @Failure      404             {object}  dtos.ErrorResponse     "User not found"
+// @Security     BearerAuth
+// @Router       /api/admin/notifications [post]
 func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
-	//check if user is admin
+	// Verify user has admin privileges (only admins can create notifications)
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Notifications")
 	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
+	// Decode and parse JSON request body with notification details
 	req, ok := DecodeRequestBody[dtos.Notification](r, w, requestSummary, start)
 	if !ok {
+		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 
-	//Validate the request
+	// Validate all required fields (recipient ID, channel, content)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Notifications") {
+		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
-	//check if user exists
+	// Verify recipient user exists in database
 	exists, err := models.RecordExists("users", "user_id = ?", req.RecipientID)
 	if err != nil {
+		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
@@ -59,6 +78,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !exists {
+		// Recipient user not found
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
@@ -72,8 +92,9 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	//check channle
+	// Validate notification channel (must be email, SMS, WhatsApp, or push)
 	if req.Channel != "email" && req.Channel != "sms" && req.Channel != "whatsapp" && req.Channel != "push" {
+		// Invalid channel specified
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
@@ -87,8 +108,10 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Send notification via specified channel (email, SMS, WhatsApp, or push)
 	err = sendNotification(*req)
 	if err != nil {
+		// Notification sending failed (service down, invalid phone, etc.)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
@@ -102,8 +125,11 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Set timestamp when notification was sent
 	req.SentAt = time.Now().Format("2006-01-02 15:04:05")
+	// Store notification record in database for audit trail
 	if err := models.CreateNotification(*req); err != nil {
+		// Database insertion failed (notification was sent but not logged)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
@@ -117,8 +143,10 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate notification caches to ensure fresh data in list endpoints
 	utils.DeleteCacheByPrefix("notifications_")
 	utils.DeleteCacheByPrefix("notifications_pagination_")
+	// Return success response
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
@@ -132,25 +160,36 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// sendNotification routes notification to the appropriate delivery channel.
+// Fetches user details and sends via email, SMS, WhatsApp, or push notification.
+// Returns error if user doesn't have required contact information for the channel.
 func sendNotification(req dtos.Notification) error {
+	// Fetch user details for contact information
 	user, err := models.GetUserByUserID(req.RecipientID)
 	if err != nil {
+		// User not found (should have been caught earlier)
 		return err
 	}
+	// Verify user has phone number for SMS or WhatsApp channels
 	if (req.Channel == "whatsapp" || req.Channel == "sms") && user.Phone == "" {
 		return errors.New("user doesn't have a phone number")
 	}
+	// Route notification to appropriate channel
 	switch req.Channel {
 	case "sms":
+		// Send SMS message
 		notification.SendSmsMessages(user.Phone, req.Content)
 	case "whatsapp":
+		// WhatsApp integration (currently commented out, needs template name)
 		//to include template name
 		// phoneInt, _ := strconv.Atoi(user.Phone)
 		// notification.SendWhatsappMessages(phoneInt, req.Content, "Notification")
 	case "email":
+		// Send email with "Notification" as subject
 		notification.SendEmail(user.Email, "Notification", req.Content)
 	case "push":
-		//handle websocketing sending
+		// Send real-time push notification via WebSocket
 		utils.SendToUser(req.RecipientID, "", "", map[string]interface{}{
 			"event":   "Notification",
 			"message": "Your payment was successful!",
@@ -160,35 +199,52 @@ func sendNotification(req dtos.Notification) error {
 	return nil
 }
 
-// @Summary List all Notifications
-// @Description List all notification
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/notifications [GET]
+// ListNotificationsHandler retrieves all notifications with pagination and caching.
+// Admin-only operation for viewing notification history and delivery status.
+// Uses Redis caching for performance optimization.
+//
+// @Summary      List all notifications
+// @Description  Retrieve paginated list of all notifications with caching (admin only)
+// @Tags         Notifications
+// @Produce      json
+// @Param        Authorization  header    string                 true   "Bearer token"
+// @Param        page           query     int                    false  "Page number (default: 1)"
+// @Param        size           query     int                    false  "Page size (default: 10)"
+// @Success      200            {object}  dtos.SuccessResponse   "Notifications with pagination"
+// @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
+// @Failure      500            {object}  dtos.ErrorResponse     "Failed to retrieve notifications"
+// @Security     BearerAuth
+// @Router       /api/admin/notifications [get]
 func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+	// Verify user has admin privileges (only admins can view all notifications)
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Notifications")
 	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
+	// Parse pagination parameters from query string
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	// Generate unique cache keys for notifications and pagination metadata
 	cacheKeyNotification := fmt.Sprintf("notifications_%d_size_%d", page, limit)
 	cacheKeyPagination := fmt.Sprintf("notifications_pagination_%d_size_%d", page, limit)
 	var notifications []dtos.Notification
 	var cachedNotifications []dtos.Notification
 	var pagination *dtos.PaginationMeta
 	var cachedPagination *dtos.PaginationMeta
+	// Attempt to retrieve notifications and pagination from Redis cache
 	_ = utils.GetCache(cacheKeyNotification, &cachedNotifications)
 	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
+	// If cache miss, fetch from database
 	if cachedNotifications == nil {
 		var err error
+		// Fetch paginated notifications from database
 		notifications, pagination, err = models.ListNotifications(page, limit)
 		if err != nil {
+			// Database query failed
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Notifications",
@@ -203,14 +259,17 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
+		// Cache hit - use cached data
 		notifications = cachedNotifications
 		pagination = cachedPagination
 	}
+	// Construct response with notifications and pagination metadata
 	resp := dtos.NotificationListResponse{
 		Notifications: notifications,
 		Meta:          *pagination,
 	}
 
+	// Return success response with notifications list
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
@@ -225,33 +284,51 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// @Summary Update Notification
-// @Description Update notification
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/notifications{notification_id} [PATCH]
+// UpdateNotificationHandler updates notification status (read/unread).
+// Admin-only operation for managing notification states.
+//
+// @Summary      Update notification
+// @Description  Update notification status (admin only)
+// @Tags         Notifications
+// @Accept       json
+// @Produce      json
+// @Param        Authorization      header    string                      true   "Bearer token"
+// @Param        notification_id    path      string                      true   "Notification ID"
+// @Param        notification       body      dtos.UpdateNotification     true   "Updated status"
+// @Success      200                {object}  dtos.SuccessResponse        "Notification updated"
+// @Failure      400                {object}  dtos.ErrorResponse          "Invalid request"
+// @Failure      401                {object}  dtos.ErrorResponse          "Admin authorization required"
+// @Failure      404                {object}  dtos.ErrorResponse          "Notification not found"
+// @Security     BearerAuth
+// @Router       /api/admin/notifications/{notification_id} [patch]
 func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	//check if user is admin
+	// Verify user has admin privileges (only admins can update notifications)
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Notifications")
 	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
+	// Extract notification ID from URL path parameters
 	id := mux.Vars(r)["notification_id"]
+	// Decode and parse JSON request body with updated status
 	req, ok := DecodeRequestBody[dtos.UpdateNotification](r, w, requestSummary, start)
 	if !ok {
+		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 
-	//Validate the request
+	// Validate all required fields (status)
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Notifications") {
+		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
+	// Update notification status in database
 	if err := models.UpdateNotification(req.Status, id); err != nil {
+		// Update failed (notification not found or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
@@ -265,8 +342,10 @@ func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate notification caches to ensure fresh data
 	utils.DeleteCacheByPrefix("notifications_")
 	utils.DeleteCacheByPrefix("notifications_pagination_")
+	// Return success response
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
@@ -281,23 +360,36 @@ func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// @Summary Delete Notification
-// @Description Delete notification
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/notifications{notification_id} [DELETE]
+// DeleteNotificationHandler removes a notification from the system.
+// Admin-only operation for cleaning up old or unwanted notifications.
+//
+// @Summary      Delete notification
+// @Description  Delete notification by ID (admin only)
+// @Tags         Notifications
+// @Produce      json
+// @Param        Authorization      header    string                 true  "Bearer token"
+// @Param        notification_id    path      string                 true  "Notification ID"
+// @Success      200                {object}  dtos.SuccessResponse   "Notification deleted"
+// @Failure      401                {object}  dtos.ErrorResponse     "Admin authorization required"
+// @Failure      404                {object}  dtos.ErrorResponse     "Notification not found"
+// @Security     BearerAuth
+// @Router       /api/admin/notifications/{notification_id} [delete]
 func DeleteNotificationHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges (only admins can delete notifications)
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Notifications")
 	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
+	// Extract notification ID from URL path parameters
 	id := mux.Vars(r)["notification_id"]
+	// Delete notification from database
 	if err := models.DeleteNotification(id); err != nil {
+		// Deletion failed (notification not found or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
@@ -311,8 +403,10 @@ func DeleteNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	// Invalidate notification caches to ensure fresh data
 	utils.DeleteCacheByPrefix("notifications_")
 	utils.DeleteCacheByPrefix("notifications_pagination_")
+	// Return success response
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
@@ -327,26 +421,41 @@ func DeleteNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// @Summary List all Notifications
-// @Description List all notification
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /api/admin/notifications [GET]
+// ListLogsHandler retrieves system logs with pagination.
+// Admin-only operation for monitoring system activity and debugging.
+// Returns logs with timestamps, modules, and error details.
+//
+// @Summary      List system logs
+// @Description  Retrieve paginated system logs for monitoring and debugging (admin only)
+// @Tags         Logs
+// @Produce      json
+// @Param        Authorization  header    string                 true   "Bearer token"
+// @Param        page           query     int                    false  "Page number"
+// @Param        limit          query     int                    false  "Page size"
+// @Success      200            {object}  dtos.SuccessResponse   "Logs with pagination"
+// @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
+// @Failure      500            {object}  dtos.ErrorResponse     "Failed to retrieve logs"
+// @Security     BearerAuth
+// @Router       /api/admin/logs [get]
 func ListLogsHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges (only admins can view system logs)
 	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
 	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
+	// Parse pagination parameters from query string
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 
+	// Fetch logs from database with pagination
 	logs, meta, err := models.ListLogs(page, limit)
 	if err != nil {
+		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Logs",
@@ -361,11 +470,13 @@ func ListLogsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Construct response with logs and pagination metadata
 	resp := dtos.LogListResponse{
 		Logs: logs,
 		Meta: *meta,
 	}
 
+	// Return success response with logs list
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Logs",
@@ -380,94 +491,96 @@ func ListLogsHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// StartOrderNotificationScheduler initializes background scheduler for order confirmation emails.
+// Runs at specified interval to process pending order notifications.
+// Essential for reliable order confirmation delivery.
 func StartOrderNotificationScheduler(interval time.Duration) {
+	// Create ticker that fires at specified interval (e.g., every 5 minutes)
 	ticker := time.NewTicker(interval)
+	// Run scheduler in background goroutine
 	go func() {
 		for range ticker.C {
+			// Process all pending order notifications on each tick
 			processPendingOrderNotifications()
 		}
 	}()
 }
 
-// processPendingOrderNotifications is the main entry point to process the batch.
+// processPendingOrderNotifications is the main entry point to process pending orders.
+// Fetches all orders awaiting notification and processes them individually.
+// Handles errors gracefully to avoid blocking entire batch.
 func processPendingOrderNotifications() {
+	// Fetch all orders that need confirmation emails sent
 	pendingOrders, err := models.GetPendingOrderNotifications()
 	if err != nil {
-		// Log the error and stop. If we can't get the list, we can't process anything.
+		// Critical error: can't get pending orders list
 		log.Printf("CRITICAL: Failed to fetch pending order notifications: %v", err)
 		return
 	}
 
 	log.Printf("Processing %d pending order notifications...", len(pendingOrders))
 
-	// Loop through each order ID and process it individually.
+	// Process each order individually to avoid blocking entire batch on single failure
 	for _, orderID := range pendingOrders {
-		// processSingleOrder encapsulates all logic for one order.
-		// This makes the main loop clean and easy to read.
+		// Process single order with all notification logic encapsulated
 		if err := processSingleOrder(orderID, "order_confirmation"); err != nil {
-			// This error means a *retryable* failure occurred (e.g., email service down).
-			// We log it and continue to the next order, leaving this one 'pending'
-			// to be picked up in the next run.
+			// Retryable failure (e.g., email service down)
+			// Log error and continue to next order, leaving this one pending for retry
 			log.Printf("ERROR: Failed to process notification for order %s (will retry): %v", orderID, err)
 		}
 	}
 }
 
-// processSingleOrder handles all logic for fetching, processing, and sending a notification for one order.
-// It returns an error *only* if the operation failed in a way that should be retried (e.g., network error).
-// Permanent failures (like "no email") are handled internally and return 'nil' to stop retries.
+// processSingleOrder handles complete notification flow for one order.
+// Fetches order details, resolves customer contact info, generates email, and sends.
+// Returns error only for retryable failures (e.g., network issues).
+// Permanent failures (e.g., no email) are handled internally and marked as failed.
 func processSingleOrder(orderID string, emailType string) error {
+	// Fetch order details from database
 	order, err := models.GetOrderByID(orderID)
 	if err != nil {
-		// If we can't get the order, we can't process it.
-		// Log it and 'continue' (by returning nil) so we don't block other orders.
-		// This might be a permanent failure (e.g., bad ID), so retrying is not ideal.
+		// Cannot fetch order - likely permanent failure (bad ID)
+		// Skip and don't retry to avoid blocking other orders
 		log.Printf("WARNING: Skipping order %s, cannot fetch details: %v", orderID, err)
 		return nil
 	}
 
-	// 1. Get Customer Details
+	// Step 1: Get customer email and name
 	userEmail, customerName, err := getCustomerDetails(order)
 	if err != nil {
-		// This likely means a user ID was present but the user record was missing/corrupt.
+		// User ID present but user record missing/corrupt
 		log.Printf("WARNING: Could not resolve user details for order %s: %v", orderID, err)
-		// We'll proceed, but userEmail will be ""
+		// Continue processing, userEmail will be empty string
 	}
 
-	// 2. Validate Email
+	// Step 2: Validate email exists
 	if userEmail == "" {
 		log.Printf("INFO: No email found for order %s. Marking as 'failed'.", orderID)
-		// This is a permanent failure. Mark as 'failed' so we don't retry.
-		// CRITICAL BUG FIX: This was 'return' in your code, which would stop the whole batch.
-		// It should be 'continue', which in this refactor means we update the status
-		// and return 'nil' to signify we are done with this order.
+		// Permanent failure - mark as failed so we don't retry
 		if err := models.MarkOrderNotificationSent(orderID, "failed"); err != nil {
-			// If we fail to even *mark* it as failed, we have a problem.
-			// Return this error so it gets retried.
+			// Failed to mark as failed - return error to retry status update
 			log.Printf("ERROR: Failed to mark order %s as 'failed': %v", orderID, err)
 			return fmt.Errorf("marking order %s as failed: %w", orderID, err)
 		}
-		return nil // Successfully marked as 'failed', do not retry.
+		return nil // Successfully marked as failed, do not retry
 	}
 
-	// 3. Build and Send Email
+	// Step 3: Build email content and send
 	subject := "Your Order Update"
 	orderDetails := buildEmailData(order, customerName)
 	htmlBody := utils.GenerateOrderConfirmationHTML(orderDetails, emailType)
 
-	// IMPORTANT: Check for an error from SendEmail.
+	// Send email to customer
 	if err := notification.SendEmail(userEmail, subject, htmlBody); err != nil {
-		// This is a temporary, retryable error (e.g., email gateway is down).
-		// Return the error so the main loop logs it and *does not* update the status.
-		// The order will remain 'pending' and be retried next time.
+		// Temporary retryable error (e.g., email gateway down)
+		// Return error so order remains pending for next retry
 		return fmt.Errorf("sending email for order %s: %w", orderID, err)
 	}
 
-	// 4. Mark as Sent
+	// Step 4: Mark notification as sent in database
 	if err := models.MarkOrderNotificationSent(orderID, "sent"); err != nil {
-		// The email *was* sent, but we failed to update our DB.
-		// This is a tricky state. We should return an error to retry updating the status,
-		// even if it risks a duplicate email later (which is better than losing track).
+		// Email sent but failed to update status - return error to retry update
+		// Risk of duplicate email, but better than losing track of sent status
 		log.Printf("ERROR: Email sent for order %s, but failed to mark as 'sent': %v", orderID, err)
 		return fmt.Errorf("marking order %s as sent: %w", orderID, err)
 	}
@@ -476,43 +589,48 @@ func processSingleOrder(orderID string, emailType string) error {
 	return nil
 }
 
-// getCustomerDetails extracts the email and a display name from the order.
+// getCustomerDetails extracts customer email and display name from order.
+// Handles both registered users and guest checkouts.
+// Returns empty email if neither user nor guest details available.
 func getCustomerDetails(order *dtos.Order) (email string, name string, err error) {
 	if order.UserID != nil {
-		// Registered user
+		// Registered user - fetch from users table
 		user, err := models.GetUserByUserID(*order.UserID)
 		if err != nil {
-			// UserID was present, but we couldn't fetch the user. This is an error.
+			// User ID present but user record not found
 			return "", "", fmt.Errorf("getting user %s: %w", *order.UserID, err)
 		}
 
 		email = user.Email
 		if user.FirstName != "" || user.LastName != "" {
+			// Construct full name from first and last name
 			name = fmt.Sprintf("%s %s", user.FirstName, user.LastName)
 		} else {
-			// Use a more generic fallback than the email address for the name.
+			// Fallback if name not available
 			name = "Valued Customer"
 		}
 		return email, name, nil
 	}
 
 	if (order.GuestPersonalDetails != dtos.GuestPersonalDetails{}) {
-		// Guest user
+		// Guest user - use guest checkout details
 		email = order.GuestPersonalDetails.Email
 		name = fmt.Sprintf("%s %s", order.GuestPersonalDetails.FirstName, order.GuestPersonalDetails.LastName)
 		return email, name, nil
 	}
 
-	// No UserID and no Guest details. Email will be empty.
+	// No UserID and no guest details - email will be empty
 	return "", "Valued Customer", nil
 }
 
-// buildEmailData maps the order model to the email DTO, handling nil pointers.
+// buildEmailData transforms order model to email DTO with safe pointer handling.
+// Maps order items, handles nil pointers for delivery charge and address.
+// Returns complete email data structure for template generation.
 func buildEmailData(order *dtos.Order, customerName string) dtos.OrderEmailData {
-	// Map order items
+	// Map order items to email notification format
 	orderItems := make([]dtos.OrderNotificationItemRequest, len(order.Items))
 	for i, product := range order.Items {
-		// Cleaned up DTO creation (no need for pointer)
+		// Create item DTO with product details
 		orderItems[i] = dtos.OrderNotificationItemRequest{
 			ProductName: product.Name,
 			UnitPrice:   product.Price,
@@ -520,24 +638,23 @@ func buildEmailData(order *dtos.Order, customerName string) dtos.OrderEmailData 
 		}
 	}
 
-	// --- Fix Potential Panics ---
-	// Safely dereference pointers
+	// Safely dereference delivery charge pointer to avoid nil panic
 	var shippingFee float64
 	if order.DeliveryCharge != nil {
 		shippingFee = *order.DeliveryCharge
 	}
 
+	// Safely dereference delivery address pointer to avoid nil panic
 	var deliveryAddress string
 	if order.DeliveryAddress != nil {
 		deliveryAddress = *order.DeliveryAddress
 	}
-	// --- End Fix ---
 
-	// Return the struct value directly
+	// Return complete email data structure
 	return dtos.OrderEmailData{
 		OrderID:         order.OrderID,
 		CustomerName:    customerName,
-		OrderDate:       order.CreatedAt.Format("2006-01-02 15:04:05"), // Assumes CreatedAt is a time.Time
+		OrderDate:       order.CreatedAt.Format("2006-01-02 15:04:05"),
 		ShippingFee:     shippingFee,
 		Discount:        order.TotalDiscount,
 		TotalAmount:     order.TotalAmount,
@@ -546,19 +663,27 @@ func buildEmailData(order *dtos.Order, customerName string) dtos.OrderEmailData 
 	}
 }
 
+// StartLowStockEmailScheduler initializes background scheduler for low stock alerts.
+// Runs at specified interval but only sends emails at configured hour of day.
+// Essential for proactive inventory management.
 func StartLowStockEmailScheduler(interval time.Duration, hourOfDay int) {
+	// Create ticker that checks at specified interval
 	ticker := time.NewTicker(interval)
+	// Run scheduler in background goroutine
 	go func() {
 		for range ticker.C {
 			log.Println("Low stock email scheduler tick")
+			// Only process emails at specified hour (e.g., 9 AM daily)
 			currentHour := time.Now().Hour()
 			if currentHour == hourOfDay {
+				// Time to send low stock alerts
 				processLowStockEmails()
 			}
 		}
 	}()
 }
 
+// Alternative implementation (commented out): runs on every tick without hour check
 // func StartLowStockEmailScheduler(interval time.Duration) {
 // 	log.Printf("Low stock scheduler working at interval %v....", interval)
 // 	ticker := time.NewTicker(interval)
@@ -570,31 +695,40 @@ func StartLowStockEmailScheduler(interval time.Duration, hourOfDay int) {
 // 	}()
 // }
 
-// processLowStockEmails checks for low stock products and sends email notifications.
+// processLowStockEmails checks inventory and sends alerts for low stock products.
+// Fetches products below reorder threshold and emails admin team.
+// Critical for preventing stockouts and lost sales.
 func processLowStockEmails() {
+	// Fetch all products with stock below reorder point
 	lowStockProducts, err := models.GetLowStockProducts()
 	if err != nil {
+		// Critical error: cannot fetch inventory data
 		log.Printf("CRITICAL: Failed to fetch low stock products: %v", err)
 		return
 	}
 	if len(lowStockProducts) == 0 {
+		// No low stock products - no alerts needed
 		log.Printf("No low stock products found.")
 		return
 	}
 	log.Printf("Preparing to send low stock alert emails for ...")
+	// Prepare email data with store info and low stock products
 	storeName := "Adenzo Store"
 	emailData := dtos.LowStockEmailData{
 		StoreName: storeName,
 		AlertDate: time.Now().Format("2006-01-02"),
 		Products:  lowStockProducts,
 	}
+	// Generate HTML email body from template
 	htmlBody := utils.GenerateLowStockAlertHTML(emailData)
 	subject := "Low Stock Alert"
+	// Send to admin/inventory management team
 	emails := []string{
 		"timothy.kimani@roamtech.com",
 		"mbithe.taabu@roamtech.com",
 	}
 	for _, email := range emails {
+		// Send alert to each admin email
 		if err := notification.SendEmail(email, subject, htmlBody); err != nil {
 			log.Printf("ERROR: Failed to send low stock email to %s: %v", email, err)
 		} else {

@@ -10,6 +10,18 @@ import (
 	"time"
 )
 
+// AutoCompleteHandler provides autocomplete suggestions for product searches.
+// It caches results for performance.
+//
+// @Summary      Get autocomplete suggestions
+// @Description  Retrieve autocomplete suggestions for products based on a query string
+// @Tags         Products
+// @Produce      json
+// @Param        q     query     string  true   "Search query (min 2 chars)"
+// @Param        size  query     int     false  "Number of suggestions (default 10)"
+// @Success      200   {object}  dtos.AutoCompleteResponse
+// @Failure      500   {object}  dtos.ErrorResponse
+// @Router       /api/products/autocomplete [get]
 func AutoCompleteHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -65,6 +77,8 @@ func AutoCompleteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// AutoCompleteSearchWithCache performs a search with caching.
+// It checks the cache first, and if not found, queries the database and caches the result.
 func AutoCompleteSearchWithCache(query string, limit int) ([]dtos.AutoCompleteResult, error) {
 	// Create cache key
 	cacheKey := fmt.Sprintf("autocomplete:%s:%d", query, limit)

@@ -1,3 +1,17 @@
+// Package models provides data access functions for financial and sales reporting.
+//
+// This file handles accounting and analytics reports including:
+//   - Balance Sheet (assets, liabilities, equity as of a date)
+//   - Income Statement (revenue and expenses for a period)
+//   - Cash Flow Statement (direct method with inflows/outflows)
+//   - General Ledger (detailed account transactions with running balance)
+//   - CSV exports for accounts and journal entries
+//   - Top-selling products analytics (daily/weekly/monthly/yearly)
+//
+// The accounting system uses double-entry bookkeeping with:
+//   - Debit-normal accounts: Assets, Expenses (balance = debit - credit)
+//   - Credit-normal accounts: Liabilities, Equity, Income (balance = credit - debit)
+//   - Normal balance calculations adjust for account type
 package models
 
 import (
@@ -11,12 +25,21 @@ import (
 	"time"
 )
 
-// Helper: normal balance multiplier (Assets/Expenses are debit-normal = +1 for (debit-credit))
-// Liabilities/Equity/Income are credit-normal = +1 for (credit-debit)
+// normalBalanceExpr generates SQL expression for calculating account normal balance.
+//
+// This helper function implements double-entry bookkeeping rules:
+//   - Debit-normal accounts (Assets, Expenses): balance = debit - credit
+//   - Credit-normal accounts (Liabilities, Equity, Income): balance = credit - debit
+//
+// Parameters:
+//   - tableAlias: string - The SQL table alias for journal_entries (e.g., "je")
+//
+// Returns:
+//   - string: SQL CASE expression that calculates balance based on account type
 func normalBalanceExpr(tableAlias string) string {
-	// MySQL CASE for sign
-	// returns (debit - credit) for debit-normal accounts, else (credit - debit)
-	// account_type is in chart_of_accounts
+	// Generate SQL CASE expression for account balance calculation
+	// Assets/Expenses increase with debits (debit-normal)
+	// Liabilities/Equity/Income increase with credits (credit-normal)
 	return fmt.Sprintf(`
 		CASE 
 			WHEN ca.account_type IN ('Asset','Expense') THEN (%s.debit - %s.credit)
@@ -27,8 +50,25 @@ func normalBalanceExpr(tableAlias string) string {
 
 // ===== Balance Sheet =====
 
-// Balance sheet as-of a date: sum all journal entries up to and including asOf.
+// BalanceSheet generates a balance sheet report as of a specific date.
+//
+// The balance sheet shows the financial position at a point in time by summing
+// all journal entries from the beginning through the as-of date. It returns
+// three separate arrays for Assets, Liabilities, and Equity accounts.
+//
+// Parameters:
+//   - asOf: time.Time - The date for which to generate the balance sheet (inclusive)
+//
+// Returns:
+//   - assets: []dtos.BsRow - Array of asset accounts with balances
+//   - liabilities: []dtos.BsRow - Array of liability accounts with balances
+//   - equity: []dtos.BsRow - Array of equity accounts with balances
+//   - err: error - Database error or nil on success
+//
+// Each BsRow contains: AccountID, AccountCode, AccountName, AccountType, Balance
 func BalanceSheet(asOf time.Time) (assets, liabilities, equity []dtos.BsRow, err error) {
+	// Build query with normal balance expression
+	// Sums all journal entries up to and including asOf date
 	q := fmt.Sprintf(`
 		SELECT 
 			ca.account_id,
@@ -50,12 +90,14 @@ func BalanceSheet(asOf time.Time) (assets, liabilities, equity []dtos.BsRow, err
 	}
 	defer rows.Close()
 
+	// Scan and categorize accounts by type
 	var a, l, e []dtos.BsRow
 	for rows.Next() {
 		var row dtos.BsRow
 		if err := rows.Scan(&row.AccountID, &row.AccountCode, &row.AccountName, &row.AccountType, &row.Balance); err != nil {
 			return nil, nil, nil, err
 		}
+		// Separate into asset, liability, or equity arrays
 		switch row.AccountType {
 		case "Asset":
 			a = append(a, row)
@@ -70,10 +112,27 @@ func BalanceSheet(asOf time.Time) (assets, liabilities, equity []dtos.BsRow, err
 
 // ===== Income Statement =====
 
-// Income (credit-normal): amount = (credit - debit)
-// Expense (debit-normal): amount = (debit - credit)
-
+// IncomeStatement generates an income statement (profit & loss) for a date range.
+//
+// The income statement shows financial performance over a period by calculating:
+//   - Revenue (Income accounts): amount = credit - debit (credit-normal)
+//   - Expenses: amount = debit - credit (debit-normal)
+//   - Net income = total revenue - total expenses
+//
+// Parameters:
+//   - from: time.Time - Start date of the period (inclusive)
+//   - to: time.Time - End date of the period (inclusive, adds 1 day for proper range)
+//
+// Returns:
+//   - revenue: []dtos.IsRow - Array of income account rows with amounts
+//   - expenses: []dtos.IsRow - Array of expense account rows with amounts
+//   - totalRevenue: float64 - Sum of all revenue
+//   - totalExpenses: float64 - Sum of all expenses
+//   - err: error - Database error or nil on success
+//
+// Each IsRow contains: AccountID, AccountCode, AccountName, Type, Amount
 func IncomeStatement(from, to time.Time) (revenue, expenses []dtos.IsRow, totalRevenue, totalExpenses float64, err error) {
+	// Query income and expense accounts with proper sign calculation
 	q := `
 		SELECT 
 			ca.account_id,
@@ -101,6 +160,7 @@ func IncomeStatement(from, to time.Time) (revenue, expenses []dtos.IsRow, totalR
 	}
 	defer rows.Close()
 
+	// Scan and categorize into revenue/expenses with totals
 	var rev, exp []dtos.IsRow
 	var tr, te float64
 	for rows.Next() {
@@ -108,12 +168,13 @@ func IncomeStatement(from, to time.Time) (revenue, expenses []dtos.IsRow, totalR
 		if err := rows.Scan(&row.AccountID, &row.AccountCode, &row.AccountName, &row.Type, &row.Amount); err != nil {
 			return nil, nil, 0, 0, err
 		}
+		// Separate income and expenses (exclude zero balances)
 		if row.Type == "Income" && row.Amount != 0 {
 			rev = append(rev, row)
-			tr += row.Amount
+			tr += row.Amount // Accumulate total revenue
 		} else if row.Type == "Expense" && row.Amount != 0 {
 			exp = append(exp, row)
-			te += row.Amount
+			te += row.Amount // Accumulate total expenses
 		}
 	}
 	return rev, exp, tr, te, nil
@@ -121,17 +182,39 @@ func IncomeStatement(from, to time.Time) (revenue, expenses []dtos.IsRow, totalR
 
 // ===== Cash Flow (Direct) =====
 
-// Direct method driven by cash account IDs:
-// inflows = SUM(credits to cash accounts), outflows = SUM(debits from cash accounts)
+// CashFlow generates a cash flow statement using the direct method.
+//
+// The direct method tracks actual cash movements:
+//   - Inflows: Credits to cash accounts (cash received)
+//   - Outflows: Debits to cash accounts (cash paid out)
+//   - Beginning cash: Sum of cash account balances before period start
+//   - Ending cash: Sum of cash account balances through period end
+//
+// Parameters:
+//   - from: time.Time - Start date of the period
+//   - to: time.Time - End date of the period (inclusive)
+//   - cashAccountIDs: []string - Array of account IDs representing cash accounts
+//     (e.g., "Cash on Hand", "Bank Account")
+//
+// Returns:
+//   - inflows: float64 - Total cash inflows (credits to cash accounts)
+//   - outflows: float64 - Total cash outflows (debits to cash accounts)
+//   - beginCash: float64 - Cash balance at start of period
+//   - endCash: float64 - Cash balance at end of period
+//   - err: error - "cashAccountIDs is required", database error, or nil on success
+//
+// Formula: endCash = beginCash + inflows - outflows
 func CashFlow(from, to time.Time, cashAccountIDs []string) (inflows, outflows, beginCash, endCash float64, err error) {
+	// Validate cash account IDs are provided
 	if len(cashAccountIDs) == 0 {
 		return 0, 0, 0, 0, fmt.Errorf("cashAccountIDs is required")
 	}
-	// Build IN clause
+
+	// Build IN clause placeholders for dynamic account list
 	placeholders := strings.Repeat("?,", len(cashAccountIDs))
 	placeholders = strings.TrimRight(placeholders, ",")
 
-	// args helper
+	// Helper function to build query arguments
 	args := func(extra ...interface{}) []interface{} {
 		a := make([]interface{}, 0, len(cashAccountIDs)+len(extra))
 		for _, id := range cashAccountIDs {
@@ -141,7 +224,7 @@ func CashFlow(from, to time.Time, cashAccountIDs []string) (inflows, outflows, b
 		return a
 	}
 
-	// Inflows and outflows within period
+	// Calculate inflows (credits) and outflows (debits) within period
 	qFlows := fmt.Sprintf(`
 		SELECT 
 			COALESCE(SUM(je.credit),0) AS inflows,
@@ -155,7 +238,7 @@ func CashFlow(from, to time.Time, cashAccountIDs []string) (inflows, outflows, b
 		return
 	}
 
-	// Beginning cash: sum normal balance of cash accounts prior to From
+	// Calculate beginning cash: sum normal balance before period start
 	qBegin := fmt.Sprintf(`
 		SELECT COALESCE(SUM(%s),0)
 		FROM chart_of_accounts ca
@@ -167,7 +250,7 @@ func CashFlow(from, to time.Time, cashAccountIDs []string) (inflows, outflows, b
 		return
 	}
 
-	// Ending cash: sum normal balance up to To
+	// Calculate ending cash: sum normal balance through period end
 	qEnd := fmt.Sprintf(`
 		SELECT COALESCE(SUM(%s),0)
 		FROM chart_of_accounts ca
@@ -182,6 +265,13 @@ func CashFlow(from, to time.Time, cashAccountIDs []string) (inflows, outflows, b
 	return
 }
 
+// toAny converts a string slice to an interface{} slice for SQL query arguments.
+//
+// Parameters:
+//   - ss: []string - String slice to convert
+//
+// Returns:
+//   - []interface{} - Interface slice suitable for DB.Query variadic args
 func toAny(ss []string) []interface{} {
 	out := make([]interface{}, len(ss))
 	for i, s := range ss {
@@ -192,8 +282,21 @@ func toAny(ss []string) []interface{} {
 
 // ===== General Ledger =====
 
+// getAccount retrieves account details from the chart of accounts.
+//
+// This is an internal helper function used by the Ledger function.
+//
+// Parameters:
+//   - ctx: context.Context - Request context for cancellation
+//   - accountID: string - The account_id to retrieve
+//
+// Returns:
+//   - dtos.AcctInfo: Account information (ID, Code, Name, Type)
+//   - error: sql.ErrNoRows if not found, database error, or nil on success
 func getAccount(ctx context.Context, accountID string) (dtos.AcctInfo, error) {
 	var a dtos.AcctInfo
+
+	// Query account details from chart of accounts
 	err := DB.QueryRowContext(ctx, `
 		SELECT account_id, account_code, account_name, account_type
 		FROM chart_of_accounts WHERE account_id = ?`, accountID).
@@ -201,10 +304,25 @@ func getAccount(ctx context.Context, accountID string) (dtos.AcctInfo, error) {
 	return a, err
 }
 
-// Opening balance up to (but NOT including) From
+// openingBalance calculates the account balance before a specified date.
+//
+// This is used to show the starting balance for a ledger period. It sums all
+// journal entries from the beginning of time up to (but not including) the from date.
+//
+// Parameters:
+//   - ctx: context.Context - Request context for cancellation
+//   - accountID: string - The account to calculate opening balance for
+//   - from: time.Time - The date from which the ledger period begins (exclusive)
+//
+// Returns:
+//   - float64: Opening balance using normal balance calculation (debit-credit or credit-debit)
+//   - error: Database error or nil on success
 func openingBalance(ctx context.Context, accountID string, from time.Time) (float64, error) {
+	// Use normal balance expression for proper sign calculation
 	expr := normalBalanceExpr("je")
 	var bal float64
+
+	// Sum all entries before the from date
 	err := DB.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT COALESCE(SUM(%s),0)
 		FROM journal_entries je
@@ -213,7 +331,31 @@ func openingBalance(ctx context.Context, accountID string, from time.Time) (floa
 	return bal, err
 }
 
-// Ledger entries with pagination and running balance
+// Ledger generates a general ledger report for a specific account with pagination.
+//
+// The general ledger shows detailed transaction history for an account including:
+//   - Opening balance (balance before the period)
+//   - All journal entries in the date range (entry_id, date, description, debit, credit)
+//   - Pagination support for large ledgers
+//
+// Parameters:
+//   - accountID: string - The account_id to generate ledger for
+//   - from: time.Time - Start date of the period (inclusive)
+//   - to: time.Time - End date of the period (inclusive, adds 1 day for proper range)
+//   - page: int - Page number (1-based)
+//   - size: int - Number of entries per page
+//
+// Returns:
+//   - acct: dtos.AcctInfo - Account information (ID, Code, Name, Type)
+//   - opening: float64 - Opening balance before the period start
+//   - entries: []struct - Array of journal entries with:
+//   - EntryID: Unique entry identifier
+//   - Date: Transaction date
+//   - Desc: Optional description (*string)
+//   - Debit: Debit amount
+//   - Credit: Credit amount
+//   - metaCount: int - Total number of entries in the date range (for pagination)
+//   - err: error - Database error or nil on success
 func Ledger(accountID string, from, to time.Time, page, size int) (acct dtos.AcctInfo, opening float64, entries []struct {
 	EntryID string
 	Date    time.Time
@@ -223,18 +365,20 @@ func Ledger(accountID string, from, to time.Time, page, size int) (acct dtos.Acc
 }, metaCount int, err error) {
 
 	ctx := context.Background()
+
+	// Retrieve account details
 	acct, err = getAccount(ctx, accountID)
 	if err != nil {
 		return
 	}
 
-	// Opening balance before 'from'
+	// Calculate opening balance before period start
 	opening, err = openingBalance(ctx, accountID, from)
 	if err != nil {
 		return
 	}
 
-	// Count entries in range
+	// Count total entries in date range for pagination metadata
 	err = DB.QueryRow(`
 		SELECT COUNT(*) FROM journal_entries
 		WHERE account_id = ? 
@@ -244,7 +388,10 @@ func Ledger(accountID string, from, to time.Time, page, size int) (acct dtos.Acc
 		return
 	}
 
+	// Calculate pagination offset
 	offset := (page - 1) * size
+
+	// Query paginated journal entries
 	rows, err := DB.Query(`
 		SELECT entry_id, entry_date, description, debit, credit
 		FROM journal_entries
@@ -258,6 +405,7 @@ func Ledger(accountID string, from, to time.Time, page, size int) (acct dtos.Acc
 	}
 	defer rows.Close()
 
+	// Scan journal entries
 	for rows.Next() {
 		var e struct {
 			EntryID string
@@ -275,7 +423,27 @@ func Ledger(accountID string, from, to time.Time, page, size int) (acct dtos.Acc
 	return
 }
 
+// ExportAccountsToCSV exports chart of accounts to CSV format with optional filtering.
+//
+// This function generates a CSV export of accounts from the chart of accounts with
+// optional filters for account type and code prefix.
+//
+// Parameters:
+//   - w: io.Writer - The writer to output CSV data (e.g., http.ResponseWriter, file)
+//   - accountType: string - Optional filter for account type ("Asset", "Liability", "Equity", "Income", "Expense")
+//     Empty string = all types
+//   - codePrefix: string - Optional filter for account codes starting with prefix (e.g., "1000" for all 1000-series)
+//     Empty string = all codes
+//
+// Returns:
+//   - error: Database error or nil on success
+//
+// CSV Format:
+//
+//	Header: Account ID, Code, Name, Type, Balance
+//	Data: One row per account with formatted balance (2 decimal places)
 func ExportAccountsToCSV(w io.Writer, accountType, codePrefix string) error {
+	// Build dynamic query with optional filters
 	query := `
 		SELECT account_id, account_code, account_name, account_type, balance
 		FROM chart_of_accounts
@@ -283,15 +451,19 @@ func ExportAccountsToCSV(w io.Writer, accountType, codePrefix string) error {
 	`
 	var args []interface{}
 
+	// Add account type filter if provided
 	if accountType != "" {
 		query += " AND account_type = ?"
 		args = append(args, accountType)
 	}
+
+	// Add code prefix filter if provided (uses LIKE for pattern matching)
 	if codePrefix != "" {
 		query += " AND account_code LIKE ?"
 		args = append(args, codePrefix+"%")
 	}
 
+	// Sort by account code for logical ordering
 	query += " ORDER BY account_code"
 
 	rows, err := DB.Query(query, args...)
@@ -300,20 +472,23 @@ func ExportAccountsToCSV(w io.Writer, accountType, codePrefix string) error {
 	}
 	defer rows.Close()
 
+	// Initialize CSV writer
 	csvWriter := csv.NewWriter(w)
 	defer csvWriter.Flush()
 
-	// Write header
+	// Write CSV header row
 	if err := csvWriter.Write([]string{"Account ID", "Code", "Name", "Type", "Balance"}); err != nil {
 		return err
 	}
 
+	// Write data rows
 	for rows.Next() {
 		var id, code, name, accType string
 		var balance float64
 		if err := rows.Scan(&id, &code, &name, &accType, &balance); err != nil {
 			return err
 		}
+		// Format balance with 2 decimal places
 		record := []string{id, code, name, accType, fmt.Sprintf("%.2f", balance)}
 		if err := csvWriter.Write(record); err != nil {
 			return err
@@ -322,7 +497,31 @@ func ExportAccountsToCSV(w io.Writer, accountType, codePrefix string) error {
 
 	return rows.Err()
 }
+
+// ExportJournalEntriesToCSV exports journal entries to CSV format with optional filtering.
+//
+// This function generates a CSV export of journal entries with optional filters for
+// date range and account ID.
+//
+// Parameters:
+//   - w: io.Writer - The writer to output CSV data (e.g., http.ResponseWriter, file)
+//   - startDate: string - Optional start date filter (format: "YYYY-MM-DD")
+//     Empty string = no start date filter
+//   - endDate: string - Optional end date filter (format: "YYYY-MM-DD")
+//     Empty string = no end date filter
+//   - accountID: string - Optional filter for specific account ID
+//     Empty string = all accounts
+//
+// Returns:
+//   - error: Database error or nil on success
+//
+// CSV Format:
+//
+//	Header: Entry ID, Order ID, Payment ID, PO ID, Account ID, Debit, Credit, Entry Date, Description
+//	Data: One row per journal entry with formatted amounts (2 decimal places)
+//	      Sorted by entry_date DESC (newest first)
 func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID string) error {
+	// Build dynamic query with optional filters
 	query := `
 		SELECT entry_id, order_id, payment_id, po_id, account_id, debit, credit, entry_date, description
 		FROM journal_entries
@@ -330,19 +529,25 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID string
 	`
 	var args []interface{}
 
+	// Add start date filter if provided
 	if startDate != "" {
 		query += " AND entry_date >= ?"
 		args = append(args, startDate)
 	}
+
+	// Add end date filter if provided
 	if endDate != "" {
 		query += " AND entry_date <= ?"
 		args = append(args, endDate)
 	}
+
+	// Add account filter if provided
 	if accountID != "" {
 		query += " AND account_id = ?"
 		args = append(args, accountID)
 	}
 
+	// Sort by date descending (newest first)
 	query += " ORDER BY entry_date DESC"
 
 	rows, err := DB.Query(query, args...)
@@ -351,10 +556,11 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID string
 	}
 	defer rows.Close()
 
+	// Initialize CSV writer
 	csvWriter := csv.NewWriter(w)
 	defer csvWriter.Flush()
 
-	// Write header
+	// Write CSV header row
 	if err := csvWriter.Write([]string{
 		"Entry ID", "Order ID", "Payment ID", "PO ID", "Account ID",
 		"Debit", "Credit", "Entry Date", "Description",
@@ -362,6 +568,7 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID string
 		return err
 	}
 
+	// Write data rows
 	for rows.Next() {
 		var (
 			entryID, orderID, paymentID, poID, accID string
@@ -372,6 +579,7 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID string
 		if err := rows.Scan(&entryID, &orderID, &paymentID, &poID, &accID, &debit, &credit, &entryDate, &description); err != nil {
 			return err
 		}
+		// Format record with 2 decimal places for amounts, formatted date
 		record := []string{
 			entryID,
 			orderID,
@@ -381,7 +589,7 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID string
 			fmt.Sprintf("%.2f", debit),
 			fmt.Sprintf("%.2f", credit),
 			entryDate.Format("2006-01-02 15:04:05"),
-			description.String,
+			description.String, // Empty string if NULL
 		}
 		if err := csvWriter.Write(record); err != nil {
 			return err
@@ -391,11 +599,37 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID string
 	return rows.Err()
 }
 
+// GetTopSellingProducts retrieves top-selling products with sales analytics.
+//
+// This function generates a sales report showing products ranked by quantity sold,
+// with optional time-based filtering (daily, weekly, monthly, yearly).
+//
+// Parameters:
+//   - timeRange: string - Time filter: "daily", "weekly", "monthly", "yearly", or "" (all time)
+//   - page: int - Page number (1-based)
+//   - size: int - Number of products per page
+//
+// Returns:
+//   - []dtos.TopProduct: Array of top-selling products containing:
+//   - ProductID: Unique product identifier
+//   - ProductName: Product name
+//   - TotalQuantity: Total units sold
+//   - ProductImage: First product image URL (may be empty)
+//   - TotalRevenue: Total revenue from product sales
+//   - *dtos.PaginationMeta: Pagination metadata
+//   - error: Database error or nil on success
+//
+// Time Ranges:
+//   - "daily": Products sold today (DATE matches current date)
+//   - "weekly": Products sold this week (YEAR and WEEK match current)
+//   - "monthly": Products sold this month (YEAR and MONTH match current)
+//   - "yearly": Products sold this year (YEAR matches current)
+//   - "": All-time top sellers (no date filter)
 func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct, *dtos.PaginationMeta, error) {
 	var totalCount int
 	now := time.Now()
 
-	// DATE FILTER
+	// Build date filter based on time range
 	dateFilter := ""
 	switch timeRange {
 	case "daily":
@@ -408,10 +642,10 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 		dateFilter = "YEAR(o.created_at) = ?"
 	}
 
-	// PAGINATION
+	// Calculate pagination offset
 	offset := (page - 1) * size
 
-	// COUNT QUERY
+	// Count total distinct products matching filter
 	countQuery := `
 		SELECT COUNT(DISTINCT oi.product_id)
 		FROM order_items oi
@@ -421,13 +655,13 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 		countQuery += " WHERE " + dateFilter
 	}
 
-	// APPLY DATE ARGS
+	// Execute count with date filter arguments
 	err := DB.QueryRow(countQuery, getDateFilterArgs(timeRange, now)...).Scan(&totalCount)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// MAIN QUERY
+	// Build main query with product details and aggregations
 	query := `
 		SELECT 
 			p.product_id,
@@ -441,17 +675,19 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 		LEFT JOIN product_images pi ON pi.product_id = p.product_id
 	`
 
+	// Add date filter if specified
 	if dateFilter != "" {
 		query += " WHERE " + dateFilter
 	}
 
+	// Group by product and sort by quantity (top sellers first)
 	query += `
 		GROUP BY p.product_id, p.name
 		ORDER BY total_quantity DESC
 		LIMIT ? OFFSET ?
 	`
 
-	// COMPLETE ARGS: date args + limit + offset
+	// Build complete argument list: date args + pagination args
 	args := append(getDateFilterArgs(timeRange, now), size, offset)
 
 	rows, err := DB.Query(query, args...)
@@ -460,6 +696,7 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 	}
 	defer rows.Close()
 
+	// Scan results
 	var results []dtos.TopProduct
 	for rows.Next() {
 		var tp dtos.TopProduct
@@ -473,12 +710,14 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 		); err != nil {
 			return nil, nil, err
 		}
+		// Set image URL if available
 		if image.Valid {
 			tp.ProductImage = image.String
 		}
 		results = append(results, tp)
 	}
 
+	// Build pagination metadata
 	meta := &dtos.PaginationMeta{
 		TotalItems: totalCount,
 		Page:       page,
@@ -490,18 +729,40 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 
 	return results, meta, nil
 }
+
+// getDateFilterArgs builds SQL query arguments for date filtering.
+//
+// This is an internal helper function that generates the appropriate query arguments
+// based on the time range filter.
+//
+// Parameters:
+//   - timeRange: string - The time range filter ("daily", "weekly", "monthly", "yearly", or "")
+//   - now: time.Time - The current timestamp for date calculations
+//
+// Returns:
+//   - []interface{}: Array of arguments for SQL query:
+//   - "daily": [now] - Full timestamp for DATE() comparison
+//   - "weekly": [year, week] - ISO year and week number
+//   - "monthly": [year, month] - Year and month number (1-12)
+//   - "yearly": [year] - Year number
+//   - "": [] - Empty array (no date filter)
 func getDateFilterArgs(timeRange string, now time.Time) []interface{} {
 	switch timeRange {
 	case "daily":
+		// Return full timestamp for DATE() comparison
 		return []interface{}{now}
 	case "weekly":
+		// Return ISO year and week number
 		year, week := now.ISOWeek()
 		return []interface{}{year, week}
 	case "monthly":
+		// Return year and month number (1-12)
 		return []interface{}{now.Year(), int(now.Month())}
 	case "yearly":
+		// Return year number
 		return []interface{}{now.Year()}
 	default:
+		// No date filter - return empty array
 		return []interface{}{}
 	}
 }

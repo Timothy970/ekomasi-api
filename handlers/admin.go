@@ -18,19 +18,25 @@ var uploadImageError = "Failed to upload image"
 
 // This provides the code for products admin, products categories, products reviews and product bundles functionalities that require admin authorization
 
-// Function for creating Products Categories ### POST /products/categories
-// Add new category
-// CreateCategoryHandler creates a new category
-// @Summary Add a new category
-// @Description Add new category
-// @Tags Admin
-// @Accept json
-// @Produce json
-// @Param product body dtos.CreateCategory true "Add a new Category"
-// @Success 201 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/products/categories [post]
+// CreateCategoryHandler creates a new product category.
+// It supports optional image upload.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Add a new category
+// @Description  Create a new product category with an optional image
+// @Tags         Admin
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        name         formData  string  true  "Category Name"
+// @Param        description  formData  string  true  "Category Description"
+// @Param        parent_id    formData  string  false "Parent Category ID"
+// @Param        image        formData  file    false "Category Image"
+// @Success      201          {object}  dtos.Category
+// @Failure      400          {object}  dtos.ErrorResponse
+// @Failure      409          {object}  dtos.ErrorResponse
+// @Failure      500          {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/products/categories [post]
 func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -40,6 +46,7 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Upload image if present
 	url, err := utils.ParseAndUploadFile(r, "image", 20)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -107,18 +114,26 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Update new category
-// UpdateProductHandler updates an existing category
-// @Summary Update a category
-// @Description Update a category
-// @Tags Admin
-// @Accept json
-// @Produce json
-// @Param product body dtos.CreateProduct true "Updated Category"
-// @Success 201 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/admin/products/categories/{category_id} [PATCH]
+// UpdateCategoryHandler updates an existing category.
+// It supports updating name, description, parent ID, and image.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Update a category
+// @Description  Update an existing product category
+// @Tags         Admin
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        category_id  path      string  true  "Category ID"
+// @Param        name         formData  string  false "Category Name"
+// @Param        description  formData  string  false "Category Description"
+// @Param        parent_id    formData  string  false "Parent Category ID"
+// @Param        image        formData  file    false "Category Image"
+// @Success      200          {object}  dtos.Category
+// @Failure      400          {object}  dtos.ErrorResponse
+// @Failure      409          {object}  dtos.ErrorResponse
+// @Failure      500          {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/products/categories/{category_id} [patch]
 func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -221,18 +236,19 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Delete category
-// DeletesProductHandler deletes an existing category
-// @Summary Delete a category
-// @Description Delete a category
-// @Tags Admin
-// @Accept json
-// @Produce json
-// @Param product body map[string]string true "Delete Category"
-// @Success 201 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/admin/products/category/{category_id} [delete]
+// DeleteCategoryHandler deletes an existing category.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Delete a category
+// @Description  Delete a category by its ID
+// @Tags         Admin
+// @Produce      json
+// @Param        category_id  path      string  true  "Category ID"
+// @Success      200          {object}  map[string]interface{}
+// @Failure      400          {object}  dtos.ErrorResponse
+// @Failure      409          {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/products/category/{category_id} [delete]
 func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -268,7 +284,7 @@ func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Categories",
 			Description: "Category with ID " + id + " deleted successfully",
-			Code:        http.StatusCreated,
+			Code:        http.StatusOK,
 		},
 		Payload:   nil,
 		Message:   "Category deleted successfully",
@@ -278,18 +294,21 @@ func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Add new product
-// CreateProductHandler creates a new product
-// @Summary Add a new product
-// @Description Add new product
-// @Tags Admin
-// @Accept json
-// @Produce json
-// @Param product body dtos.CreateProduct true "Add a new Product"
-// @Success 201 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/amin/products [post]
+// CreateProductHandler creates a new product.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Add a new product
+// @Description  Create a new product with initial stock quantity set to 0
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        product  body      dtos.CreateProduct  true  "Product Details"
+// @Success      201      {object}  dtos.Product
+// @Failure      400      {object}  dtos.ErrorResponse
+// @Failure      401      {object}  dtos.ErrorResponse
+// @Failure      409      {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/products [post]
 func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -359,18 +378,21 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// UpdateProductHandler updates an existing product
-// @Summary Update product
-// @Description Update product
-// @Tags Admin
-// @Accept json
-// @Produce json
-// @Param product body dtos.CreateProduct true "Update a Product"
-// @Param        product_id  query     string  true  "Product ID"
-// @Success 201 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/admin/products/{products_id} [PATCH]
+// UpdateProductHandler updates an existing product.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Update product
+// @Description  Update an existing product by ID
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        product_id  path      string              true  "Product ID"
+// @Param        product     body      dtos.CreateProduct  true  "Product Details"
+// @Success      200         {object}  dtos.Product
+// @Failure      400         {object}  dtos.ErrorResponse
+// @Failure      409         {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/products/{product_id} [patch]
 func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -422,16 +444,19 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// delete a product
-// DeleteProductHandler deletes a product
-// @Summary Delete product
-// @Description Delete product
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/admin/products/{product_id} [put]
+// DeleteProductHandler deletes a product.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Delete product
+// @Description  Delete a product by ID
+// @Tags         Admin
+// @Produce      json
+// @Param        product_id  path      string  true  "Product ID"
+// @Success      200         {object}  map[string]interface{}
+// @Failure      400         {object}  dtos.ErrorResponse
+// @Failure      409         {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/products/{product_id} [delete]
 func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -478,6 +503,19 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// AddCoupon creates a new coupon.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Add a new coupon
+// @Description  Create a new promotional coupon
+// @Tags         Promotions
+// @Accept       json
+// @Produce      json
+// @Param        coupon  body      dtos.PromoCode  true  "Coupon Details"
+// @Success      200     {object}  map[string]interface{}
+// @Failure      400     {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/coupons [post]
 func AddCoupon(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -527,7 +565,19 @@ func AddCoupon(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// func to upload an image to gcs and return the url
+// UploadImageHandler uploads an image to GCS and returns the URL.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Upload an image
+// @Description  Upload an image file to Google Cloud Storage
+// @Tags         Admin
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        image  formData  file  true  "Image File"
+// @Success      200    {object}  map[string]string
+// @Failure      400    {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/upload [post]
 func UploadImageHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -565,6 +615,21 @@ func UploadImageHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary,
 	})
 }
+
+// UploadImageHandler2 uploads an image to GCS and returns the URL.
+// This is a duplicate of UploadImageHandler, likely for testing or legacy reasons.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Upload an image (Alternative)
+// @Description  Upload an image file to Google Cloud Storage
+// @Tags         Admin
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        image  formData  file  true  "Image File"
+// @Success      200    {object}  map[string]string
+// @Failure      400    {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/upload2 [post]
 func UploadImageHandler2(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST

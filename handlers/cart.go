@@ -22,21 +22,25 @@ var (
 	failedToGetCartItems = "Failed to get cart items for Cart ID "
 )
 
-// Create a cart handler
-// @Summary Create Cart
-// @Description Create a user's cart
-// @Tags Cart
-// @Accept json
-// @Produce json
-// @Success 200 {object} dtos.AddToCartResponse
-// @Failure 400 {object} dtos.ErrorResponse
-// @Failure 500 {object} dtos.ErrorResponse
-// @Security BearerAuth
-// @Router /api/cart [post]
+// CreateCartHandler creates a new shopping cart for the user.
+//
+// @Summary      Create Cart
+// @Description  Create a new shopping cart for the user.
+// @Tags         Cart
+// @Accept       json
+// @Produce      json
+// @Param        cart  body      dtos.CreateCartRequest  true  "Create Cart Request"
+// @Success      200   {object}  dtos.AddToCartResponse
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      500   {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/cart [post]
 func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Decode request body
 	req, ok := DecodeRequestBody[dtos.CreateCartRequest](r, w, requestSummary, start)
 	if !ok {
 		return
@@ -45,6 +49,7 @@ func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
 	// 	return
 	// }
 
+	// Create cart in database
 	cartID, err := models.CreateCart(*req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -61,6 +66,7 @@ func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with created cart ID
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
@@ -75,21 +81,25 @@ func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// Get a cart for user
-// @Summary Get Cart
-// @Description Get a user's cart
-// @Tags Cart
-// @Accept json
-// @Produce json
-// @Success 200 {object} dtos.AddToCartResponse
-// @Failure 400 {object} dtos.ErrorResponse
-// @Failure 500 {object} dtos.ErrorResponse
-// @Security BearerAuth
-// @Router /api/cart [get]
+// GetUserCartHandler retrieves the cart for the authenticated user.
+//
+// @Summary      Get Cart
+// @Description  Retrieve the shopping cart for the currently authenticated user.
+// @Tags         Cart
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  dtos.AddToCartResponse
+// @Failure      400  {object}  dtos.ErrorResponse
+// @Failure      403  {object}  dtos.ErrorResponse
+// @Failure      500  {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/cart [get]
 func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Get authenticated user from context
 	user, ok := middleware.UserFromContext(r.Context())
 	if !ok {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -105,6 +115,8 @@ func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Fetch user's cart ID
 	cartID, err := models.GetUserCart(user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -121,6 +133,7 @@ func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Respond with cart ID
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
@@ -135,30 +148,37 @@ func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// AddToCartHandler handles adding a product to the cart
-// @Summary Add to Cart
-// @Description Add a product to user's cart
-// @Tags Cart
-// @Accept json
-// @Produce json
-// @Param cart body dtos.AddToCartRequest true "Cart item"
-// @Success 200 {object} dtos.AddToCartResponse
-// @Failure 400 {object} dtos.ErrorResponse
-// @Failure 500 {object} dtos.ErrorResponse
-// @Security BearerAuth
-// @Router /api/cart/add [post]
+// AddToCartHandler adds a product to the user's cart.
+//
+// @Summary      Add to Cart
+// @Description  Add a product item to the user's shopping cart.
+// @Tags         Cart
+// @Accept       json
+// @Produce      json
+// @Param        cart  body      dtos.AddToCartRequest  true  "Cart Item Details"
+// @Success      200   {object}  dtos.AddToCartResponse
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      404   {object}  dtos.ErrorResponse
+// @Failure      500   {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/cart/add [post]
 func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Decode request body
 	req, ok := DecodeRequestBody[dtos.AddToCartRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
 
+	// Validate the request payload
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Cart") {
 		return
 	}
+
+	// Insert item into cart
 	if err := models.InsertCartItem(req.CartID, req.ProductID, req.Quantity); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -173,6 +193,8 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Fetch updated cart items
 	res, err := getCartItemsByCartID(req.CartID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -188,6 +210,8 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with updated cart items
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
@@ -202,22 +226,29 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// ViewCartHandler returns the contents of a user's cart
-// @Summary View Cart
-// @Description Retrieve current items in cart
-// @Tags Cart
-// @Produce json
-// @Success 200 {object} dtos.ViewCartResponse
-// @Failure 400 {object} dtos.ErrorResponse
-// @Failure 500 {object} dtos.ErrorResponse
-// @Security BearerAuth
-// @Router /api/cart/view/{cart_id} [get]
+// ViewCartHandler retrieves the contents of a specific cart.
+//
+// @Summary      View Cart
+// @Description  Retrieve current items in the specified cart.
+// @Tags         Cart
+// @Produce      json
+// @Param        cart_id      path      string  true   "Cart ID"
+// @Param        location_id  query     int     false  "Location ID for delivery charge calculation"
+// @Success      200          {object}  dtos.ViewCartResponse
+// @Failure      400          {object}  dtos.ErrorResponse
+// @Failure      500          {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/cart/view/{cart_id} [get]
 func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Extract cart ID from path variables
 	cartID := mux.Vars(r)["cart_id"]
 	locationID := r.URL.Query().Get("location_id")
+
+	// Fetch cart items
 	res, err := getCartItemsByCartID(cartID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -233,6 +264,8 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Calculate delivery charge if location ID is provided
 	if locationID != "" {
 		locationIDInt, _ := strconv.Atoi(locationID)
 		if locationIDInt != 0 {
@@ -256,6 +289,8 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 
 		}
 	}
+
+	// Respond with cart items
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
@@ -370,29 +405,35 @@ func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartIt
 // 	discountData
 // }
 
-// UpdateCartItemHandler updates quantity of an item in the cart
-// @Summary Update Cart Item
-// @Description Update a cart item quantity
-// @Tags Cart
-// @Accept json
-// @Produce json
-// @Param item body dtos.UpdateCartItemRequest true "Update cart item"
-// @Success 200 {object} dtos.UpdateCartItemResponse
-// @Failure 400 {object} dtos.ErrorResponse
-// @Failure 500 {object} dtos.ErrorResponse
-// @Security BearerAuth
-// @Router /api/cart/update/{cart_id} [put]
+// UpdateCartItemHandler updates the quantity of a specific item in the cart.
+//
+// @Summary      Update Cart Item
+// @Description  Update the quantity of an item in the shopping cart.
+// @Tags         Cart
+// @Accept       json
+// @Produce      json
+// @Param        cart_id  path      string                     true  "Cart ID"
+// @Param        item     body      dtos.UpdateCartItemRequest true  "Update Cart Item Details"
+// @Success      200      {object}  dtos.UpdateCartItemResponse
+// @Failure      400      {object}  dtos.ErrorResponse
+// @Failure      500      {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/cart/update/{cart_id} [put]
 func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Extract cart ID from path variables
 	cartID := mux.Vars(r)["cart_id"]
 
+	// Decode request body
 	req, ok := DecodeRequestBody[dtos.UpdateCartItemRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
 
+	// Update cart item in database
 	if err := models.UpdateCartItem(cartID, req.ProductID, req.Quantity); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -407,6 +448,8 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Fetch updated cart items
 	res, err := getCartItemsByCartID(cartID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -422,6 +465,8 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with updated cart items
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
@@ -436,29 +481,35 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-// RemoveFromCartHandler removes an item from the cart
-// @Summary Remove Cart Item
-// @Description Remove a product from user's cart
-// @Tags Cart
-// @Accept json
-// @Produce json
-// @Param item body dtos.RemoveFromCartRequest true "Remove cart item"
-// @Success 200 {object} dtos.RemoveFromCartResponse
-// @Failure 400 {object} dtos.ErrorResponse
-// @Failure 500 {object} dtos.ErrorResponse
-// @Security BearerAuth
-// @Router /api/cart/remove/{cart_id} [delete]
+// RemoveFromCartHandler removes a specific item from the cart.
+//
+// @Summary      Remove Cart Item
+// @Description  Remove a product from the user's shopping cart.
+// @Tags         Cart
+// @Accept       json
+// @Produce      json
+// @Param        cart_id  path      string                     true  "Cart ID"
+// @Param        item     body      dtos.RemoveFromCartRequest true  "Remove Cart Item Details"
+// @Success      200      {object}  dtos.RemoveFromCartResponse
+// @Failure      400      {object}  dtos.ErrorResponse
+// @Failure      500      {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/cart/remove/{cart_id} [delete]
 func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
+	// Decode request body
 	req, ok := DecodeRequestBody[dtos.RemoveFromCartRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+
+	// Extract cart ID from path variables
 	cartID := mux.Vars(r)["cart_id"]
 
+	// Delete cart item from database
 	if err := models.DeleteCartItem(cartID, req.ProductID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -473,6 +524,8 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Fetch updated cart items
 	res, err := getCartItemsByCartID(cartID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -488,6 +541,8 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Respond with updated cart items
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
@@ -572,22 +627,43 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 //			Request:   r,
 //			RawBody:   requestSummary})
 //	}
+//
+// ApplyDiscountHandler applies a discount coupon, voucher, or promo code to the cart.
+//
+// @Summary      Apply Discount
+// @Description  Apply a discount coupon, voucher, or promo code to the user's cart.
+// @Tags         Cart
+// @Accept       json
+// @Produce      json
+// @Param        coupon  body      dtos.CouponRequest  true  "Discount Code Details"
+// @Success      200     {object}  dtos.ViewCartResponse
+// @Failure      400     {object}  dtos.ErrorResponse
+// @Failure      500     {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/cart/apply-coupon [post]
 func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	// Read and restore body FIRST
+	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
+
+	// Decode request body
 	req, ok := DecodeRequestBody[dtos.CouponRequest](r, w, requestSummary, start)
 	if !ok {
 		return
 	}
+
+	// Determine discount type if not provided
 	req.DiscountType = models.GetDiscountCodeType(req.Code)
 	if req.RequestType == "" {
 		req.RequestType = "check"
 	}
+
+	// Validate the request payload
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Cart") {
 		return
 	}
-	//validate coupon/promc code/voucher
+
+	// Validate and apply the discount code
 	items, err := validateCodeVoucher(*req)
 	if err != nil {
 		log.Printf("Error fetching cart items: %v", err)
@@ -605,11 +681,13 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reset totals if negative
 	if items.TotalAmount <= 0 {
 		items.SubTotal = 0
 		items.EstimatedTax = 0
 	}
 
+	// Calculate delivery charge if location ID is provided
 	if req.LocationID != nil {
 		locationIDInt := *req.LocationID
 		if locationIDInt != 0 {
@@ -634,6 +712,7 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Respond with updated cart details
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
@@ -740,57 +819,74 @@ func applyPromoCode(cart dtos.ViewCartResponse, code string, requestType string)
 func applyPromoCodeToOrder(totalAmount, totalDiscount float64, code string, promoCodeType string) (float64, float64, error) {
 	switch promoCodeType {
 	case "promo_code":
-		promoData, err := models.ValidatePromoCode(code, totalAmount)
-		if err != nil {
-			return 0, 0, err
-		}
-
-		var discount float64
-		switch promoData.DiscountType {
-		case "FIXED":
-			discount = promoData.DiscountValue
-			if discount > totalAmount {
-				discount = totalAmount
-			}
-		case "PERCENTAGE":
-			discount = (totalAmount * promoData.DiscountValue) / 100
-			if discount > totalAmount {
-				discount = totalAmount
-			}
-		default:
-			return 0, 0, fmt.Errorf("unsupported discount type")
-		}
-
-		totalDiscount += discount
-		//update promo code usage count
-		if err := models.IncrementPromoCodeUsage(code); err != nil {
-			return 0, 0, err
-		}
-
-		return totalAmount, totalDiscount, nil
+		return applyPromoCodeDiscount(totalAmount, totalDiscount, code)
 	case "coupon":
-		discount, err := models.ValidateCoupon(code)
-		if err != nil {
-			return 0, 0, err
-		}
-		if discount > totalAmount {
-			discount = totalAmount
-		}
-		totalDiscount += discount
-		totalAmount -= discount
-		return totalAmount, totalDiscount, nil
+		return applyCouponDiscount(totalAmount, totalDiscount, code)
 	case "voucher":
-		voucherBalance, err := models.ValidateVoucher(code)
-		if err != nil {
-			return 0, 0, err
-		}
-		if voucherBalance > totalAmount {
-			voucherBalance = totalAmount
-		}
-		totalDiscount += voucherBalance
-		totalAmount -= voucherBalance
-		return totalAmount, totalDiscount, nil
+		return applyVoucherDiscount(totalAmount, totalDiscount, code)
 	default:
 		return totalAmount, totalDiscount, fmt.Errorf("invalid discount type for order")
 	}
+}
+
+func applyPromoCodeDiscount(totalAmount, totalDiscount float64, code string) (float64, float64, error) {
+	promoData, err := models.ValidatePromoCode(code, totalAmount)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	discount := calculatePromoDiscount(promoData, totalAmount)
+	if discount < 0 {
+		return 0, 0, fmt.Errorf("unsupported discount type")
+	}
+
+	totalDiscount += discount
+	if err := models.IncrementPromoCodeUsage(code); err != nil {
+		return 0, 0, err
+	}
+
+	return totalAmount, totalDiscount, nil
+}
+
+func calculatePromoDiscount(promoData dtos.PromoCodeData, totalAmount float64) float64 {
+	var discount float64
+	switch promoData.DiscountType {
+	case "FIXED":
+		discount = promoData.DiscountValue
+	case "PERCENTAGE":
+		discount = (totalAmount * promoData.DiscountValue) / 100
+	default:
+		return -1
+	}
+
+	if discount > totalAmount {
+		discount = totalAmount
+	}
+	return discount
+}
+
+func applyCouponDiscount(totalAmount, totalDiscount float64, code string) (float64, float64, error) {
+	discount, err := models.ValidateCoupon(code)
+	if err != nil {
+		return 0, 0, err
+	}
+	if discount > totalAmount {
+		discount = totalAmount
+	}
+	totalDiscount += discount
+	totalAmount -= discount
+	return totalAmount, totalDiscount, nil
+}
+
+func applyVoucherDiscount(totalAmount, totalDiscount float64, code string) (float64, float64, error) {
+	voucherBalance, err := models.ValidateVoucher(code)
+	if err != nil {
+		return 0, 0, err
+	}
+	if voucherBalance > totalAmount {
+		voucherBalance = totalAmount
+	}
+	totalDiscount += voucherBalance
+	totalAmount -= voucherBalance
+	return totalAmount, totalDiscount, nil
 }

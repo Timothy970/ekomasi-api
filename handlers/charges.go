@@ -13,6 +13,20 @@ import (
 var chargeWithID = "Charge with ID "
 
 // Add Charge
+// AddChargeHandler creates a new charge.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Add a new charge
+// @Description  Create a new charge
+// @Tags         Charges
+// @Accept       json
+// @Produce      json
+// @Param        charge  body      dtos.Charge  true  "Charge Details"
+// @Success      201     {object}  dtos.Charge
+// @Failure      400     {object}  dtos.ErrorResponse
+// @Failure      500     {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/charges [post]
 func AddChargeHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -59,6 +73,21 @@ func AddChargeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Update Charge
+// UpdateChargeHandler updates an existing charge.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Update a charge
+// @Description  Update an existing charge by ID
+// @Tags         Charges
+// @Accept       json
+// @Produce      json
+// @Param        charge_id  path      string       true  "Charge ID"
+// @Param        charge     body      dtos.Charge  true  "Charge Details"
+// @Success      200        {object}  dtos.Charge
+// @Failure      400        {object}  dtos.ErrorResponse
+// @Failure      500        {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/charges/{charge_id} [put]
 func UpdateChargeHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -106,6 +135,16 @@ func UpdateChargeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Get Charge by ID
+// GetChargeByIDHandler retrieves a charge by ID.
+//
+// @Summary      Get a charge by ID
+// @Description  Retrieve a charge using its unique ID
+// @Tags         Charges
+// @Produce      json
+// @Param        charge_id  path      string  true  "Charge ID"
+// @Success      200        {object}  dtos.Charge
+// @Failure      500        {object}  dtos.ErrorResponse
+// @Router       /api/charges/{charge_id} [get]
 func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -142,6 +181,15 @@ func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Get All Charges
+// GetAllChargesHandler retrieves all charges.
+//
+// @Summary      Get all charges
+// @Description  Retrieve a list of all charges
+// @Tags         Charges
+// @Produce      json
+// @Success      200  {object}  []dtos.Charge
+// @Failure      500  {object}  dtos.ErrorResponse
+// @Router       /api/charges [get]
 func GetAllChargesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -175,6 +223,18 @@ func GetAllChargesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete Charge
+// DeleteChargeHandler deletes a charge.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Delete a charge
+// @Description  Delete a charge by ID
+// @Tags         Charges
+// @Produce      json
+// @Param        charge_id  path      string  true  "Charge ID"
+// @Success      200        {object}  map[string]interface{}
+// @Failure      500        {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/charges/{charge_id} [delete]
 func DeleteChargeHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -211,6 +271,20 @@ func DeleteChargeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Add charge to product
+// AddChargeToProductHandler associates a charge with a product.
+// This endpoint is restricted to administrators.
+//
+// @Summary      Add charge to product
+// @Description  Associate a charge with a specific product
+// @Tags         Charges
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dtos.AddChargeToProductRequest  true  "Association Details"
+// @Success      200      {object}  map[string]interface{}
+// @Failure      400      {object}  dtos.ErrorResponse
+// @Failure      500      {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/products/charges [post]
 func AddChargeToProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)

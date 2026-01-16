@@ -6,11 +6,25 @@ import (
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"encoding/csv"
+	"fmt"
 	"net/http"
 	"time"
 )
 
-// BulkUploadProductsHandler (already in your file)
+// BulkUploadProductsHandler handles the bulk upload of products via CSV file.
+// This endpoint is restricted to authenticated users.
+//
+// @Summary      Bulk upload products
+// @Description  Upload multiple products using a CSV file
+// @Tags         Products
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        file  formData  file  true  "CSV File"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      401   {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/products/bulk-upload [post]
 func BulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -82,31 +96,24 @@ func BulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	//check that the skus are unique among the products being uploaded themselves
-	skuSet := make(map[string]bool)
-	for _, product := range products {
-		if _, exists := skuSet[product.SKU]; exists {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: "Duplicate SKU found in CSV: " + product.SKU,
-					Code:        http.StatusBadRequest,
-				},
-				Message:   "Duplicate SKU found in CSV: " + product.SKU,
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-		skuSet[product.SKU] = true
+	if err := validateUniqueSKUs(products); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
 	}
 
 	for _, product := range products {
-		//check that the sku is unique among the products being uploaded in the database
-		err := models.IsSkuThere(product.SKU)
-		if err != nil {
+		if err := validateAndCreateProduct(product, authuser.ID); err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
@@ -121,88 +128,6 @@ func BulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-
-		err = models.CategoryExists(product.CategoryID)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: "Error adding product: " + err.Error(),
-					Code:        http.StatusBadRequest,
-				},
-				Message:   "Category does not exist: " + product.CategoryID,
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-		err = models.IsCategoryParent(product.CategoryID)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: err.Error(),
-					Code:        http.StatusBadRequest,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-		tag := product.Tag
-		showStock := product.ShowStockQuantity
-		sellWhenOutOfStock := product.SellWhenOutOfStock
-		buyingPrice := product.BuyingPrice
-		newProduct := &dtos.CreateProduct{
-			Name:          product.Name,
-			Description:   product.Description,
-			SKU:           product.SKU,
-			Price:         product.Price,
-			CategoryID:    product.CategoryID,
-			StockQuantity: product.StockQuantity,
-			Tag:           &tag,
-			LowStockAlert: product.LowStockQuantityWarning,
-			SellWhenOOS:   &sellWhenOutOfStock,
-			ShowStock:     &showStock,
-			BuyingPrice:   &buyingPrice,
-		}
-		productResponse, err := models.AddNewProduct(*newProduct, authuser.ID)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: "Error adding product: " + err.Error(),
-					Code:        http.StatusBadRequest,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-		if err := models.InsertProductImage(productResponse.ID, product.Image, "gallery", true); err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: "Error adding product image: " + err.Error(),
-					Code:        http.StatusBadRequest,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -223,6 +148,15 @@ func BulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// DownloadSampleCSVHandler generates and serves a sample CSV file for bulk product uploads.
+//
+// @Summary      Download sample CSV
+// @Description  Download a sample CSV file template for bulk product upload
+// @Tags         Products
+// @Produce      text/csv
+// @Success      200  {file}  file
+// @Failure      500  {string} string "Error generating sample CSV"
+// @Router       /api/products/sample-csv [get]
 func DownloadSampleCSVHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", "attachment;filename=sample_products.csv")
@@ -283,4 +217,60 @@ func DownloadSampleCSVHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("X-Generated-At", time.Now().Format(time.RFC3339))
+}
+
+// validateUniqueSKUs checks if all SKUs in the products slice are unique
+func validateUniqueSKUs(products []dtos.BulkUploadProduct) error {
+	skuSet := make(map[string]bool)
+	for _, product := range products {
+		if _, exists := skuSet[product.SKU]; exists {
+			return fmt.Errorf("duplicate SKU found in CSV: %s", product.SKU)
+		}
+		skuSet[product.SKU] = true
+	}
+	return nil
+}
+
+// validateAndCreateProduct validates a product and creates it in the database
+func validateAndCreateProduct(product dtos.BulkUploadProduct, userID string) error {
+	if err := models.IsSkuThere(product.SKU); err != nil {
+		return err
+	}
+
+	if err := models.CategoryExists(product.CategoryID); err != nil {
+		return fmt.Errorf("category does not exist: %s", product.CategoryID)
+	}
+
+	if err := models.IsCategoryParent(product.CategoryID); err != nil {
+		return err
+	}
+
+	tag := product.Tag
+	showStock := product.ShowStockQuantity
+	sellWhenOutOfStock := product.SellWhenOutOfStock
+	buyingPrice := product.BuyingPrice
+	newProduct := &dtos.CreateProduct{
+		Name:          product.Name,
+		Description:   product.Description,
+		SKU:           product.SKU,
+		Price:         product.Price,
+		CategoryID:    product.CategoryID,
+		StockQuantity: product.StockQuantity,
+		Tag:           &tag,
+		LowStockAlert: product.LowStockQuantityWarning,
+		SellWhenOOS:   &sellWhenOutOfStock,
+		ShowStock:     &showStock,
+		BuyingPrice:   &buyingPrice,
+	}
+
+	productResponse, err := models.AddNewProduct(*newProduct, userID)
+	if err != nil {
+		return fmt.Errorf("error adding product: %w", err)
+	}
+
+	if err := models.InsertProductImage(productResponse.ID, product.Image, "gallery", true); err != nil {
+		return fmt.Errorf("error adding product image: %w", err)
+	}
+
+	return nil
 }

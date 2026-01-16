@@ -15,16 +15,20 @@ import (
 
 var deliveryWithID = "Delivery with ID "
 
-//	Create Delivery
+// CreateDeliveryHandler creates a new delivery record.
+// This endpoint is restricted to administrators.
 //
-// @Summary Create Delivery
-// @Description Create Delivery
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/admin/deliveries [post]
+// @Summary      Create Delivery
+// @Description  Create a new delivery record
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        delivery  body      dtos.Delivery  true  "Delivery Details"
+// @Success      200       {object}  map[string]interface{}
+// @Failure      400       {object}  dtos.ErrorResponse
+// @Failure      409       {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/deliveries [post]
 func CreateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -73,16 +77,18 @@ func CreateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
-//	List Deliveries (Paginated)
+// ListDeliveriesHandler retrieves a paginated list of deliveries.
 //
-// @Summary List Delivery
-// @Description List Delivery
-// @Tags Deliveries
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/deliveries [get]
+// @Summary      List Deliveries
+// @Description  Retrieve a list of deliveries with pagination
+// @Tags         Deliveries
+// @Produce      json
+// @Param        page  query     int     false  "Page number"
+// @Param        size  query     int     false  "Page size"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      409   {object}  dtos.ErrorResponse
+// @Router       /api/deliveries [get]
 func ListDeliveriesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -139,16 +145,19 @@ func ListDeliveriesHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-//	List Deliveries by user_id
+// ListUserDeliveriesHandler retrieves deliveries for a specific user.
 //
-// @Summary List Delivery
-// @Description List Delivery
-// @Tags Deliveries
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/deliveries/user/{user_id} [get]
+// @Summary      List User Deliveries
+// @Description  Retrieve a list of deliveries for a specific user ID
+// @Tags         Deliveries
+// @Produce      json
+// @Param        user_id  path      string  true   "User ID"
+// @Param        page     query     int     false  "Page number"
+// @Param        size     query     int     false  "Page size"
+// @Success      200      {object}  []dtos.Delivery
+// @Failure      400      {object}  dtos.ErrorResponse
+// @Failure      409      {object}  dtos.ErrorResponse
+// @Router       /api/deliveries/user/{user_id} [get]
 func ListUserDeliveriesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -187,16 +196,17 @@ func ListUserDeliveriesHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-//	Get Delivery by ID
+// GetDeliveryHandler retrieves a delivery by ID.
 //
-// @Summary List Delivery
-// @Description List Delivery
-// @Tags Deliveries
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/deliveries/{delivery_id} [get]
+// @Summary      Get Delivery
+// @Description  Retrieve a delivery by its unique ID
+// @Tags         Deliveries
+// @Produce      json
+// @Param        delivery_id  path      string  true  "Delivery ID"
+// @Success      200          {object}  dtos.Delivery
+// @Failure      400          {object}  dtos.ErrorResponse
+// @Failure      409          {object}  dtos.ErrorResponse
+// @Router       /api/deliveries/{delivery_id} [get]
 func GetDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -232,16 +242,20 @@ func GetDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-//	Update Delivery
+// UpdateDeliveryHandler updates an existing delivery.
+// This endpoint is restricted to administrators.
 //
-// @Summary Update Delivery
-// @Description Update Delivery
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/admin/deliveries/{delivery_id} [patch]
+// @Summary      Update Delivery
+// @Description  Update an existing delivery by ID
+// @Tags         Admin
+// @Produce      json
+// @Param        delivery_id  path      string                true  "Delivery ID"
+// @Param        delivery     body      dtos.UpdateDelivery   true  "Delivery Details"
+// @Success      200          {object}  map[string]interface{}
+// @Failure      400          {object}  dtos.ErrorResponse
+// @Failure      409          {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/deliveries/{delivery_id} [patch]
 func UpdateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
@@ -292,16 +306,19 @@ func UpdateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-//	Delete Delivery
+// DeleteDeliveryHandler deletes a delivery.
+// This endpoint is restricted to administrators.
 //
-// @Summary Delete Delivery
-// @Description Delete Delivery
-// @Tags Admin
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/admin/deliveries/{delivery_id} [delete]
+// @Summary      Delete Delivery
+// @Description  Delete a delivery by ID
+// @Tags         Admin
+// @Produce      json
+// @Param        delivery_id  path      string  true  "Delivery ID"
+// @Success      200          {object}  map[string]interface{}
+// @Failure      400          {object}  dtos.ErrorResponse
+// @Failure      409          {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/deliveries/{delivery_id} [delete]
 func DeleteDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
