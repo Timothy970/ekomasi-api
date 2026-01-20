@@ -706,7 +706,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	voucher.Status = &active
 
 	deliveryTime := models.StringToTime(req.DeliveryTime)
-	//check devlivery time is in the past
+	//check delivery time is in the past
 	if deliveryTime.Before(time.Now()) {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -929,7 +929,7 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 }
 func voucherPaymentProcessor(paymentMethod string, voucherOrderID, phoneNumber string, amount float64) error {
 	switch paymentMethod {
-	//where methdod is mpesa or empty use mpesa
+	//where method is mpesa or empty use mpesa
 	case "mpesa", "":
 		// Initiate Mpesa payment
 		err := HandleMpesaVoucherPayment(voucherOrderID, phoneNumber, amount)
