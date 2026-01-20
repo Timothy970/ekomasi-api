@@ -713,10 +713,9 @@ func fetchProductFeatures(productID string) ([]dtos.ProductFeature, error) {
 			feature               dtos.ProductFeature
 			productSpecifications sql.NullString
 			topSection            sql.NullString
-			designType            sql.NullString
 			images                sql.NullString
 		)
-		if err := rows.Scan(&feature.ID, &feature.ProductID, &feature.Header, &feature.Image, &feature.Description, &feature.ImagePosition, &productSpecifications, &topSection, &designType, &images); err != nil {
+		if err := rows.Scan(&feature.ID, &feature.ProductID, &feature.Header, &feature.Image, &feature.Description, &feature.ImagePosition, &productSpecifications, &topSection, &feature.DesignType, &images); err != nil {
 			return nil, err
 		}
 		// Unmarshal JSON fields if valid
@@ -725,9 +724,6 @@ func fetchProductFeatures(productID string) ([]dtos.ProductFeature, error) {
 		}
 		if topSection.Valid {
 			json.Unmarshal([]byte(topSection.String), &feature.TopSection)
-		}
-		if designType.Valid {
-			json.Unmarshal([]byte(designType.String), &feature.DesignType)
 		}
 		if images.Valid {
 			json.Unmarshal([]byte(images.String), &feature.Images)
