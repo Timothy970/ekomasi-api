@@ -697,7 +697,7 @@ func FetchProductWarranties(productID string) (dtos.ProductWarranty, error) {
 //   - ImagePosition: Layout position ("left", "right", etc.)
 func fetchProductFeatures(productID string) ([]dtos.ProductFeature, error) {
 	query := `
-		SELECT feature_id, product_id, header, image, description, image_position
+		SELECT feature_id, product_id, header, image, description, image_position, product_specifications, top_section, design_type, images
 		FROM product_features
 		WHERE product_id = ?
 		ORDER BY created_at ASC`
@@ -709,9 +709,28 @@ func fetchProductFeatures(productID string) ([]dtos.ProductFeature, error) {
 
 	var features []dtos.ProductFeature
 	for rows.Next() {
-		var feature dtos.ProductFeature
-		if err := rows.Scan(&feature.ID, &feature.ProductID, &feature.Header, &feature.Image, &feature.Description, &feature.ImagePosition); err != nil {
+		var (
+			feature               dtos.ProductFeature
+			productSpecifications sql.NullString
+			topSection            sql.NullString
+			designType            sql.NullString
+			images                sql.NullString
+		)
+		if err := rows.Scan(&feature.ID, &feature.ProductID, &feature.Header, &feature.Image, &feature.Description, &feature.ImagePosition, &productSpecifications, &topSection, &designType, &images); err != nil {
 			return nil, err
+		}
+		// Unmarshal JSON fields if valid
+		if productSpecifications.Valid {
+			json.Unmarshal([]byte(productSpecifications.String), &feature.ProductSpecifications)
+		}
+		if topSection.Valid {
+			json.Unmarshal([]byte(topSection.String), &feature.TopSection)
+		}
+		if designType.Valid {
+			json.Unmarshal([]byte(designType.String), &feature.DesignType)
+		}
+		if images.Valid {
+			json.Unmarshal([]byte(images.String), &feature.Images)
 		}
 		features = append(features, feature)
 	}

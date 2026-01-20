@@ -56,7 +56,7 @@ type BuyVoucher struct {
 }
 type BuyVoucherData struct {
 	DesignID      string  `json:"design_id" validate:"required"`
-	Amount        float64 `json:"amount"`
+	Amount        float64 `json:"amount" validate:"required"`
 	FromName      string  `json:"from_name" validate:"required"`
 	ToName        string  `json:"to_name" validate:"required"`
 	ToEmail       string  `json:"to_email" validate:"required"`

@@ -260,6 +260,7 @@ func UpdateVoucherBalance(code string, newBalance float64) error {
 //   - error: Error if product not found or database operation fails
 func AddProductFeature(input dtos.ProductFeature, productID string) (*dtos.ProductFeature, error) {
 	log.Println("Adding feature to product:", productID)
+	log.Printf("Feature input: %+v", input)
 	// Validate that product exists before adding feature
 	err := IsProductThere(productID)
 	if err != nil {

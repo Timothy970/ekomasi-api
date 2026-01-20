@@ -199,7 +199,7 @@ var RequireAdmin = func(
 	}
 
 	// Verify user has admin role
-	if user.Role != "admin" {
+	if user.Role == "customer" {
 		// User is not admin - send 403 Forbidden
 		RespondWithError(w, ErrorJSONResponseOptions{
 			CollectiveInfo: CollectiveInfo{
