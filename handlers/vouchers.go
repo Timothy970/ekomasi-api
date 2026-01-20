@@ -706,6 +706,21 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	voucher.Status = &active
 
 	deliveryTime := models.StringToTime(req.DeliveryTime)
+	//check devlivery time is in the past
+	if deliveryTime.Before(time.Now()) {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Vouchers",
+				Description: "Delivery time cannot be in the past",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Delivery time cannot be in the past",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 
 	expiryEnv := os.Getenv("VOUCHER_EXPIRY_DATE")
 	if expiryEnv == "" {
@@ -914,7 +929,8 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 }
 func voucherPaymentProcessor(paymentMethod string, voucherOrderID, phoneNumber string, amount float64) error {
 	switch paymentMethod {
-	case "mpesa":
+	//where methdod is mpesa or empty use mpesa
+	case "mpesa", "":
 		// Initiate Mpesa payment
 		err := HandleMpesaVoucherPayment(voucherOrderID, phoneNumber, amount)
 		if err != nil {

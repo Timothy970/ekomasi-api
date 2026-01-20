@@ -309,6 +309,82 @@ func InsertIntoVoucherPurchases(v dtos.BuyVoucherData, userID, voucherID string)
 	return nil
 }
 
+// buildVoucherFilters constructs the WHERE clause and arguments for voucher queries.
+func buildVoucherFilters(isRedeemed, status, code, customer string) (string, []interface{}) {
+	query := ""
+	args := []interface{}{}
+
+	if isRedeemed != "" {
+		query += " AND v.is_redeemed = ?"
+		args = append(args, isRedeemed == "true")
+	}
+
+	if status != "" {
+		query += " AND v.status = ?"
+		args = append(args, status)
+	}
+
+	if code != "" {
+		query += " AND v.code LIKE ?"
+		args = append(args, "%"+code+"%")
+	}
+
+	if customer != "" {
+		query += `
+			AND (
+				vp.to_email LIKE ?
+				OR vp.to_name LIKE ?
+				OR u_from.email LIKE ?
+				OR u_from.phone_number LIKE ?
+			)
+		`
+		args = append(args, "%"+customer+"%", "%"+customer+"%", "%"+customer+"%", "%"+customer+"%")
+	}
+
+	return query, args
+}
+
+// resolveVoucherParticipant resolves the From/To participant from multiple nullable fields.
+func resolveVoucherParticipant(primary1, primary2, fallback1, fallback2 sql.NullString) *string {
+	if primary1.Valid {
+		return &primary1.String
+	}
+	if primary2.Valid {
+		return &primary2.String
+	}
+	if fallback1.Valid {
+		return &fallback1.String
+	}
+	if fallback2.Valid {
+		return &fallback2.String
+	}
+	return nil
+}
+
+// scanVoucherRow scans a single voucher row and resolves participants.
+func scanVoucherRow(rows *sql.Rows) (dtos.VoucherData, error) {
+	var v dtos.VoucherData
+	var (
+		userID                 string
+		fromEmail, fromPhone   sql.NullString
+		toEmail, toName        sql.NullString
+		ownerEmail, ownerPhone sql.NullString
+	)
+
+	if err := rows.Scan(
+		&v.VoucherID, &v.Code, &v.Balance, &v.Amount, &v.Status,
+		&v.CreatedAt, &v.ExpiryDate, &userID, &v.IsReedemed,
+		&fromEmail, &fromPhone, &toEmail, &toName, &ownerEmail, &ownerPhone,
+	); err != nil {
+		return dtos.VoucherData{}, fmt.Errorf("scan voucher failed: %w", err)
+	}
+
+	v.From = resolveVoucherParticipant(fromEmail, fromPhone, ownerEmail, ownerPhone)
+	v.To = resolveVoucherParticipant(toEmail, toName, sql.NullString{}, sql.NullString{})
+
+	return v, nil
+}
+
 // ListVouchers retrieves vouchers with pagination and dynamic filtering.
 //
 // This function supports filtering by redemption status, voucher status,
@@ -326,104 +402,78 @@ func InsertIntoVoucherPurchases(v dtos.BuyVoucherData, userID, voucherID string)
 //   - []dtos.VoucherData: Array of vouchers with participant info
 //   - *dtos.PaginationMeta: Pagination metadata
 //   - error: Database error or nil on success
-func ListVouchers(page, size int, isRedeemed, status, code, customer string) ([]dtos.VoucherData, *dtos.PaginationMeta, error) {
-	// Validate and set defaults for pagination
-	if page < 1 {
-		page = 1
-	}
-	if size < 1 {
-		size = 10
-	}
+func ListVouchers(
+	page, size int,
+	isRedeemed, status, code, customer string,
+) ([]dtos.VoucherData, *dtos.PaginationMeta, error) {
+
 	offset := (page - 1) * size
 
-	// Build base query with dynamic filters
+	// Base query with joins
 	baseQuery := `
 		FROM vouchers v
-		LEFT JOIN voucher_purchases vp ON v.voucher_id = vp.voucher_id
+		LEFT JOIN voucher_purchases vp
+			ON v.voucher_id = vp.voucher_id
+		LEFT JOIN users u_from
+			ON vp.from_user_id = u_from.user_id
+		LEFT JOIN users u_owner
+			ON v.user_id = u_owner.user_id
 		WHERE 1=1
 	`
-	args := []interface{}{}
 
-	// Apply isRedeemed filter
-	if isRedeemed != "" {
-		baseQuery += " AND v.is_redeemed = ?"
-		redeemed := isRedeemed == "true"
-		args = append(args, redeemed)
-	}
+	// Build filters
+	filters, args := buildVoucherFilters(isRedeemed, status, code, customer)
+	baseQuery += filters
 
-	// Apply status filter
-	if status != "" {
-		baseQuery += " AND v.status = ?"
-		args = append(args, status)
-	}
-
-	// Apply code search filter (partial match)
-	if code != "" {
-		baseQuery += " AND v.code LIKE ?"
-		args = append(args, "%"+code+"%")
-	}
-
-	// Apply customer search filter (matches name or email)
-	if customer != "" {
-		baseQuery += " AND (vp.to_email LIKE ? OR vp.to_name LIKE ? OR vp.from_name LIKE ?)"
-		args = append(args, "%"+customer+"%", "%"+customer+"%", "%"+customer+"%")
-	}
-
-	// Count total matching vouchers
-	countQuery := "SELECT COUNT(*) " + baseQuery
+	// Count total results
+	countQuery := "SELECT COUNT(DISTINCT v.voucher_id) " + baseQuery
 	var total int
 	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
-		return nil, nil, fmt.Errorf("failed to count vouchers: %w", err)
+		return nil, nil, fmt.Errorf("count vouchers failed: %w", err)
 	}
 
-	// Fetch paginated vouchers
+	// Build select query
 	selectQuery := `
-		SELECT v.voucher_id, v.code, v.balance, v.original_value, v.status, v.created_at, v.expiry_date, v.user_id, v.is_redeemed
+		SELECT DISTINCT
+			v.voucher_id, v.code, v.balance, v.original_value, v.status,
+			v.created_at, v.expiry_date, v.user_id, v.is_redeemed,
+			u_from.email, u_from.phone_number, vp.to_email, vp.to_name,
+			u_owner.email, u_owner.phone_number
 	` + baseQuery + `
 		ORDER BY v.created_at DESC
 		LIMIT ? OFFSET ?
 	`
-	args = append(args, size, offset)
 
+	args = append(args, size, offset)
 	rows, err := DB.Query(selectQuery, args...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to query vouchers: %w", err)
+		return nil, nil, fmt.Errorf("query vouchers failed: %w", err)
 	}
 	defer rows.Close()
 
-	// Process each voucher
 	var vouchers []dtos.VoucherData
 	for rows.Next() {
-		var v dtos.VoucherData
-		var userID string
-
-		if err := rows.Scan(
-			&v.VoucherID, &v.Code, &v.Balance, &v.Amount,
-			&v.Status, &v.CreatedAt, &v.ExpiryDate, &userID, &v.IsReedemed,
-		); err != nil {
-			return nil, nil, fmt.Errorf("failed to scan voucher: %w", err)
-		}
-
-		// Get sender and recipient information
-		v.To, v.From, err = getVoucherParticipants(v.VoucherID, userID)
+		v, err := scanVoucherRow(rows)
 		if err != nil {
 			return nil, nil, err
 		}
-
 		vouchers = append(vouchers, v)
 	}
 
-	// Build pagination metadata
-	meta := dtos.PaginationMeta{
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	meta := &dtos.PaginationMeta{
 		Page:       page,
 		Size:       size,
 		TotalItems: total,
-		TotalPages: (total + size - 1) / size, // Ceiling division
+		TotalPages: (total + size - 1) / size,
 		HasPrev:    page > 1,
 		HasNext:    page*size < total,
 	}
 
-	return vouchers, &meta, nil
+	return vouchers, meta, nil
 }
 
 // getVoucherParticipants retrieves sender and recipient contact information.
@@ -512,7 +562,7 @@ func GetVoucherByID(voucherID string) (dtos.SingleVoucherData, error) {
 	}
 
 	// Get sender and recipient information
-	v.To, v.From, err = getVoucherParticipants(v.VoucherID, userID)
+	v.From, v.To, err = getVoucherParticipants(v.VoucherID, userID)
 	if err != nil {
 		return dtos.SingleVoucherData{}, err
 	}
@@ -554,7 +604,7 @@ func GetUserVoucherByID(voucherID, userID string) (dtos.SingleVoucherData, error
 	}
 
 	// Get participant information
-	v.To, v.From, err = getVoucherParticipants(v.VoucherID, userID)
+	v.From, v.To, err = getVoucherParticipants(v.VoucherID, userID)
 	if err != nil {
 		return dtos.SingleVoucherData{}, err
 	}
