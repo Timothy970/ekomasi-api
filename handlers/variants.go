@@ -40,7 +40,7 @@ func CreateVariant(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can create variants)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -306,7 +306,7 @@ func UpdateVariant(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can update variants)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -377,7 +377,7 @@ func DeleteVariant(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can delete variants)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -438,7 +438,7 @@ func AddProductVariant(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can add product variants)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -511,7 +511,7 @@ func RemoveProductVariant(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can remove product variants)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return

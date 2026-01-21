@@ -141,7 +141,7 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.view")
 	if !ok {
 		return
 	}
@@ -625,8 +625,8 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
-	// Ensure the user is an admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
+	// Ensure the user has permission to view orders
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.view")
 	if !ok {
 		return
 	}
@@ -872,7 +872,7 @@ func GetOrderCountsByStatus(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Ensure the user is an admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.view")
 	if !ok {
 		return
 	}
@@ -1269,8 +1269,8 @@ func DownloadOrderInvoicePDF(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
-	// Ensure the user is an admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
+	// Ensure the user has permission to view orders
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.view")
 	if !ok {
 		return
 	}

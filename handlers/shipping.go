@@ -114,7 +114,7 @@ func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can configure shipping rates)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Shipping")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Shipping", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -567,7 +567,7 @@ func UpdateLocation(w http.ResponseWriter, r *http.Request) {
 	// Extract location ID from URL path parameters
 	locationID := mux.Vars(r)["location_id"]
 	// Verify user has admin privileges (only admins can update locations)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Shipping")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Shipping", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -639,7 +639,7 @@ func DeleteLocation(w http.ResponseWriter, r *http.Request) {
 	// Extract location ID from URL path parameters
 	locationID := mux.Vars(r)["location_id"]
 	// Verify user has admin privileges (only admins can delete locations)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Shipping")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Shipping", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return

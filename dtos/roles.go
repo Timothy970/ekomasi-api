@@ -12,20 +12,19 @@ type Role struct {
 	Permissions *[]Permission `json:"permissions,omitempty"`
 }
 type RoleRequest struct {
-	Name          string   `json:"name" validate:"required"`
-	Description   string   `json:"description" validate:"required"`
-	PermissionIDs []string `json:"permission_ids" validate:"required,min=1,dive,required"`
+	Name           string   `json:"name" validate:"required"`
+	Description    string   `json:"description" validate:"required"`
+	PermissionKeys []string `json:"permission_keys" validate:"required,min=1,dive,required"`
 }
 
 type Permission struct {
-	ID          string  `json:"permission_id"`
-	Name        string  `json:"name" validate:"required"`
+	ID          string  `json:"permission_master_id"`
 	Description *string `json:"description"`
 	Category    string  `json:"category" validate:"required"`
 	Key         string  `json:"key" validate:"required"`
 }
-type PermissionIDs struct {
-	PermissionIDs []string `json:"permission_ids" validate:"required,min=1,dive,required"`
+type PermissionKeys struct {
+	PermissionKeys []string `json:"permission_keys" validate:"required,min=1,dive,required"`
 }
 
 type AvailablePermission struct {

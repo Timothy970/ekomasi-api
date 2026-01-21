@@ -43,7 +43,7 @@ func CreatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Payments")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.create")
 	if !ok {
 		return
 	}
@@ -262,7 +262,7 @@ func UpdatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Payments")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.update")
 	if !ok {
 		return
 	}
@@ -339,7 +339,7 @@ func DeletePaymentHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Payments")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.delete")
 	if !ok {
 		return
 	}
@@ -501,7 +501,7 @@ func ProcessRefund(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Payments")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.refund")
 	if !ok {
 		return
 	}
@@ -786,7 +786,7 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Vouchers")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "promotions.create")
 	if !ok {
 		return
 	}
@@ -881,7 +881,7 @@ func CreatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Payments")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.create")
 	if !ok {
 		return
 	}
@@ -1065,7 +1065,7 @@ func UpdatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Payments")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.update")
 	if !ok {
 		return
 	}
@@ -1137,7 +1137,7 @@ func DeletePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Payments")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.delete")
 	if !ok {
 		return
 	}

@@ -35,7 +35,7 @@ func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can create stock transfers)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Warehouse", "warehouse.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -121,7 +121,7 @@ func ListStockTransfers(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view stock transfers)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Warehouse", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -237,7 +237,7 @@ func UpdateStockTransfer(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can update stock transfers)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Warehouse", "warehouse.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return

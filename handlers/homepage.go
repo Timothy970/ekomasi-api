@@ -407,7 +407,7 @@ func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "promotions.update")
 	if !ok {
 		return
 	}
@@ -466,7 +466,7 @@ func DeleteBannerInfo(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "promotions.delete")
 	if !ok {
 		return
 	}
@@ -586,7 +586,7 @@ func NewPromotionHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.create")
 	if !ok {
 		return
 	}
@@ -663,7 +663,7 @@ func DeletePromotionHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.delete")
 	if !ok {
 		return
 	}
@@ -720,7 +720,7 @@ func EditPromotionHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.update")
 	if !ok {
 		return
 	}
@@ -780,7 +780,7 @@ func AttachProductToPromotionHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "products.create")
 	if !ok {
 		return
 	}
@@ -928,7 +928,7 @@ func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "promotions.create")
 	if !ok {
 		return
 	}
@@ -1069,7 +1069,7 @@ func UpdateBlogHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "promotions.update")
 	if !ok {
 		return
 	}
@@ -1127,7 +1127,7 @@ func DeleteBlogHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "promotions.delete")
 	if !ok {
 		return
 	}
@@ -1242,7 +1242,7 @@ func CreateMenuLink(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "")
 	if !ok {
 		return
 	}
@@ -1304,7 +1304,7 @@ func UpdateMenuLink(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "")
 	if !ok {
 		return
 	}
@@ -1363,7 +1363,7 @@ func DeleteMenuLink(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "")
 	if !ok {
 		return
 	}
@@ -1415,7 +1415,7 @@ func CreateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "")
 	if !ok {
 		return
 	}
@@ -1473,7 +1473,7 @@ func UpdateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "")
 	if !ok {
 		return
 	}
@@ -1534,7 +1534,7 @@ func DeleteSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "")
 	if !ok {
 		return
 	}
@@ -1587,7 +1587,7 @@ func AddFeaturedProduct(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "products.create")
 	if !ok {
 		return
 	}
@@ -1639,7 +1639,7 @@ func RemoveFeatured(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Homepage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "products.delete")
 	if !ok {
 		return
 	}

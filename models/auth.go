@@ -54,7 +54,7 @@ import (
 //   - error: sql.ErrNoRows if user not found (returns nil), or database error if query fails
 func GetUserByEmail(email string) (*dtos.User, error) {
 	// Execute query with JOIN to roles table
-	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.phone_number FROM users u JOIN roles r ON u.role_id = r.role_id WHERE email = ?", email)
+	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number FROM users u JOIN roles r ON u.role_id = r.role_id WHERE email = ?", email)
 
 	var user dtos.User
 	// Handle nullable database fields
@@ -62,9 +62,10 @@ func GetUserByEmail(email string) (*dtos.User, error) {
 	var firstName sql.NullString
 	var lastName sql.NullString
 	var userEmail sql.NullString
+	var userRoleID string
 
 	// Scan query result into user struct and nullable fields
-	err := row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &phone)
+	err := row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &userRoleID, &phone)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // User not found
@@ -91,6 +92,10 @@ func GetUserByEmail(email string) (*dtos.User, error) {
 	if phone.Valid {
 		user.Phone = phone.String
 	}
+	user.Permissions, err = GetPermissionsByRoleID(userRoleID)
+	if err != nil {
+		return nil, err
+	}
 
 	return &user, nil
 }
@@ -108,16 +113,17 @@ func GetUserByEmail(email string) (*dtos.User, error) {
 //   - error: sql.ErrNoRows if user not found (returns nil), or database error if query fails
 func GetUserByPhone(phone string) (*dtos.User, error) {
 	// Execute query with JOIN to roles table
-	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.phone_number FROM users u JOIN roles r ON u.role_id = r.role_id WHERE phone_number = ?", phone)
+	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number FROM users u JOIN roles r ON u.role_id = r.role_id WHERE phone_number = ?", phone)
 
 	var user dtos.User
 	// Handle nullable database fields
 	var firstName sql.NullString
 	var lastName sql.NullString
 	var userEmail sql.NullString
+	var userRoleID string
 
 	// Scan query result into user struct and nullable fields
-	err := row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &user.Phone)
+	err := row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &userRoleID, &user.Phone)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // User not found
@@ -140,8 +146,34 @@ func GetUserByPhone(phone string) (*dtos.User, error) {
 	if userEmail.Valid {
 		user.Email = userEmail.String
 	}
-
+	user.Permissions, err = GetPermissionsByRoleID(userRoleID)
+	if err != nil {
+		return nil, err
+	}
 	return &user, nil
+}
+
+// helper functuon to get permissions by role id
+// params : roleID string
+// returns : []string , error
+func GetPermissionsByRoleID(roleID string) ([]string, error) {
+	rows, err := DB.Query(`SELECT pm.permission_key from permissions_master pm 
+	JOIN role_permissions rp ON pm.permission_master_id = rp.permission_id
+	JOIN roles r ON rp.role_id = r.role_id
+	WHERE r.role_id = ?`, roleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var permissions []string
+	for rows.Next() {
+		var perm string
+		if err := rows.Scan(&perm); err != nil {
+			return nil, err
+		}
+		permissions = append(permissions, perm)
+	}
+	return permissions, nil
 }
 
 // func GetUserByPhone(phone string) (*dtos.User, error) {
@@ -271,7 +303,7 @@ func GetUserByUserID(id string) (*dtos.Users, error) {
 	}
 
 	// Execute query with JOIN to roles table for comprehensive user data
-	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.phone_number, u.last_login, u.created_at, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE user_id = ?", id)
+	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number, u.last_login, u.created_at, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE user_id = ?", id)
 
 	var user dtos.Users
 	// Handle nullable database fields
@@ -280,9 +312,10 @@ func GetUserByUserID(id string) (*dtos.Users, error) {
 	var lastName sql.NullString
 	var userEmail sql.NullString
 	var dateJoined, lastLogin sql.NullTime
+	var roleID string
 
 	// Scan query result into user struct and nullable fields
-	err = row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &phone, &lastLogin, &dateJoined, &user.Status)
+	err = row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &roleID, &phone, &lastLogin, &dateJoined, &user.Status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // User not found (should not happen after validation)
@@ -318,6 +351,10 @@ func GetUserByUserID(id string) (*dtos.Users, error) {
 	}
 	// Fetch all associated addresses for this user
 	user.UserAddress, _ = GetUserAddresses(user.ID)
+	user.Permissions, err = GetPermissionsByRoleID(roleID)
+	if err != nil {
+		return nil, err
+	}
 
 	return &user, nil
 }

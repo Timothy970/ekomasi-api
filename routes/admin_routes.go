@@ -229,10 +229,10 @@ func SetupAdminRoutes(api *mux.Router) {
 	admin.Handle("roles/{role_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteRoleHandler))).Methods("DELETE")
 
 	// Admin permissions
-	admin.Handle("/permissions", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreatePermissionHandler))).Methods("POST")
+	// admin.Handle("/permissions", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreatePermissionHandler))).Methods("POST")
 	admin.Handle("/permissions", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetPermissionsHandler))).Methods("GET")
-	admin.Handle("/permissions/{permission_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePermissionHandler))).Methods("PATCH")
-	admin.Handle("/permissions/{permission_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePermissionHandler))).Methods("DELETE")
+	// admin.Handle("/permissions/{permission_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePermissionHandler))).Methods("PATCH")
+	// admin.Handle("/permissions/{permission_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePermissionHandler))).Methods("DELETE")
 	const permissionsAvailable = "/permissions/available"
 	admin.Handle(permissionsAvailable, middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAvailablePermissions))).Methods("GET")
 	admin.Handle(permissionsAvailable, middleware.AuthenticateToken(http.HandlerFunc(handlers.AddAvailablePermission))).Methods("POST")

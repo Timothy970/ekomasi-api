@@ -40,7 +40,7 @@ func CreateDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Deals")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Deals", "promotions.create")
 	if !ok {
 		return
 	}
@@ -149,7 +149,7 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Deals")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Deals", "promotions.update")
 	if !ok {
 		return
 	}
@@ -252,7 +252,7 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Deals")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Deals", "promotions.delete")
 	if !ok {
 		return
 	}
@@ -303,7 +303,7 @@ func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
 func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Deals")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Deals", "products.create")
 	if !ok {
 		return
 	}
@@ -360,7 +360,7 @@ func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
 func RemoveProductFromDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Deals")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Deals", "products.delete")
 	if !ok {
 		return
 	}
@@ -468,7 +468,7 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Deals"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Deals", "products.create"); !ok {
 		return
 	}
 

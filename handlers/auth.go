@@ -292,7 +292,7 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
+	log.Printf("found user::::%v", user)
 	// If no user found → proceed to signup verification
 	if user == nil {
 		VerifySignUp(w, r, req, start, requestSummary)
@@ -1043,6 +1043,7 @@ func generateToken(user *dtos.User, tokenType string, expiresIn time.Duration) (
 		"phone_number": user.Phone,
 		"type":         tokenType,
 		"exp":          time.Now().Add(expiresIn).Unix(),
+		"permissions":  user.Permissions,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtSecret)

@@ -34,7 +34,7 @@ func CreateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.create")
 	if !ok {
 		return
 	}
@@ -261,7 +261,7 @@ func UpdateDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.update")
 	if !ok {
 		return
 	}
@@ -324,7 +324,7 @@ func DeleteDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.delete")
 	if !ok {
 		return
 	}

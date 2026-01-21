@@ -152,7 +152,7 @@ func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Categories"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Categories", ""); !ok {
 		return
 	}
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))

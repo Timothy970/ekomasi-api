@@ -42,7 +42,7 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Categories"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Categories", "categories.create"); !ok {
 		return
 	}
 
@@ -139,7 +139,7 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Categories"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Categories", "categories.update"); !ok {
 		return
 	}
 
@@ -254,7 +254,7 @@ func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Categories")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Categories", "categories.delete")
 	if !ok {
 		return
 	}
@@ -313,7 +313,7 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
 	if !ok {
 		return
 	}
@@ -398,7 +398,7 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update")
 	if !ok {
 		return
 	}
@@ -462,7 +462,7 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		return
 	}
@@ -470,7 +470,7 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 	//delete product
 	err := models.DeleteProductByID(productID)
 	if err != nil {
-		log.Printf("Error for updating new product %s", err)
+		log.Printf("Error for deleting product %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
@@ -582,7 +582,7 @@ func UploadImageHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
 	if !ok {
 		return
 	}
@@ -634,7 +634,7 @@ func UploadImageHandler2(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
 	if !ok {
 		return
 	}

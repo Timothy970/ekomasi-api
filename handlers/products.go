@@ -208,7 +208,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify user has admin privileges (required for media uploads)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -356,7 +356,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Ensure admin access
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update")
 	if !ok {
 		return
 	}
@@ -1140,20 +1140,13 @@ func getFloatQueryParam(query url.Values, key string) float64 {
 func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-
-	log.Printf("[AddProductFeatures] Starting request - Method: %s", r.Method)
-
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products"); !ok {
-		log.Printf("[AddProductFeatures] Admin authentication failed")
+	// Verify admin permissions
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create"); !ok {
 		return
 	}
-	log.Printf("[AddProductFeatures] Admin authentication successful")
 
 	productID := mux.Vars(r)["product_id"]
-	log.Printf("[AddProductFeatures] Product ID from request: %s", productID)
-
 	if err := r.ParseMultipartForm(50 << 20); err != nil {
-		log.Printf("[AddProductFeatures] ERROR: Failed to parse multipart form: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
@@ -1167,36 +1160,25 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	log.Printf("[AddProductFeatures] Multipart form parsed successfully")
 
-	log.Printf("[AddProductFeatures] Starting image upload for product %s", productID)
 	mainImageURL, imageURLs, err := parseFeatureImages(r, w, start)
 	if err != nil {
-		log.Printf("[AddProductFeatures] ERROR: Image parsing failed: %v", err)
 		return
 	}
-	log.Printf("[AddProductFeatures] Images parsed - Main: %s, Additional: %d images", mainImageURL, len(imageURLs))
 
-	log.Printf("[AddProductFeatures] Starting JSON field parsing")
 	topSections, productSpecs, err := parseFeatureJSONFields(r, w, start)
 	if err != nil {
-		log.Printf("[AddProductFeatures] ERROR: JSON field parsing failed: %v", err)
 		return
 	}
-	log.Printf("[AddProductFeatures] JSON fields parsed - TopSections: %d, ProductSpecs: %d", len(topSections), len(productSpecs))
 
 	designType := r.FormValue("design_type")
 	imagePosition := r.FormValue("image_position")
 	header := r.FormValue("header")
 	description := r.FormValue("description")
 
-	log.Printf("[AddProductFeatures] Form values - Header: %s, Description length: %d, DesignType: %s, ImagePosition: %s",
-		header, len(description), designType, imagePosition)
-
 	//default image position to left if not provided
 	if imagePosition == "" {
 		imagePosition = "left"
-		log.Printf("[AddProductFeatures] Image position defaulted to 'left'")
 	}
 
 	// Build the request DTO
@@ -1211,18 +1193,12 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		DesignType:            &designType,
 	}
 
-	log.Printf("[AddProductFeatures] ProductFeature DTO created: %+v", req)
-
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
-		log.Printf("[AddProductFeatures] ERROR: Validation failed for ProductFeature")
 		return
 	}
-	log.Printf("[AddProductFeatures] Validation passed")
 
-	log.Printf("[AddProductFeatures] Calling models.AddProductFeature for product %s", productID)
 	feature, err := models.AddProductFeature(req, productID)
 	if err != nil {
-		log.Printf("[AddProductFeatures] ERROR: Database operation failed: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
@@ -1236,9 +1212,7 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	log.Printf("[AddProductFeatures] Feature added successfully with ID: %s", feature.ID)
 
-	log.Printf("[AddProductFeatures] Sending success response")
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
@@ -1252,19 +1226,15 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary,
 	})
-	log.Printf("[AddProductFeatures] Request completed successfully in %v", time.Since(start))
 }
 
 func parseFeatureImages(r *http.Request, w http.ResponseWriter, start time.Time) (string, []string, error) {
-	log.Printf("[parseFeatureImages] Starting image parsing")
 	var mainImageURL string
 	file, header, err := r.FormFile("image")
 	if err == nil {
 		defer file.Close()
-		log.Printf("[parseFeatureImages] Main image file found: %s, Size: %d bytes", header.Filename, header.Size)
 		mainImageURL, err = utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 		if err != nil {
-			log.Printf("[parseFeatureImages] ERROR: Failed to upload main image to GCS: %v", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
@@ -1278,19 +1248,15 @@ func parseFeatureImages(r *http.Request, w http.ResponseWriter, start time.Time)
 			})
 			return "", nil, err
 		}
-		log.Printf("[parseFeatureImages] Main image uploaded successfully: %s", mainImageURL)
 	} else {
 		log.Printf("[parseFeatureImages] No main image provided (this is OK): %v", err)
 	}
 
 	var imageURLs []string
 	if r.MultipartForm != nil && r.MultipartForm.File["images"] != nil {
-		log.Printf("[parseFeatureImages] Found %d additional images", len(r.MultipartForm.File["images"]))
-		for i, fh := range r.MultipartForm.File["images"] {
-			log.Printf("[parseFeatureImages] Uploading image %d/%d: %s", i+1, len(r.MultipartForm.File["images"]), fh.Filename)
+		for _, fh := range r.MultipartForm.File["images"] {
 			url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fh})
 			if err != nil {
-				log.Printf("[parseFeatureImages] ERROR: Failed to upload image %d: %v", i+1, err)
 				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 					CollectiveInfo: utils.CollectiveInfo{
 						Module:      "Products",
@@ -1305,25 +1271,19 @@ func parseFeatureImages(r *http.Request, w http.ResponseWriter, start time.Time)
 				return "", nil, err
 			}
 			imageURLs = append(imageURLs, url)
-			log.Printf("[parseFeatureImages] Image %d uploaded successfully: %s", i+1, url)
 		}
 	} else {
 		log.Printf("[parseFeatureImages] No additional images provided")
 	}
-	log.Printf("[parseFeatureImages] Uploaded feature images: %v", imageURLs)
-	log.Printf("[parseFeatureImages] Uploaded main feature image: %s", mainImageURL)
 	return mainImageURL, imageURLs, nil
 }
 
 func parseFeatureJSONFields(r *http.Request, w http.ResponseWriter, start time.Time) ([]dtos.Section, []string, error) {
-	log.Printf("[parseFeatureJSONFields] Starting JSON field parsing")
 	var topSections []dtos.Section
 	topSectionStr := r.FormValue("top_section")
-	log.Printf("[parseFeatureJSONFields] top_section raw value: %s", topSectionStr)
 
 	if topSectionStr != "" {
 		if err := json.Unmarshal([]byte(topSectionStr), &topSections); err != nil {
-			log.Printf("[parseFeatureJSONFields] ERROR: Failed to unmarshal top_section: %v", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
@@ -1337,18 +1297,15 @@ func parseFeatureJSONFields(r *http.Request, w http.ResponseWriter, start time.T
 			})
 			return nil, nil, err
 		}
-		log.Printf("[parseFeatureJSONFields] top_section parsed successfully: %d sections", len(topSections))
 	} else {
 		log.Printf("[parseFeatureJSONFields] top_section is empty")
 	}
 
 	var productSpecs []string
 	specStr := r.FormValue("product_specifications")
-	log.Printf("[parseFeatureJSONFields] product_specifications raw value: %s", specStr)
 
 	if specStr != "" {
 		if err := json.Unmarshal([]byte(specStr), &productSpecs); err != nil {
-			log.Printf("[parseFeatureJSONFields] ERROR: Failed to unmarshal product_specifications: %v", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
@@ -1362,7 +1319,6 @@ func parseFeatureJSONFields(r *http.Request, w http.ResponseWriter, start time.T
 			})
 			return nil, nil, err
 		}
-		log.Printf("[parseFeatureJSONFields] product_specifications parsed successfully: %d specs", len(productSpecs))
 	} else {
 		log.Printf("[parseFeatureJSONFields] product_specifications is empty")
 	}
@@ -1396,7 +1352,7 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update"); !ok {
 		return
 	}
 
@@ -1500,7 +1456,7 @@ func UpdateAllProductFeaturesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update"); !ok {
 		return
 	}
 
@@ -1640,7 +1596,7 @@ func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete"); !ok {
 		return
 	}
 
@@ -1695,8 +1651,8 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	// Ensure the user is an admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	// Ensure the user has the required permissions
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
 	if !ok {
 		return
 	}
@@ -1830,7 +1786,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure the user is an admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update")
 	if !ok {
 		return
 	}

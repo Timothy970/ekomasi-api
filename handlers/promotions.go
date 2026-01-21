@@ -43,7 +43,7 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for creating promo codes)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.create"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -126,7 +126,7 @@ func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for updating promo codes)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.update"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -200,7 +200,7 @@ func GetPromoCodeByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for viewing promo codes)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.view"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -255,7 +255,7 @@ func GetAllPromoCodesHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for viewing promo codes)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -310,7 +310,7 @@ func DeletePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for deleting promo codes)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.delete"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -371,7 +371,7 @@ func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for changing promo code status)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.update"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -452,7 +452,7 @@ func AddPromotionToProductHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for managing product promotions)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Promotions"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.create"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
