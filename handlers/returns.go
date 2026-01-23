@@ -138,7 +138,7 @@ func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can update return status)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Categories"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.update"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -209,7 +209,7 @@ func GetReturnByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view all returns)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.view"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -269,7 +269,7 @@ func DeleteReturnHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can delete returns)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.delete"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -332,7 +332,7 @@ func ListAllReturnsHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view all returns)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Orders"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.view"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}

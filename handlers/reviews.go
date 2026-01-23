@@ -404,7 +404,7 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can delete reviews)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return

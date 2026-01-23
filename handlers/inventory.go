@@ -37,7 +37,7 @@ func ListInventory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.view"); !ok {
 		return
 	}
 	categoryID := r.URL.Query().Get("category_id")
@@ -97,7 +97,7 @@ func CreateInventory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.create")
 	if !ok {
 		return
 	}
@@ -158,7 +158,7 @@ func GetInventory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.view"); !ok {
 		return
 	}
 	id := mux.Vars(r)["inventory_id"]
@@ -210,7 +210,7 @@ func DownloadInventoryCSV(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.view"); !ok {
 		return
 	}
 	id := mux.Vars(r)["inventory_id"]
@@ -268,7 +268,7 @@ func DownloadInventoryPDF(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.view"); !ok {
 		return
 	}
 	id := mux.Vars(r)["inventory_id"]
@@ -333,7 +333,7 @@ func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.update")
 	if !ok {
 		return
 	}
@@ -408,7 +408,7 @@ func DeleteInventory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.delete")
 	if !ok {
 		return
 	}
@@ -605,7 +605,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.create"); !ok {
 		return
 	}
 
@@ -957,7 +957,7 @@ func GetInventoryStockSummary(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.view"); !ok {
 		return
 	}
 	id := mux.Vars(r)["inventory_id"]
@@ -998,7 +998,7 @@ func GetInventoryStockHistory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Inventory"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.view"); !ok {
 		return
 	}
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))

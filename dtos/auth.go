@@ -15,6 +15,7 @@ type User struct {
 	PasswordHash string     `json:"-"`
 	Role         string     `json:"role"`
 	LastLogin    *time.Time `json:"last_login,omitempty"`
+	Permissions  []string   `json:"permissions,omitempty"`
 }
 
 type Users struct {
@@ -28,6 +29,7 @@ type Users struct {
 	DateJoined  string        `json:"date_joined"`
 	Status      string        `json:"status"`
 	UserAddress []UserAddress `json:"user_address"`
+	Permissions []string      `json:"permissions,omitempty"`
 }
 type UserInput struct {
 	FirstName   string `json:"first_name"`
@@ -52,12 +54,13 @@ type ResendOTP struct {
 
 // CustomClaims can be extended as needed
 type CustomClaims struct {
-	UserID    string `json:"id"`
-	Email     string `json:"email"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Role      string `json:"role"`
-	Phone     string `json:"phone_number"`
+	UserID      string   `json:"id"`
+	Email       string   `json:"email"`
+	FirstName   string   `json:"first_name"`
+	LastName    string   `json:"last_name"`
+	Role        string   `json:"role"`
+	Phone       string   `json:"phone_number"`
+	Permissions []string `json:"permissions"`
 	jwt.RegisteredClaims
 }
 type WhatsappLogin struct {

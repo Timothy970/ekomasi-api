@@ -35,7 +35,7 @@ func CreateWarrantType(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can create warranty types)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -101,11 +101,6 @@ func GetAllWarrantyTypes(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
-	// Admin check commented out intentionally for public access
-	// _, ok := utils.RequireAdmin(r, w, start, requestSummary)
-	// if !ok {
-	// 	return
-	// }
 
 	// Fetch all warranty types from database
 	warrantyTypes, err := models.GetAllWarrantTypes()
@@ -163,7 +158,7 @@ func UpdateWarrantType(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can update warranty types)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -232,7 +227,7 @@ func DeleteWarrantType(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can delete warranty types)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -292,7 +287,7 @@ func AddProductWarranties(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can add product warranties)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return

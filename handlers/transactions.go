@@ -37,7 +37,7 @@ func GetAllTransactionHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view all transactions)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Transactions"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Transactions", "payments.view"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -67,7 +67,7 @@ func GetAllTransactionHandler(w http.ResponseWriter, r *http.Request) {
 	// Return transactions list with pagination metadata for financial tracking
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Orders",
+			Module:      "Transactions",
 			Description: "All transactions fetched successfully",
 			Code:        http.StatusOK,
 		},
@@ -102,7 +102,7 @@ func GetTransactionByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view transaction details)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Transaction"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Transactions", "payments.view"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -114,7 +114,7 @@ func GetTransactionByIDHandler(w http.ResponseWriter, r *http.Request) {
 		// Transaction not found or database error
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Orders",
+				Module:      "Transactions",
 				Description: "Transaction with id " + transactionID + " failed to fetch: " + err.Error(),
 				Code:        http.StatusBadRequest,
 			},
@@ -131,7 +131,7 @@ func GetTransactionByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Orders",
+			Module:      "Transactions",
 			Description: "Transaction with id" + transactionID + " fetched successfully",
 			Code:        http.StatusOK,
 		},
@@ -165,7 +165,7 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can update transaction status)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Transaction"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Transactions", "payments.update"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -178,7 +178,7 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Validate status field in request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Transactions") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -188,7 +188,7 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 		// Transaction status update failed (invalid transaction, status, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Orders",
+				Module:      "Transactions",
 				Description: "Failed to update transaction status " + err.Error(),
 				Code:        http.StatusBadRequest,
 			},
@@ -206,7 +206,7 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 		// Order payment status synchronization failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Orders",
+				Module:      "Transactions",
 				Description: "Failed to update order payment status " + err.Error(),
 				Code:        http.StatusBadRequest,
 			},
@@ -221,7 +221,7 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Orders",
+			Module:      "Transactions",
 			Description: "Transaction status updated successfully",
 			Code:        http.StatusOK,
 		},

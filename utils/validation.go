@@ -27,7 +27,6 @@ package utils
 
 import (
 	"adenzo_backend/middleware"
-	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
@@ -152,222 +151,6 @@ var ValidateStructAndRespond = func(
 	return true // Validation passed
 }
 
-// RequireAdmin verifies that the user is authenticated and has admin role.
-//
-// This function:
-// 1. Extracts authenticated user from request context
-// 2. Verifies user is authenticated (sends 403 if not)
-// 3. Verifies user has "admin" role (sends 403 if not)
-// 4. Returns user and success status
-//
-// Use this for endpoints that require admin privileges.
-//
-// Parameters:
-//   - r: *http.Request - HTTP request with user context
-//   - w: http.ResponseWriter - Response writer for error responses
-//   - start: time.Time - Request start time for performance tracking
-//   - requestSummary: string - Request summary for logging
-//   - module: string - Module name for error context
-//
-// Returns:
-//   - middleware.AuthenticatedUser: User data if authorized (empty if not)
-//   - bool: true if user is admin, false otherwise (response sent)
-var RequireAdmin = func(
-	r *http.Request,
-	w http.ResponseWriter,
-	start time.Time,
-	requestSummary string,
-	module string,
-) (middleware.AuthenticatedUser, bool) {
-	// Extract authenticated user from request context
-	user, ok := middleware.UserFromContext(r.Context())
-	if !ok {
-		// User not authenticated - send 403 Forbidden
-		RespondWithError(w, ErrorJSONResponseOptions{
-			CollectiveInfo: CollectiveInfo{
-				Module:      module,
-				Description: "Authentication failed",
-				Code:        http.StatusForbidden,
-			},
-			Message:   "User is not validated",
-			TimeTaken: time.Since(start),
-			Function:  GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary,
-		})
-		return middleware.AuthenticatedUser{}, false
-	}
-
-	// Verify user has admin role
-	if user.Role == "customer" {
-		// User is not admin - send 403 Forbidden
-		RespondWithError(w, ErrorJSONResponseOptions{
-			CollectiveInfo: CollectiveInfo{
-				Module:      module,
-				Description: "Authorization failed",
-				Code:        http.StatusForbidden,
-			},
-			Message:   "This action requires admin role",
-			TimeTaken: time.Since(start),
-			Function:  GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary,
-		})
-		return middleware.AuthenticatedUser{}, false
-	}
-
-	// User is authenticated and has admin role
-	return user, true
-}
-
-// RequirePermissions creates a closure that verifies user has specific permissions.
-//
-// This function:
-// 1. Returns a validation function with db and permissions captured
-// 2. Extracts authenticated user from request context
-// 3. Fetches user's role from database
-// 4. Retrieves role permissions (from cache or database)
-// 5. Validates user has all required permissions
-// 6. Reports missing permissions if validation fails
-//
-// Permission checking process:
-//   - User authentication verification
-//   - Role ID lookup from users table
-//   - Permission retrieval (cache-first strategy)
-//   - Case-insensitive permission matching
-//   - Detailed missing permission reporting
-//
-// Parameters:
-//   - db: *sql.DB - Database connection for role/permission queries
-//   - requiredPerms: []string - List of required permission names
-//   - module: string - Module name for error context
-//
-// Returns:
-//   - func: Validation function that takes (request, response, start, summary)
-//     and returns (AuthenticatedUser, bool)
-//     // User has required permissions
-func RequirePermissions(db *sql.DB, requiredPerms []string, module string) func(
-	r *http.Request,
-	w http.ResponseWriter,
-	start time.Time,
-	requestSummary string,
-) (middleware.AuthenticatedUser, bool) {
-
-	// Return closure with captured db, requiredPerms, and module
-	return func(r *http.Request, w http.ResponseWriter, start time.Time, requestSummary string) (middleware.AuthenticatedUser, bool) {
-		// Extract authenticated user from context
-		user, ok := middleware.UserFromContext(r.Context())
-		if !ok {
-			// User not authenticated
-			sendError(w, http.StatusForbidden, "User not validated", start, r, requestSummary, module)
-			return middleware.AuthenticatedUser{}, false
-		}
-
-		// Fetch user's role ID from database
-		roleID, err := fetchUserRole(db, user.ID)
-		if err != nil {
-			// Database error fetching role
-			sendError(w, http.StatusInternalServerError, "Failed to fetch user role: "+err.Error(), start, r, requestSummary, module)
-			return middleware.AuthenticatedUser{}, false
-		}
-
-		// Retrieve permissions for role (cache-first)
-		rolePerms, err := getRolePermissions(db, roleID)
-		if err != nil {
-			// Database error fetching permissions
-			sendError(w, http.StatusInternalServerError, "Failed to fetch role permissions: "+err.Error(), start, r, requestSummary, module)
-			return middleware.AuthenticatedUser{}, false
-		}
-
-		// Verify user has all required permissions
-		hasAccess, missingPerms := hasAllRequiredPermissions(rolePerms, requiredPerms)
-		if !hasAccess {
-			// User missing one or more required permissions
-			errorMsg := fmt.Sprintf("Missing required permissions: %s", strings.Join(missingPerms, ", "))
-			sendError(w, http.StatusForbidden, errorMsg, start, r, requestSummary, module)
-			return middleware.AuthenticatedUser{}, false
-		}
-
-		// User has all required permissions
-		return user, true
-	}
-}
-
-// fetchUserRole retrieves the user's role_id from the database.
-//
-// Queries the users table to get the role assigned to the user.
-//
-// Parameters:
-//   - db: *sql.DB - Database connection
-//   - userID: string - User identifier
-//
-// Returns:
-//   - string: Role ID for the user
-//   - error: Database error if query fails or user not found
-func fetchUserRole(db *sql.DB, userID string) (string, error) {
-	var roleID string
-	// Query role_id from users table
-	err := db.QueryRow(`SELECT role_id FROM users WHERE id = ?`, userID).Scan(&roleID)
-	return roleID, err
-}
-
-// getRolePermissions returns all permissions associated with a role, using cache if available.
-//
-// This function:
-// 1. Checks cache for role permissions (cache key: "role_permissions:<roleID>")
-// 2. If cache hit, returns cached permissions
-// 3. If cache miss, queries database for permissions
-// 4. Stores result in cache for future requests (non-blocking)
-//
-// Caching Strategy:
-//   - Cache key format: "role_permissions:<roleID>"
-//   - Cache hit: Returns immediately without database query
-//   - Cache miss: Queries database and stores in cache
-//   - Non-blocking cache writes (errors ignored)
-//
-// Parameters:
-//   - db: *sql.DB - Database connection
-//   - roleID: string - Role identifier
-//
-// Returns:
-//   - []string: List of permission names for the role
-//   - error: Database error if query fails
-func getRolePermissions(db *sql.DB, roleID string) ([]string, error) {
-	// Construct cache key
-	cacheKey := "role_permissions:" + roleID
-	var rolePerms []string
-
-	// Try to get permissions from cache
-	if err := GetCache(cacheKey, &rolePerms); err == nil {
-		// Cache hit - return cached permissions
-		return rolePerms, nil
-	}
-
-	// Cache miss - fetch permissions from database
-	rows, err := db.Query(`
-		SELECT p.name
-		FROM role_permissions rp
-		JOIN permissions p ON p.permission_id = rp.permission_id
-		WHERE rp.role_id = ?`, roleID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	// Iterate through permission rows
-	for rows.Next() {
-		var permName string
-		if err := rows.Scan(&permName); err == nil {
-			// Add permission to list
-			rolePerms = append(rolePerms, permName)
-		}
-	}
-
-	// Store permissions in cache (non-blocking, ignore errors)
-	_ = SetCache(cacheKey, rolePerms)
-	return rolePerms, nil
-}
-
 // hasAllRequiredPermissions verifies that the role includes all required permissions and returns missing ones.
 //
 // This function:
@@ -441,4 +224,119 @@ func sendError(w http.ResponseWriter, code int, message string, start time.Time,
 		Request:   r,                    // Request context
 		RawBody:   summary,              // Request summary
 	})
+}
+
+// RequirePermissions verifies that the user is authenticated, not a customer and has one of the allowed permissions.
+//
+// This function:
+// 1. Extracts authenticated user from request context
+// 2. Verifies user is authenticated (sends 403 if not)
+// 3. Verifies user has one of the allowed permissions (sends 403 if not)
+// 4. Returns user and success status
+//
+// Use this for endpoints that require specific permission.
+//
+// Parameters:
+//   - r: *http.Request - HTTP request with user context
+//   - w: http.ResponseWriter - Response writer for error responses
+//   - start: time.Time - Request start time for performance tracking
+//   - requestSummary: string - Request summary for logging
+//   - module: string - Module name for error context
+//   - allowedPermissions: []string - List of permissions that are permitted to access
+//
+// Returns:
+//   - middleware.AuthenticatedUser: User data if authorized (empty if not)
+//   - bool: true if user has allowed permission, false otherwise (response sent)
+var RequirePermissions = func(
+	r *http.Request,
+	w http.ResponseWriter,
+	start time.Time,
+	requestSummary string,
+	module string,
+	allowedPermission string,
+) (middleware.AuthenticatedUser, bool) {
+	// Extract authenticated user from request context
+	user, ok := middleware.UserFromContext(r.Context())
+	if !ok {
+		// User not authenticated - send 403 Forbidden
+		RespondWithError(w, ErrorJSONResponseOptions{
+			CollectiveInfo: CollectiveInfo{
+				Module:      module,
+				Description: "Authentication failed",
+				Code:        http.StatusForbidden,
+			},
+			Message:   "User is not validated",
+			TimeTaken: time.Since(start),
+			Function:  GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return middleware.AuthenticatedUser{}, false
+	}
+
+	//check user is not a customer(role)
+	if user.Role == "customer" {
+		// User is not admin - send 403 Forbidden
+		RespondWithError(w, ErrorJSONResponseOptions{
+			CollectiveInfo: CollectiveInfo{
+				Module:      module,
+				Description: "Authorization failed",
+				Code:        http.StatusForbidden,
+			},
+			Message:   "This action requires admin role",
+			TimeTaken: time.Since(start),
+			Function:  GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return middleware.AuthenticatedUser{}, false
+	}
+
+	// Admin role has all permissions, skip permission check
+	if user.Role == "admin" {
+		return user, true
+	}
+	//if allowedPermission passed is empty, skip permission check
+	if allowedPermission == "" {
+		return user, true
+	}
+	//for roles like manager, marketing, customer-service, check permissions
+	// Check if user's role is in the allowed roles list
+	hasPermission := false
+	userPermissions := user.Permissions
+	for _, userPermission := range userPermissions {
+		if strings.ToLower(userPermission) == strings.ToLower(allowedPermission) {
+			hasPermission = true
+			break
+		}
+	}
+	if !hasPermission {
+		availablePermissions := SupportedPermissions
+		errorMsg := "You don't have permission to perform this action"
+		//get the description of the needed permission
+		for _, perm := range availablePermissions {
+			if strings.ToLower(perm.Key) == strings.ToLower(allowedPermission) {
+				errorMsg = fmt.Sprintf("You don't have permission to %s", strings.ToLower(perm.Description))
+				break
+			}
+		}
+
+		// User doesn't have required role - send 403 Forbidden
+		RespondWithError(w, ErrorJSONResponseOptions{
+			CollectiveInfo: CollectiveInfo{
+				Module:      module,
+				Description: "Authorization failed",
+				Code:        http.StatusForbidden,
+			},
+			Message:   errorMsg,
+			TimeTaken: time.Since(start),
+			Function:  GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return middleware.AuthenticatedUser{}, false
+	}
+
+	// User is authenticated and has one of the allowed roles
+	return user, true
 }

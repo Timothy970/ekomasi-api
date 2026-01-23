@@ -37,7 +37,7 @@ func CreateStaticPage(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can create static pages)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "HomePage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "HomePage", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -217,7 +217,7 @@ func DeleteStaticPage(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can delete static pages)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "HomePage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "HomePage", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -281,7 +281,7 @@ func UpdateStaticPage(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can update static pages)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "HomePage")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "HomePage", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return

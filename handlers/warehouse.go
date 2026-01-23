@@ -39,7 +39,7 @@ func CreateWarehouse(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can create warehouses)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Warehouse", "warehouse.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -257,7 +257,7 @@ func UpdateWarehouse(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can update warehouses)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Warehouse", "warehouse.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -327,7 +327,7 @@ func DeleteWarehouse(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can delete warehouses)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Warehouse")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Warehouse", "warehouse.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return

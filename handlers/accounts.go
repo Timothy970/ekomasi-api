@@ -46,7 +46,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.create")
 	if !ok {
 		return
 	}
@@ -122,7 +122,7 @@ func ListAccounts(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Ensure user has admin privileges
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.view"); !ok {
 		return
 	}
 
@@ -268,7 +268,7 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.update")
 	if !ok {
 		return
 	}
@@ -322,7 +322,7 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteAccount removes an account from the chart of accounts.
-// This endpoint is restricted to admin users and permanently deletes the specified account.
+// This endpoint is restricted to users with the "accounts.delete" permission and permanently deletes the specified account.
 // Related cache entries are invalidated upon successful deletion.
 //
 // @Summary Delete a chart of account by ID
@@ -344,7 +344,7 @@ func DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.delete")
 	if !ok {
 		return
 	}
@@ -417,7 +417,7 @@ func CreateEntry(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.create")
 	if !ok {
 		return
 	}
@@ -491,7 +491,7 @@ func ListEntries(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Ensure user has admin privileges
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.view"); !ok {
 		return
 	}
 
@@ -639,7 +639,7 @@ func UpdateEntry(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.update")
 	if !ok {
 		return
 	}
@@ -715,7 +715,7 @@ func DeleteEntry(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.delete")
 	if !ok {
 		return
 	}

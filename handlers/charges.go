@@ -31,7 +31,7 @@ func AddChargeHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Charges"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Charges", "charges.create"); !ok {
 		return
 	}
 
@@ -92,7 +92,7 @@ func UpdateChargeHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Charges"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Charges", "charges.update"); !ok {
 		return
 	}
 
@@ -148,10 +148,6 @@ func UpdateChargeHandler(w http.ResponseWriter, r *http.Request) {
 func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	// if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
-	// 	return
-	// }
-
 	id := mux.Vars(r)["charge_id"]
 	charge, err := models.GetChargeByID(id)
 	if err != nil {
@@ -193,10 +189,6 @@ func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 func GetAllChargesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	// if _, ok := utils.RequireAdmin(r, w, start, requestSummary); !ok {
-	// 	return
-	// }
-
 	charges, err := models.GetAllCharges()
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
@@ -238,7 +230,7 @@ func GetAllChargesHandler(w http.ResponseWriter, r *http.Request) {
 func DeleteChargeHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Charges"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Charges", "charges.delete"); !ok {
 		return
 	}
 
@@ -288,7 +280,7 @@ func DeleteChargeHandler(w http.ResponseWriter, r *http.Request) {
 func AddChargeToProductHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Charges"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Charges", "products.create"); !ok {
 		return
 	}
 	req, ok := DecodeRequestBody[dtos.AddChargeToProductRequest](r, w, requestSummary, start)

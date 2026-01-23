@@ -32,8 +32,7 @@ import (
 //
 // Returns:
 //   - error: "role {name} already exists", database error, or nil on success
-//
-func CreateRole(name, description string, permissionIDs []string) error {
+func CreateRole(name, description string, permissions []dtos.AvailablePermission) error {
 	// Validate role doesn't exist (case-insensitive check)
 	exists, err := RecordExists("roles", "LOWER(name) = LOWER(?)", name)
 	if err != nil {
@@ -54,19 +53,55 @@ func CreateRole(name, description string, permissionIDs []string) error {
 		return err
 	}
 
-	// Assign permissions to the newly created role
-	for _, pid := range permissionIDs {
-		rolePermissionID, _ := shortid.Generate()
-		query := `
-			INSERT INTO role_permissions (role_permission_id, role_id, permission_id)
-			VALUES (?, ?, ?)
-		`
-		_, err := DB.Exec(query, rolePermissionID, roleID, pid)
+	// Process and attach permissions to the role
+	return processRolePermissions(roleID, permissions)
+}
+
+// processRolePermissions handles the creation and assignment of permissions to a role.
+func processRolePermissions(roleID string, permissions []dtos.AvailablePermission) error {
+	for _, pm := range permissions {
+		permissionMasterID, err := getOrCreatePermissionMaster(pm)
+		if err != nil {
+			return err
+		}
+
+		// Attach the role to the permission using permission_master_id
+		err = addRolePermission(roleID, permissionMasterID)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// getOrCreatePermissionMaster retrieves or creates a permission in the master table.
+func getOrCreatePermissionMaster(pm dtos.AvailablePermission) (string, error) {
+	var permissionMasterID string
+
+	// Check if permission exists in permissions_master table
+	err := DB.QueryRow("SELECT permission_master_id FROM permissions_master WHERE LOWER(category) = LOWER(?) AND LOWER(permission_key) = LOWER(?)", pm.Category, pm.Key).Scan(&permissionMasterID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Permission doesn't exist in master, create it
+			return createPermissionMaster(pm)
+		}
+		return "", err
+	}
+	return permissionMasterID, nil
+}
+
+// createPermissionMaster creates a new permission in the master table.
+func createPermissionMaster(pm dtos.AvailablePermission) (string, error) {
+	permissionMasterID, _ := shortid.Generate()
+	query := `
+		INSERT INTO permissions_master (permission_master_id, category, permission_key, description)
+		VALUES (?, ?, ?, ?)
+	`
+	_, err := DB.Exec(query, permissionMasterID, pm.Category, pm.Key, pm.Description)
+	if err != nil {
+		return "", err
+	}
+	return permissionMasterID, nil
 }
 
 // GetRoles retrieves roles with optional filtering and enrichment.
@@ -165,13 +200,12 @@ func GetRoles(name, startDate, endDate string) ([]dtos.Role, error) {
 //   - *[]dtos.Permission: Pointer to array of permissions containing ID, Name, Description
 //     Returns nil if role has no permissions (not an error)
 //   - error: Database error or nil on success
-//
 func GetRolePermissions(roleID string) (*[]dtos.Permission, error) {
 	// Join role_permissions with permissions table
 	query := `
-		SELECT p.permission_id, p.name, p.description
-		FROM permissions p
-		JOIN role_permissions rp ON p.permission_id = rp.permission_id
+		SELECT pm.permission_master_id, pm.permission_key, pm.description, pm.category
+		FROM permissions_master pm
+		JOIN role_permissions rp ON pm.permission_master_id = rp.permission_id
 		WHERE rp.role_id = ?
 	`
 	rows, err := DB.Query(query, roleID)
@@ -186,7 +220,7 @@ func GetRolePermissions(roleID string) (*[]dtos.Permission, error) {
 	var permissions []dtos.Permission
 	for rows.Next() {
 		var p dtos.Permission
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description); err != nil {
+		if err := rows.Scan(&p.ID, &p.Key, &p.Description, &p.Category); err != nil {
 			return nil, err
 		}
 		permissions = append(permissions, p)
@@ -246,7 +280,6 @@ func isRoleThere(id string) error {
 //
 // Returns:
 //   - error: "role not found", database error, or nil on success
-//
 func UpdateRole(name, newDescription, roleID string) error {
 	// Validate role exists
 	err := isRoleThere(roleID)
@@ -293,200 +326,6 @@ func DeleteRole(roleID string) error {
 	return err
 }
 
-// CreatePermission creates a new permission.
-//
-// Parameters:
-//   - name: string - Permission name (must be unique, case-insensitive)
-//   - description: *string - Optional permission description
-//   - category: string - Permission category (e.g., "products", "orders")
-//   - key: string - Permission key/identifier (e.g., "product.create")
-//
-// Returns:
-//   - error: "permission already exists", database error, or nil on success
-func CreatePermission(name string, description *string, category string, key string) error {
-	permissionID, _ := shortid.Generate()
-
-	// Validate permission doesn't exist (case-insensitive)
-	exists, err := RecordExists("permissions", "LOWER(name) = LOWER(?)", name)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return errors.New("permission already exists")
-	}
-
-	// Create permission with generated ID
-	query := `
-		INSERT INTO permissions (permission_id, name, description, category, permission_key)
-		VALUES (?, ?, ?, ?, ?)
-	`
-	_, err = DB.Exec(query, permissionID, name, description, category, key)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// IsPermissionThere validates that a permission exists in the database.
-//
-// Parameters:
-//   - id: string - The permission_id to validate
-//
-// Returns:
-//   - error: "permission not found", database error, or nil if permission exists
-func IsPermissionThere(id string) error {
-	exists, err := RecordExists("permissions", "permission_id = ?", id)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return errors.New("permission not found")
-	}
-	return nil
-}
-
-// UpdatePermission updates an existing permission's details.
-//
-// Parameters:
-//   - name: string - Updated permission name
-//   - newDescription: *string - Updated description
-//   - permissionID: string - The permission_id to update
-//   - category: string - Updated category
-//   - key: string - Updated permission key
-//
-// Returns:
-//   - error: "permission not found", database error, or nil on success
-//
-func UpdatePermission(name string, newDescription *string, permissionID string, category string, key string) error {
-	// Validate permission exists
-	err := IsPermissionThere(permissionID)
-	if err != nil {
-		return err
-	}
-
-	// Update all permission fields
-	query := `
-		UPDATE permissions
-		SET description = ?, name = ?, category = ?, permission_key = ?
-		WHERE permission_id = ?
-	`
-	_, err = DB.Exec(query, newDescription, name, permissionID, category, key)
-	if err != nil {
-		return err
-	}
-
-	return err
-}
-
-// DeletePermission permanently removes a permission from the database.
-//
-// Warning: This does not cascade delete role_permissions associations.
-//
-//	Consider removing permission from all roles first.
-//
-// Parameters:
-//   - permissionID: string - The permission_id to delete
-//
-// Returns:
-//   - error: "permission not found", database error, or nil on success
-func DeletePermission(permissionID string) error {
-	// Validate permission exists
-	err := IsPermissionThere(permissionID)
-	if err != nil {
-		return err
-	}
-
-	// Hard delete permission
-	query := `DELETE FROM permissions WHERE permission_id = ?`
-	_, err = DB.Exec(query, permissionID)
-
-	return err
-}
-
-// GetPermissions retrieves all permissions, optionally filtered by category.
-//
-// Parameters:
-//   - category: string - Filter by category (case-insensitive). Empty = no filter
-//
-// Returns:
-//   - []dtos.Permission: Array of permissions containing:
-//   - ID, Name, Description, Category, Key
-//   - error: Database error or nil on success
-//
-func GetPermissions(category string) ([]dtos.Permission, error) {
-	query := `
-		SELECT permission_id, name, description, category, permission_key
-		FROM permissions
-	`
-
-	var rows *sql.Rows
-	var err error
-
-	// Apply category filter if provided
-	if category != "" {
-		query += " WHERE LOWER(category) = LOWER(?)"
-		rows, err = DB.Query(query, category)
-	} else {
-		rows, err = DB.Query(query)
-	}
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return []dtos.Permission{}, nil // No permissions found
-		}
-		return nil, err
-	}
-	defer rows.Close()
-
-	var permissions []dtos.Permission
-	for rows.Next() {
-		var p dtos.Permission
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.Key); err != nil {
-			return nil, err
-		}
-		permissions = append(permissions, p)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return permissions, nil
-}
-
-// GetPermissionByID retrieves a single permission by its ID.
-//
-// Parameters:
-//   - permissionID: string - The permission_id to retrieve
-//
-// Returns:
-//   - *dtos.Permission: Permission details (ID, Name, Description, Category, Key)
-//     Returns nil if not found (sql.ErrNoRows)
-//   - error: "permission not found", database error, or nil on success
-func GetPermissionByID(permissionID string) (*dtos.Permission, error) {
-	// Validate permission exists
-	err := IsPermissionThere(permissionID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Retrieve permission details
-	query := `
-		SELECT permission_id, name, description, category, permission_key
-		FROM permissions
-		WHERE permission_id = ?
-	`
-	var p dtos.Permission
-	err = DB.QueryRow(query, permissionID).Scan(&p.ID, &p.Name, &p.Description, &p.Category, &p.Key)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil // Permission not found
-		}
-		return nil, err
-	}
-	return &p, nil
-}
-
 // GetRoleIDForCustomerRole retrieves the role_id for the "customer" role.
 //
 // This is a convenience function for getting the default customer role ID
@@ -495,7 +334,6 @@ func GetPermissionByID(permissionID string) (*dtos.Permission, error) {
 // Returns:
 //   - string: The role_id of the "customer" role
 //   - error: Database error or sql.ErrNoRows if "customer" role doesn't exist
-//
 func GetRoleIDForCustomerRole() (string, error) {
 	var roleID string
 	query := `SELECT role_id FROM roles WHERE LOWER(name) = 'customer'`
@@ -514,7 +352,6 @@ func GetRoleIDForCustomerRole() (string, error) {
 // Returns:
 //   - string: Role name, or empty string if role not found (not an error)
 //   - error: Database error or nil on success
-//
 func GetRoleNameByID(roleID string) (string, error) {
 	var roleName string
 	query := `SELECT name FROM roles WHERE role_id = ?`
@@ -538,12 +375,15 @@ func GetRoleNameByID(roleID string) (string, error) {
 //
 // Returns:
 //   - error: Database error or nil on success
-//
-func AddPermissionsToRole(roleID string, permissionIDs []string) error {
+func AddPermissionsToRole(roleID string, permissionKeys []dtos.AvailablePermission) error {
 	// Process each permission
-	for _, permissionID := range permissionIDs {
+	for _, permissionKey := range permissionKeys {
+		permissionMasterID, err := getOrCreatePermissionMaster(permissionKey)
+		if err != nil {
+			return err
+		}
 		// Check if role already has this permission
-		exists, err := RecordExists("role_permissions", "role_id = ? AND permission_id = ?", roleID, permissionID)
+		exists, err := RecordExists("role_permissions", "role_id = ? AND permission_id = ?", roleID, permissionMasterID)
 		if err != nil {
 			return err
 		}
@@ -552,7 +392,7 @@ func AddPermissionsToRole(roleID string, permissionIDs []string) error {
 		}
 
 		// Add permission to role
-		err = addRolePermission(roleID, permissionID)
+		err = addRolePermission(roleID, permissionMasterID)
 		if err != nil {
 			return err
 		}
@@ -588,12 +428,15 @@ func addRolePermission(roleID, permissionID string) error {
 //
 // Returns:
 //   - error: Database error or nil on success
-//
-func RemovePermissionsFromRole(roleID string, permissionIDs []string) error {
+func RemovePermissionsFromRole(roleID string, permissionKeys []dtos.AvailablePermission) error {
 	// Process each permission
-	for _, permissionID := range permissionIDs {
+	for _, permissionKey := range permissionKeys {
+		permissionMasterID, err := getOrCreatePermissionMaster(permissionKey)
+		if err != nil {
+			return err
+		}
 		// Check if role has this permission
-		exists, err := RecordExists("role_permissions", "role_id = ? AND permission_id = ?", roleID, permissionID)
+		exists, err := RecordExists("role_permissions", "role_id = ? AND permission_id = ?", roleID, permissionMasterID)
 		if err != nil {
 			return err
 		}
@@ -602,7 +445,7 @@ func RemovePermissionsFromRole(roleID string, permissionIDs []string) error {
 		}
 
 		// Remove permission from role
-		err = removeRolePermission(roleID, permissionID)
+		err = removeRolePermission(roleID, permissionMasterID)
 		if err != nil {
 			return err
 		}
@@ -635,7 +478,6 @@ func removeRolePermission(roleID, permissionID string) error {
 // Returns:
 //   - []dtos.AvailablePermission: Array containing Category, Key, Description
 //   - error: Database error or nil on success
-//
 func GetAvailablePermissions(category string) ([]dtos.AvailablePermission, error) {
 	var permissions []dtos.AvailablePermission
 
@@ -685,7 +527,6 @@ func GetAvailablePermissions(category string) ([]dtos.AvailablePermission, error
 //
 // Returns:
 //   - error: Database error or nil on success
-//
 func AddAvailablePermission(category, key, description string) error {
 	permissionMasterID, _ := shortid.Generate()
 	query := `

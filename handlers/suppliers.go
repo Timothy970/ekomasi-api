@@ -39,7 +39,7 @@ func CreateSupplier(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can create suppliers)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Suppliers")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Suppliers", "suppliers.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -110,7 +110,7 @@ func ListSuppliers(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view suppliers)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Suppliers"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Suppliers", "suppliers.view"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -193,7 +193,7 @@ func GetSupplierByID(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view supplier details)
-	if _, ok := utils.RequireAdmin(r, w, start, requestSummary, "Suppliers"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Suppliers", "suppliers.view"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -255,7 +255,7 @@ func UpdateSupplier(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can update suppliers)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Suppliers")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Suppliers", "suppliers.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -339,7 +339,7 @@ func DeleteSupplier(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can delete suppliers)
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Suppliers")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Suppliers", "suppliers.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return

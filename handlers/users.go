@@ -37,7 +37,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.create")
 	if !ok {
 		return
 	}
@@ -135,7 +135,7 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.view")
 	if !ok {
 		return
 	}
@@ -214,7 +214,7 @@ func GetUserByID(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.view")
 	if !ok {
 		return
 	}
@@ -383,7 +383,7 @@ func DeleteUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.delete")
 	if !ok {
 		return
 	}
@@ -443,7 +443,7 @@ func ActivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.update")
 	if !ok {
 		return
 	}
@@ -503,7 +503,7 @@ func DeactivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.update")
 	if !ok {
 		return
 	}
@@ -706,7 +706,7 @@ func AdminCreateAddress(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.create")
 	if !ok {
 		return
 	}
@@ -915,7 +915,7 @@ func AdminUpdateAddress(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.update")
 	addressID := mux.Vars(r)["address_id"]
 	req, ok := DecodeRequestBody[dtos.AdminUserAddress](r, w, requestSummary, start)
 	if !ok {
@@ -1051,7 +1051,7 @@ func AdminDeleteAddress(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.delete")
 	if !ok {
 		return
 	}
@@ -1124,7 +1124,7 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Users")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.update")
 	if !ok {
 		return
 	}

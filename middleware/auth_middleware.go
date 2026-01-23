@@ -82,12 +82,13 @@ func AuthenticateToken(next http.Handler) http.Handler {
 		if ok {
 			// Build authenticated user object from token claims
 			user := AuthenticatedUser{
-				ID:        claims.UserID,
-				Email:     claims.Email,
-				FirstName: claims.FirstName,
-				LastName:  claims.LastName,
-				Role:      claims.Role,
-				Phone:     claims.Phone,
+				ID:          claims.UserID,
+				Email:       claims.Email,
+				FirstName:   claims.FirstName,
+				LastName:    claims.LastName,
+				Role:        claims.Role,
+				Phone:       claims.Phone,
+				Permissions: claims.Permissions,
 			}
 			// Inject user into request context for downstream handlers
 			ctx := contextWithUser(r.Context(), user)
@@ -153,14 +154,24 @@ func AuthenticateRefreshToken(next http.Handler) http.Handler {
 			return
 		}
 
+		var permissions []string
+		if perms, ok := claims["permissions"].([]interface{}); ok {
+			for _, perm := range perms {
+				if permStr, ok := perm.(string); ok {
+					permissions = append(permissions, permStr)
+				}
+			}
+		}
+
 		// Build authenticated user object from token claims
 		user := AuthenticatedUser{
-			ID:        fmt.Sprintf("%v", claims["id"]),
-			Email:     fmt.Sprintf("%v", claims["email"]),
-			FirstName: fmt.Sprintf("%v", claims["first_name"]),
-			LastName:  fmt.Sprintf("%v", claims["last_name"]),
-			Role:      fmt.Sprintf("%v", claims["role"]),
-			Phone:     fmt.Sprintf("%v", claims["phone_number"]),
+			ID:          fmt.Sprintf("%v", claims["id"]),
+			Email:       fmt.Sprintf("%v", claims["email"]),
+			FirstName:   fmt.Sprintf("%v", claims["first_name"]),
+			LastName:    fmt.Sprintf("%v", claims["last_name"]),
+			Role:        fmt.Sprintf("%v", claims["role"]),
+			Phone:       fmt.Sprintf("%v", claims["phone_number"]),
+			Permissions: permissions,
 		}
 		// Inject user into request context for downstream handlers
 		ctx := contextWithUser(r.Context(), user)
@@ -175,12 +186,13 @@ func AuthenticateRefreshToken(next http.Handler) http.Handler {
 // Contains essential user identity and role information for authorization checks.
 // Injected into request context after successful token validation.
 type AuthenticatedUser struct {
-	ID        string // Unique user identifier from database
-	Email     string // User's email address
-	FirstName string // User's first name
-	LastName  string // User's last name
-	Role      string // User's role (e.g., "admin", "user", "customer")
-	Phone     string // User's phone number
+	ID          string   // Unique user identifier from database
+	Email       string   // User's email address
+	FirstName   string   // User's first name
+	LastName    string   // User's last name
+	Role        string   // User's role (e.g., "admin", "user", "customer")
+	Phone       string   // User's phone number
+	Permissions []string // User's permissions
 }
 
 // contextKey is a custom type for context keys to avoid collisions
@@ -279,14 +291,24 @@ func IsUserTokenPassed(r *http.Request) (*AuthenticatedUser, bool) {
 		return nil, false
 	}
 
+	var permissions []string
+	if perms, ok := claims["permissions"].([]interface{}); ok {
+		for _, perm := range perms {
+			if permStr, ok := perm.(string); ok {
+				permissions = append(permissions, permStr)
+			}
+		}
+	}
+
 	// Build user object from token claims
 	user := &AuthenticatedUser{
-		ID:        fmt.Sprintf("%v", claims["id"]),
-		Email:     fmt.Sprintf("%v", claims["email"]),
-		FirstName: fmt.Sprintf("%v", claims["first_name"]),
-		LastName:  fmt.Sprintf("%v", claims["last_name"]),
-		Role:      fmt.Sprintf("%v", claims["role"]),
-		Phone:     fmt.Sprintf("%v", claims["phone_number"]),
+		ID:          fmt.Sprintf("%v", claims["id"]),
+		Email:       fmt.Sprintf("%v", claims["email"]),
+		FirstName:   fmt.Sprintf("%v", claims["first_name"]),
+		LastName:    fmt.Sprintf("%v", claims["last_name"]),
+		Role:        fmt.Sprintf("%v", claims["role"]),
+		Phone:       fmt.Sprintf("%v", claims["phone_number"]),
+		Permissions: permissions,
 	}
 
 	return user, true
@@ -347,13 +369,23 @@ func GetTokenAndAuthenticatedUser(w http.ResponseWriter, r *http.Request) (bool,
 	}
 
 	// Build authenticated user object from validated token claims
+	var permissions []string
+	if perms, ok := claims["permissions"].([]interface{}); ok {
+		for _, perm := range perms {
+			if permStr, ok := perm.(string); ok {
+				permissions = append(permissions, permStr)
+			}
+		}
+	}
+
 	user := AuthenticatedUser{
-		ID:        fmt.Sprintf("%v", claims["id"]),
-		Email:     fmt.Sprintf("%v", claims["email"]),
-		FirstName: fmt.Sprintf("%v", claims["first_name"]),
-		LastName:  fmt.Sprintf("%v", claims["last_name"]),
-		Role:      fmt.Sprintf("%v", claims["role"]),
-		Phone:     fmt.Sprintf("%v", claims["phone_number"]),
+		ID:          fmt.Sprintf("%v", claims["id"]),
+		Email:       fmt.Sprintf("%v", claims["email"]),
+		FirstName:   fmt.Sprintf("%v", claims["first_name"]),
+		LastName:    fmt.Sprintf("%v", claims["last_name"]),
+		Role:        fmt.Sprintf("%v", claims["role"]),
+		Phone:       fmt.Sprintf("%v", claims["phone_number"]),
+		Permissions: permissions,
 	}
 	// Return success with authenticated user
 	return true, &user

@@ -762,7 +762,7 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Accounts")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "payments.refund")
 	if !ok {
 		return
 	}

@@ -201,7 +201,7 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
 	if !ok {
 		return
 	}
@@ -353,7 +353,7 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update")
 	if !ok {
 		return
 	}
@@ -475,7 +475,7 @@ func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		return
 	}
@@ -541,7 +541,7 @@ func AddProductsToBundleHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
 	if !ok {
 		return
 	}
@@ -615,7 +615,7 @@ func RemoveProductsFromBundleHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequireAdmin(r, w, start, requestSummary, "Products")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		return
 	}
