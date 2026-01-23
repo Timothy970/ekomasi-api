@@ -153,7 +153,7 @@ func GetUserByPhone(phone string) (*dtos.User, error) {
 	return &user, nil
 }
 
-// helper functuon to get permissions by role id
+// helper function to get permissions by role id
 // params : roleID string
 // returns : []string , error
 func GetPermissionsByRoleID(roleID string) ([]string, error) {

@@ -28,7 +28,6 @@ package utils
 import (
 	"adenzo_backend/middleware"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -227,7 +226,7 @@ func sendError(w http.ResponseWriter, code int, message string, start time.Time,
 	})
 }
 
-// RequirePermission verifies that the user is authenticated, not a customer and has one of the allowed permissions.
+// RequirePermissions verifies that the user is authenticated, not a customer and has one of the allowed permissions.
 //
 // This function:
 // 1. Extracts authenticated user from request context
@@ -235,7 +234,7 @@ func sendError(w http.ResponseWriter, code int, message string, start time.Time,
 // 3. Verifies user has one of the allowed permissions (sends 403 if not)
 // 4. Returns user and success status
 //
-// Use this for endpoints that require specific permissions (e.g., ["admin", "manager"]).
+// Use this for endpoints that require specific permission.
 //
 // Parameters:
 //   - r: *http.Request - HTTP request with user context
@@ -274,7 +273,6 @@ var RequirePermissions = func(
 		})
 		return middleware.AuthenticatedUser{}, false
 	}
-	log.Printf("Authenticated user details::::%v", user)
 
 	//check user is not a customer(role)
 	if user.Role == "customer" {
@@ -314,14 +312,12 @@ var RequirePermissions = func(
 	}
 	if !hasPermission {
 		availablePermissions := SupportedPermissions
-		errorMsg := ""
+		errorMsg := "You don't have permission to perform this action"
 		//get the description of the needed permission
 		for _, perm := range availablePermissions {
 			if strings.ToLower(perm.Key) == strings.ToLower(allowedPermission) {
 				errorMsg = fmt.Sprintf("You don't have permission to %s", strings.ToLower(perm.Description))
 				break
-			} else {
-				errorMsg = "You don't have permission to perform this action"
 			}
 		}
 

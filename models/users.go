@@ -21,7 +21,7 @@ import (
 )
 
 // getAddress is a constant query condition for address lookups
-var getAddress = "user_id = ? AND address = ?"
+var getAddress = "user_id = ? AND address_id = ?"
 
 // DeleteUserByID permanently removes a user from the system.
 //

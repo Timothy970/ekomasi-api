@@ -57,7 +57,7 @@ var SupportedPermissions = []dtos.AvailablePermission{
 	{Category: "Charges", Key: "charges.update", Description: "Update charge details"},
 	{Category: "Charges", Key: "charges.delete", Description: "Delete charge"},
 
-	// NotIFICATIONS
+	// NOTIFICATIONS
 	{Category: "Notifications", Key: "notifications.create", Description: "Add new notification"},
 	{Category: "Notifications", Key: "notifications.view", Description: "View notifications"},
 	{Category: "Notifications", Key: "notifications.update", Description: "Edit notification details"},
