@@ -706,8 +706,9 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	voucher.Status = &active
 
 	deliveryTime := models.StringToTime(req.DeliveryTime)
-	//check delivery time is in the past
-	if deliveryTime.Before(time.Now()) {
+	//check delivery time is in the past (but allow today's date)
+	today := time.Now().Truncate(24 * time.Hour)
+	if deliveryTime.Before(today) {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
