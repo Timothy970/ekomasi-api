@@ -303,7 +303,7 @@ func GetSizeIDs(sizes []string) []string {
 func GetDefaultWarrantyType() string {
 	var warrantyTypeID string
 	err := DB.QueryRow(`
-		SELECT warranty_type_id FROM warranty_types WHERE name = LOWER('Manufacturing Warranty') LIMIT 1
+		SELECT warranty_type_id FROM warranty_types WHERE LOWER(name) = LOWER('Manufacturing Warranty') LIMIT 1
 	`).Scan(&warrantyTypeID)
 	if err != nil {
 		log.Println("Error fetching Default Warranty Type ID:", err)
