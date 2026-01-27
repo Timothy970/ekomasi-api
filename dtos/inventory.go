@@ -131,11 +131,12 @@ type StockEntryRequest struct {
 	QuantityReceived  int         `json:"quantity_received" validate:"gte=1"`
 	MinimumStockLevel int         `json:"minimum_stock_level" validate:"gte=0"`
 	StoreQuantity     []StoreInfo `json:"store_quantity" validate:"required,dive"`
-	SupplierID        string      `json:"supplier_id" validate:"required"`
-	PurchaseOrderID   string      `json:"purchase_order_id" validate:"required"`
-	BuyingPrice       float64     `json:"buying_price" validate:"required,gte=0"`
-	ConditionID       string      `json:"condition_id" validate:"required"`
-	HandlingNotes     string      `json:"handling_notes"`
+	SupplierID        *string     `json:"supplier_id"`
+	// PurchaseOrderID   string      `json:"purchase_order_id" validate:"required"`
+	BuyingPrice   float64 `json:"buying_price" validate:"required,gte=0"`
+	ConditionID   string  `json:"condition_id" validate:"required"`
+	HandlingNotes string  `json:"handling_notes"`
+	SellingPrice  float64 `json:"selling_price" validate:"required,gte=0"`
 }
 
 type StoreInfo struct {
@@ -166,11 +167,11 @@ type InventoryCondition struct {
 }
 
 type InventoryTracking struct {
-	ProductID         string `json:"product_id"`
-	Quantity          int    `json:"quantity"`
-	LowStockThreshold int    `json:"low_stock_threshold"`
-	StoreID           string `json:"store_id"`
-	SupplierID        string `json:"supplier_id"`
+	ProductID         string  `json:"product_id"`
+	Quantity          int     `json:"quantity"`
+	LowStockThreshold int     `json:"low_stock_threshold"`
+	StoreID           string  `json:"store_id"`
+	SupplierID        *string `json:"supplier_id"`
 }
 
 type InventoryStockSummary struct {

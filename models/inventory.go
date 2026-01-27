@@ -880,11 +880,12 @@ func StoreInventoryTracking(req dtos.InventoryTracking) (string, error) {
 	}
 
 	// Validate supplier exists
-	err = isSupplierThere(req.SupplierID)
-	if err != nil {
-		return "", err
+	if req.SupplierID != nil {
+		err = isSupplierThere(*req.SupplierID)
+		if err != nil {
+			return "", err
+		}
 	}
-
 	// Validate warehouse exists
 	exists, err := RecordExists("warehouses", "warehouse_id = ?", req.StoreID)
 	if err != nil {
@@ -1111,4 +1112,14 @@ func GetInventoryStockHistory(inventoryID string, page, size int) (*[]dtos.Inven
 	}
 
 	return &history, meta, nil
+}
+
+// helper function to update product buying price and selling price
+func UpdateProductPrices(productID string, buyingPrice, sellingPrice float64) error {
+	_, err := DB.Exec(`
+		UPDATE products
+		SET buying_price = ?, price = ?
+		WHERE product_id = ?`,
+		buyingPrice, sellingPrice, productID)
+	return err
 }

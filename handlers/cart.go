@@ -681,11 +681,11 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reset totals if negative
-	if items.TotalAmount <= 0 {
-		items.SubTotal = 0
-		items.EstimatedTax = 0
-	}
+	// // Reset totals if negative
+	// if items.TotalAmount <= 0 {
+	// 	items.SubTotal = 0
+	// 	items.EstimatedTax = 0
+	// }
 
 	// Calculate delivery charge if location ID is provided
 	if req.LocationID != nil {

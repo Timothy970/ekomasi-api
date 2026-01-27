@@ -659,6 +659,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build stock entry request
+	supplierID := r.FormValue("supplier_id")
 	req := &dtos.StockEntryRequest{
 		ProductID:         r.FormValue("product_id"),
 		BatchImages:       &batchImageUrls,
@@ -672,11 +673,12 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		QuantityReceived:  parseInt(r.FormValue("quantity_received")),
 		MinimumStockLevel: parseInt(r.FormValue("minimum_stock_level")),
 		StoreQuantity:     ParseStoreInfoArray(r.FormValue("store_quantity")),
-		SupplierID:        r.FormValue("supplier_id"),
-		PurchaseOrderID:   r.FormValue("purchase_order_id"),
-		BuyingPrice:       parseFloat(r.FormValue("buying_price")),
-		ConditionID:       r.FormValue("condition_id"),
-		HandlingNotes:     r.FormValue("handling_notes"),
+		SupplierID:        &supplierID,
+		// PurchaseOrderID:   r.FormValue("purchase_order_id"),
+		BuyingPrice:   parseFloat(r.FormValue("buying_price")),
+		ConditionID:   r.FormValue("condition_id"),
+		HandlingNotes: r.FormValue("handling_notes"),
+		SellingPrice:  parseFloat(r.FormValue("selling_price")),
 	}
 	//Validate the request
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Inventory") {
@@ -847,6 +849,22 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	//update product buying price and selling price
+	if err := models.UpdateProductPrices(req.ProductID, req.BuyingPrice, req.SellingPrice); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to update product prices when creating stock entry",
+				Code:        http.StatusNotFound,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Inventory",
