@@ -15,6 +15,7 @@ type User struct {
 	PasswordHash string     `json:"-"`
 	Role         string     `json:"role"`
 	LastLogin    *time.Time `json:"last_login,omitempty"`
+	Status       string     `json:"status"`
 	Permissions  []string   `json:"permissions,omitempty"`
 }
 

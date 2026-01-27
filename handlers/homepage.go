@@ -974,6 +974,10 @@ func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
+	if blog.ReadTimeMinutes == 0 {
+		blog.ReadTimeMinutes = 5 //default read time
+	}
 	//Validate the request
 	if !utils.ValidateStructAndRespond(blog, w, r, requestSummary, start, "Homepage") {
 		return

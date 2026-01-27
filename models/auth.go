@@ -54,7 +54,7 @@ import (
 //   - error: sql.ErrNoRows if user not found (returns nil), or database error if query fails
 func GetUserByEmail(email string) (*dtos.User, error) {
 	// Execute query with JOIN to roles table
-	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number FROM users u JOIN roles r ON u.role_id = r.role_id WHERE email = ?", email)
+	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE email = ?", email)
 
 	var user dtos.User
 	// Handle nullable database fields
@@ -65,7 +65,7 @@ func GetUserByEmail(email string) (*dtos.User, error) {
 	var userRoleID string
 
 	// Scan query result into user struct and nullable fields
-	err := row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &userRoleID, &phone)
+	err := row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &userRoleID, &phone, &user.Status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // User not found
@@ -113,7 +113,7 @@ func GetUserByEmail(email string) (*dtos.User, error) {
 //   - error: sql.ErrNoRows if user not found (returns nil), or database error if query fails
 func GetUserByPhone(phone string) (*dtos.User, error) {
 	// Execute query with JOIN to roles table
-	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number FROM users u JOIN roles r ON u.role_id = r.role_id WHERE phone_number = ?", phone)
+	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE phone_number = ?", phone)
 
 	var user dtos.User
 	// Handle nullable database fields
@@ -123,7 +123,7 @@ func GetUserByPhone(phone string) (*dtos.User, error) {
 	var userRoleID string
 
 	// Scan query result into user struct and nullable fields
-	err := row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &userRoleID, &user.Phone)
+	err := row.Scan(&user.ID, &firstName, &lastName, &userEmail, &user.Role, &userRoleID, &user.Phone, &user.Status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // User not found

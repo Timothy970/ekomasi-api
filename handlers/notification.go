@@ -221,7 +221,7 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view all notifications)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Notifications", "notifications.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Notifications", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -443,7 +443,7 @@ func ListLogsHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view system logs)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "logs.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return

@@ -302,7 +302,7 @@ func ListVouchersHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can list all vouchers)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "promotions.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -371,7 +371,7 @@ func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view voucher details)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "promotions.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -1287,7 +1287,7 @@ func ListVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "promotions.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "")
 	if !ok {
 		return
 	}
@@ -1331,7 +1331,7 @@ func GetVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "promotions.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "")
 	if !ok {
 		return
 	}

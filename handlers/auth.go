@@ -569,7 +569,20 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-
+	if user.Status != "active" {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "User account is not active",
+				Code:        http.StatusUnauthorized,
+			},
+			Message:   "User account is not active",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
 	// Generate OTP (hardcoded for testing)
 	otp := "2025"
 	// otp, err := utils.GenerateOTP()
@@ -658,6 +671,20 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 				Code:        http.StatusBadRequest,
 			},
 			Message:   noUserFound,
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	if user.Status != "active" {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "User account is not active",
+				Code:        http.StatusUnauthorized,
+			},
+			Message:   "User account is not active",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,

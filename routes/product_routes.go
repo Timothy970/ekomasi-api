@@ -62,5 +62,7 @@ func SetupProductRoutes(api *mux.Router) {
 
 	// Bulk upload
 	api.Handle("/products/bulk-upload", middleware.AuthenticateToken(http.HandlerFunc(handlers.BulkUploadProductsHandler))).Methods("POST")
+	api.Handle("/products/bulk-upload/publish", middleware.AuthenticateToken(http.HandlerFunc(handlers.PublishBulkUploadedProductsHandler))).Methods("POST")
+	api.Handle("/products/bulk-upload", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetBulkUploadProductsHandler))).Methods("GET")
 	api.HandleFunc("/products/sample-csv", handlers.DownloadSampleCSVHandler).Methods("GET")
 }

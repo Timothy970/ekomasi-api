@@ -260,21 +260,32 @@ type ProductSpecs struct {
 }
 
 type BulkUploadProduct struct {
-	ProductID               string  `json:"product_id"`
-	Name                    string  `json:"name"`
-	Description             string  `json:"description"`
-	SKU                     string  `json:"sku"`
-	Price                   float64 `json:"price"`
-	CategoryID              string  `json:"category_id"`
-	StockQuantity           int     `json:"stock_quantity"`
-	SearchVector            string  `json:"search_vector"`
-	Tag                     string  `json:"tag"`
-	LowStockQuantityWarning int     `json:"low_stock_quantity_warning"`
-	SellWhenOutOfStock      bool    `json:"sell_when_out_of_stock"`
-	ShowStockQuantity       bool    `json:"show_stock_quantity"`
-	CreatedByID             string  `json:"created_by_id"`
-	BuyingPrice             float64 `json:"buying_price"`
-	Image                   string  `json:"image"`
+	ProductID               string    `json:"product_id"`
+	Name                    string    `json:"name"`
+	Description             string    `json:"description"`
+	SKU                     string    `json:"sku"`
+	Price                   float64   `json:"price"`
+	CategoryID              string    `json:"sub_category_id"`
+	StockQuantity           int       `json:"stock_quantity"`
+	SearchVector            string    `json:"search_vector"`
+	Tag                     *string   `json:"tag"`
+	LowStockQuantityWarning int       `json:"low_stock_quantity_warning"`
+	SellWhenOutOfStock      bool      `json:"sell_when_out_of_stock"`
+	ShowStockQuantity       bool      `json:"show_stock_quantity"`
+	CreatedByID             string    `json:"created_by_id"`
+	BuyingPrice             float64   `json:"buying_price"`
+	Weight                  *int      `json:"weight"`
+	WeightLimit             *int      `json:"weight_limit"`
+	Dimensions              *string   `json:"dimensions"`
+	AgeRange                *[]string `json:"age_range"`
+	Brand                   *string   `json:"brand"`
+	Manufacturer            *string   `json:"manufacturer"`
+	Material                *[]string `json:"material"`
+	Colors                  *[]string `json:"colors"`
+	Sizes                   *[]string `json:"sizes"`
+	WarrantyPeriod          *int      `json:"warranty_period"`
+	ExpiryDate              *string   `json:"expiry_date"`
+	ManufacturingDate       *string   `json:"manufacturing_date"`
 }
 type VoucherDesign struct {
 	DesignID   string  `json:"design_id"`
@@ -287,4 +298,11 @@ type LowStockEmailData struct {
 	StoreName string
 	AlertDate string
 	Products  []Product
+}
+
+type PublishBulkProduct struct {
+	ProductID      string    `json:"product_id" validate:"required"`
+	Images         []Image   `json:"images" validate:"required,dive"`
+	ProductDetails *[]string `json:"product_details"`
+	VideoLink      *string   `json:"video_link"`
 }

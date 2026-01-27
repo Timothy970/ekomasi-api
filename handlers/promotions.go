@@ -200,7 +200,7 @@ func GetPromoCodeByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for viewing promo codes)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}

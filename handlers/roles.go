@@ -156,7 +156,7 @@ func GetRolesHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "roles.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", ""); !ok {
 		return
 	}
 	// Extract optional query parameters for filtering
@@ -632,7 +632,7 @@ func GetAvailablePermissions(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "roles.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", ""); !ok {
 		return
 	}
 	// Extract optional category filter
