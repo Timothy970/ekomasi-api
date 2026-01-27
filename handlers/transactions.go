@@ -37,7 +37,7 @@ func GetAllTransactionHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view all transactions)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Transactions", "payments.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Transactions", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -102,7 +102,7 @@ func GetTransactionByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view transaction details)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Transactions", "payments.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Transactions", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}

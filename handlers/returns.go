@@ -209,7 +209,7 @@ func GetReturnByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view all returns)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -332,7 +332,7 @@ func ListAllReturnsHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view all returns)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}

@@ -37,7 +37,7 @@ func ListInventory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", ""); !ok {
 		return
 	}
 	categoryID := r.URL.Query().Get("category_id")
@@ -158,7 +158,7 @@ func GetInventory(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", ""); !ok {
 		return
 	}
 	id := mux.Vars(r)["inventory_id"]
@@ -210,7 +210,7 @@ func DownloadInventoryCSV(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", ""); !ok {
 		return
 	}
 	id := mux.Vars(r)["inventory_id"]
@@ -760,10 +760,32 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+
+	// Validate that store quantities sum equals quantity received
+	totalStoreQuantity := 0
+	for _, store := range req.StoreQuantity {
+		totalStoreQuantity += store.Quantity
+	}
+	if totalStoreQuantity != req.QuantityReceived {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: fmt.Sprintf("Store quantities sum (%d) does not match quantity received (%d)", totalStoreQuantity, req.QuantityReceived),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   fmt.Sprintf("The sum of store quantities (%d) must equal the total quantity received (%d)", totalStoreQuantity, req.QuantityReceived),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
 	var invetoryIDS []string
 	for _, warehouse := range req.StoreQuantity {
 		storeID := warehouse.StoreID
-		inventoryID, err := handleInventoryTracking(req, storeID)
+		quantity := warehouse.Quantity
+		inventoryID, err := handleInventoryTracking(req, storeID, quantity)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
@@ -855,11 +877,11 @@ func handleImageUpload(r *http.Request, field string) ([]string, error) {
 	}
 	return urls, nil
 }
-func handleInventoryTracking(req *dtos.StockEntryRequest, storeID string) (string, error) {
+func handleInventoryTracking(req *dtos.StockEntryRequest, storeID string, quantity int) (string, error) {
 
 	inventoryData := dtos.InventoryTracking{
 		ProductID:         req.ProductID,
-		Quantity:          req.QuantityReceived,
+		Quantity:          quantity,
 		LowStockThreshold: req.MinimumStockLevel,
 		StoreID:           storeID,
 		SupplierID:        req.SupplierID}
@@ -873,10 +895,15 @@ func handleInventoryTracking(req *dtos.StockEntryRequest, storeID string) (strin
 
 func handleBatch(req *dtos.StockEntryRequest, inventoryID string) (string, error) {
 	//  Store batch details in DB along with urls
+	var images []string
+	if req.BatchImages != nil {
+		images = *req.BatchImages
+	}
+
 	batchData := dtos.Batch{
 		InventoryID:       inventoryID,
 		BatchNumber:       req.BatchNumber,
-		Images:            *req.BatchImages,
+		Images:            images,
 		ExpiryDate:        req.ExpiryDate,
 		ManufacturingDate: req.ManufacturingDate,
 	}
@@ -890,12 +917,17 @@ func handleBatch(req *dtos.StockEntryRequest, inventoryID string) (string, error
 func handleInspection(req *dtos.StockEntryRequest, batchID string) error {
 
 	// Store inspection details in DB
+	var images []string
+	if req.InspectionImage != nil {
+		images = *req.InspectionImage
+	}
+
 	inspectionData := dtos.Inspection{
 		BatchID:         batchID,
 		InspectionDate:  req.InspectionDate,
 		InspectorID:     req.InspectorID,
 		InspectionNotes: req.InspectionNotes,
-		Images:          *req.InspectionImage,
+		Images:          images,
 	}
 	err := models.StoreInspectionDetails(inspectionData)
 	if err != nil {

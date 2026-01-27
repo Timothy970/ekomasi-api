@@ -66,6 +66,39 @@ func required(field, name string, allowEmpty bool) error {
 	return nil
 }
 
+// BulkUploadHeader defines a CSV header with its required status
+type BulkUploadHeader struct {
+	Name     string
+	Required bool
+}
+
+// Bulk upload CSV file expected headers
+var BulkUploadHeaders = []BulkUploadHeader{
+	{Name: "name", Required: true},
+	{Name: "description", Required: true},
+	{Name: "sku", Required: true},
+	{Name: "price", Required: true},
+	{Name: "sub_category_id", Required: true},
+	{Name: "stock_quantity", Required: false},
+	{Name: "tag", Required: false},
+	{Name: "low_stock_quantity_warning", Required: false},
+	{Name: "sell_when_out_of_stock", Required: false},
+	{Name: "show_stock_quantity", Required: false},
+	{Name: "buying_price", Required: true},
+	{Name: "weight", Required: false},
+	{Name: "weight_limit", Required: false},
+	{Name: "dimensions", Required: false},
+	{Name: "age_range", Required: false},
+	{Name: "brand", Required: false},
+	{Name: "manufacturer", Required: false},
+	{Name: "material", Required: false},
+	{Name: "colors", Required: false},
+	{Name: "sizes", Required: false},
+	{Name: "warranty_period", Required: false},
+	{Name: "expiry_date", Required: true},
+	{Name: "manufacturing_date", Required: true},
+}
+
 // ParseProductsCSV reads and parses a CSV file into bulk upload products.
 //
 // This function performs comprehensive CSV validation and parsing:
@@ -74,12 +107,6 @@ func required(field, name string, allowEmpty bool) error {
 // 3. Converts data types (string to int/float/bool)
 // 4. Skips invalid rows and logs errors
 // 5. Returns successfully parsed products
-//
-// Expected CSV columns (in order):
-//
-//	name, description, sku, price, category_id, stock_quantity, tag,
-//	low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity,
-//	buying_price, image
 //
 // Parameters:
 //   - file: multipart.File - Uploaded CSV file
@@ -99,12 +126,7 @@ func ParseProductsCSV(file multipart.File) ([]dtos.BulkUploadProduct, error) {
 	}
 
 	// Define expected header columns
-	expectedHeaders := []string{
-		"name", "description", "sku", "price", "category_id",
-		"stock_quantity", "tag", "low_stock_quantity_warning",
-		"sell_when_out_of_stock", "show_stock_quantity",
-		"buying_price", "image",
-	}
+	expectedHeaders := BulkUploadHeaders
 
 	// Validate minimum column count
 	if len(headers) < len(expectedHeaders) {
@@ -118,8 +140,8 @@ func ParseProductsCSV(file multipart.File) ([]dtos.BulkUploadProduct, error) {
 
 	// Validate each header name matches expected
 	for i, header := range expectedHeaders {
-		if headers[i] != header {
-			return nil, fmt.Errorf("invalid CSV: expected header '%s', got '%s'", header, headers[i])
+		if headers[i] != header.Name {
+			return nil, fmt.Errorf("invalid CSV: expected header '%s', got '%s'", header.Name, headers[i])
 		}
 	}
 
@@ -134,7 +156,7 @@ func ParseProductsCSV(file multipart.File) ([]dtos.BulkUploadProduct, error) {
 		}
 		rowNumber++
 		if err != nil {
-			log.Printf("⚠️ Error reading CSV row %d: %v", rowNumber, err)
+			log.Printf("Error reading CSV row %d: %v", rowNumber, err)
 			continue // Skip malformed rows
 		}
 
@@ -162,19 +184,10 @@ func ParseProductsCSV(file multipart.File) ([]dtos.BulkUploadProduct, error) {
 
 		log.Printf("Processing row %d: %+v", rowNumber, record)
 
-		// Define which fields are required (true) vs optional (false)
-		requiredFields := map[string]bool{
-			"name": true, "description": true, "sku": true, "price": true,
-			"category_id": true, "stock_quantity": true,
-			"tag": false, "low_stock_quantity_warning": true,
-			"sell_when_out_of_stock": true, "show_stock_quantity": true,
-			"buying_price": true, "image": true,
-		}
-
 		// Validate required fields
 		skipRow := false
 		for i, header := range expectedHeaders {
-			if err := required(record[i], header, !requiredFields[header]); err != nil {
+			if err := required(record[i], header.Name, !header.Required); err != nil {
 				log.Printf("Row %d skipped: %v", rowNumber, err)
 				skipRow = true
 				break
@@ -191,22 +204,36 @@ func ParseProductsCSV(file multipart.File) ([]dtos.BulkUploadProduct, error) {
 		sellOut, _ := strconv.ParseBool(record[8])           // sell_when_out_of_stock
 		showStock, _ := strconv.ParseBool(record[9])         // show_stock_quantity
 		buyingPrice, _ := strconv.ParseFloat(record[10], 64) // buying_price
+		weight, _ := strconv.Atoi(record[11])                // weight
+		weightLimit, _ := strconv.Atoi(record[12])           // weight_limit
+		warrantyType, _ := strconv.Atoi(record[20])          // warranty_period
 
 		// Construct product struct from parsed values
 		product := dtos.BulkUploadProduct{
-			Name:                    record[0],    // name
-			Description:             record[1],    // description
-			SKU:                     record[2],    // sku
-			Price:                   price,        // converted price
-			CategoryID:              record[4],    // category_id
-			StockQuantity:           stockQty,     // converted stock_quantity
-			Tag:                     record[6],    // tag (optional)
-			SearchVector:            record[0],    // use name for search indexing
-			LowStockQuantityWarning: lowStockWarn, // converted low_stock_quantity_warning
-			SellWhenOutOfStock:      sellOut,      // converted sell_when_out_of_stock
-			ShowStockQuantity:       showStock,    // converted show_stock_quantity
-			BuyingPrice:             buyingPrice,  // converted buying_price
-			Image:                   record[11],   // image URL
+			Name:                    record[0],                 // name
+			Description:             record[1],                 // description
+			SKU:                     record[2],                 // sku
+			Price:                   price,                     // converted price
+			CategoryID:              record[4],                 // category_id
+			StockQuantity:           stockQty,                  // converted stock_quantity
+			Tag:                     strToPtr(record[6]),       // tag (optional)
+			SearchVector:            record[0],                 // use name for search indexing
+			LowStockQuantityWarning: lowStockWarn,              // converted low_stock_quantity_warning
+			SellWhenOutOfStock:      sellOut,                   // converted sell_when_out_of_stock
+			ShowStockQuantity:       showStock,                 // converted show_stock_quantity
+			BuyingPrice:             buyingPrice,               // converted buying_price
+			Weight:                  &weight,                   // converted weight
+			WeightLimit:             &weightLimit,              // converted weight_limit
+			Dimensions:              strToPtr(record[13]),      // dimensions (optional)
+			AgeRange:                strToSlicePtr(record[14]), // age_range (optional)
+			Brand:                   strToPtr(record[15]),      // brand (optional)
+			Manufacturer:            strToPtr(record[16]),      // manufacturer (optional)
+			Material:                strToSlicePtr(record[17]), // material (optional)
+			Colors:                  strToSlicePtr(record[18]), // colors (optional, comma-separated)
+			Sizes:                   strToSlicePtr(record[19]), // sizes (optional, comma-separated)
+			WarrantyPeriod:          &warrantyType,             // warranty_period (optional)
+			ExpiryDate:              strToPtr(record[21]),      // expiry_date
+			ManufacturingDate:       strToPtr(record[22]),      // manufacturing_date
 		}
 
 		// Log successful parsing
@@ -352,4 +379,41 @@ func ptrToStr(s *string) string {
 //   - string: Formatted float string (e.g., "123.45")
 func floatToStr(f float64) string {
 	return strconv.FormatFloat(f, 'f', 2, 64)
+}
+
+// strToPtr converts string to string pointer.
+//
+// Returns nil if string is empty, otherwise returns pointer to string.
+//
+// Parameters:
+//   - s: string - String value to convert
+//
+// Returns:
+//   - *string: Pointer to string or nil if empty
+func strToPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+// strToSlicePtr converts comma-separated string to string slice pointer.
+//
+// Returns nil if string is empty, otherwise splits by comma and returns pointer to string slice.
+//
+// Parameters:
+//   - s: string - Comma-separated string value to convert
+//
+// Returns:
+//   - *[]string: Pointer to string slice or nil if empty
+func strToSlicePtr(s string) *[]string {
+	if s == "" {
+		return nil
+	}
+	items := strings.Split(s, ",")
+	// Trim whitespace from each item
+	for i := range items {
+		items[i] = strings.TrimSpace(items[i])
+	}
+	return &items
 }

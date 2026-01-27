@@ -110,7 +110,7 @@ func ListSuppliers(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view suppliers)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Suppliers", "suppliers.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Suppliers", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
@@ -193,7 +193,7 @@ func GetSupplierByID(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (only admins can view supplier details)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Suppliers", "suppliers.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Suppliers", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}

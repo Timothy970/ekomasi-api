@@ -116,7 +116,7 @@ func ListPurchaseOrders(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for viewing purchase orders)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -199,7 +199,7 @@ func GetPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for viewing purchase orders)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return

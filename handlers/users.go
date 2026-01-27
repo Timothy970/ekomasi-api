@@ -135,7 +135,7 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "")
 	if !ok {
 		return
 	}
@@ -214,7 +214,7 @@ func GetUserByID(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Check if the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "")
 	if !ok {
 		return
 	}

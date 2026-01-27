@@ -122,7 +122,7 @@ func ListAccounts(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Ensure user has admin privileges
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", ""); !ok {
 		return
 	}
 
@@ -491,7 +491,7 @@ func ListEntries(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Ensure user has admin privileges
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", ""); !ok {
 		return
 	}
 

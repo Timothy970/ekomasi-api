@@ -46,7 +46,7 @@ func GetUserLogs(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "logs.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", ""); !ok {
 		return
 	}
 
@@ -212,7 +212,7 @@ func GetUserLogsByUserID(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Verify that the requesting user has admin privileges
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "logs.view"); !ok {
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", ""); !ok {
 		return
 	}
 
