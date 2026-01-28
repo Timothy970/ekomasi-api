@@ -609,8 +609,8 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse multipart form (20 MB limit)
-	if err := r.ParseMultipartForm(20 << 20); err != nil {
+	// Parse multipart form (100 MB limit for high-quality images)
+	if err := r.ParseMultipartForm(100 << 20); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",

@@ -156,9 +156,9 @@ func uploadMedia(mediaData []byte, mediaID, mimeType string) (string, error) {
 	// Generate unique object name with path prefix
 	objectName := fmt.Sprintf("attachments/%s_%s.%s", mediaID, generateUniqueID(), ext)
 
-	// Create context with 50 second timeout
+	// Create context with 300 second (5 minute) timeout for large file uploads
 	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, 50*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel() // Ensure timeout is cancelled
 
 	// Create GCS client
@@ -198,7 +198,7 @@ func uploadMedia(mediaData []byte, mediaID, mimeType string) (string, error) {
 //
 // This function:
 // 1. Validates at least one file is provided
-// 2. Opens the first file from the array
+// 2. Compresses images to reduce file size (quality: 85%, max: 2048x2048)
 // 3. Reads file content into memory buffer
 // 4. Generates unique media ID
 // 5. Extracts MIME type from file header
@@ -206,7 +206,8 @@ func uploadMedia(mediaData []byte, mediaID, mimeType string) (string, error) {
 //
 // File Processing:
 //   - Only processes first file in array
-//   - Reads entire file into memory buffer
+//   - Automatically compresses image files before upload
+//   - Non-image files are uploaded as-is
 //   - Uses file header Content-Type for MIME detection
 //   - Automatic file closure after reading
 //
@@ -225,28 +226,71 @@ func UploadMediaToGCS(files []*multipart.FileHeader) (string, error) {
 
 	// Get first file header from array
 	fileHeader := files[0]
-	// Open file for reading
-	file, err := fileHeader.Open()
-	if err != nil {
-		log.Printf("Unable to open file: %v", err)
-		return "", fmt.Errorf("unable to open file: %v", err)
-	}
-	defer file.Close() // Ensure file is closed
 
-	// Read entire file content into memory buffer
-	buf := new(bytes.Buffer)
-	if _, err := io.Copy(buf, file); err != nil {
-		log.Printf("Unable to read file: %v", err)
-		return "", fmt.Errorf("unable to read file: %v", err)
+	// Extract MIME type from file header
+	mimeType := fileHeader.Header.Get("Content-Type")
+
+	var fileData []byte
+	var finalMimeType string
+
+	// Check if file is an image and compress it
+	if strings.HasPrefix(mimeType, "image/") {
+		log.Printf("Compressing image: %s (original MIME: %s)", fileHeader.Filename, mimeType)
+
+		// Compress the image
+		compressedData, compressedMimeType, err := CompressImage(fileHeader, CompressImageOptions{
+			MaxWidth:       2048,
+			MaxHeight:      2048,
+			Quality:        85,
+			PreserveFormat: false, // Convert to JPEG for better compression
+		})
+
+		if err != nil {
+			log.Printf("Failed to compress image, uploading original: %v", err)
+			// If compression fails, fall back to original file
+			file, err := fileHeader.Open()
+			if err != nil {
+				log.Printf("Unable to open file: %v", err)
+				return "", fmt.Errorf("unable to open file: %v", err)
+			}
+			defer file.Close()
+
+			buf := new(bytes.Buffer)
+			if _, err := io.Copy(buf, file); err != nil {
+				log.Printf("Unable to read file: %v", err)
+				return "", fmt.Errorf("unable to read file: %v", err)
+			}
+			fileData = buf.Bytes()
+			finalMimeType = mimeType
+		} else {
+			log.Printf("Image compressed successfully. Original size: %d bytes, Compressed size: %d bytes",
+				fileHeader.Size, len(compressedData))
+			fileData = compressedData
+			finalMimeType = compressedMimeType
+		}
+	} else {
+		// Non-image file - upload as-is
+		file, err := fileHeader.Open()
+		if err != nil {
+			log.Printf("Unable to open file: %v", err)
+			return "", fmt.Errorf("unable to open file: %v", err)
+		}
+		defer file.Close()
+
+		buf := new(bytes.Buffer)
+		if _, err := io.Copy(buf, file); err != nil {
+			log.Printf("Unable to read file: %v", err)
+			return "", fmt.Errorf("unable to read file: %v", err)
+		}
+		fileData = buf.Bytes()
+		finalMimeType = mimeType
 	}
 
 	// Generate unique ID for the media file
 	mediaID := generateUniqueID()
-	// Extract MIME type from file header
-	mimeType := fileHeader.Header.Get("Content-Type")
 
 	// Upload file bytes to GCS
-	url, err := uploadMedia(buf.Bytes(), mediaID, mimeType)
+	url, err := uploadMedia(fileData, mediaID, finalMimeType)
 	if err != nil {
 		log.Printf("Unable to upload file to GCS: %v", err)
 		return "", fmt.Errorf("unable to upload file to GCS: %v", err)
