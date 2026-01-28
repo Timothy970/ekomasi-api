@@ -44,7 +44,7 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for viewing financial reports)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "reports.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -150,7 +150,7 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for viewing financial reports)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "reports.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -286,7 +286,7 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for viewing financial reports)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "reports.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -402,7 +402,7 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for viewing ledger reports)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "reports.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -579,7 +579,7 @@ func ExportAccountsCSVHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for exporting accounts)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "reports.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -628,7 +628,7 @@ func ExportJournalEntriesCSVHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for exporting journal entries)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "reports.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -679,7 +679,7 @@ func TopSellingProductsReport(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Verify user has admin privileges (required for viewing sales reports)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "reports.view")
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return

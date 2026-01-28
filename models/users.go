@@ -318,7 +318,7 @@ func DeleteUserAddress(addressID, userID string) error {
 	}
 
 	// Delete address record
-	_, err = DB.Exec("DELETE FROM user_addresses WHERE user_id = ? AND address = ?", userID, addressID)
+	_, err = DB.Exec("DELETE FROM user_addresses WHERE user_id = ? AND address_id = ?", userID, addressID)
 	if err != nil {
 		return fmt.Errorf("failed to delete user address: %w", err)
 	}
