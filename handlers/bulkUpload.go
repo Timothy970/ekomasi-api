@@ -319,9 +319,10 @@ func GetBulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Parse pagination parameters from query string
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	categoryID := r.URL.Query().Get("category_id")
+	startDate := r.URL.Query().Get("start_date")
+	endDate := r.URL.Query().Get("end_date")
 	q := r.URL.Query().Get("q")
-	products, pagination, err := models.GetBulkUploadProducts(categoryID, q, page, limit)
+	products, pagination, err := models.GetBulkUploadProducts(startDate, endDate, q, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -386,7 +387,6 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	productID := r.FormValue("product_id")
 	videoLink := r.FormValue("video_link")
 	productDetails := r.Form["product_details"]
-	log.Printf("productID ***** %s", productID)
 	bulkProduct, err := models.GetBulkProductByID(productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -470,7 +470,6 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	//handle products variants
 	err = handleProductsVariants(specificationsRequest, state)
-	log.Printf("handleProductsVariants ***** %s", err)
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

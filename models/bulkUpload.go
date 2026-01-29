@@ -43,7 +43,7 @@ func AddNewBulkProduct(product dtos.BulkUploadProduct, userID string) error {
 // - limit: Optional integer for pagination (items per page).
 // Returns:
 // - ([]dtos.BulkUploadProduct, Pagination, error): A slice of BulkUploadProduct DTOs and an error if the operation fails.
-func GetBulkUploadProducts(categoryID, name string, page, limit int) ([]dtos.BulkUploadProduct, *dtos.PaginationMeta, error) {
+func GetBulkUploadProducts(startDate, endDate, name string, page, limit int) ([]dtos.BulkUploadProduct, *dtos.PaginationMeta, error) {
 	var products []dtos.BulkUploadProduct
 	offset := (page - 1) * limit
 	var count int
@@ -52,9 +52,9 @@ func GetBulkUploadProducts(categoryID, name string, page, limit int) ([]dtos.Bul
 	var conditions string
 	var args []interface{}
 
-	if categoryID != "" {
-		conditions += " AND sub_category_id = ?"
-		args = append(args, categoryID)
+	if startDate != "" && endDate != "" {
+		conditions += " AND created_at BETWEEN ? AND ?"
+		args = append(args, StringToTime(startDate), StringToTime(endDate))
 	}
 	if name != "" {
 		conditions += " AND name LIKE ?"
