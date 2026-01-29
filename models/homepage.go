@@ -1161,6 +1161,12 @@ func CreateBlog(blog dtos.BlogRequest, authorID string) error {
 		fmt.Println("Error converting to JSON:", err)
 		return err
 	}
+	name, _ := getUserNames(blog.AuthorID)
+
+	blog.Author = map[string]any{
+		"avatar": "",
+		"name":   name,
+	}
 
 	// Marshal author information to JSON
 	authorData, err := json.Marshal(blog.Author)
@@ -1332,7 +1338,11 @@ func UpdateBlog(blog dtos.BlogRequest, blogID string) error {
 		fmt.Println("Error converting to JSON:", err)
 		return err
 	}
-
+	name, _ := getUserNames(blog.AuthorID)
+	blog.Author = map[string]any{
+		"avatar": "",
+		"name":   name,
+	}
 	// Marshal author information to JSON
 	authorData, err := json.Marshal(blog.Author)
 	if err != nil {

@@ -2241,6 +2241,34 @@ func getProductCreator(productID string) (string, error) {
 	return fullName, nil
 }
 
+// get user full name by user id
+func getUserNames(userID string) (string, error) {
+	// Fetch user's name from users table
+	var firstName, lastName sql.NullString
+	userQuery := `SELECT first_name, last_name FROM users WHERE user_id = ?`
+	err := DB.QueryRow(userQuery, userID).Scan(&firstName, &lastName)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil // User not found → return empty
+		}
+		return "", fmt.Errorf("failed to get user details: %v", err)
+	}
+
+	// Handle possible NULL first/last names
+	fn := ""
+	ln := ""
+	if firstName.Valid {
+		fn = firstName.String
+	}
+	if lastName.Valid {
+		ln = lastName.String
+	}
+
+	// Combine names and trim whitespace
+	fullName := strings.TrimSpace(fn + " " + ln)
+	return fullName, nil
+}
+
 // isProductInTodaysDeal checks if a product is part of today's deals.
 //
 // This function looks for a deal with "today" in its name (case-insensitive regex)
