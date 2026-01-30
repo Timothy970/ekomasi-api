@@ -659,7 +659,10 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build stock entry request
-	supplierID := r.FormValue("supplier_id")
+	var supplierID *string
+	if supplierIDValue := r.FormValue("supplier_id"); supplierIDValue != "" {
+		supplierID = &supplierIDValue
+	}
 	req := &dtos.StockEntryRequest{
 		ProductID:         r.FormValue("product_id"),
 		BatchImages:       &batchImageUrls,
@@ -673,7 +676,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		QuantityReceived:  parseInt(r.FormValue("quantity_received")),
 		MinimumStockLevel: parseInt(r.FormValue("minimum_stock_level")),
 		StoreQuantity:     ParseStoreInfoArray(r.FormValue("store_quantity")),
-		SupplierID:        &supplierID,
+		SupplierID:        supplierID,
 		// PurchaseOrderID:   r.FormValue("purchase_order_id"),
 		BuyingPrice:   parseFloat(r.FormValue("buying_price")),
 		ConditionID:   r.FormValue("condition_id"),
