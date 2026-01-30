@@ -1384,11 +1384,16 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	designType := r.FormValue("design_type")
+	imagePosition := r.FormValue("image_position")
+	//default image position to left if not provided
+	if imagePosition == "" {
+		imagePosition = "left"
+	}
 	req := dtos.ProductFeature{
 		Image:                 &mainImageURL,
 		Header:                r.FormValue("header"),
 		Description:           r.FormValue("description"),
-		ImagePosition:         r.FormValue("image_position"),
+		ImagePosition:         imagePosition,
 		Images:                &imageURLs,
 		TopSection:            &topSections,
 		ProductSpecifications: &productSpecs,
@@ -1488,11 +1493,16 @@ func UpdateAllProductFeaturesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	designType := r.FormValue("design_type")
+	imagePosition := r.FormValue("image_position")
+	//default image position to left if not provided
+	if imagePosition == "" {
+		imagePosition = "left"
+	}
 	req := dtos.ProductFeature{
 		Image:                 &mainImageURL,
 		Header:                r.FormValue("header"),
 		Description:           r.FormValue("description"),
-		ImagePosition:         r.FormValue("image_position"),
+		ImagePosition:         imagePosition,
 		Images:                &imageURLs,
 		TopSection:            &topSections,
 		ProductSpecifications: &productSpecs,
