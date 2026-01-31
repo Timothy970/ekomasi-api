@@ -51,7 +51,7 @@ var noinventory = "inventory not found"
 //   - "in": Products with stock available (quantity > 0)
 //   - "out": Out of stock products (quantity = 0)
 //   - "low": Low stock products (quantity ≤ low_stock_threshold)
-func ListInventory(page, size int, categoryID, stock, storeID, search string) ([]dtos.Inventory, *dtos.PaginationMeta, error) {
+func ListInventory(db DBExecutor, page, size int, categoryID, stock, storeID, search string) ([]dtos.Inventory, *dtos.PaginationMeta, error) {
 	// Calculate pagination offset
 	offset := (page - 1) * size
 
@@ -109,7 +109,7 @@ func ListInventory(page, size int, categoryID, stock, storeID, search string) ([
 
 	// Get total count for pagination
 	var totalItems int
-	if err := DB.QueryRow(countSQL, args...).Scan(&totalItems); err != nil {
+	if err := db.QueryRow(countSQL, args...).Scan(&totalItems); err != nil {
 		return nil, nil, err
 	}
 
@@ -135,7 +135,7 @@ func ListInventory(page, size int, categoryID, stock, storeID, search string) ([
 	selectSQL += " ORDER BY inv.last_updated DESC LIMIT ? OFFSET ?"
 
 	// Execute query with pagination parameters
-	rows, err := DB.Query(selectSQL, append(args, size, offset)...)
+	rows, err := db.Query(selectSQL, append(args, size, offset)...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -165,10 +165,10 @@ func ListInventory(page, size int, categoryID, stock, storeID, search string) ([
 		}
 
 		// Enrich with product images
-		inv.Images, _ = fetchProductImages(inv.ProductID)
+		inv.Images, _ = fetchProductImages(db, inv.ProductID)
 
 		// Enrich with supplier information
-		inv.SupplierInfo, _ = fetchSupplierByInventoryID(inv.InventoryID)
+		inv.SupplierInfo, _ = fetchSupplierByInventoryID(db, inv.InventoryID)
 
 		inventories = append(inventories, inv)
 	}
@@ -205,15 +205,15 @@ func ListInventory(page, size int, categoryID, stock, storeID, search string) ([
 //   - error: "product not found" if product doesn't exist,
 //     "variant not found" if variant doesn't exist,
 //     or database error
-func CreateInventory(inv dtos.CreateInventoryRequest) error {
+func CreateInventory(db DBExecutor, inv dtos.CreateInventoryRequest) error {
 	// Validate product exists
-	err := IsProductThere(inv.ProductID)
+	err := IsProductThere(db, inv.ProductID)
 	if err != nil {
 		return err
 	}
 
 	// Validate variant exists
-	err = isVariantThere(inv.VariantID)
+	err = isVariantThere(db, inv.VariantID)
 	if err != nil {
 		return err
 	}
@@ -222,7 +222,7 @@ func CreateInventory(inv dtos.CreateInventoryRequest) error {
 	inventoryID, _ := shortid.Generate()
 
 	// Insert inventory record
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO inventory (inventory_id, product_id, variant_id, quantity, low_stock_threshold)
 		VALUES (?, ?, ?, ?, ?)`,
 		inventoryID, inv.ProductID, inv.VariantID, inv.Quantity, inv.LowStockThreshold)
@@ -252,9 +252,9 @@ func CreateInventory(inv dtos.CreateInventoryRequest) error {
 // JSON Deserialization:
 //   - InspectionImages: JSON array of image URLs
 //   - BatchImages: JSON array of image URLs
-func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
+func GetInventory(db DBExecutor, inventoryID string) (*dtos.SingleInventory, error) {
 	// Validate inventory exists
-	err := isInventoryThere(inventoryID)
+	err := isInventoryThere(db, inventoryID)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +277,7 @@ func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
 		ORDER BY inv.last_updated DESC
 	`
 
-	row := DB.QueryRow(query, inventoryID)
+	row := db.QueryRow(query, inventoryID)
 
 	var inv dtos.SingleInventory
 	var inspectionDate, inspectorID, inspectionImagesJSON, batchImagesJSON sql.NullString
@@ -296,7 +296,7 @@ func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
 	}
 
 	// Process nullable fields and enrich inventory data
-	if err := enrichInventoryData(&inv, inspectionDate, inspectorID, inspectionImagesJSON, batchImagesJSON, buyingPrice, inventoryID); err != nil {
+	if err := enrichInventoryData(db, &inv, inspectionDate, inspectorID, inspectionImagesJSON, batchImagesJSON, buyingPrice, inventoryID); err != nil {
 		return nil, err
 	}
 
@@ -304,7 +304,7 @@ func GetInventory(inventoryID string) (*dtos.SingleInventory, error) {
 }
 
 // enrichInventoryData processes nullable fields and enriches inventory with additional data.
-func enrichInventoryData(inv *dtos.SingleInventory, inspectionDate, inspectorID, inspectionImagesJSON, batchImagesJSON sql.NullString, buyingPrice sql.NullFloat64, inventoryID string) error {
+func enrichInventoryData(db DBExecutor, inv *dtos.SingleInventory, inspectionDate, inspectorID, inspectionImagesJSON, batchImagesJSON sql.NullString, buyingPrice sql.NullFloat64, inventoryID string) error {
 	// Convert nullable inspection date
 	if inspectionDate.Valid {
 		inspDate := StringToTime(inspectionDate.String)
@@ -313,7 +313,7 @@ func enrichInventoryData(inv *dtos.SingleInventory, inspectionDate, inspectorID,
 
 	// Fetch inspector user details if present
 	if inspectorID.Valid {
-		inspector, err := GetUserByUserID(inspectorID.String)
+		inspector, err := GetUserByUserID(db, inspectorID.String)
 		if err != nil {
 			return err
 		}
@@ -331,12 +331,12 @@ func enrichInventoryData(inv *dtos.SingleInventory, inspectionDate, inspectorID,
 	}
 
 	// Enrich with product images
-	if imgs, err := fetchProductImages(inv.ProductID); err == nil {
+	if imgs, err := fetchProductImages(db, inv.ProductID); err == nil {
 		inv.Images = imgs
 	}
 
 	// Enrich with supplier information
-	inv.SupplierInfo, _ = fetchSupplierByInventoryID(inventoryID)
+	inv.SupplierInfo, _ = fetchSupplierByInventoryID(db, inventoryID)
 	return nil
 }
 
@@ -361,7 +361,7 @@ func unmarshalJSONImages(jsonData sql.NullString, target **[]string) {
 // Returns:
 //   - dtos.Supplier: Supplier with ID, name, email, phone, and extra details
 //   - error: Database error or sql.ErrNoRows if no supplier found
-func fetchSupplierByInventoryID(inventoryID string) (dtos.Supplier, error) {
+func fetchSupplierByInventoryID(db DBExecutor, inventoryID string) (dtos.Supplier, error) {
 	var supplier dtos.Supplier
 
 	// Query supplier via inventory JOIN
@@ -373,7 +373,7 @@ func fetchSupplierByInventoryID(inventoryID string) (dtos.Supplier, error) {
 	`
 
 	// Fetch supplier details
-	err := DB.QueryRow(query, inventoryID).Scan(&supplier.SupplierID, &supplier.Name, &supplier.ContactEmail, &supplier.ContactPhone, &supplier.ExtraDetails)
+	err := db.QueryRow(query, inventoryID).Scan(&supplier.SupplierID, &supplier.Name, &supplier.ContactEmail, &supplier.ContactPhone, &supplier.ExtraDetails)
 	return supplier, err
 }
 
@@ -389,9 +389,9 @@ func fetchSupplierByInventoryID(inventoryID string) (dtos.Supplier, error) {
 //
 // Returns:
 //   - error: "inventory not found" if inventory doesn't exist or database error
-func UpdateInventory(inventoryID string, quantity, threshold *int) error {
+func UpdateInventory(db DBExecutor, inventoryID string, quantity, threshold *int) error {
 	// Validate inventory exists
-	err := isInventoryThere(inventoryID)
+	err := isInventoryThere(db, inventoryID)
 	if err != nil {
 		return err
 	}
@@ -418,7 +418,7 @@ func UpdateInventory(inventoryID string, quantity, threshold *int) error {
 	args = append(args, inventoryID)
 
 	// Execute update
-	_, err = DB.Exec(query, args...)
+	_, err = db.Exec(query, args...)
 	return err
 }
 
@@ -429,9 +429,9 @@ func UpdateInventory(inventoryID string, quantity, threshold *int) error {
 //
 // Returns:
 //   - error: "inventory not found" if inventory doesn't exist or database error
-func DeleteInventory(inventoryID string) error {
+func DeleteInventory(db DBExecutor, inventoryID string) error {
 	// Validate inventory exists
-	exists, err := RecordExists("inventory", "inventory_id = ?", inventoryID)
+	exists, err := RecordExists(db, "inventory", "inventory_id = ?", inventoryID)
 	if err != nil {
 		return err
 	}
@@ -440,7 +440,7 @@ func DeleteInventory(inventoryID string) error {
 	}
 
 	// Delete inventory record
-	_, err = DB.Exec(`DELETE FROM inventory WHERE inventory_id = ?`, inventoryID)
+	_, err = db.Exec(`DELETE FROM inventory WHERE inventory_id = ?`, inventoryID)
 	return err
 }
 
@@ -497,7 +497,7 @@ func getPeriodExpr(groupBy string) string {
 // Formula:
 //   - TurnoverRatio = COGS / Average Inventory Value
 //   - Higher ratio = inventory sells/turns over more frequently
-func GetInventoryTurnover(start, end time.Time, groupBy string) ([]dtos.InventoryTurnoverItem, error) {
+func GetInventoryTurnover(db DBExecutor, start, end time.Time, groupBy string) ([]dtos.InventoryTurnoverItem, error) {
 	// Get period grouping SQL expression
 	periodExpr := getPeriodExpr(groupBy)
 
@@ -518,7 +518,7 @@ func GetInventoryTurnover(start, end time.Time, groupBy string) ([]dtos.Inventor
     `, periodExpr)
 
 	// Execute query with date range
-	rows, err := DB.Query(query, start, end)
+	rows, err := db.Query(query, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -578,9 +578,9 @@ func GetInventoryTurnover(start, end time.Time, groupBy string) ([]dtos.Inventor
 //   - COGS: Cost of goods sold
 //   - TurnoverRatio: COGS / AvgInventory
 //   - error: "product not found" if product doesn't exist or database error
-func GetInventoryTurnoverByProduct(productID string, start, end time.Time, groupBy string) ([]dtos.InventoryTurnoverItem, error) {
+func GetInventoryTurnoverByProduct(db DBExecutor, productID string, start, end time.Time, groupBy string) ([]dtos.InventoryTurnoverItem, error) {
 	// Validate product exists
-	err := IsProductThere(productID)
+	err := IsProductThere(db, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -603,7 +603,7 @@ func GetInventoryTurnoverByProduct(productID string, start, end time.Time, group
     `, periodExpr)
 
 	// Execute query with date range and product filter
-	rows, err := DB.Query(query, start, end, productID)
+	rows, err := db.Query(query, start, end, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -660,9 +660,9 @@ func GetInventoryTurnoverByProduct(productID string, start, end time.Time, group
 //   - error: "inventory not found" if inventory doesn't exist,
 //     JSON marshaling error,
 //     or database error
-func StoreBatchDetails(req dtos.Batch) (string, error) {
+func StoreBatchDetails(db DBExecutor, req dtos.Batch) (string, error) {
 	// Validate inventory exists
-	err := isInventoryThere(req.InventoryID)
+	err := isInventoryThere(db, req.InventoryID)
 	if err != nil {
 		return "", err
 	}
@@ -681,7 +681,7 @@ func StoreBatchDetails(req dtos.Batch) (string, error) {
 	}
 
 	// Insert batch record with JSON images
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO inventory_batches (batch_id, inventory_id, batch_number, images, expiry_date, manufacturing_date)
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		batchID, req.InventoryID, req.BatchNumber, imagesData, req.ExpiryDate, req.ManufacturingDate)
@@ -700,9 +700,9 @@ func StoreBatchDetails(req dtos.Batch) (string, error) {
 //
 // Returns:
 //   - error: "inventory not found" if inventory doesn't exist or database error
-func isInventoryThere(inventoryID string) error {
+func isInventoryThere(db DBExecutor, inventoryID string) error {
 	// Check inventory existence
-	exists, err := RecordExists("inventory", "inventory_id = ?", inventoryID)
+	exists, err := RecordExists(db, "inventory", "inventory_id = ?", inventoryID)
 	if err != nil {
 		return err
 	}
@@ -721,9 +721,9 @@ func isInventoryThere(inventoryID string) error {
 //
 // Returns:
 //   - error: "batch not found" if batch doesn't exist or database error
-func isBatchThere(batchID string) error {
+func isBatchThere(db DBExecutor, batchID string) error {
 	// Check batch existence
-	exists, err := RecordExists("inventory_batches", "batch_id = ?", batchID)
+	exists, err := RecordExists(db, "inventory_batches", "batch_id = ?", batchID)
 	if err != nil {
 		return err
 	}
@@ -751,15 +751,15 @@ func isBatchThere(batchID string) error {
 //     "inspector not found" if inspector user doesn't exist,
 //     JSON marshaling error,
 //     or database error
-func StoreInspectionDetails(req dtos.Inspection) error {
+func StoreInspectionDetails(db DBExecutor, req dtos.Inspection) error {
 	// Validate batch exists
-	err := isBatchThere(req.BatchID)
+	err := isBatchThere(db, req.BatchID)
 	if err != nil {
 		return err
 	}
 
 	// Validate inspector (user) exists
-	err = isUserThere(req.InspectorID)
+	err = isUserThere(db, req.InspectorID)
 	if err != nil {
 		// Provide specific error message for inspector
 		if err.Error() == "user not found" {
@@ -783,7 +783,7 @@ func StoreInspectionDetails(req dtos.Inspection) error {
 	inspectionID, _ := shortid.Generate()
 
 	// Insert inspection record with JSON images
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO batch_inspections (inspection_id, batch_id, inspection_date, inspector_id, inspection_notes, images)
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		inspectionID, req.BatchID, req.InspectionDate, req.InspectorID, req.InspectionNotes, imagesData)
@@ -799,9 +799,9 @@ func StoreInspectionDetails(req dtos.Inspection) error {
 //
 // Returns:
 //   - error: "condition not found" if condition doesn't exist or database error
-func isConditionThere(conditionID string) error {
+func isConditionThere(db DBExecutor, conditionID string) error {
 	// Check condition existence
-	exists, err := RecordExists("batch_conditions", "condition_id = ?", conditionID)
+	exists, err := RecordExists(db, "batch_conditions", "condition_id = ?", conditionID)
 	if err != nil {
 		return err
 	}
@@ -826,15 +826,15 @@ func isConditionThere(conditionID string) error {
 //   - error: "batch not found" if batch doesn't exist,
 //     "condition not found" if condition doesn't exist,
 //     or database error
-func StoreHandlingNotes(req dtos.InventoryCondition) error {
+func StoreHandlingNotes(db DBExecutor, req dtos.InventoryCondition) error {
 	// Validate batch exists
-	err := isBatchThere(req.BatchID)
+	err := isBatchThere(db, req.BatchID)
 	if err != nil {
 		return err
 	}
 
 	// Validate condition exists
-	err = isConditionThere(req.ConditionID)
+	err = isConditionThere(db, req.ConditionID)
 	if err != nil {
 		return err
 	}
@@ -843,7 +843,7 @@ func StoreHandlingNotes(req dtos.InventoryCondition) error {
 	notesID, _ := shortid.Generate()
 
 	// Insert handling notes record
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO inventory_handling_notes (handling_note_id, batch_id, handling_notes, condition_id)
 		VALUES (?, ?, ?, ?)`,
 		notesID, req.BatchID, req.HandlingNotes, req.ConditionID)
@@ -872,22 +872,22 @@ func StoreHandlingNotes(req dtos.InventoryCondition) error {
 //
 // Side Effects:
 //   - Updates product's total stock_quantity by adding the new inventory quantity
-func StoreInventoryTracking(req dtos.InventoryTracking) (string, error) {
+func StoreInventoryTracking(db DBExecutor, req dtos.InventoryTracking) (string, error) {
 	// Validate product exists
-	err := IsProductThere(req.ProductID)
+	err := IsProductThere(db, req.ProductID)
 	if err != nil {
 		return "", err
 	}
 
 	// Validate supplier exists
 	if req.SupplierID != nil {
-		err = isSupplierThere(*req.SupplierID)
+		err = isSupplierThere(db, *req.SupplierID)
 		if err != nil {
 			return "", err
 		}
 	}
 	// Validate warehouse exists
-	exists, err := RecordExists("warehouses", "warehouse_id = ?", req.StoreID)
+	exists, err := RecordExists(db, "warehouses", "warehouse_id = ?", req.StoreID)
 	if err != nil {
 		return "", err
 	}
@@ -899,7 +899,7 @@ func StoreInventoryTracking(req dtos.InventoryTracking) (string, error) {
 	inventoryID, _ := shortid.Generate()
 
 	// Insert inventory record with supplier and warehouse tracking
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO inventory (inventory_id, product_id, quantity, low_stock_threshold, warehouse_id, supplier_id)
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		inventoryID, req.ProductID, req.Quantity, req.LowStockThreshold, req.StoreID, req.SupplierID)
@@ -908,7 +908,7 @@ func StoreInventoryTracking(req dtos.InventoryTracking) (string, error) {
 	}
 
 	// Update product's total stock quantity across all warehouses
-	err = UpdateProductTotalQuantity(req.ProductID, req.Quantity)
+	err = UpdateProductTotalQuantity(db, req.ProductID, req.Quantity)
 	if err != nil {
 		return "", err
 	}
@@ -927,7 +927,7 @@ func StoreInventoryTracking(req dtos.InventoryTracking) (string, error) {
 //
 // Returns:
 //   - error: Database error if update fails
-func UpdateProductTotalQuantity(productID string, quantityToAdd int) error {
+func UpdateProductTotalQuantity(db DBExecutor, productID string, quantityToAdd int) error {
 	// Increment product's total stock quantity
 	_, err := DB.Exec(`
 		UPDATE products
@@ -952,9 +952,9 @@ func UpdateProductTotalQuantity(productID string, quantityToAdd int) error {
 //   - MinimumThreshold: Lowest low_stock_threshold value
 //   - TotalSales: Sum of quantities sold from order_items
 //   - error: "inventory not found" if inventory doesn't exist or database error
-func GetInventoryStockSummary(inventoryID, storeID string) (*dtos.InventoryStockSummary, error) {
+func GetInventoryStockSummary(db DBExecutor, inventoryID, storeID string) (*dtos.InventoryStockSummary, error) {
 	// Validate inventory exists
-	if err := isInventoryThere(inventoryID); err != nil {
+	if err := isInventoryThere(db, inventoryID); err != nil {
 		return nil, err
 	}
 
@@ -982,7 +982,7 @@ func GetInventoryStockSummary(inventoryID, storeID string) (*dtos.InventoryStock
 	query += " GROUP BY product_id"
 
 	// Execute stock summary query
-	row := DB.QueryRow(query, args...)
+	row := db.QueryRow(query, args...)
 	var productID string
 	if err := row.Scan(&productID, &summary.TotalStock, &summary.MinimumThreshold); err != nil {
 		return nil, err
@@ -1003,7 +1003,7 @@ func GetInventoryStockSummary(inventoryID, storeID string) (*dtos.InventoryStock
 	}
 
 	// Execute sales count query
-	if err := DB.QueryRow(salesQuery, salesArgs...).Scan(&summary.TotalSales); err != nil {
+	if err := db.QueryRow(salesQuery, salesArgs...).Scan(&summary.TotalSales); err != nil {
 		return nil, err
 	}
 
@@ -1030,9 +1030,9 @@ func GetInventoryStockSummary(inventoryID, storeID string) (*dtos.InventoryStock
 //     "failed to fetch product_id" if product lookup fails,
 //     "failed to fetch product details" if product info unavailable,
 //     or database error
-func GetInventoryStockHistory(inventoryID string, page, size int) (*[]dtos.InventoryStockHistory, *dtos.PaginationMeta, error) {
+func GetInventoryStockHistory(db DBExecutor, inventoryID string, page, size int) (*[]dtos.InventoryStockHistory, *dtos.PaginationMeta, error) {
 	// Validate inventory exists
-	if err := isInventoryThere(inventoryID); err != nil {
+	if err := isInventoryThere(db, inventoryID); err != nil {
 		return nil, nil, err
 	}
 
@@ -1042,7 +1042,7 @@ func GetInventoryStockHistory(inventoryID string, page, size int) (*[]dtos.Inven
 	// Step 1: Get product_id for the given inventory
 	var productID string
 	productQuery := `SELECT product_id FROM inventory WHERE inventory_id = ?`
-	if err := DB.QueryRow(productQuery, inventoryID).Scan(&productID); err != nil {
+	if err := db.QueryRow(productQuery, inventoryID).Scan(&productID); err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch product_id: %v", err)
 	}
 
@@ -1050,14 +1050,14 @@ func GetInventoryStockHistory(inventoryID string, page, size int) (*[]dtos.Inven
 	var productName string
 	var buyingPrice float64
 	productInfoQuery := `SELECT name, buying_price FROM products WHERE product_id = ?`
-	if err := DB.QueryRow(productInfoQuery, productID).Scan(&productName, &buyingPrice); err != nil {
+	if err := db.QueryRow(productInfoQuery, productID).Scan(&productName, &buyingPrice); err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch product details: %v", err)
 	}
 
 	// Step 3: Count total records for pagination metadata
 	var totalCount int
 	countQuery := `SELECT COUNT(*) FROM inventory WHERE product_id = ?`
-	if err := DB.QueryRow(countQuery, productID).Scan(&totalCount); err != nil {
+	if err := db.QueryRow(countQuery, productID).Scan(&totalCount); err != nil {
 		return nil, nil, fmt.Errorf("failed to count inventory history: %v", err)
 	}
 
@@ -1070,7 +1070,7 @@ func GetInventoryStockHistory(inventoryID string, page, size int) (*[]dtos.Inven
 		LIMIT ? OFFSET ?
 	`
 
-	rows, err := DB.Query(query, productID, size, offset)
+	rows, err := db.Query(query, productID, size, offset)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch inventory history: %v", err)
 	}
@@ -1115,8 +1115,8 @@ func GetInventoryStockHistory(inventoryID string, page, size int) (*[]dtos.Inven
 }
 
 // helper function to update product buying price and selling price
-func UpdateProductPrices(productID string, buyingPrice, sellingPrice float64) error {
-	_, err := DB.Exec(`
+func UpdateProductPrices(db DBExecutor, productID string, buyingPrice, sellingPrice float64) error {
+	_, err := db.Exec(`
 		UPDATE products
 		SET buying_price = ?, price = ?
 		WHERE product_id = ?`,

@@ -64,8 +64,7 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Validate return request against business rules (return window, order status, etc.)
-	err := models.ValidateReturnRequest(*req)
-	if err != nil {
+	if err := models.ValidateReturnRequest(models.DB, *req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
@@ -83,7 +82,7 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create return request in database with "pending" status
 	// Links return to user ID for ownership verification
-	err = models.CreateReturns(*req, authuser.ID)
+	err := models.CreateReturns(models.DB, *req, authuser.ID)
 	if err != nil {
 		// Database operation failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -156,7 +155,7 @@ func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Update return status in database (may trigger inventory/refund actions)
-	err := models.UpdateReturnStatus(returnID, *req)
+	err := models.UpdateReturnStatus(models.DB, returnID, *req)
 	if err != nil {
 		// Status update failed (invalid status transition or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -216,7 +215,7 @@ func GetReturnByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract return ID from URL path parameters
 	returnID := mux.Vars(r)["return_id"]
 	// Fetch complete return details from database
-	ret, err := models.GetReturnByID(returnID)
+	returnRequest, err := models.GetReturnByID(models.DB, returnID)
 	if err != nil {
 		// Return not found or database error
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -240,7 +239,7 @@ func GetReturnByIDHandler(w http.ResponseWriter, r *http.Request) {
 			Description: "Return fetched successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   ret,
+		Payload:   returnRequest,
 		Message:   "Return fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -276,7 +275,7 @@ func DeleteReturnHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract return ID from URL path parameters
 	returnID := mux.Vars(r)["return_id"]
 	// Permanently delete return from database
-	err := models.DeleteReturn(returnID)
+	err := models.DeleteReturn(models.DB, returnID)
 	if err != nil {
 		// Deletion failed (return not found or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -340,9 +339,9 @@ func ListAllReturnsHandler(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	q := r.URL.Query().Get("q")
 	// Parse pagination parameters
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	// Fetch paginated returns list from database with filters
-	returns, meta, err := models.GetAllReturns(page, limit, status, q)
+	returns, pagination, err := models.GetAllReturns(models.DB, page, size, status, q)
 	if err != nil {
 		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -368,7 +367,7 @@ func ListAllReturnsHandler(w http.ResponseWriter, r *http.Request) {
 		},
 		Payload: map[string]any{
 			"returns":    returns,
-			"pagination": meta,
+			"pagination": pagination,
 		},
 		Message:   "All returns fetched successfully",
 		TimeTaken: time.Since(start),
@@ -419,7 +418,7 @@ func ListOwnerReturnsHandler(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	q := r.URL.Query().Get("q")
 	// Fetch all returns for this user from database with filters
-	returns, err := models.GetAllOwnerReturns(status, q, authuser.ID)
+	returns, err := models.GetAllOwnerReturns(models.DB, status, q, authuser.ID)
 	if err != nil {
 		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -491,7 +490,7 @@ func GetOwnerReturnsHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract return ID from URL path parameters
 	returnID := mux.Vars(r)["return_id"]
 	// Fetch return details from database (verifies user ownership)
-	ret, err := models.GetOwnerReturnByID(returnID, authuser.ID)
+	ret, err := models.GetOwnerReturnByID(models.DB, returnID, authuser.ID)
 	if err != nil {
 		// Return not found or not owned by user
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

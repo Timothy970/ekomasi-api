@@ -81,7 +81,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the user in the database
-	user, err := models.CreateUser(*input)
+	user, err := models.CreateUser(models.DB, *input)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -159,7 +159,7 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	offset := (page - 1) * limit
 
 	// Fetch users from database with pagination and filters
-	users, meta, err := models.GetAllUsersWithPagination(limit, offset, q, role)
+	users, meta, err := models.GetAllUsersWithPagination(models.DB, limit, offset, q, role)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -223,7 +223,7 @@ func GetUserByID(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["user_id"]
 
 	// Fetch user details from database
-	user, err := models.GetUserByUserID(userID)
+	user, err := models.GetUserByUserID(models.DB, userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -332,7 +332,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update user in database
-	user, err := models.FindByIdAndUpdate(*input, authuser.ID)
+	user, err := models.FindByIdAndUpdate(models.DB, *input, authuser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -392,7 +392,7 @@ func DeleteUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["user_id"]
 
 	// Delete user from database
-	err := models.DeleteUserByID(userID)
+	err := models.DeleteUserByID(models.DB, userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -452,7 +452,7 @@ func ActivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["user_id"]
 
 	// Activate user in database
-	err := models.ActivateUserByID(userID)
+	err := models.ActivateUserByID(models.DB, userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -512,7 +512,7 @@ func DeactivateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["user_id"]
 
 	// Deactivate user in database
-	err := models.DeactivateUserByID(userID)
+	err := models.DeactivateUserByID(models.DB, userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -577,7 +577,7 @@ func GetUserDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch user details from database
-	user, err := models.GetUserByUserID(authUser.ID)
+	user, err := models.GetUserByUserID(models.DB, authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -655,7 +655,7 @@ func CreateAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create address in database
-	err := models.CreateUserAddress(*input, authUser.ID)
+	err := models.CreateUserAddress(models.DB, *input, authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -732,7 +732,7 @@ func AdminCreateAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create address in database
-	err := models.CreateUserAddress(input, req.UserID)
+	err := models.CreateUserAddress(models.DB, input, req.UserID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -797,7 +797,7 @@ func GetUserAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch addresses from database
-	addresses, err := models.GetUserAddresses(authUser.ID)
+	addresses, err := models.GetUserAddresses(models.DB, authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -879,7 +879,7 @@ func UpdateAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update address in database
-	err := models.UpdateUserAddress(addressID, authUser.ID, input)
+	err := models.UpdateUserAddress(models.DB, addressID, authUser.ID, input)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -932,7 +932,7 @@ func AdminUpdateAddress(w http.ResponseWriter, r *http.Request) {
 		City:      req.City,
 		ZipCode:   req.ZipCode,
 	}
-	err := models.UpdateUserAddress(addressID, req.UserID, &input)
+	err := models.UpdateUserAddress(models.DB, addressID, req.UserID, &input)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -999,7 +999,7 @@ func DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	addressID := mux.Vars(r)["address_id"]
 
 	// Delete address from database
-	err := models.DeleteUserAddress(addressID, authUser.ID)
+	err := models.DeleteUserAddress(models.DB, addressID, authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1071,7 +1071,7 @@ func AdminDeleteAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete address from database
-	err := models.DeleteUserAddress(addressID, req.UserID)
+	err := models.DeleteUserAddress(models.DB, addressID, req.UserID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1155,7 +1155,7 @@ func UpdateUserByAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update user in database
-	user, err := models.FindByIdAndUpdate(*input, userID)
+	user, err := models.FindByIdAndUpdate(models.DB, *input, userID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1236,7 +1236,7 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get categories from purchase history
-	purchaseCats, err := models.GetPurchasedCategories(authUser.ID)
+	purchaseCats, err := models.GetPurchasedCategories(models.DB, authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1253,7 +1253,7 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get categories from wishlist
-	wishlistCats, err := models.GetWishlistCategories(authUser.ID)
+	wishlistCats, err := models.GetWishlistCategories(models.DB, authUser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1273,7 +1273,7 @@ func GetUserBasedProductsRecommendations(w http.ResponseWriter, r *http.Request)
 	categories := append(purchaseCats, wishlistCats...)
 
 	// Fetch recommended products based on merged categories
-	recommended, pagination, err := models.GetProductsByCategories(categories, page, limit)
+	recommended, pagination, err := models.GetProductsByCategories(models.DB, categories, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1337,7 +1337,7 @@ func AddSubscriber(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create subscriber in database
-	err := models.CreateSubscribers(input.Email)
+	err := models.CreateSubscribers(models.DB, input.Email)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

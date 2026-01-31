@@ -22,7 +22,7 @@ var (
 )
 
 func checkStockAvailability(productID string, quantity int) error {
-	product, err := models.GetProductByID(productID)
+	product, err := models.GetProductByID(models.DB, productID)
 	if err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func processOrderItems(items []dtos.OrderItemRequest) (totalAmount, totalDiscoun
 		if err != nil {
 			return 0, 0, false, err
 		}
-		promo, err := models.GetProductPromotionData(item.ProductID)
+		promo, err := models.GetProductPromotionData(models.DB, item.ProductID)
 		if err != nil {
 			return 0, 0, false, err
 		}
@@ -62,7 +62,7 @@ func processOrderItems(items []dtos.OrderItemRequest) (totalAmount, totalDiscoun
 	return
 }
 
-func createOrderItems(orderID string, items []dtos.OrderItemRequest) error {
+func createOrderItems(db models.DBExecutor, orderID string, items []dtos.OrderItemRequest) error {
 	for _, item := range items {
 		var variantID string
 		if item.VariantID != nil {
@@ -70,7 +70,7 @@ func createOrderItems(orderID string, items []dtos.OrderItemRequest) error {
 		} else {
 			variantID = ""
 		}
-		if _, err := models.CreateOrderItem(orderID, item.ProductID, variantID, item.Quantity, item.UnitPrice); err != nil {
+		if _, err := models.CreateOrderItem(db, orderID, item.ProductID, variantID, item.Quantity, item.UnitPrice); err != nil {
 			return err
 		}
 	}
@@ -188,7 +188,7 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 
 	// If order ID is provided, fetch specific order
 	if orderID != "" {
-		order, err := models.GetOrderByID(orderID)
+		order, err := models.GetOrderByID(models.DB, orderID)
 		if err != nil {
 			log.Printf("%s", err)
 			respondWithError(http.StatusInternalServerError, "Could not fetch order")
@@ -199,7 +199,7 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Otherwise, fetch all orders (optionally filtered by status)
-	orders, err := models.GetAllOrders(status)
+	orders, err := models.GetAllOrders(models.DB, status)
 	if err != nil {
 		log.Printf("%s", err)
 		respondWithError(http.StatusInternalServerError, "Could not fetch orders")
@@ -256,7 +256,7 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update order status in database
-	if err := models.UpdateOrderStatus(orderID, *req); err != nil {
+	if err := models.UpdateOrderStatus(models.DB, orderID, *req); err != nil {
 		log.Printf("%s", err)
 
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -332,7 +332,7 @@ func ListOrders(w http.ResponseWriter, r *http.Request) {
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 
 	// Fetch orders for user
-	orders, pagination, err := models.ListOrdersByUser(user.ID, page, limit)
+	orders, pagination, err := models.ListOrdersByUser(models.DB, user.ID, page, limit)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -416,7 +416,7 @@ func ViewOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch order for user
-	order, err := models.GetOrderByUser(orderID, user.ID)
+	order, err := models.GetOrderByUser(models.DB, orderID, user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -496,7 +496,7 @@ func ViewOrderPOS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch order by ID
-	order, err := models.GetOrderByID(orderID)
+	order, err := models.GetOrderByID(models.DB, orderID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -565,7 +565,7 @@ func ListGuestOrders(w http.ResponseWriter, r *http.Request) {
 	phone := mux.Vars(r)["phone_number"]
 
 	// Fetch guest orders
-	orders, err := models.ListGuestOrders(orderID, email, phone)
+	orders, err := models.ListGuestOrders(models.DB, orderID, email, phone)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -658,7 +658,7 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch orders based on parameters
-	orders, pagination, err := models.ListOrdersByAdmin(params)
+	orders, pagination, err := models.ListOrdersByAdmin(models.DB, params)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -747,7 +747,7 @@ func StreamOrdersCSV(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for {
-		orders, meta, err := models.ListOrdersByAdmin(params)
+		orders, meta, err := models.ListOrdersByAdmin(models.DB, params)
 		if err != nil {
 			writeCSVError(w, "Failed to fetch orders: "+err.Error())
 			return
@@ -878,7 +878,7 @@ func GetOrderCountsByStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch order counts
-	counts, err := models.GetOrderCountsByStatus()
+	counts, err := models.GetOrderCountsByStatus(models.DB)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -930,7 +930,7 @@ func HoldOrderHandler(w http.ResponseWriter, r *http.Request) {
 	orderID := mux.Vars(r)["order_id"]
 
 	// Update order status to hold
-	err := models.HoldOrder(orderID)
+	err := models.HoldOrder(models.DB, orderID)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -982,7 +982,7 @@ func ReleaseOrderHandler(w http.ResponseWriter, r *http.Request) {
 	orderID := mux.Vars(r)["order_id"]
 
 	// Update order status to release hold
-	err := models.ReleaseOrder(orderID)
+	err := models.ReleaseOrder(models.DB, orderID)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1000,7 +1000,7 @@ func ReleaseOrderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch updated order details
-	order, err := models.GetOrderByID(orderID)
+	order, err := models.GetOrderByID(models.DB, orderID)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1071,10 +1071,24 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orderID, deliveryID, err := createOrderAndDelivery(order, req.StoreID, finalAmount, totalDiscount, module)
+	tx, err := models.DB.Begin()
+	if err != nil {
+		log.Printf("[%s] Error starting transaction: %v", module, err)
+		respondInternalServerError(w, r, requestSummary, start, err.Error())
+		return
+	}
+	defer tx.Rollback()
+
+	orderID, deliveryID, err := createOrderAndDelivery(tx, order, req.StoreID, finalAmount, totalDiscount, module)
 	if err != nil {
 		log.Printf("[%s] Error creating order: %v", module, err)
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		log.Printf("[%s] Error committing transaction: %v", module, err)
+		respondInternalServerError(w, r, requestSummary, start, "Failed to commit transaction")
 		return
 	}
 
@@ -1191,21 +1205,21 @@ func calculateOrderTotals(order *dtos.OrderRequest, promoCode *string, module st
 	return totalAmount - totalDiscount, totalDiscount, nil
 }
 
-func createOrderAndDelivery(order *dtos.OrderRequest, storeID *string, finalAmount, totalDiscount float64, module string) (string, string, error) {
-	orderID, deliveryID, err := models.CreateOrder(*order, utils.ToString(finalAmount), utils.ToString(totalDiscount))
+func createOrderAndDelivery(db models.DBExecutor, order *dtos.OrderRequest, storeID *string, finalAmount, totalDiscount float64, module string) (string, string, error) {
+	orderID, deliveryID, err := models.CreateOrder(db, *order, utils.ToString(finalAmount), utils.ToString(totalDiscount))
 	if err != nil {
 		return "", "", err
 	}
 
-	if err := createOrderItems(orderID, order.OrderItems); err != nil {
+	if err := createOrderItems(db, orderID, order.OrderItems); err != nil {
 		return "", "", err
 	}
 
-	if err := models.CreateDeliveries(orderID, deliveryID, *order, storeID); err != nil {
+	if err := models.CreateDeliveries(db, orderID, deliveryID, *order, storeID); err != nil {
 		return "", "", err
 	}
 
-	if err := deductStock(order.OrderItems); err != nil {
+	if err := deductStock(db, order.OrderItems); err != nil {
 		return "", "", err
 	}
 
@@ -1217,7 +1231,7 @@ func getOrderDeliveryCharge(locationID int) (float64, error) {
 	if locationID == 111111 {
 		return 0, nil
 	}
-	location, err := models.GetLocationByID(locationID)
+	location, err := models.GetLocationByID(models.DB, locationID)
 	if err != nil {
 		return 0, err
 	}
@@ -1227,7 +1241,7 @@ func getOrderDeliveryCharge(locationID int) (float64, error) {
 func getOrderItems(items []dtos.OrderItemPayload) ([]dtos.OrderItemRequest, error) {
 	var orderItems []dtos.OrderItemRequest
 	for _, item := range items {
-		product, err := models.GetProductByID(item.ProductID)
+		product, err := models.GetProductByID(models.DB, item.ProductID)
 		if err != nil {
 			return nil, err
 		}
@@ -1241,10 +1255,9 @@ func getOrderItems(items []dtos.OrderItemPayload) ([]dtos.OrderItemRequest, erro
 	return orderItems, nil
 }
 
-func deductStock(orderItems []dtos.OrderItemRequest) error {
+func deductStock(db models.DBExecutor, orderItems []dtos.OrderItemRequest) error {
 	for _, item := range orderItems {
-		err := models.DeductProductStock(item.ProductID, item.Quantity)
-		if err != nil {
+		if err := models.DeductProductStock(db, item.ProductID, item.Quantity); err != nil {
 			return err
 		}
 	}
@@ -1285,7 +1298,7 @@ func DownloadOrderInvoicePDF(w http.ResponseWriter, r *http.Request) {
 		Page:    page,
 		Limit:   limit,
 	}
-	orders, _, err := models.ListOrdersByAdmin(params)
+	orders, _, err := models.ListOrdersByAdmin(models.DB, params)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

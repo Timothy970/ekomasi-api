@@ -57,7 +57,7 @@ func CreateSupplier(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create supplier record in database
-	if err := models.CreateSupplier(*req); err != nil {
+	if err := models.CreateSupplier(models.DB, *req); err != nil {
 		// Supplier creation failed (duplicate, constraint violation, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -130,7 +130,7 @@ func ListSuppliers(w http.ResponseWriter, r *http.Request) {
 	if cachedSupplier == nil {
 		var err error
 		// Fetch paginated suppliers from database
-		suppliers, meta, err = models.ListSuppliers(page, size)
+		suppliers, meta, err = models.ListSuppliers(models.DB, page, size)
 		if err != nil {
 			// Database query failed
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -201,7 +201,7 @@ func GetSupplierByID(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["supplier_id"]
 
 	// Fetch supplier details from database
-	supplier, err := models.GetSupplierByID(id)
+	supplier, err := models.GetSupplierByID(models.DB, id)
 	if err != nil {
 		// Supplier not found or database error
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -290,7 +290,7 @@ func UpdateSupplier(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["supplier_id"]
 
 	// Update supplier information in database
-	if err := models.UpdateSupplier(*req, id); err != nil {
+	if err := models.UpdateSupplier(models.DB, *req, id); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Suppliers",
@@ -349,7 +349,7 @@ func DeleteSupplier(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["supplier_id"]
 
 	// Delete supplier from database (may be soft delete)
-	if err := models.DeleteSupplier(id); err != nil {
+	if err := models.DeleteSupplier(models.DB, id); err != nil {
 		// Supplier not found or database error
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

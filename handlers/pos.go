@@ -66,7 +66,7 @@ func ScanProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Query the database to retrieve product by barcode
-	product, err := models.GetProductThroughScanning(barcode)
+	product, err := models.GetProductThroughScanning(models.DB, barcode)
 	if err != nil {
 		// Return error response if product not found or scan fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -133,7 +133,7 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
-	order, err := models.GetOrderByID(req.OrderID)
+	order, err := models.GetOrderByID(models.DB, req.OrderID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -179,7 +179,7 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update order status in database to mark as paid
-	err = models.UpdateOrderStatus(order.OrderID, orderStatusData)
+	err = models.UpdateOrderStatus(models.DB, order.OrderID, orderStatusData)
 	if err != nil {
 		// Return error if order status update fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -213,7 +213,7 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store transaction log in database for record-keeping
-	err = models.InsertTransaction(logEntry)
+	err = models.InsertTransaction(models.DB, logEntry)
 	if err != nil {
 		// Log error but don't fail the transaction
 		log.Printf("Failed to store log for transaction: %v", err)
@@ -273,7 +273,7 @@ func ProcessSplitPaymentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order, err := models.GetOrderByID(req.OrderID)
+	order, err := models.GetOrderByID(models.DB, req.OrderID)
 	if err != nil {
 		respondWithPaymentError(w, r, requestSummary, start, fmt.Sprintf("Failed to retrieve order with ID %s", req.OrderID), orderError, http.StatusBadRequest)
 		return
@@ -284,7 +284,22 @@ func ProcessSplitPaymentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := processAllPaymentMethods(req.PaymentMethods, order, w, r, requestSummary, start); err != nil {
+	// Start transaction
+	tx, err := models.DB.Begin()
+	if err != nil {
+		respondWithPaymentError(w, r, requestSummary, start, "Failed to start transaction", err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	// Process all valid payment methods
+	if err := processAllPaymentMethods(tx, req.PaymentMethods, order, w, r, requestSummary, start); err != nil {
+		// Error response already sent by helper function
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		respondWithPaymentError(w, r, requestSummary, start, "Failed to commit transaction", err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -313,15 +328,15 @@ func validateTotalPaymentAmount(methods []dtos.PaymentMethod, orderTotal float64
 		totalAmount += method.Amount
 	}
 	if totalAmount < orderTotal {
-		return fmt.Errorf(insufficientPaymentError)
+		return fmt.Errorf("%s", insufficientPaymentError)
 	}
 	return nil
 }
 
 // processAllPaymentMethods processes each payment method in the split payment
-func processAllPaymentMethods(methods []dtos.PaymentMethod, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
+func processAllPaymentMethods(db models.DBExecutor, methods []dtos.PaymentMethod, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
 	for _, paymentMethod := range methods {
-		if err := processSinglePaymentMethod(paymentMethod, order, w, r, requestSummary, start); err != nil {
+		if err := processSinglePaymentMethod(db, paymentMethod, order, w, r, requestSummary, start); err != nil {
 			return err
 		}
 	}
@@ -329,14 +344,14 @@ func processAllPaymentMethods(methods []dtos.PaymentMethod, order *dtos.Order, w
 }
 
 // processSinglePaymentMethod processes a single payment method
-func processSinglePaymentMethod(paymentMethod dtos.PaymentMethod, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
+func processSinglePaymentMethod(db models.DBExecutor, paymentMethod dtos.PaymentMethod, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
 	switch strings.ToLower(paymentMethod.Type) {
 	case "cash":
-		return handleCashPaymentMethod(order, w, r, requestSummary, start)
+		return handleCashPaymentMethod(db, order, w, r, requestSummary, start)
 	case "mpesa":
-		return handleMpesaPaymentMethod(paymentMethod, order, w, r, requestSummary, start)
+		return handleMpesaPaymentMethod(db, paymentMethod, order, w, r, requestSummary, start)
 	case "voucher":
-		return handleVoucherPaymentMethod(paymentMethod, order, w, r, requestSummary, start)
+		return handleVoucherPaymentMethod(db, paymentMethod, order, w, r, requestSummary, start)
 	default:
 		respondWithPaymentError(w, r, requestSummary, start, fmt.Sprintf("Unsupported payment method: %s", paymentMethod.Type), fmt.Sprintf("Unsupported payment method: %s", paymentMethod.Type), http.StatusBadRequest)
 		return fmt.Errorf("unsupported payment method: %s", paymentMethod.Type)
@@ -344,8 +359,8 @@ func processSinglePaymentMethod(paymentMethod dtos.PaymentMethod, order *dtos.Or
 }
 
 // handleCashPaymentMethod handles cash payment processing
-func handleCashPaymentMethod(order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
-	if err := processCashPayment(order); err != nil {
+func handleCashPaymentMethod(db models.DBExecutor, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
+	if err := processCashPayment(db, order); err != nil {
 		respondWithPaymentError(w, r, requestSummary, start, fmt.Sprintf("Failed to process cash payment: %s", err.Error()), "Failed to process cash payment", http.StatusBadRequest)
 		return err
 	}
@@ -353,7 +368,7 @@ func handleCashPaymentMethod(order *dtos.Order, w http.ResponseWriter, r *http.R
 }
 
 // handleMpesaPaymentMethod handles M-PESA payment processing
-func handleMpesaPaymentMethod(paymentMethod dtos.PaymentMethod, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
+func handleMpesaPaymentMethod(db models.DBExecutor, paymentMethod dtos.PaymentMethod, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
 	mpesaReq := &dtos.MpesaRequest{
 		OrderID:     order.OrderID,
 		Phone:       *paymentMethod.PhoneNumber,
@@ -375,12 +390,12 @@ func handleMpesaPaymentMethod(paymentMethod dtos.PaymentMethod, order *dtos.Orde
 		return err
 	}
 
-	if err = models.StoreStkResponse(response, *mpesaReq); err != nil {
+	if err = models.StoreStkResponse(db, response, *mpesaReq); err != nil {
 		respondWithPaymentError(w, r, requestSummary, start, "Failed to store MPESA payment request", err.Error(), http.StatusInternalServerError)
 		return err
 	}
 
-	if err = storeTransactionLog(*mpesaReq); err != nil {
+	if err = storeTransactionLog(db, *mpesaReq); err != nil {
 		log.Printf("Failed to store transaction's log: %v", err)
 	}
 
@@ -388,8 +403,8 @@ func handleMpesaPaymentMethod(paymentMethod dtos.PaymentMethod, order *dtos.Orde
 }
 
 // handleVoucherPaymentMethod handles voucher payment processing
-func handleVoucherPaymentMethod(paymentMethod dtos.PaymentMethod, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
-	if err := processVoucherPayment(order, *paymentMethod.VoucherCode); err != nil {
+func handleVoucherPaymentMethod(db models.DBExecutor, paymentMethod dtos.PaymentMethod, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
+	if err := processVoucherPayment(db, order, *paymentMethod.VoucherCode); err != nil {
 		respondWithPaymentError(w, r, requestSummary, start, fmt.Sprintf("Failed to process voucher payment: %s", err.Error()), err.Error(), http.StatusBadRequest)
 		return err
 	}
@@ -415,7 +430,7 @@ func respondWithPaymentError(w http.ResponseWriter, r *http.Request, requestSumm
 // processCashPayment is a helper function that processes cash payments for orders.
 // It updates the order status to mark payment as successful and logs the transaction.
 // This function is used internally by split payment processing.
-func processCashPayment(order *dtos.Order) error {
+func processCashPayment(db models.DBExecutor, order *dtos.Order) error {
 	// Prepare order status update with cash payment details
 	method := "CASH"
 	paymentStatus := "SUCCESS"
@@ -427,7 +442,7 @@ func processCashPayment(order *dtos.Order) error {
 	}
 
 	// Update order status to mark as paid with cash
-	if err := models.UpdateOrderStatus(order.OrderID, orderStatusData); err != nil {
+	if err := models.UpdateOrderStatus(db, order.OrderID, orderStatusData); err != nil {
 		return err
 	}
 
@@ -441,7 +456,7 @@ func processCashPayment(order *dtos.Order) error {
 	}
 
 	// Store transaction log in database (non-critical, log errors only)
-	if err := models.InsertTransaction(logEntry); err != nil {
+	if err := models.InsertTransaction(db, logEntry); err != nil {
 		log.Printf("Failed to store log for the transaction: %v", err)
 	}
 
@@ -451,9 +466,9 @@ func processCashPayment(order *dtos.Order) error {
 // processVoucherPayment is a helper function that processes voucher payments for orders.
 // It validates the voucher, checks sufficient balance, updates order status,
 // deducts from voucher balance, and logs the transaction.
-func processVoucherPayment(order *dtos.Order, voucherCode string) error {
+func processVoucherPayment(db models.DBExecutor, order *dtos.Order, voucherCode string) error {
 	// Validate voucher and retrieve its current balance
-	voucherBalance, err := models.ValidateVoucher(voucherCode)
+	voucherBalance, err := models.ValidateVoucher(db, voucherCode)
 	if err != nil {
 		return fmt.Errorf("failed to validate voucher: %w", err)
 	}
@@ -474,12 +489,12 @@ func processVoucherPayment(order *dtos.Order, voucherCode string) error {
 	}
 
 	// Update order status to mark as paid with voucher
-	if err := models.UpdateOrderStatus(order.OrderID, orderStatusData); err != nil {
-		return fmt.Errorf("failed to update order status: %w", err)
+	if err := models.UpdateOrderStatus(db, order.OrderID, orderStatusData); err != nil {
+		return fmt.Errorf("failed to delete POS session with ID %s: %w", "unknown", err)
 	}
 
 	// Deduct amount from voucher balance and record usage history
-	if err := updateVoucherBalanceAndHistory(voucherCode, voucherBalance, order.TotalAmount, order); err != nil {
+	if err := updateVoucherBalanceAndHistory(db, voucherCode, voucherBalance, order.TotalAmount, order); err != nil {
 		return fmt.Errorf("failed to update voucher balance and history: %w", err)
 	}
 
@@ -493,7 +508,7 @@ func processVoucherPayment(order *dtos.Order, voucherCode string) error {
 	}
 
 	// Store transaction log in database (non-critical, log errors only)
-	if err := models.InsertTransaction(logEntry); err != nil {
+	if err := models.InsertTransaction(db, logEntry); err != nil {
 		log.Printf("Failed to store transaction log: %v", err)
 	}
 
@@ -566,7 +581,7 @@ func DownloadReceiptHandler(w http.ResponseWriter, r *http.Request) {
 	orderID := mux.Vars(r)["order_id"]
 
 	// Retrieve order details from database
-	order, err := models.GetOrderByID(orderID)
+	order, err := models.GetOrderByID(models.DB, orderID)
 	if err != nil {
 		// Return error if order is not found
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -666,7 +681,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Retrieve the order from database
-	order, err := models.GetOrderByID(req.OrderID)
+	order, err := models.GetOrderByID(models.DB, req.OrderID)
 	if err != nil {
 		// Return error if order is not found
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -685,7 +700,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate voucher and retrieve its current balance
-	voucherBalance, err := models.ValidateVoucher(req.VoucherCode)
+	voucherBalance, err := models.ValidateVoucher(models.DB, req.VoucherCode)
 
 	if err != nil {
 		// Return error if voucher is invalid or expired
@@ -732,8 +747,26 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 		PaymentStatus: &paymentStatus,
 	}
 
+	// Start transaction
+	tx, err := models.DB.Begin()
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "POS",
+				Description: "Failed to start transaction",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	defer tx.Rollback()
+
 	// Update order status in database to mark as paid
-	err = models.UpdateOrderStatus(order.OrderID, orderStatusData)
+	err = models.UpdateOrderStatus(tx, order.OrderID, orderStatusData)
 	if err != nil {
 		// Return error if order status update fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -752,7 +785,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Deduct amount from voucher balance and record usage history
-	err = updateVoucherBalanceAndHistory(req.VoucherCode, voucherBalance, order.TotalAmount, order)
+	err = updateVoucherBalanceAndHistory(tx, req.VoucherCode, voucherBalance, order.TotalAmount, order)
 	if err != nil {
 		// Return error if voucher update fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -780,9 +813,25 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store transaction log in database (non-critical, log errors only)
-	err = models.InsertTransaction(logEntry)
+	err = models.InsertTransaction(tx, logEntry)
 	if err != nil {
 		log.Printf("Failed to store transaction log: %v", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "POS",
+				Description: "Failed to commit transaction",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
 	}
 
 	// Return success response with order ID
@@ -807,25 +856,25 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 // updateVoucherBalanceAndHistory is a helper function that updates voucher balance
 // and records usage history with order item details. This function is used after
 // successful voucher payment processing to maintain voucher transaction history.
-func updateVoucherBalanceAndHistory(voucherCode string, voucherBalance float64, orderTotalAmount float64, order *dtos.Order) error {
+func updateVoucherBalanceAndHistory(db models.DBExecutor, voucherCode string, voucherBalance float64, orderTotalAmount float64, order *dtos.Order) error {
 	// Build cart items array from order items for history recording
 	cartItems := []dtos.CartItem{}
 	cartItem := dtos.CartItem{}
 	for _, item := range order.Items {
 		// Retrieve full product details for each order item
-		product, _ := models.GetProductByID(item.ID)
+		product, _ := models.GetProductByID(models.DB, item.ID)
 		cartItem.Product = *product
 		cartItem.Quantity = int(item.StockQuantity)
 		cartItems = append(cartItems, cartItem)
 	}
 
 	// Deduct order amount from voucher balance
-	if err := models.UpdateVoucherBalance(voucherCode, voucherBalance-orderTotalAmount); err != nil {
+	if err := models.UpdateVoucherBalance(db, voucherCode, voucherBalance-orderTotalAmount); err != nil {
 		return err
 	}
 
 	// Record voucher usage history with order details
-	if err := models.AddVoucherHistory(voucherCode, orderTotalAmount, cartItems); err != nil {
+	if err := models.AddVoucherHistory(db, voucherCode, orderTotalAmount, cartItems); err != nil {
 		return err
 	}
 	return nil

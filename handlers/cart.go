@@ -50,7 +50,7 @@ func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
 	// }
 
 	// Create cart in database
-	cartID, err := models.CreateCart(*req)
+	cartID, err := models.CreateCart(models.DB, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -117,7 +117,7 @@ func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch user's cart ID
-	cartID, err := models.GetUserCart(user.ID)
+	cartID, err := models.GetUserCart(models.DB, user.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -179,7 +179,7 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Insert item into cart
-	if err := models.InsertCartItem(req.CartID, req.ProductID, req.Quantity); err != nil {
+	if err := models.InsertCartItem(models.DB, req.CartID, req.ProductID, req.Quantity); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
@@ -269,7 +269,7 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 	if locationID != "" {
 		locationIDInt, _ := strconv.Atoi(locationID)
 		if locationIDInt != 0 {
-			loc, err := models.GetLocationByID(locationIDInt)
+			loc, err := models.GetLocationByID(models.DB, locationIDInt)
 			if err != nil {
 				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 					CollectiveInfo: utils.CollectiveInfo{
@@ -305,11 +305,11 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
-	items, err := models.GetCartItems(cartID)
+	items, err := models.GetCartItems(models.DB, cartID)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
 	}
-	estimatedTax, _ := models.GetEstimatedTax()
+	estimatedTax, _ := models.GetEstimatedTax(models.DB)
 	if estimatedTax <= 0 {
 		estimatedTax = 16.0
 	}
@@ -326,7 +326,7 @@ func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
 		//total should be price including VAT
 		total += priceIncVAT
 		//check if any product has a discount
-		productDiscount, err := models.GetProductPromotionData(item.Product.ID)
+		productDiscount, err := models.GetProductPromotionData(models.DB, item.Product.ID)
 		if err != nil {
 			return dtos.ViewCartResponse{}, err
 		}
@@ -434,7 +434,7 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update cart item in database
-	if err := models.UpdateCartItem(cartID, req.ProductID, req.Quantity); err != nil {
+	if err := models.UpdateCartItem(models.DB, cartID, req.ProductID, req.Quantity); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
@@ -510,7 +510,7 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 	cartID := mux.Vars(r)["cart_id"]
 
 	// Delete cart item from database
-	if err := models.DeleteCartItem(cartID, req.ProductID); err != nil {
+	if err := models.DeleteCartItem(models.DB, cartID, req.ProductID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
@@ -691,7 +691,7 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 	if req.LocationID != nil {
 		locationIDInt := *req.LocationID
 		if locationIDInt != 0 {
-			loc, err := models.GetLocationByID(locationIDInt)
+			loc, err := models.GetLocationByID(models.DB, locationIDInt)
 			if err != nil {
 				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 					CollectiveInfo: utils.CollectiveInfo{
@@ -744,7 +744,7 @@ func validateCodeVoucher(req dtos.CouponRequest) (dtos.ViewCartResponse, error) 
 	}
 }
 func applyCoupon(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse, error) {
-	discount, err := models.ValidateCoupon(code)
+	discount, err := models.ValidateCoupon(models.DB, code)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
 	}
@@ -758,7 +758,7 @@ func applyCoupon(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse
 }
 
 func applyVoucher(cart dtos.ViewCartResponse, code string, requestType string) (dtos.ViewCartResponse, error) {
-	voucherBalance, err := models.ValidateVoucher(code)
+	voucherBalance, err := models.ValidateVoucher(models.DB, code)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
 	}
@@ -773,11 +773,11 @@ func applyVoucher(cart dtos.ViewCartResponse, code string, requestType string) (
 	}
 	cart.Discount += discount
 	if requestType == "apply" {
-		if err := models.UpdateVoucherBalance(code, voucherBalance-discount); err != nil {
+		if err := models.UpdateVoucherBalance(models.DB, code, voucherBalance-discount); err != nil {
 			return dtos.ViewCartResponse{}, err
 		}
 		//add cart history
-		if err := models.AddVoucherHistory(code, discount, cart.CartItems); err != nil {
+		if err := models.AddVoucherHistory(models.DB, code, discount, cart.CartItems); err != nil {
 			return dtos.ViewCartResponse{}, err
 		}
 	}
@@ -785,7 +785,7 @@ func applyVoucher(cart dtos.ViewCartResponse, code string, requestType string) (
 }
 
 func applyPromoCode(cart dtos.ViewCartResponse, code string, requestType string) (dtos.ViewCartResponse, error) {
-	promoData, err := models.ValidatePromoCode(code, cart.TotalAmount)
+	promoData, err := models.ValidatePromoCode(models.DB, code, cart.TotalAmount)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
 	}
@@ -810,7 +810,7 @@ func applyPromoCode(cart dtos.ViewCartResponse, code string, requestType string)
 	cart.TotalAmount -= discount
 	//update promo code usage count
 	if requestType == "apply" {
-		if err := models.IncrementPromoCodeUsage(code); err != nil {
+		if err := models.IncrementPromoCodeUsage(models.DB, code); err != nil {
 			return dtos.ViewCartResponse{}, err
 		}
 	}
@@ -830,7 +830,7 @@ func applyPromoCodeToOrder(totalAmount, totalDiscount float64, code string, prom
 }
 
 func applyPromoCodeDiscount(totalAmount, totalDiscount float64, code string) (float64, float64, error) {
-	promoData, err := models.ValidatePromoCode(code, totalAmount)
+	promoData, err := models.ValidatePromoCode(models.DB, code, totalAmount)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -841,7 +841,7 @@ func applyPromoCodeDiscount(totalAmount, totalDiscount float64, code string) (fl
 	}
 
 	totalDiscount += discount
-	if err := models.IncrementPromoCodeUsage(code); err != nil {
+	if err := models.IncrementPromoCodeUsage(models.DB, code); err != nil {
 		return 0, 0, err
 	}
 
@@ -866,7 +866,7 @@ func calculatePromoDiscount(promoData dtos.PromoCodeData, totalAmount float64) f
 }
 
 func applyCouponDiscount(totalAmount, totalDiscount float64, code string) (float64, float64, error) {
-	discount, err := models.ValidateCoupon(code)
+	discount, err := models.ValidateCoupon(models.DB, code)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -879,7 +879,7 @@ func applyCouponDiscount(totalAmount, totalDiscount float64, code string) (float
 }
 
 func applyVoucherDiscount(totalAmount, totalDiscount float64, code string) (float64, float64, error) {
-	voucherBalance, err := models.ValidateVoucher(code)
+	voucherBalance, err := models.ValidateVoucher(models.DB, code)
 	if err != nil {
 		return 0, 0, err
 	}

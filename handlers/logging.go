@@ -85,7 +85,7 @@ func GetUserLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Retrieve filtered and paginated logs from the database using optimized query
-	logs, meta, err := models.GetUserLogsOptimized(filters)
+	logs, meta, err := models.GetUserLogsOptimized(models.DB, filters)
 	if err != nil {
 		// Return error response if log retrieval fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -223,7 +223,7 @@ func GetUserLogsByUserID(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["user_id"]
 
 	// Retrieve logs for the specified user from the database
-	logs, meta, err := models.GetUserLogsByUserID(userID, limit, page)
+	logs, meta, err := models.GetUserLogsByUserID(models.DB, userID, page, limit)
 	if err != nil {
 		// Return error response if log retrieval fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

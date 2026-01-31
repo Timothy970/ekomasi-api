@@ -34,7 +34,7 @@ import (
 //   - ProductVariants: Available variants (size, color, etc.)
 //   - Timestamps: CreatedAt, LastUpdated
 //   - error: sql.ErrNoRows if SKU not found, or database error
-func GetProductThroughScanning(sku string) (*dtos.Product, error) {
+func GetProductThroughScanning(db DBExecutor, sku string) (*dtos.Product, error) {
 	// Query product with LEFT JOINs to include optional data (category, deals, specifications)
 	query := `
 		SELECT 
@@ -49,7 +49,7 @@ func GetProductThroughScanning(sku string) (*dtos.Product, error) {
 
 	// Scan product data from database
 	var p dtos.Product
-	err := DB.QueryRow(query, sku).Scan(
+	err := db.QueryRow(query, sku).Scan(
 		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
 		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
 		&p.CategoryName, &p.Tag, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit,
@@ -59,21 +59,21 @@ func GetProductThroughScanning(sku string) (*dtos.Product, error) {
 	}
 
 	// Fetch associated product images
-	images, err := fetchProductImages(p.ID)
+	images, err := fetchProductImages(db, p.ID)
 	if err != nil {
 		return nil, err
 	}
 	p.Images = images
 
 	// Fetch product warranties
-	warranties, err := FetchProductWarranties(p.ID)
+	warranties, err := FetchProductWarranties(db, p.ID)
 	if err != nil {
 		return nil, err
 	}
 	p.Warranty = &warranties
 
 	// Fetch product variants (sizes, colors, etc.)
-	variants, err := getProductVariants(p.ID)
+	variants, err := getProductVariants(db, p.ID)
 	if err != nil {
 		return nil, err
 	}

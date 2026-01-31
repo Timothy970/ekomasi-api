@@ -57,9 +57,9 @@ import (
 //   - Each parent category contains an array of subcategories
 //   - Each subcategory contains an array of up to 6 products
 //   - Products include ID, name, price, and image URL
-func GetAllCategories() ([]dtos.CategoryData, error) {
+func GetAllCategories(db DBExecutor) ([]dtos.CategoryData, error) {
 	// Step 1: Get top-level categories (parent categories with no parent_category_id)
-	rows, err := DB.Query("SELECT category_id, name, parent_category_id, image, description FROM categories WHERE parent_category_id IS NULL")
+	rows, err := db.Query("SELECT category_id, name, parent_category_id, image, description FROM categories WHERE parent_category_id IS NULL")
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func GetAllCategories() ([]dtos.CategoryData, error) {
 		}
 
 		// Step 2: Get subcategories for this parent category
-		subcategories, err := getSubcategories(cat.ID)
+		subcategories, err := getSubcategories(db, cat.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -102,9 +102,9 @@ func GetAllCategories() ([]dtos.CategoryData, error) {
 // Product Limit:
 //   - Each subcategory includes up to 6 products for preview purposes
 //   - Products include basic info (ID, name, price, image URL)
-func getSubcategories(parentID string) ([]dtos.CategoryData, error) {
+func getSubcategories(db DBExecutor, parentID string) ([]dtos.CategoryData, error) {
 	// Query subcategories with this parent_category_id
-	rows, err := DB.Query("SELECT category_id, name, parent_category_id, image,description FROM categories WHERE parent_category_id = ?", parentID)
+	rows, err := db.Query("SELECT category_id, name, parent_category_id, image,description FROM categories WHERE parent_category_id = ?", parentID)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func getSubcategories(parentID string) ([]dtos.CategoryData, error) {
 		}
 
 		// Step 3: Get products for this subcategory (limit 6 for preview)
-		products, err := getProductsByCategory(sub.ID)
+		products, err := getProductsByCategory(db, sub.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -150,9 +150,9 @@ func getSubcategories(parentID string) ([]dtos.CategoryData, error) {
 //   - URL: Product image URL (from first product_images record)
 //
 // LIMIT 6 restricts results for preview purposes in category listings
-func getProductsByCategory(categoryID string) ([]dtos.ProductData, error) {
+func getProductsByCategory(db DBExecutor, categoryID string) ([]dtos.ProductData, error) {
 	// Query products with image via LEFT JOIN
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 	SELECT p.product_id, p.name, p.price, pg.url
 	FROM products p
 	LEFT JOIN product_images pg ON p.product_id = pg.product_id
@@ -186,9 +186,9 @@ func getProductsByCategory(categoryID string) ([]dtos.ProductData, error) {
 //
 // Returns:
 //   - error: nil if category exists, "category not found" error if not found, or database error
-func isCategoryThere(value string) error {
+func isCategoryThere(db DBExecutor, value string) error {
 	// Check if category record exists in categories table
-	exists, err := RecordExists("categories", "category_id = ?", value)
+	exists, err := RecordExists(db, "categories", "category_id = ?", value)
 	if err != nil {
 		return err
 	}
@@ -214,11 +214,11 @@ func isCategoryThere(value string) error {
 // Validation:
 //   - Category name must be unique across all categories
 //   - If ParentID provided, parent category must exist
-func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
+func AddNewCategory(db DBExecutor, input dtos.CreateCategory) (*dtos.Category, error) {
 
 	// Check if the category name already exists (must be unique)
 	var exists bool
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT EXISTS(
 			SELECT 1 FROM categories WHERE name = ?
 		)
@@ -238,7 +238,7 @@ func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
 	// If ParentID is nil, create parent category
 	if input.ParentID == nil {
 		// Insert parent category without parent_category_id
-		_, err := DB.Exec(`
+		_, err := db.Exec(`
 		INSERT INTO categories (category_id, name, description, image)
 		VALUES (?, ?, ?, ?)`,
 			categoryID, input.Name, input.Description, input.Image,
@@ -250,12 +250,12 @@ func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
 
 	} else {
 		// Validate parent category exists before creating subcategory
-		err := isCategoryThere(*input.ParentID)
+		err := isCategoryThere(db, *input.ParentID)
 		if err != nil {
 			return nil, err
 		}
 		// Insert subcategory with parent_category_id
-		_, err = DB.Exec(`
+		_, err = db.Exec(`
 		INSERT INTO categories (category_id, name, parent_category_id, description, image)
 		VALUES (?, ?, ?, ?, ?)`,
 			categoryID, input.Name, input.ParentID, input.Description, input.Image,
@@ -295,16 +295,16 @@ func AddNewCategory(input dtos.CreateCategory) (*dtos.Category, error) {
 // Dynamic Update:
 //   - Only non-empty fields in input are included in UPDATE query
 //   - Fields: Name, ParentID, Description, Image
-func UpdateCategory(id string, input dtos.CreateCategory) (*dtos.Category, error) {
+func UpdateCategory(db DBExecutor, id string, input dtos.CreateCategory) (*dtos.Category, error) {
 	// Step 1: Validate category exists
-	if err := CategoryExists(id); err != nil {
+	if err := CategoryExists(db, id); err != nil {
 		return nil, err
 	}
 
 	// Step 2: Check uniqueness of name if being updated
 	if input.Name != "" {
 		var nameExists bool
-		err := DB.QueryRow(`
+		err := db.QueryRow(`
 			SELECT EXISTS(
 				SELECT 1 FROM categories WHERE name = ? AND category_id != ?
 			)
@@ -353,7 +353,7 @@ func UpdateCategory(id string, input dtos.CreateCategory) (*dtos.Category, error
 	// Build and execute dynamic UPDATE query
 	query := fmt.Sprintf(`UPDATE categories SET %s WHERE category_id = ?`, strings.Join(setClauses, ", "))
 
-	_, err := DB.Exec(query, args...)
+	_, err := db.Exec(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update category: %w", err)
 	}
@@ -382,9 +382,9 @@ func UpdateCategory(id string, input dtos.CreateCategory) (*dtos.Category, error
 //   - The commented-out code would prevent deletion of categories with subcategories
 //   - Currently allows cascade deletion or orphaning of subcategories (depends on DB constraints)
 //   - Consider uncommenting child check to prevent accidental data loss
-func DeleteCategory(id string) error {
+func DeleteCategory(db DBExecutor, id string) error {
 	// Validate category exists
-	err := CategoryExists(id)
+	err := CategoryExists(db, id)
 	if err != nil {
 		return err
 	}
@@ -401,7 +401,7 @@ func DeleteCategory(id string) error {
 	// }
 
 	// Delete the category record
-	_, err = DB.Exec("DELETE FROM categories WHERE category_id = ?", id)
+	_, err = db.Exec("DELETE FROM categories WHERE category_id = ?", id)
 	if err != nil {
 		return fmt.Errorf("failed to delete category: %w", err)
 	}
@@ -419,9 +419,9 @@ func DeleteCategory(id string) error {
 // Returns:
 //   - *dtos.Category: Pointer to category object, nil if not found
 //   - error: Database error if query fails (sql.ErrNoRows returns nil, not error)
-func GetCategoryByID(id string) (*dtos.Category, error) {
+func GetCategoryByID(db DBExecutor, id string) (*dtos.Category, error) {
 	// Query category by ID
-	row := DB.QueryRow(`
+	row := db.QueryRow(`
 		SELECT category_id, name, parent_category_id, description
 		FROM categories
 		WHERE category_id = ?`, id)
@@ -450,13 +450,13 @@ func GetCategoryByID(id string) (*dtos.Category, error) {
 // Returns:
 //   - bool: true if record exists, false if not found
 //   - error: Database error if query fails
-func RecordExists(table, clause string, args ...interface{}) (bool, error) {
+func RecordExists(db DBExecutor, table, clause string, args ...interface{}) (bool, error) {
 	// Build dynamic EXISTS query
 	query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE %s)", table, clause)
 
 	var exists bool
 	// Execute query with provided arguments
-	err := DB.QueryRow(query, args...).Scan(&exists)
+	err := db.QueryRow(query, args...).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check existence in %s: %w", table, err)
 	}
@@ -478,10 +478,10 @@ func RecordExists(table, clause string, args ...interface{}) (bool, error) {
 // Usage:
 //   - Use this in validation chains where you want to return early on error
 //   - Use isCategoryThere or RecordExists if you need boolean result
-func CategoryExists(id string) error {
+func CategoryExists(db DBExecutor, id string) error {
 	var exists bool
 	// Check category existence
-	err := DB.QueryRow(
+	err := db.QueryRow(
 		`SELECT EXISTS(SELECT 1 FROM categories WHERE category_id = ?)`,
 		id,
 	).Scan(&exists)
@@ -522,7 +522,7 @@ func CategoryExists(id string) error {
 //
 // Ordering:
 //   - Results ordered by updated_at DESC (most recently updated first)
-func GetAdminCategories(page, limit int, categoryName string) ([]dtos.AdminCategoryData, *dtos.PaginationMeta, error) {
+func GetAdminCategories(db DBExecutor, page, limit int, categoryName string) ([]dtos.AdminCategoryData, *dtos.PaginationMeta, error) {
 	// Step 1: Get total count for pagination
 	var total int
 	args := []any{}
@@ -532,7 +532,7 @@ func GetAdminCategories(page, limit int, categoryName string) ([]dtos.AdminCateg
 		countQuery += " WHERE name LIKE ?"
 		args = append(args, "%"+categoryName+"%")
 	}
-	err := DB.QueryRow(countQuery, args...).Scan(&total)
+	err := db.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -579,7 +579,7 @@ func GetAdminCategories(page, limit int, categoryName string) ([]dtos.AdminCateg
 	queryArgs = append(queryArgs, limit, offset)
 
 	// Execute main query
-	rows, err := DB.Query(mainQuery, queryArgs...)
+	rows, err := db.Query(mainQuery, queryArgs...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -624,7 +624,7 @@ func GetAdminCategories(page, limit int, categoryName string) ([]dtos.AdminCateg
 //   - CategoryID: Parent category ID
 //   - Category: Parent category name
 //   - SubCategory: Array of subcategories with ID and name
-func GetCategoriesWithSubCategories() ([]dtos.CategoryWithSubCategories, error) {
+func GetCategoriesWithSubCategories(db DBExecutor) ([]dtos.CategoryWithSubCategories, error) {
 	// Step 1: Fetch all parent categories (no parent_category_id)
 	parentQuery := `
 		SELECT category_id, name 
@@ -632,7 +632,7 @@ func GetCategoriesWithSubCategories() ([]dtos.CategoryWithSubCategories, error) 
 		WHERE parent_category_id IS NULL		
 	`
 
-	rows, err := DB.Query(parentQuery)
+	rows, err := db.Query(parentQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch parent categories: %w", err)
 	}
@@ -654,7 +654,7 @@ func GetCategoriesWithSubCategories() ([]dtos.CategoryWithSubCategories, error) 
 			WHERE parent_category_id = ?
 		`
 
-		subRows, err := DB.Query(subQuery, cat.CategoryID)
+		subRows, err := db.Query(subQuery, cat.CategoryID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch subcategories for %s: %w", cat.CategoryID, err)
 		}

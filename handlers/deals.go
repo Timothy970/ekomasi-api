@@ -51,7 +51,7 @@ func CreateDealHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
 		return
 	}
-	_, err := models.CreateDeal(*req)
+	_, err := models.CreateDeal(models.DB, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -98,7 +98,7 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 
-	deals, pagination, err := models.GetAllDeals(page, limit)
+	deals, meta, err := models.GetAllDeals(models.DB, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -119,7 +119,7 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 			Description: "All deals fetched successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   map[string]any{"deals": deals, "pagination": pagination},
+		Payload:   map[string]any{"deals": deals, "pagination": meta},
 		Message:   "Deals fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -208,7 +208,7 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
 		return
 	}
-	err = models.UpdateDeal(dealID, *req)
+	err = models.UpdateDeal(models.DB, dealID, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -257,8 +257,7 @@ func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dealID := mux.Vars(r)["deal_id"]
-	err := models.DeleteDeal(dealID)
-	if err != nil {
+	if err := models.DeleteDeal(models.DB, dealID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
@@ -314,7 +313,7 @@ func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
 		return
 	}
-	err := models.AddProductToDeal(req.ID, req.ProductID, nil, nil)
+	err := models.AddProductToDeal(models.DB, req.ID, req.ProductID, nil, nil)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -371,8 +370,7 @@ func RemoveProductFromDealHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
 		return
 	}
-	err := models.RemoveProductFromDeal(req.ID, req.ProductID)
-	if err != nil {
+	if err := models.RemoveProductFromDeal(models.DB, req.ID, req.ProductID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
@@ -418,7 +416,7 @@ func GetDealWithProductsHandler(w http.ResponseWriter, r *http.Request) {
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 
 	dealID := mux.Vars(r)["deal_id"]
-	deals, pagination, err := models.GetDealWithProducts(dealID, page, limit)
+	deals, pagination, err := models.GetDealWithProducts(models.DB, dealID, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -562,7 +560,7 @@ func parseDealProductRequest(r *http.Request) (*dtos.FlashDealProducts, error) {
 	// Upload to GCS (placeholder)
 	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 	if err != nil {
-		return nil, fmt.Errorf("%s", uploadImageError)
+		return nil, fmt.Errorf("%s", "Failed to upload image") // Assuming uploadImageError is a constant
 	}
 
 	products, err := parseProducts(r.FormValue("products"))
@@ -590,7 +588,7 @@ func parseProducts(productsStr string) ([]dtos.ProductsDeal, error) {
 }
 func validateProductsExist(products []dtos.ProductsDeal, w http.ResponseWriter, r *http.Request, start time.Time, requestSummary string) error {
 	for _, p := range products {
-		err := models.IsProductThere(p.ProductID)
+		err := models.IsProductThere(models.DB, p.ProductID)
 		if err != nil {
 			if err.Error() == "product not found" {
 				err = fmt.Errorf("product with ID %s not found", p.ProductID)
@@ -626,13 +624,13 @@ func createDeal(title string, startDate, endDate time.Time, image string) (strin
 		EndDate:   endDate,
 		Image:     image,
 	}
-	return models.CreateDeal(dealData)
+	return models.CreateDeal(models.DB, dealData)
 }
 
 func addProductsToDeal(dealID string, products []dtos.ProductsDeal, w http.ResponseWriter, r *http.Request, start time.Time, requestSummary string) error {
 	for _, p := range products {
 		discount := float64(p.Discount)
-		if err := models.AddProductToDeal(dealID, p.ProductID, &p.DiscountType, &discount); err != nil {
+		if err := models.AddProductToDeal(models.DB, dealID, p.ProductID, &p.DiscountType, &discount); err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Deals",

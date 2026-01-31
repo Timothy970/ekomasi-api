@@ -40,27 +40,27 @@ import (
 //     "product does not exist in from warehouse",
 //     "insufficient product quantity in from warehouse",
 //     database error, or nil on success
-func CreateStockTransfer(st dtos.StockTransferDTO) error {
+func CreateStockTransfer(db DBExecutor, st dtos.StockTransferDTO) error {
 	// Validate product exists
-	err := IsProductThere(st.ProductID)
+	err := IsProductThere(db, st.ProductID)
 	if err != nil {
 		return err
 	}
 
 	// Validate source warehouse exists
-	err = isWarehouseThere(st.FromWarehouseID, "from")
+	err = isWarehouseThere(db, st.FromWarehouseID, "from")
 	if err != nil {
 		return err
 	}
 
 	// Validate destination warehouse exists
-	err = isWarehouseThere(st.ToWarehouseID, "to")
+	err = isWarehouseThere(db, st.ToWarehouseID, "to")
 	if err != nil {
 		return err
 	}
 
 	// Validate product availability in source warehouse
-	err = validateProductAndWarehouse(st)
+	err = validateProductAndWarehouse(db, st)
 	if err != nil {
 		return err
 	}
@@ -73,10 +73,10 @@ func CreateStockTransfer(st dtos.StockTransferDTO) error {
 		INSERT INTO stock_transfers 
 		(transfer_id, product_id, variant_id, from_warehouse_id, to_warehouse_id, quantity, transfer_details) 
 		VALUES (?, ?, ?, ?, ?, ?, ?)`
-	_, err = DB.Exec(query, transferID, st.ProductID, st.VariantID, st.FromWarehouseID, st.ToWarehouseID, st.Quantity, st.TransferDetails)
+	_, err = db.Exec(query, transferID, st.ProductID, st.VariantID, st.FromWarehouseID, st.ToWarehouseID, st.Quantity, st.TransferDetails)
 
 	// Deduct quantity from source warehouse inventory
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		UPDATE inventory SET quantity = quantity - ? 
 		WHERE product_id = ? AND warehouse_id = ? AND quantity >= ?`,
 		st.Quantity, st.ProductID, st.FromWarehouseID, st.Quantity)
@@ -85,10 +85,10 @@ func CreateStockTransfer(st dtos.StockTransferDTO) error {
 	toInventoryQuery := `SELECT low_stock_threshold, supplier FROM inventory WHERE product_id = ? AND warehouse_id = ?`
 	var lowStockThreshold sql.NullInt64
 	var supplier sql.NullString
-	err = DB.QueryRow(toInventoryQuery, st.ProductID, st.ToWarehouseID).Scan(&lowStockThreshold, &supplier)
+	err = db.QueryRow(toInventoryQuery, st.ProductID, st.ToWarehouseID).Scan(&lowStockThreshold, &supplier)
 
 	// Add quantity to destination warehouse (create new inventory record)
-	_, err = DB.Exec(`INSERT INTO inventory (product_id, warehouse_id, quantity, low_stock_threshold, supplier) VALUES (?, ?, ?, ?, ?)`, st.ProductID, st.ToWarehouseID, st.Quantity, lowStockThreshold, supplier)
+	_, err = db.Exec(`INSERT INTO inventory (product_id, warehouse_id, quantity, low_stock_threshold, supplier) VALUES (?, ?, ?, ?, ?)`, st.ProductID, st.ToWarehouseID, st.Quantity, lowStockThreshold, supplier)
 	if err != nil {
 		return err
 	}
@@ -109,11 +109,11 @@ func CreateStockTransfer(st dtos.StockTransferDTO) error {
 //   - error: "product does not exist in from warehouse",
 //     "insufficient product quantity in from warehouse",
 //     database error, or nil if validation passes
-func validateProductAndWarehouse(st dtos.StockTransferDTO) error {
+func validateProductAndWarehouse(db DBExecutor, st dtos.StockTransferDTO) error {
 	// Check if product exists in source warehouse
 	query := `SELECT COUNT(*) FROM inventory WHERE product_id = ? AND warehouse_id = ?`
 	var count int
-	err := DB.QueryRow(query, st.ProductID, st.FromWarehouseID).Scan(&count)
+	err := db.QueryRow(query, st.ProductID, st.FromWarehouseID).Scan(&count)
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func validateProductAndWarehouse(st dtos.StockTransferDTO) error {
 
 	// Check if sufficient quantity is available in source warehouse
 	var availableQty int
-	err = DB.QueryRow("SELECT quantity FROM inventory WHERE product_id = ? AND warehouse_id = ?", st.ProductID, st.FromWarehouseID).Scan(&availableQty)
+	err = db.QueryRow("SELECT quantity FROM inventory WHERE product_id = ? AND warehouse_id = ?", st.ProductID, st.FromWarehouseID).Scan(&availableQty)
 	if err != nil {
 		return err
 	}
@@ -146,9 +146,9 @@ func validateProductAndWarehouse(st dtos.StockTransferDTO) error {
 // Returns:
 //   - error: "from warehouse not found", "to warehouse not found",
 //     "warehouse not found", database error, or nil if warehouse exists
-func isWarehouseThere(id, from string) error {
+func isWarehouseThere(db DBExecutor, id, from string) error {
 	// Check warehouse existence
-	exists, err := RecordExists("warehouses", "warehouse_id = ?", id)
+	exists, err := RecordExists(db, "warehouses", "warehouse_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func isWarehouseThere(id, from string) error {
 //   - ProductName, FromWarehouseName, ToWarehouseName (enriched data)
 //   - *dtos.PaginationMeta: Pagination info (page, size, totals, navigation flags)
 //   - error: Database error or nil on success
-func ListStockTransfers(page, size int, searchParam string) ([]dtos.StockTransferResponseDTO, *dtos.PaginationMeta, error) {
+func ListStockTransfers(db DBExecutor, page, size int, searchParam string) ([]dtos.StockTransferResponseDTO, *dtos.PaginationMeta, error) {
 	// Calculate offset for pagination
 	offset := (page - 1) * size
 
@@ -247,12 +247,12 @@ func ListStockTransfers(page, size int, searchParam string) ([]dtos.StockTransfe
 
 	// Get total count for pagination
 	var total int
-	if err := DB.QueryRow(countQuery, countArgs...).Scan(&total); err != nil {
+	if err := db.QueryRow(countQuery, countArgs...).Scan(&total); err != nil {
 		return nil, nil, err
 	}
 
 	// Execute select query
-	rows, err := DB.Query(selectQuery, selectArgs...)
+	rows, err := db.Query(selectQuery, selectArgs...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -304,11 +304,11 @@ func ListStockTransfers(page, size int, searchParam string) ([]dtos.StockTransfe
 //   - FromWarehouseID, ToWarehouseID, Quantity
 //   - TransferDate, TransferDetails
 //   - error: "stock transfer not found", database error, or nil on success
-func GetStockTransferByID(id string) (*dtos.StockTransferDTO, error) {
+func GetStockTransferByID(db DBExecutor, id string) (*dtos.StockTransferDTO, error) {
 	var st dtos.StockTransferDTO
 
 	// Query transfer by ID
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT transfer_id, product_id, variant_id, from_warehouse_id, to_warehouse_id, quantity, transfer_date, transfer_details
 		FROM stock_transfers
 		WHERE transfer_id = ?`, id).
@@ -329,9 +329,9 @@ func GetStockTransferByID(id string) (*dtos.StockTransferDTO, error) {
 //
 // Returns:
 //   - error: "stock transfer not found", database error, or nil on success
-func UpdateStockTransfer(quantity int, id string) error {
+func UpdateStockTransfer(db DBExecutor, quantity int, id string) error {
 	// Validate transfer exists
-	exists, err := RecordExists("stock_transfers", "transfer_id = ?", id)
+	exists, err := RecordExists(db, "stock_transfers", "transfer_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -344,6 +344,6 @@ func UpdateStockTransfer(quantity int, id string) error {
 		UPDATE stock_transfers 
 		SET quantity = ?
 		WHERE transfer_id = ?`
-	_, err = DB.Exec(query, quantity, id)
+	_, err = db.Exec(query, quantity, id)
 	return err
 }

@@ -310,7 +310,7 @@ func getAccount(accountID string) (dtos.AcctInfo, error) {
 // helper function to check if account is there
 func isAccountThere(accountID string) error {
 	// Check if account code exists in chart_of_accounts table
-	exists, err := RecordExists("chart_of_accounts", "account_id = ?", accountID)
+	exists, err := RecordExists(DB, "chart_of_accounts", "account_id = ?", accountID)
 	if err != nil {
 		// Database query failed
 		return err

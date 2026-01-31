@@ -17,10 +17,10 @@ import (
 
 // Returns:
 // - error: An error object if the operation fails, otherwise nil.
-func AddNewBulkProduct(product dtos.BulkUploadProduct, userID string) error {
+func AddNewBulkProduct(db DBExecutor, product dtos.BulkUploadProduct, userID string) error {
 	productID, _ := shortid.Generate()
-	log.Printf("expiry date %s and manufacturer date %s for the product", product.ExpiryDate, product.ManufacturingDate)
-	_, err := DB.Exec(`
+	log.Printf("expiry date %v and manufacturer date %v for the product", product.ExpiryDate, product.ManufacturingDate)
+	_, err := db.Exec(`
 		INSERT INTO bulk_products (
 			id, name, description, sku, price, sub_category_id,
 			stock_quantity, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity,
@@ -43,7 +43,7 @@ func AddNewBulkProduct(product dtos.BulkUploadProduct, userID string) error {
 // - limit: Optional integer for pagination (items per page).
 // Returns:
 // - ([]dtos.BulkUploadProduct, Pagination, error): A slice of BulkUploadProduct DTOs and an error if the operation fails.
-func GetBulkUploadProducts(startDate, endDate, name string, page, limit int) ([]dtos.BulkUploadProduct, *dtos.PaginationMeta, error) {
+func GetBulkUploadProducts(db DBExecutor, startDate, endDate, name string, page, limit int) ([]dtos.BulkUploadProduct, *dtos.PaginationMeta, error) {
 	var products []dtos.BulkUploadProduct
 	offset := (page - 1) * limit
 	var count int
@@ -63,7 +63,7 @@ func GetBulkUploadProducts(startDate, endDate, name string, page, limit int) ([]
 
 	// Count query
 	countQuery := "SELECT COUNT(*) FROM bulk_products WHERE 1=1" + conditions
-	err := DB.QueryRow(countQuery, args...).Scan(&count)
+	err := db.QueryRow(countQuery, args...).Scan(&count)
 	if err != nil {
 		return products, nil, err
 	}
@@ -71,7 +71,7 @@ func GetBulkUploadProducts(startDate, endDate, name string, page, limit int) ([]
 	// Select query
 	query := "SELECT id, name, description, sku, price, sub_category_id, stock_quantity, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, buying_price, weight, weight_limit, dimensions, age_range, brand, manufacturer, material, colors, sizes, warranty_period, created_by_id, expiry_date, manufacturing_date FROM bulk_products WHERE 1=1" + conditions + " LIMIT ? OFFSET ?"
 	queryArgs := append(args, limit, offset)
-	rows, err := DB.Query(query, queryArgs...)
+	rows, err := db.Query(query, queryArgs...)
 	if err != nil {
 		return products, nil, err
 	}
@@ -112,14 +112,14 @@ func GetBulkUploadProducts(startDate, endDate, name string, page, limit int) ([]
 // - productID: string representing the ID of the bulk product to retrieve.
 // Returns:
 // - (dtos.BulkUploadProduct, error): A BulkUploadProduct DTO and an error if the operation fails.
-func GetBulkProductByID(productID string) (dtos.BulkUploadProduct, error) {
-	err := isBulkProductThere(productID)
+func GetBulkProductByID(db DBExecutor, productID string) (dtos.BulkUploadProduct, error) {
+	err := isBulkProductThere(db, productID)
 	if err != nil {
 		return dtos.BulkUploadProduct{}, err
 	}
 	var product dtos.BulkUploadProduct
 	var material, colors, sizes, age string
-	err = DB.QueryRow(`
+	err = db.QueryRow(`
 		SELECT id, name, description, sku, price, sub_category_id,
 			stock_quantity, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity,
 			buying_price, weight, weight_limit, dimensions, age_range, brand, manufacturer, material, colors, sizes, warranty_period,
@@ -145,8 +145,8 @@ func GetBulkProductByID(productID string) (dtos.BulkUploadProduct, error) {
 }
 
 // helper function to check if bulk product exists
-func isBulkProductThere(productID string) error {
-	exists, err := RecordExists("bulk_products", "id = ?", productID)
+func isBulkProductThere(db DBExecutor, productID string) error {
+	exists, err := RecordExists(db, "bulk_products", "id = ?", productID)
 	if err != nil {
 		return err
 	}
@@ -157,9 +157,9 @@ func isBulkProductThere(productID string) error {
 }
 
 // helper function to get Manufacturing Warranty ID
-func GetManufacturingWarrantyID() string {
+func GetManufacturingWarrantyID(db DBExecutor) string {
 	var warrantyID string
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT warranty_type_id FROM warranty_types WHERE name LIKE ?
 	`, "Manufacturing Warranty").Scan(&warrantyID)
 	if err != nil {
@@ -170,12 +170,12 @@ func GetManufacturingWarrantyID() string {
 }
 
 // helper function to getAge Variant IDs
-func GetAgeVariantIDs(ageRanges []string) []string {
+func GetAgeVariantIDs(db DBExecutor, ageRanges []string) []string {
 	var ageIDs []string
 	for _, ageRange := range ageRanges {
 		var ageID string
 		// first check if the age variant exists
-		err := DB.QueryRow(`
+		err := db.QueryRow(`
 			SELECT variant_id FROM variants WHERE LOWER(name) = ? AND variant_type = LOWER('age')
 		`, strings.ToLower(ageRange)).Scan(&ageID)
 		if err != nil {
@@ -185,7 +185,7 @@ func GetAgeVariantIDs(ageRanges []string) []string {
 				Name:        ageRange,
 				VariantType: "Age",
 			}
-			ageID, err = CreateVariant(req)
+			ageID, err = CreateVariant(db, req)
 			if err != nil {
 				log.Printf("Error creating Age Variant for %s: %v", ageRange, err)
 				continue
@@ -197,9 +197,9 @@ func GetAgeVariantIDs(ageRanges []string) []string {
 }
 
 // helper function to get Brand ID
-func GetBrandID(brandName string) string {
+func GetBrandID(db DBExecutor, brandName string) string {
 	var brandID string
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT variant_id FROM variants WHERE LOWER(name) = ? AND variant_type = LOWER('brand')
 	`, strings.ToLower(brandName)).Scan(&brandID)
 	if err != nil {
@@ -209,7 +209,7 @@ func GetBrandID(brandName string) string {
 			Name:        brandName,
 			VariantType: "Brand",
 		}
-		brandID, err = CreateVariant(req)
+		brandID, err = CreateVariant(db, req)
 		if err != nil {
 			log.Printf("Error creating Brand Variant for %s: %v", brandName, err)
 			return ""
@@ -219,12 +219,12 @@ func GetBrandID(brandName string) string {
 }
 
 // helper function to get Material Variant IDs
-func GetMaterialIDs(materials []string) []string {
+func GetMaterialIDs(db DBExecutor, materials []string) []string {
 	var materialIDs []string
 	for _, material := range materials {
 		var materialID string
 		// first check if the material variant exists
-		err := DB.QueryRow(`
+		err := db.QueryRow(`
 			SELECT variant_id FROM variants WHERE LOWER(name) = ? AND variant_type = LOWER('material')
 		`, strings.ToLower(material)).Scan(&materialID)
 		if err != nil {
@@ -234,7 +234,7 @@ func GetMaterialIDs(materials []string) []string {
 				Name:        material,
 				VariantType: "Material",
 			}
-			materialID, err = CreateVariant(req)
+			materialID, err = CreateVariant(db, req)
 			if err != nil {
 				log.Printf("Error creating Material Variant for %s: %v", material, err)
 				continue
@@ -246,12 +246,12 @@ func GetMaterialIDs(materials []string) []string {
 }
 
 // helper function to get Color Variant IDs
-func GetColorIDs(colors []string) []string {
+func GetColorIDs(db DBExecutor, colors []string) []string {
 	var colorIDs []string
 	for _, color := range colors {
 		var colorID string
 		// first check if the color variant exists
-		err := DB.QueryRow(`
+		err := db.QueryRow(`
 			SELECT variant_id FROM variants WHERE LOWER(name) = ? AND variant_type = LOWER('color')
 		`, strings.ToLower(color)).Scan(&colorID)
 		if err != nil {
@@ -261,7 +261,7 @@ func GetColorIDs(colors []string) []string {
 				Name:        color,
 				VariantType: "Color",
 			}
-			colorID, err = CreateVariant(req)
+			colorID, err = CreateVariant(db, req)
 			if err != nil {
 				log.Printf("Error creating Color Variant for %s: %v", color, err)
 				continue
@@ -273,12 +273,12 @@ func GetColorIDs(colors []string) []string {
 }
 
 // helper function to get Size Variant IDs
-func GetSizeIDs(sizes []string) []string {
+func GetSizeIDs(db DBExecutor, sizes []string) []string {
 	var sizeIDs []string
 	for _, size := range sizes {
 		var sizeID string
 		// first check if the size variant exists
-		err := DB.QueryRow(`
+		err := db.QueryRow(`
 			SELECT variant_id FROM variants WHERE LOWER(name) = ? AND variant_type = LOWER('size')
 		`, strings.ToLower(size)).Scan(&sizeID)
 		if err != nil {
@@ -288,7 +288,7 @@ func GetSizeIDs(sizes []string) []string {
 				Name:        size,
 				VariantType: "Size",
 			}
-			sizeID, err = CreateVariant(req)
+			sizeID, err = CreateVariant(db, req)
 			if err != nil {
 				log.Printf("Error creating Size Variant for %s: %v", size, err)
 				continue
@@ -300,9 +300,9 @@ func GetSizeIDs(sizes []string) []string {
 }
 
 // helper function to get Default Warranty Type
-func GetDefaultWarrantyType() string {
+func GetDefaultWarrantyType(db DBExecutor) string {
 	var warrantyTypeID string
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT warranty_type_id FROM warranty_types WHERE LOWER(name) = LOWER('Manufacturing Warranty') LIMIT 1
 	`).Scan(&warrantyTypeID)
 	if err != nil {
@@ -313,7 +313,7 @@ func GetDefaultWarrantyType() string {
 }
 
 // helper function to delete bulk product by ID
-func DeleteBulkProductByID(productID string) error {
-	_, err := DB.Exec(`DELETE FROM bulk_products WHERE id = ?`, productID)
+func DeleteBulkProductByID(db DBExecutor, productID string) error {
+	_, err := db.Exec(`DELETE FROM bulk_products WHERE id = ?`, productID)
 	return err
 }

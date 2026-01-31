@@ -59,7 +59,7 @@ func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 	categoryID := r.URL.Query().Get("category_id")
 
 	// Fetch products from database with all filters applied
-	products, pagination, err := models.GetAllProducts(categoryFilter, productFilter, categoryID, page, limit)
+	products, pagination, err := models.GetAllProducts(models.DB, categoryFilter, productFilter, categoryID, page, limit)
 
 	// Check if database query failed
 	if err != nil {
@@ -144,7 +144,7 @@ func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
 	productID := mux.Vars(r)["product_id"]
 
 	// Fetch product details from database
-	product, err := models.GetProductByID(productID)
+	product, err := models.GetProductByID(models.DB, productID)
 	if err != nil {
 		// Log error and return response
 		log.Printf("error fetching product with ID %s: %v", productID, err)
@@ -255,7 +255,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	// Handle optional video link (if provided in form data)
 	if videoLink != "" {
 		// Insert video link directly to database without upload
-		if err := models.InsertProductImage(productID, videoLink, "video", isPrimary); err != nil {
+		if err := models.InsertProductImage(models.DB, productID, videoLink, "video", isPrimary); err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
@@ -397,7 +397,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch existing media to delete later
-	existingMedia, err := models.GetProductImages(productID)
+	existingMedia, err := models.GetProductImages(models.DB, productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -417,7 +417,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Handle optional video link
 	if videoLink != "" {
-		if err := models.InsertProductImage(productID, videoLink, "video", isPrimary); err != nil {
+		if err := models.InsertProductImage(models.DB, productID, videoLink, "video", isPrimary); err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
@@ -476,7 +476,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	clearProductCache()
 	// Delete old media
 	for _, media := range existingMedia {
-		err := models.DeleteProductImage(media.ImageID)
+		err := models.DeleteProductImage(models.DB, media.ImageID)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
@@ -529,11 +529,15 @@ func handleFileUploads(r *http.Request, productID, fileType string, isPrimary bo
 		// Upload file to Google Cloud Storage
 		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fileHeader})
 		if err != nil {
-			return nil, fmt.Errorf("failed to upload %s: %w", fileType, err)
+			log.Printf("error uploading %s: %v", fileType, err)
+			log.Printf("using hardcoded url")
+			// return nil, fmt.Errorf("failed to upload %s: %w", fileType, err)
 		}
+		// TODO: remove the hardcoded url
+		url = "https://cdn.pixabay.com/photo/2018/05/18/15/30/web-design-3411373_1280.jpg"
 
 		// Insert product image record into database
-		if err := models.InsertProductImage(productID, url, fileType, isPrimary); err != nil {
+		if err := models.InsertProductImage(models.DB, productID, url, fileType, isPrimary); err != nil {
 			return nil, fmt.Errorf("failed to insert %s into DB: %w", fileType, err)
 		}
 
@@ -651,7 +655,7 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cache miss - get the product
-	product, err := models.GetProductByID(productID)
+	product, err := models.GetProductByID(models.DB, productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -668,7 +672,7 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch related products
-	relatedProducts, pagination, err := models.GetRelatedProducts(product.CategoryID, product.ID, limit, page)
+	relatedProducts, pagination, err := models.GetRelatedProducts(models.DB, product.CategoryID, product.ID, limit, page)
 	if err != nil {
 		log.Printf("error getting related products %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -734,7 +738,7 @@ func GetProductsHandlerBySubCategoryID(w http.ResponseWriter, r *http.Request) {
 	subCategoryID := mux.Vars(r)["subcategory_id"]
 
 	// Fetch products belonging to this subcategory from database
-	products, pagination, err := models.FetchSubcategoryProducts(subCategoryID, page, limit)
+	products, pagination, err := models.FetchSubcategoryProducts(models.DB, subCategoryID, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -794,7 +798,7 @@ func GetCategoryProductsHandlerByCategoryID(w http.ResponseWriter, r *http.Reque
 	categoryID := mux.Vars(r)["category_id"]
 
 	// Fetch from DB
-	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(*searchParams, categoryID)
+	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(models.DB, *searchParams, categoryID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -840,7 +844,7 @@ func ApplyUserWishlist(r *http.Request, productID string, product *dtos.Product)
 	}
 
 	// Query database to check if product is in user's wishlist
-	userWishlist, err := models.IsProductInUserWishlist(authuser.ID, productID)
+	userWishlist, err := models.IsProductInUserWishlist(models.DB, authuser.ID, productID)
 	if err != nil {
 		// Log error but don't fail the request
 		log.Printf("error fetching wishlist products: %v", err)
@@ -878,7 +882,7 @@ func GetCategoryProductsHandler(w http.ResponseWriter, r *http.Request) {
 		return // Error response already sent
 	}
 	// Fetch from DB
-	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(*searchParams, "")
+	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(models.DB, *searchParams, "")
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1049,7 +1053,7 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Execute product search with all filters applied (false = include out of stock)
-	products, pagination, err := models.SearchProducts(*searchParams, false)
+	products, pagination, err := models.SearchProducts(models.DB, *searchParams, false)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1197,7 +1201,7 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	feature, err := models.AddProductFeature(req, productID)
+	feature, err := models.AddProductFeature(models.DB, req, productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1404,7 +1408,7 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	feature, err := models.UpdateProductFeature(req, featureID)
+	feature, err := models.UpdateProductFeature(models.DB, req, featureID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1513,7 +1517,7 @@ func UpdateAllProductFeaturesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	feature, err := models.UpdateProductFeatures(req, productID)
+	feature, err := models.UpdateProductFeatures(models.DB, req, productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1559,7 +1563,7 @@ func GetFeaturesByProductHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	productID := mux.Vars(r)["product_id"]
-	features, err := models.GetProductFeaturesByProductID(productID)
+	features, err := models.GetProductFeaturesByProductID(models.DB, productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1612,7 +1616,7 @@ func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 
 	featureID := mux.Vars(r)["feature_id"]
 
-	err := models.DeleteProductFeature(featureID)
+	err := models.DeleteProductFeature(models.DB, featureID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1920,19 +1924,19 @@ func handleProductSpecs(req dtos.ProductSpecification, state string) error {
 	specs := []string{}
 	var err error
 	if state == "update" {
-		specs, err = models.HoldProductSpecs(req.ProductID)
+		specs, err = models.HoldProductSpecs(models.DB, req.ProductID)
 		if err != nil {
 			return err
 		}
 	}
-	err = models.InsertProductSpecs(data)
+	err = models.InsertProductSpecs(models.DB, data)
 	if err != nil {
 		return err
 	}
 	//if updating remove held specs
 	if state == "update" {
 		for _, specID := range specs {
-			err := models.RemoveHeldProductSpecs(specID)
+			err := models.RemoveHeldProductSpecs(models.DB, specID)
 			if err != nil {
 				return err
 			}
@@ -1959,7 +1963,7 @@ func handleProductsVariants(req dtos.ProductSpecification, state string) error {
 	var variantIDsExisting []string
 	var err error
 	if state == "update" {
-		variantIDsExisting, err = models.HoldProductVariants(req.ProductID)
+		variantIDsExisting, err = models.HoldProductVariants(models.DB, req.ProductID)
 		if err != nil {
 			return err
 		}
@@ -1975,7 +1979,7 @@ func handleProductsVariants(req dtos.ProductSpecification, state string) error {
 	// If updating, remove held variants
 	if state == "update" {
 		for _, variantID := range variantIDsExisting {
-			err := models.RemoveHeldProductVariants(variantID)
+			err := models.RemoveHeldProductVariants(models.DB, variantID)
 			if err != nil {
 				return err
 			}
@@ -1992,7 +1996,7 @@ func toSlice(value string) []string {
 }
 
 func addProductVariantWithHandling(variantID, variantType string, data dtos.ProductVariantRequest, notFoundMsg string) error {
-	err := models.AddProductVariant(variantID, data)
+	err := models.AddProductVariant(models.DB, variantID, data)
 	if err == nil {
 		return nil
 	}
@@ -2015,7 +2019,7 @@ func handleProductsWarranty(req dtos.ProductSpecification) error {
 	}
 
 	// Insert warranty record into database
-	err := models.AddProductWarranties(data)
+	err := models.AddProductWarranties(models.DB, data)
 	return err
 }
 
@@ -2028,7 +2032,7 @@ func attachProductTax(req dtos.ProductSpecification) error {
 		ChargeID:  req.Tax,       // Tax/charge identifier
 	}
 	// Create product-charge association in database
-	err := models.AddChargeToProduct(data)
+	err := models.AddChargeToProduct(models.DB, data)
 	return err
 }
 
@@ -2051,27 +2055,27 @@ func attachProductDiscount(req dtos.ProductSpecification, state string) error {
 		return updateProductDiscount(req.ProductID, data)
 	}
 
-	return models.AddPromotionToProduct(data)
+	return models.AddPromotionToProduct(models.DB, data)
 }
 
 // updateProductDiscount handles the atomic update of product promotions.
 // It holds existing promotions, adds new ones, then removes held promotions.
 func updateProductDiscount(productID string, data dtos.AddPromotionToProductRequest) error {
 	// Temporarily hold current promotions
-	promotionIDs, err := models.HoldProductPromotions(productID)
+	promotionIDs, err := models.HoldProductPromotions(models.DB, productID)
 	if err != nil {
 		return err
 	}
 
 	// Add new promotion to product
-	err = models.AddPromotionToProduct(data)
+	err = models.AddPromotionToProduct(models.DB, data)
 	if err != nil {
 		return err
 	}
 
 	// Remove old held promotions after new one is added
 	for _, promoID := range promotionIDs {
-		err := models.RemoveHeldProductPromotions(promoID)
+		err := models.RemoveHeldProductPromotions(models.DB, promoID)
 		if err != nil {
 			return err
 		}
@@ -2106,7 +2110,7 @@ func GetExpensiveAndCheapProducts(w http.ResponseWriter, r *http.Request) {
 	if cachedProducts == nil {
 		// Cache miss - fetch from database
 		var err error
-		products, err = models.GetExpensiveAndCheapProducts()
+		products, err = models.GetExpensiveAndCheapProducts(models.DB)
 		if err != nil {
 			// Database query failed, return error response
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

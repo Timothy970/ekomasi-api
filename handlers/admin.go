@@ -76,7 +76,7 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Insert category into DB
-	category, err := models.AddNewCategory(req)
+	category, err := models.AddNewCategory(models.DB, req)
 	if err != nil {
 		log.Printf("Error adding new category: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -197,7 +197,7 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	// Get category ID from URL
 	id := mux.Vars(r)["category_id"]
 	// Update category
-	category, err := models.UpdateCategory(id, req)
+	category, err := models.UpdateCategory(models.DB, id, req)
 	if err != nil {
 		log.Printf("Error updating category: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -259,7 +259,7 @@ func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := mux.Vars(r)["category_id"]
-	err := models.DeleteCategory(id)
+	err := models.DeleteCategory(models.DB, id)
 	if err != nil {
 		log.Printf("Error deleting product %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -341,7 +341,7 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	//when adding a new product, stock quantity is always 0
 	req.StockQuantity = 0
-	product, err := models.AddNewProduct(*req, authuser.ID)
+	product, err := models.AddNewProduct(models.DB, *req, authuser.ID)
 	if err != nil {
 		log.Printf("Error for adding new product %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -408,7 +408,7 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	productID := mux.Vars(r)["product_id"]
 	// update the product
-	updatedProduct, err := models.UpdateProductByID(productID, *req)
+	updatedProduct, err := models.UpdateProductByID(models.DB, productID, *req)
 
 	if err != nil {
 		log.Printf("Error for updating new product %s", err)
@@ -468,7 +468,7 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	productID := mux.Vars(r)["product_id"]
 	//delete product
-	err := models.DeleteProductByID(productID)
+	err := models.DeleteProductByID(models.DB, productID)
 	if err != nil {
 		log.Printf("Error for deleting product %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -535,7 +535,7 @@ func AddCoupon(w http.ResponseWriter, r *http.Request) {
 	// 		RawBody:   requestSummary})
 	// 	return
 	// }
-	if err := models.CreateCoupon(*req); err != nil {
+	if err := models.CreateCoupon(models.DB, *req); err != nil {
 		log.Printf("Error adding item to cart: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

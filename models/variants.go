@@ -37,12 +37,12 @@ import (
 // Returns:
 //   - string: Generated variant ID
 //   - error: Database error or nil on success
-func CreateVariant(req dtos.VariantRequest) (string, error) {
+func CreateVariant(db DBExecutor, req dtos.VariantRequest) (string, error) {
 	// Generate unique variant ID
 	id, _ := shortid.Generate()
 
 	// Insert variant record
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
         INSERT INTO variants (variant_id, variant_type, name, hex_code)
         VALUES (?, ?, ?, ?)`,
 		id, req.VariantType, req.Name, req.HexCode,
@@ -58,16 +58,16 @@ func CreateVariant(req dtos.VariantRequest) (string, error) {
 // Returns:
 //   - *dtos.VariantResponse: Variant data with type, name, and hex code
 //   - error: "variant not found", database error, or nil on success
-func GetVariant(id string) (*dtos.VariantResponse, error) {
+func GetVariant(db DBExecutor, id string) (*dtos.VariantResponse, error) {
 	// Validate variant exists
-	err := variantexists(id)
+	err := variantexists(db, id)
 	if err != nil {
 		return nil, err
 	}
 
 	var v dtos.VariantResponse
 	// Retrieve variant details
-	err = DB.QueryRow(`
+	err = db.QueryRow(`
         SELECT variant_id, variant_type, name, hex_code
         FROM variants
         WHERE variant_id = ?`, id,
@@ -89,9 +89,9 @@ func GetVariant(id string) (*dtos.VariantResponse, error) {
 //   - VariantType: The type name (e.g., "color", "size")
 //   - Variants: Array of variants of that type
 //   - error: Database error or nil on success
-func ListVariants() ([]dtos.GroupedVariants, error) {
+func ListVariants(db DBExecutor) ([]dtos.GroupedVariants, error) {
 	// Fetch all variants ordered by type then name
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
         SELECT variant_id, variant_type, name, hex_code
         FROM variants
         ORDER BY variant_type, name`)
@@ -137,8 +137,8 @@ func ListVariants() ([]dtos.GroupedVariants, error) {
 //
 // Returns:
 //   - error: "variant not found" if not exists, database error, or nil if exists
-func variantexists(id string) error {
-	exists, err := RecordExists("variants", "variant_id = ?", id)
+func variantexists(db DBExecutor, id string) error {
+	exists, err := RecordExists(db, "variants", "variant_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -156,15 +156,15 @@ func variantexists(id string) error {
 //
 // Returns:
 //   - error: "variant not found", database error, or nil on success
-func UpdateVariantByID(id string, req dtos.VariantRequest) error {
+func UpdateVariantByID(db DBExecutor, id string, req dtos.VariantRequest) error {
 	// Validate variant exists
-	err := variantexists(id)
+	err := variantexists(db, id)
 	if err != nil {
 		return err
 	}
 
 	// Update variant fields
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
         UPDATE variants
         SET variant_type = ?, name = ?, hex_code = ?
         WHERE variant_id = ?`,
@@ -180,15 +180,15 @@ func UpdateVariantByID(id string, req dtos.VariantRequest) error {
 //
 // Returns:
 //   - error: "variant not found", database error, or nil on success
-func DeleteVariantByID(id string) error {
+func DeleteVariantByID(db DBExecutor, id string) error {
 	// Validate variant exists
-	err := variantexists(id)
+	err := variantexists(db, id)
 	if err != nil {
 		return err
 	}
 
 	// Delete variant record
-	_, err = DB.Exec(`DELETE FROM variants WHERE variant_id = ?`, id)
+	_, err = db.Exec(`DELETE FROM variants WHERE variant_id = ?`, id)
 	return err
 }
 
@@ -207,21 +207,21 @@ func DeleteVariantByID(id string) error {
 //
 // Returns:
 //   - error: "variant not found", "product not found", database error, or nil on success
-func AddProductVariant(variantID string, req dtos.ProductVariantRequest) error {
+func AddProductVariant(db DBExecutor, variantID string, req dtos.ProductVariantRequest) error {
 	// Generate unique product-variant ID
 	pvID, _ := shortid.Generate()
 
 	// Validate variant exists
-	if err := variantexists(variantID); err != nil {
+	if err := variantexists(db, variantID); err != nil {
 		return err
 	}
 	// Validate product exists
-	if err := IsProductThere(req.ProductID); err != nil {
+	if err := IsProductThere(db, req.ProductID); err != nil {
 		return err
 	}
 
 	// Check if product-variant association already exists
-	exists, err := isProductWithVariant(variantID, req.ProductID)
+	exists, err := isProductWithVariant(db, variantID, req.ProductID)
 	if err != nil {
 		return err
 	}
@@ -238,7 +238,7 @@ func AddProductVariant(variantID string, req dtos.ProductVariantRequest) error {
 
 	} else {
 		// Insert new product-variant record
-		_, err = DB.Exec(`
+		_, err = db.Exec(`
 			INSERT INTO product_variants (product_variants_id, variant_id, product_id, additional_price, stock_quantity)
 			VALUES (?, ?, ?, ?, ?)`,
 			pvID, variantID, req.ProductID, additionalPrice, req.StockQuantity,
@@ -259,9 +259,9 @@ func AddProductVariant(variantID string, req dtos.ProductVariantRequest) error {
 // Returns:
 //   - []string: Array of variant IDs
 //   - error: Database error or nil on success
-func HoldProductVariants(productID string) ([]string, error) {
+func HoldProductVariants(db DBExecutor, productID string) ([]string, error) {
 	// Fetch all variant IDs for the product
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT variant_id FROM product_variants
 		WHERE product_id = ?`, productID,
 	)
@@ -293,9 +293,9 @@ func HoldProductVariants(productID string) ([]string, error) {
 //
 // Returns:
 //   - error: Database error or nil on success
-func RemoveHeldProductVariants(variantID string) error {
+func RemoveHeldProductVariants(db DBExecutor, variantID string) error {
 	// Delete all product-variant associations for this variant
-	_, err := DB.Exec(`DELETE FROM product_variants WHERE variant_id = ?`, variantID)
+	_, err := db.Exec(`DELETE FROM product_variants WHERE variant_id = ?`, variantID)
 	return err
 }
 
@@ -308,9 +308,9 @@ func RemoveHeldProductVariants(variantID string) error {
 // Returns:
 //   - bool: true if association exists, false otherwise
 //   - error: Database error or nil on success
-func isProductWithVariant(variantID, productID string) (bool, error) {
+func isProductWithVariant(db DBExecutor, variantID, productID string) (bool, error) {
 	// Check if product-variant association exists
-	exists, err := RecordExists("product_variants", "variant_id = ? and product_id = ?", variantID, productID)
+	exists, err := RecordExists(db, "product_variants", "variant_id = ? and product_id = ?", variantID, productID)
 	if err != nil {
 		return false, err
 	}
@@ -334,20 +334,20 @@ func isProductWithVariant(variantID, productID string) (bool, error) {
 // Returns:
 //   - error: "product not found", "variant not found",
 //     "no such product variant mapping found", database error, or nil on success
-func RemoveProductVariant(productID, variantID string) error {
+func RemoveProductVariant(db DBExecutor, productID, variantID string) error {
 	// Validate product exists
-	err := IsProductThere(productID)
+	err := IsProductThere(db, productID)
 	if err != nil {
 		return err
 	}
 	// Validate variant exists
-	err = variantexists(variantID)
+	err = variantexists(db, variantID)
 	if err != nil {
 		return err
 	}
 
 	// Delete product-variant association
-	result, err := DB.Exec(`
+	result, err := db.Exec(`
 		DELETE FROM product_variants
 		WHERE product_id = ? AND variant_id = ?`, productID, variantID,
 	)
@@ -377,9 +377,9 @@ func RemoveProductVariant(productID, variantID string) error {
 // Returns:
 //   - []dtos.ProductVariantResponse: Array of product-variant data
 //   - error: Database error or nil on success
-func ListProductVariants(productID string) ([]dtos.ProductVariantResponse, error) {
+func ListProductVariants(db DBExecutor, productID string) ([]dtos.ProductVariantResponse, error) {
 	// Fetch all variants for the product
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
         SELECT variant_id, product_id, additional_price, stock_quantity
         FROM product_variants
         WHERE product_id = ?`, productID,
@@ -418,7 +418,7 @@ func ListProductVariants(productID string) ([]dtos.ProductVariantResponse, error
 //   - []*dtos.VariantWithProducts: Variants with their paginated products
 //   - *dtos.PaginationMeta: Pagination metadata
 //   - error: "no variants provided", database error, or nil on success
-func GetVariantsWithProductsPaginated(variants []dtos.Variant, page, limit int) ([]*dtos.VariantWithProducts, *dtos.PaginationMeta, error) {
+func GetVariantsWithProductsPaginated(db DBExecutor, variants []dtos.Variant, page, limit int) ([]*dtos.VariantWithProducts, *dtos.PaginationMeta, error) {
 	if len(variants) == 0 {
 		return nil, nil, errors.New("no variants provided")
 	}
@@ -427,7 +427,7 @@ func GetVariantsWithProductsPaginated(variants []dtos.Variant, page, limit int) 
 	variantIDs, variantNames := extractVariantFilters(variants)
 
 	// Query variants and build variant map
-	variantResults, variantMap, err := executeVariantQuery(variantIDs, variantNames)
+	variantResults, variantMap, err := executeVariantQuery(db, variantIDs, variantNames)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -437,7 +437,7 @@ func GetVariantsWithProductsPaginated(variants []dtos.Variant, page, limit int) 
 
 	// Count total products across all variants for pagination
 	resultVariantIDs := extractVariantIDs(variantResults)
-	total, err := countTotalProducts(resultVariantIDs)
+	total, err := countTotalProducts(db, resultVariantIDs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -452,7 +452,7 @@ func GetVariantsWithProductsPaginated(variants []dtos.Variant, page, limit int) 
 	associateProductsWithVariants(variantMap, products, productVariantMap)
 
 	// Handle special "All" variant name (fetches all products for that variant)
-	if err := handleAllVariants(variants, variantMap); err != nil {
+	if err := handleAllVariants(db, variants, variantMap); err != nil {
 		return nil, nil, err
 	}
 
@@ -514,11 +514,11 @@ func isVariantNameValid(name string) bool {
 //   - []*dtos.VariantWithProducts: Array of variants
 //   - map[string]*dtos.VariantWithProducts: Map of variant ID to variant
 //   - error: Database error or nil on success
-func executeVariantQuery(variantIDs, variantNames []string) ([]*dtos.VariantWithProducts, map[string]*dtos.VariantWithProducts, error) {
+func executeVariantQuery(db DBExecutor, variantIDs, variantNames []string) ([]*dtos.VariantWithProducts, map[string]*dtos.VariantWithProducts, error) {
 	// Build SQL query with IN clauses
 	query, args := buildVariantQuery(variantIDs, variantNames)
 
-	rows, err := DB.Query(query, args...)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -656,7 +656,7 @@ func extractVariantIDs(variants []*dtos.VariantWithProducts) []string {
 // Returns:
 //   - int: Total unique product count
 //   - error: Database error or nil on success
-func countTotalProducts(variantIDs []string) (int, error) {
+func countTotalProducts(db DBExecutor, variantIDs []string) (int, error) {
 	if len(variantIDs) == 0 {
 		return 0, nil
 	}
@@ -669,7 +669,7 @@ func countTotalProducts(variantIDs []string) (int, error) {
 	args := makeInterfaceSlice(variantIDs)
 
 	var total int
-	err := DB.QueryRow(query, args...).Scan(&total)
+	err := db.QueryRow(query, args...).Scan(&total)
 	return total, err
 }
 
@@ -738,7 +738,7 @@ func findProductsByIDs(productMap map[string]dtos.Product, productIDs []string) 
 //
 // Returns:
 //   - error: Database error or nil on success
-func handleAllVariants(variants []dtos.Variant, variantMap map[string]*dtos.VariantWithProducts) error {
+func handleAllVariants(db DBExecutor, variants []dtos.Variant, variantMap map[string]*dtos.VariantWithProducts) error {
 	for _, variant := range variants {
 		// Check for "All" variant with valid ID
 		if variant.Name == "All" && variant.VariantID != "" {
@@ -998,7 +998,7 @@ func scanProducts(rows *sql.Rows) ([]dtos.Product, error) {
 func fetchProductImagesBatch(products []dtos.Product) ([]dtos.Product, error) {
 	for i := range products {
 		// Fetch images for each product
-		images, err := fetchProductImages(products[i].ID)
+		images, err := fetchProductImages(DB, products[i].ID)
 		if err != nil {
 			return nil, err
 		}
@@ -1042,7 +1042,7 @@ func fetchAllProductsByVariant(variantID string) ([]dtos.Product, error) {
 		}
 
 		// Fetch images for this product
-		images, err := fetchProductImages(p.ID)
+		images, err := fetchProductImages(DB, p.ID)
 		if err != nil {
 			return nil, err
 		}

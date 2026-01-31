@@ -80,7 +80,7 @@ func CreateRoleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create role in database with validated permissions
-	err = models.CreateRole(req.Name, req.Description, validatedPermissions)
+	err = models.CreateRole(models.DB, req.Name, req.Description, validatedPermissions)
 	if err != nil {
 		// Role creation failed (e.g., duplicate name, database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -201,7 +201,7 @@ func GetRolesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch roles from database with optional filters
-	roles, err := models.GetRoles(name, startDate, endDate)
+	roles, err := models.GetRoles(models.DB, name, startDate, endDate)
 	if err != nil {
 		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -275,7 +275,7 @@ func UpdateRoleHandler(w http.ResponseWriter, r *http.Request) {
 	roleID := params["role_id"]
 
 	// Update role in database (name and description only)
-	if err := models.UpdateRole(req.Name, req.Description, roleID); err != nil {
+	if err := models.UpdateRole(models.DB, req.Name, req.Description, roleID); err != nil {
 		// Update failed (role not found or duplicate name)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -336,7 +336,7 @@ func DeleteRoleHandler(w http.ResponseWriter, r *http.Request) {
 	roleID := params["role_id"]
 
 	// Delete role from database (cascades to role_permissions)
-	if err := models.DeleteRole(roleID); err != nil {
+	if err := models.DeleteRole(models.DB, roleID); err != nil {
 		// Deletion failed (role not found or still assigned to users)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -488,7 +488,7 @@ func AddPermissionsToRoleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Add permissions to role (creates role_permission associations)
-	err = models.AddPermissionsToRole(roleID, validatedPermissions)
+	err = models.AddPermissionsToRole(models.DB, roleID, validatedPermissions)
 	if err != nil {
 		// Association failed (role not found or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -579,7 +579,7 @@ func RemovePermissionsFromRoleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Remove permissions from role (deletes role_permission associations)
-	err = models.RemovePermissionsFromRole(roleID, validatedPermissions)
+	err = models.RemovePermissionsFromRole(models.DB, roleID, validatedPermissions)
 	if err != nil {
 		// Disassociation failed (role not found or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -652,7 +652,7 @@ func GetAvailablePermissions(w http.ResponseWriter, r *http.Request) {
 		availablePermissions = cachedAvailablePermissions
 	} else {
 		// Cache miss - fetch from database
-		availablePermissions, err = models.GetAvailablePermissions(category)
+		availablePermissions, err = models.GetAvailablePermissions(models.DB, category)
 		if availablePermissions == nil {
 			// Database returned nothing - use hardcoded fallback
 			availablePermissions = utils.SupportedPermissions
@@ -723,7 +723,7 @@ func AddAvailablePermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Add to available permissions catalog
-	err := models.AddAvailablePermission(req.Category, req.Key, req.Description)
+	err := models.AddAvailablePermission(models.DB, req.Category, req.Key, req.Description)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -786,7 +786,7 @@ func RemoveAvailablePermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Remove from available permissions catalog
-	err := models.RemoveAvailablePermission(req.Category, req.Key)
+	err := models.RemoveAvailablePermission(models.DB, req.Category, req.Key)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -849,13 +849,12 @@ func UpdateAvailablePermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Update permission in catalog (by category and key)
-	err := models.UpdateAvailablePermission(req.Category, req.Key, req.Description, req.NewDescription, req.NewKey, req.NewCategory)
+	err := models.UpdateAvailablePermission(models.DB, req.Category, req.Key, req.Description, req.NewDescription, req.NewKey, req.NewCategory)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
 				Description: "Failed to update available permission",
-				Code:        http.StatusBadRequest,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),

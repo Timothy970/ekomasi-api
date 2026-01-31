@@ -37,7 +37,7 @@ func CartAbandonmentReport(w http.ResponseWriter, r *http.Request) {
 	startTime, endTime, err := ParseDateRange(r)
 
 	// Retrieve cart abandonment statistics from the database
-	report, err := models.GetCartAbandonmentRate(startTime, endTime)
+	report, err := models.GetCartAbandonmentRate(models.DB, startTime, endTime)
 	if err != nil {
 		// Return error response if report generation fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -106,7 +106,7 @@ func CartAbandonmentTrendReport(w http.ResponseWriter, r *http.Request) {
 	startTime, endTime, err := ParseDateRange(r)
 
 	// Retrieve cart abandonment trend data grouped by specified period
-	report, err := models.GetCartAbandonmentTrend(startTime, endTime, period)
+	report, err := models.GetCartAbandonmentTrend(models.DB, startTime, endTime, period)
 	if err != nil {
 		// Return error response if trend report generation fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

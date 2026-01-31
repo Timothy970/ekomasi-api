@@ -62,7 +62,7 @@ func CreatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Insert new purchase order into database
-	err := models.AddNewPurchaseOrder(*req)
+	err := models.AddNewPurchaseOrder(models.DB, *req)
 	if err != nil {
 		// Database insertion failed, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -137,7 +137,7 @@ func ListPurchaseOrders(w http.ResponseWriter, r *http.Request) {
 	if cachedOrders == nil {
 		// Cache miss - fetch from database
 		var err error
-		orders, meta, err = models.ListPurchaseOrders(page, size)
+		purchaseOrders, pagination, err := models.ListPurchaseOrders(models.DB, page, size)
 		if err != nil {
 			// Database query failed, return error response
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -154,8 +154,8 @@ func ListPurchaseOrders(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Cache the fetched purchase orders for future requests
-		_ = utils.SetCache(cacheKeyPurchaseOrders, cachedOrders)
-		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
+		_ = utils.SetCache(cacheKeyPurchaseOrders, purchaseOrders)
+		_ = utils.SetCache(cacheKeyPagination, pagination)
 	} else {
 		// Cache hit - use cached data
 		orders = cachedOrders
@@ -207,7 +207,7 @@ func GetPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	// Extract purchase order ID from URL path parameters
 	id := mux.Vars(r)["po_id"]
 	// Fetch purchase order details from database
-	order, err := models.GetPurchaseOrderByID(id)
+	order, err := models.GetPurchaseOrderByID(models.DB, id)
 	if err != nil {
 		// Purchase order not found or database error, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -281,7 +281,7 @@ func UpdatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	// Extract purchase order ID from URL path parameters
 	id := mux.Vars(r)["po_id"]
 	// Update purchase order in database
-	err := models.UpdatePurchaseOrder(*req, id)
+	err := models.UpdatePurchaseOrder(models.DB, *req, id)
 	if err != nil {
 		// Database update failed, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -344,7 +344,7 @@ func DeletePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	// Extract purchase order ID from URL path parameters
 	id := mux.Vars(r)["po_id"]
 	// Delete purchase order from database
-	err := models.DeletePurchaseOrder(id)
+	err := models.DeletePurchaseOrder(models.DB, id)
 	if err != nil {
 		// Deletion failed or purchase order not found, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -417,7 +417,7 @@ func AddPurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add product to purchase order in database
-	err := models.AddProductToPurchaseOrder(*req)
+	err := models.AddProductToPurchaseOrder(models.DB, *req)
 	if err != nil {
 		// Database insertion failed, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -479,7 +479,7 @@ func RemovePurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	itemID := vars["po_item_id"]
 	// Remove product from purchase order in database
-	err := models.RemoveProductFromPurchaseOrder(itemID)
+	err := models.RemoveProductFromPurchaseOrder(models.DB, itemID)
 	if err != nil {
 		// Deletion failed or item not found, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

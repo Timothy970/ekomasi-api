@@ -60,7 +60,7 @@ func CreatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Attempt to create the payment record in the database
-	if err := models.CreatePayment(*req); err != nil {
+	if err := models.CreatePayment(models.DB, *req); err != nil {
 		// Return error response if payment creation fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -119,7 +119,7 @@ func GetPaymentByIDHandler(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["payment_id"]
 
 	// Retrieve payment record from database by ID
-	payment, err := models.GetPaymentByID(id)
+	payment, err := models.GetPaymentByID(models.DB, id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -190,7 +190,7 @@ func ListPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 	if len(cachedPayemnts) == 0 {
 		var err error
 		// Fetch payments from database with pagination
-		payments, pagination, err = models.ListPayments(page, limit)
+		payments, pagination, err = models.ListPayments(models.DB, page, limit)
 		if err != nil {
 			// Return error response if database query fails
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -282,7 +282,7 @@ func UpdatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 	paymentID := mux.Vars(r)["payment_id"]
 
 	// Attempt to update the payment in the database
-	if err := models.UpdatePayment(*req, paymentID); err != nil {
+	if err := models.UpdatePayment(models.DB, *req, paymentID); err != nil {
 		// Return error response if update fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -348,7 +348,7 @@ func DeletePaymentHandler(w http.ResponseWriter, r *http.Request) {
 	paymentID := mux.Vars(r)["payment_id"]
 
 	// Attempt to delete the payment from the database
-	if err := models.DeletePayment(paymentID); err != nil {
+	if err := models.DeletePayment(models.DB, paymentID); err != nil {
 		// Return error response if deletion fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -439,8 +439,7 @@ func RequestRefund(w http.ResponseWriter, r *http.Request) {
 	req.Status = "requested"
 
 	// Create refund request in database associated with user
-	err := models.AddRefundRequest(*req, user.ID)
-	if err != nil {
+	if err := models.AddRefundRequest(models.DB, *req, user.ID); err != nil {
 		// Return error response if refund request creation fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -533,7 +532,7 @@ func ProcessRefund(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update refund status in the database
-	err := models.ProcessRefund(*req, refundID)
+	err := models.ProcessRefund(models.DB, *req, refundID)
 	if err != nil {
 		// Return error response if refund processing fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -606,7 +605,7 @@ func ListRefundsHandler(w http.ResponseWriter, r *http.Request) {
 	if cachedRefunds == nil {
 		var err error
 		// Fetch refunds from database with pagination
-		refunds, pagination, err = models.ListRefunds(page, size)
+		refunds, pagination, err = models.ListRefunds(models.DB, page, size)
 		if err != nil {
 			// Return error response if database query fails
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -677,7 +676,7 @@ func GetRefundByIDHandler(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(idStr)
 
 	// Retrieve refund record from database by ID
-	refund, err := models.GetRefundByID(id)
+	refund, err := models.GetRefundByID(models.DB, id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -732,7 +731,7 @@ func GetRefundByUserIDHandler(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(idStr)
 
 	// Retrieve refund records from database by user ID
-	refund, err := models.GetRefundByID(id)
+	refund, err := models.GetRefundByID(models.DB, id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -821,7 +820,7 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create voucher in database associated with admin user
-	_, err := models.AddNewVoucher(*req, authuser.ID)
+	_, err := models.AddNewVoucher(models.DB, *req, authuser.ID)
 	if err != nil {
 		// Return error response if voucher creation fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -898,7 +897,7 @@ func CreatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create payment option in database
-	err := models.CreatePaymentOption(*req)
+	err := models.CreatePaymentOption(models.DB, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -955,7 +954,7 @@ func ListPaymentOptionsHandler(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status") // Status filter
 
 	// Retrieve filtered payment options from database
-	paymentOptions, pagination, err := models.ListPaymentOptions(q, status, page, size)
+	paymentOptions, pagination, err := models.ListPaymentOptions(models.DB, q, status, page, size)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1009,7 +1008,7 @@ func GetPaymentOptionByIDHandler(w http.ResponseWriter, r *http.Request) {
 	paymentOptionID := mux.Vars(r)["payment_option_id"]
 
 	// Retrieve payment option from database by ID
-	paymentOption, err := models.GetPaymentOptionByID(paymentOptionID)
+	paymentOption, err := models.GetPaymentOptionByID(models.DB, paymentOptionID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1085,7 +1084,7 @@ func UpdatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 	paymentOptionID := mux.Vars(r)["payment_option_id"]
 
 	// Attempt to update the payment option in the database
-	if err := models.UpdatePaymentOption(paymentOptionID, *req); err != nil {
+	if err := models.UpdatePaymentOption(models.DB, paymentOptionID, *req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
@@ -1146,7 +1145,7 @@ func DeletePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 	paymentOptionID := mux.Vars(r)["payment_option_id"]
 
 	// Attempt to delete the payment option from the database
-	if err := models.DeletePaymentOption(paymentOptionID); err != nil {
+	if err := models.DeletePaymentOption(models.DB, paymentOptionID); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",

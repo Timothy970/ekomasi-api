@@ -50,7 +50,7 @@ func GetReview(w http.ResponseWriter, r *http.Request) {
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 
 	// Fetch specific review(s) from database for the product
-	reviews, pagination, err := models.GetProductReview(productID, reviewID, limit, page)
+	reviews, pagination, err := models.GetProductReview(models.DB, productID, reviewID, limit, page)
 	if err != nil {
 		// Database query failed, log and return error response
 		log.Printf("error getting reviews:::%v", err)
@@ -125,7 +125,7 @@ func GetProductReviews(w http.ResponseWriter, r *http.Request) {
 	ratingStr := r.URL.Query().Get("ratings")
 	rating, _ := strconv.Atoi(ratingStr)
 	// Fetch all reviews for product from database with filters and sorting
-	reviews, pagination, err := models.GetProductReviews(productID, sortBy, rating, limit, page)
+	reviews, pagination, err := models.GetProductReviews(models.DB, productID, sortBy, rating, limit, page)
 	if err != nil {
 		// Handle different error types with appropriate responses
 		if err == sql.ErrNoRows {
@@ -238,7 +238,7 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Verify that the product exists before allowing review submission
-	err := models.IsProductThere(productID)
+	err := models.IsProductThere(models.DB, productID)
 	if err != nil {
 		// Product not found or database error
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -256,7 +256,7 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Create new review in database (may include duplicate check)
-	review, err := models.AddNewReview(*req, productID)
+	review, err := models.AddNewReview(models.DB, *req, productID)
 	if err != nil {
 		// Review creation failed (duplicate, invalid data, or database error)
 		log.Printf("Error adding new product review: %v", err)
@@ -334,7 +334,7 @@ func UpdateReview(w http.ResponseWriter, r *http.Request) {
 	reviewID := mux.Vars(r)["review_id"]
 
 	// Update review in database (admin moderation/content update)
-	err := models.UpdateReview(*req, reviewID, productID)
+	err := models.UpdateReview(models.DB, *req, reviewID, productID)
 	if err != nil {
 		// Update failed (review not found or database error)
 		log.Printf("Error moderating review: %v", err)
@@ -413,7 +413,7 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 	productID := mux.Vars(r)["product_id"]
 	reviewID := mux.Vars(r)["review_id"]
 	// Verify product exists before attempting to delete review
-	product, err := models.GetProductByID(productID)
+	product, err := models.GetProductByID(models.DB, productID)
 	if err != nil || product == nil {
 		// Handle different error types with appropriate responses
 		if err == sql.ErrNoRows {
@@ -446,7 +446,7 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Permanently delete review from database
-	err = models.DeleteReview(reviewID)
+	err = models.DeleteReview(models.DB, reviewID)
 	if err != nil {
 		// Deletion failed (review not found or database error)
 		log.Printf("Error deleteing review: %v", err)

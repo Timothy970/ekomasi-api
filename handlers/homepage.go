@@ -33,8 +33,8 @@ func HomePageData(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	footerRows, err := models.GetFooterData()
-	if err != nil || len(footerRows) == 0 {
+	footer, err := models.GetFooterData(models.DB)
+	if err != nil || len(footer) == 0 {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Home",
@@ -49,18 +49,18 @@ func HomePageData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	socialLinks, _ := models.GetSocialsData()
-	menuLinks, _ := models.GetMenuData()
+	socials, _ := models.GetSocialsData(models.DB)
+	menu, _ := models.GetMenuData(models.DB)
 
 	response := map[string]interface{}{
 		"data": map[string]interface{}{
-			"copyright_text":  footerRows[0].CopyrightText,
-			"company_address": footerRows[0].CompanyAddress,
-			"contact_email":   footerRows[0].ContactEmail,
-			"phone_number":    footerRows[0].PhoneNumber,
+			"copyright_text":  footer[0].CopyrightText,
+			"company_address": footer[0].CompanyAddress,
+			"contact_email":   footer[0].ContactEmail,
+			"phone_number":    footer[0].PhoneNumber,
 			"social_links": func() []map[string]string {
 				var links []map[string]string
-				for _, link := range socialLinks {
+				for _, link := range socials {
 					links = append(links, map[string]string{
 						"platform":   link.Platform,
 						"url":        link.URL,
@@ -69,7 +69,7 @@ func HomePageData(w http.ResponseWriter, r *http.Request) {
 				}
 				return links
 			}(),
-			"links": menuLinks,
+			"links": menu,
 		},
 		"meta": map[string]string{
 			"version":     "1.0",
@@ -103,7 +103,7 @@ func GetHomeBannersData(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	banners, _ := models.GetBannersData("homebanner")
+	banners, _ := models.GetBannersData(models.DB, "homebanner")
 	var data []map[string]interface{}
 	for _, b := range banners {
 		data = append(data, map[string]interface{}{
@@ -144,7 +144,7 @@ func GetSliderData(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	banners, _ := models.GetBannersData("banner")
+	banners, _ := models.GetBannersData(models.DB, "banner")
 	var data []map[string]interface{}
 	for _, b := range banners {
 		data = append(data, map[string]interface{}{
@@ -226,7 +226,7 @@ func GetPromotionsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if cachedPromotions == nil {
 		var err error
-		promotions, err = models.GetPromotions()
+		promotions, err = models.GetPromotions(models.DB)
 		if err != nil {
 			log.Printf("promotiones error::%s", err)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -355,8 +355,7 @@ func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Insert banner info into DB
-	err = models.InsertBannerDetails(url, req)
-	if err != nil {
+	if err := models.InsertBannerDetails(models.DB, url, req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
@@ -417,8 +416,7 @@ func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := models.UpdateBannerDetails(*req, bannerID)
-	if err != nil {
+	if err := models.UpdateBannerDetails(models.DB, *req, bannerID); err != nil {
 		log.Printf("Error updating banner: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

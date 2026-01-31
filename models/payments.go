@@ -47,7 +47,7 @@ var paymentid = "payment_id = ?"
 //   - Type "voucher": Stores without delivery_id, sets type="VOUCHER"
 //   - Type "product": Stores with delivery_id, sets type="PRODUCT"
 //   - Initial status: "PROCESSING"
-func StoreStkResponse(response map[string]interface{}, req dtos.MpesaRequest) error {
+func StoreStkResponse(db DBExecutor, response map[string]interface{}, req dtos.MpesaRequest) error {
 	// Extract M-Pesa response IDs safely from interface map
 	checkoutRequestID, _ := response["CheckoutRequestID"].(string)
 	merchantRequestID, _ := response["MerchantRequestID"].(string)
@@ -55,7 +55,7 @@ func StoreStkResponse(response map[string]interface{}, req dtos.MpesaRequest) er
 
 	// Handle voucher payment (no delivery involved)
 	if strings.ToLower(req.Type) == "voucher" {
-		_, err = DB.Exec(`
+		_, err = db.Exec(`
 		INSERT INTO stk_push_responses (
 			order_id, amount, checkout_request_id,
 			merchant_request_id, status, type
@@ -69,7 +69,7 @@ func StoreStkResponse(response map[string]interface{}, req dtos.MpesaRequest) er
 		return nil
 	} else {
 		// Handle product order payment (includes delivery)
-		_, err = DB.Exec(`
+		_, err = db.Exec(`
 		INSERT INTO stk_push_responses (
 			order_id, delivery_id, amount, checkout_request_id,
 			merchant_request_id, status, type
@@ -99,9 +99,9 @@ func StoreStkResponse(response map[string]interface{}, req dtos.MpesaRequest) er
 //   - string: order_id
 //   - string: type ("PRODUCT" or "VOUCHER")
 //   - error: Database error or nil on success
-func UpdateStkResponse(checkoutRequestID string, status string) (string, string, string, error) {
+func UpdateStkResponse(db DBExecutor, checkoutRequestID string, status string) (string, string, string, error) {
 	// 1. Update payment status in stk_push_responses
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
 		UPDATE stk_push_responses SET status = ?
 		WHERE checkout_request_id = ?
 	`, status, checkoutRequestID)
@@ -111,7 +111,7 @@ func UpdateStkResponse(checkoutRequestID string, status string) (string, string,
 
 	// 2. Retrieve delivery_id, order_id, and type for further processing
 	var deliveryID, orderID, orderType sql.NullString
-	err = DB.QueryRow(`
+	err = db.QueryRow(`
 		SELECT delivery_id, order_id, type
 		FROM stk_push_responses
 		WHERE checkout_request_id = ? LIMIT 1
@@ -158,7 +158,7 @@ func nullToString(ns sql.NullString) string {
 // Status Mapping:
 //   - "COMPLETED" -> orderStatus = "PAID"
 //   - Any other status -> orderStatus = "FAILED"
-func UpdateDeliveryOrderTables(deliveryID, orderId string, status string) error {
+func UpdateDeliveryOrderTables(db DBExecutor, deliveryID, orderId string, status string) error {
 	// Determine order status based on payment result
 	orderStatus := "PAID"
 	if status != "COMPLETED" {
@@ -166,7 +166,7 @@ func UpdateDeliveryOrderTables(deliveryID, orderId string, status string) error 
 	}
 
 	// Update order status and payment status
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
 		UPDATE orders SET status = ?, payment_status = ?
 		WHERE order_id = ?
 	`, orderStatus, orderStatus, orderId)
@@ -203,9 +203,9 @@ func UpdateDeliveryOrderTables(deliveryID, orderId string, status string) error 
 //  1. Update voucher_orders.status
 //  2. Fetch voucher_id from the order
 //  3. Activate the voucher (set is_active = true)
-func UpdateVoucherOrderTables(orderId string, status string) error {
+func UpdateVoucherOrderTables(db DBExecutor, orderId string, status string) error {
 	// Update voucher order status
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
     UPDATE voucher_orders SET status = ?
     WHERE voucher_order_id = ?
 `, status, orderId)
@@ -215,7 +215,7 @@ func UpdateVoucherOrderTables(orderId string, status string) error {
 
 	// Fetch the voucher_id associated with this order
 	var voucherID string
-	err = DB.QueryRow(`
+	err = db.QueryRow(`
 	SELECT voucher_id FROM voucher_orders WHERE voucher_order_id = ?
 `, orderId).Scan(&voucherID)
 	if err != nil {
@@ -224,7 +224,7 @@ func UpdateVoucherOrderTables(orderId string, status string) error {
 
 	// Activate the voucher
 	isActive := true
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		UPDATE vouchers SET is_active = ?
 		WHERE voucher_id = ?
 	`, isActive, voucherID)
@@ -244,9 +244,9 @@ func UpdateVoucherOrderTables(orderId string, status string) error {
 //
 // Returns:
 //   - error: Database error or nil on success
-func SetVoucherAsRedeemed(code string) error {
+func SetVoucherAsRedeemed(db DBExecutor, code string) error {
 	// Mark voucher as redeemed
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
 	UPDATE vouchers SET is_redeemed = true WHERE code = ?`, code)
 	if err != nil {
 		return err
@@ -270,15 +270,15 @@ func SetVoucherAsRedeemed(code string) error {
 //
 // Returns:
 //   - error: "order not found", "transaction ID already exists", or database error
-func CreatePayment(p dtos.Payment) error {
+func CreatePayment(db DBExecutor, p dtos.Payment) error {
 	// Validate order exists
-	err := IsOrderThere(p.OrderID)
+	err := IsOrderThere(db, p.OrderID)
 	if err != nil {
 		return err
 	}
 
 	// Validate transaction ID is unique
-	err = isTransactionIDUnique(p.TransactionID)
+	err = isTransactionIDUnique(db, p.TransactionID)
 	if err != nil {
 		return err
 	}
@@ -296,7 +296,7 @@ func CreatePayment(p dtos.Payment) error {
 	query := `
 		INSERT INTO payments (payment_id, order_id, amount, voucher_id, status, payment_method, transaction_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`
-	_, err = DB.Exec(query, paymentID, p.OrderID, p.Amount, p.VoucherID, status, p.PaymentMethod, p.TransactionID)
+	_, err = db.Exec(query, paymentID, p.OrderID, p.Amount, p.VoucherID, status, p.PaymentMethod, p.TransactionID)
 	return err
 }
 
@@ -309,8 +309,8 @@ func CreatePayment(p dtos.Payment) error {
 //
 // Returns:
 //   - error: "payment not found" if ID doesn't exist, database error, or nil if exists
-func isPaymentThere(id string) error {
-	exists, err := RecordExists("payments", paymentid, id)
+func isPaymentThere(db DBExecutor, id string) error {
+	exists, err := RecordExists(db, "payments", paymentid, id)
 	if err != nil {
 		return err
 	}
@@ -334,9 +334,9 @@ func isPaymentThere(id string) error {
 //   - Status, PaymentMethod, TransactionID
 //   - CreatedAt timestamp
 //   - error: "payment not found", sql.ErrNoRows, or database error
-func GetPaymentByID(paymentID string) (*dtos.Payment, error) {
+func GetPaymentByID(db DBExecutor, paymentID string) (*dtos.Payment, error) {
 	// Validate payment exists
-	err := isPaymentThere(paymentID)
+	err := isPaymentThere(db, paymentID)
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +348,7 @@ func GetPaymentByID(paymentID string) (*dtos.Payment, error) {
 		WHERE payment_id = ?`
 
 	var p dtos.Payment
-	err = DB.QueryRow(query, paymentID).Scan(
+	err = db.QueryRow(query, paymentID).Scan(
 		&p.PaymentID, &p.OrderID, &p.Amount, &p.VoucherID,
 		&p.Status, &p.PaymentMethod, &p.TransactionID, &p.CreatedAt,
 	)
@@ -376,13 +376,13 @@ func GetPaymentByID(paymentID string) (*dtos.Payment, error) {
 //   - Page, Size, TotalItems, TotalPages
 //   - HasPrev, HasNext flags
 //   - error: Database error or nil on success
-func ListPayments(page, limit int) ([]dtos.Payment, *dtos.PaginationMeta, error) {
+func ListPayments(db DBExecutor, page, limit int) ([]dtos.Payment, *dtos.PaginationMeta, error) {
 	// Calculate pagination offset
 	offset := (page - 1) * limit
 
 	// Count total payments
 	var totalItems int
-	err := DB.QueryRow("SELECT COUNT(*) FROM payments").Scan(&totalItems)
+	err := db.QueryRow("SELECT COUNT(*) FROM payments").Scan(&totalItems)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -394,7 +394,7 @@ func ListPayments(page, limit int) ([]dtos.Payment, *dtos.PaginationMeta, error)
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?`
 
-	rows, err := DB.Query(query, limit, offset)
+	rows, err := db.Query(query, limit, offset)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -436,9 +436,9 @@ func ListPayments(page, limit int) ([]dtos.Payment, *dtos.PaginationMeta, error)
 //
 // Returns:
 //   - error: "payment not found" if ID doesn't exist, or database error
-func UpdatePayment(p dtos.PaymentUpdate, paymentID string) error {
+func UpdatePayment(db DBExecutor, p dtos.PaymentUpdate, paymentID string) error {
 	// Validate payment exists
-	err := isPaymentThere(paymentID)
+	err := isPaymentThere(db, paymentID)
 	if err != nil {
 		return err
 	}
@@ -449,7 +449,7 @@ func UpdatePayment(p dtos.PaymentUpdate, paymentID string) error {
 		SET status = ?
 		WHERE payment_id = ?`
 
-	_, err = DB.Exec(query, p.Status, paymentID)
+	_, err = db.Exec(query, p.Status, paymentID)
 	return err
 }
 
@@ -465,16 +465,16 @@ func UpdatePayment(p dtos.PaymentUpdate, paymentID string) error {
 //   - error: "payment not found" if ID doesn't exist, or database error
 //
 // Warning: This is a hard delete with no recovery. Consider soft-delete for production.
-func DeletePayment(paymentID string) error {
+func DeletePayment(db DBExecutor, paymentID string) error {
 	// Validate payment exists
-	err := isPaymentThere(paymentID)
+	err := isPaymentThere(db, paymentID)
 	if err != nil {
 		return err
 	}
 
 	// Permanently delete payment
 	query := `DELETE FROM payments WHERE payment_id = ?`
-	_, err = DB.Exec(query, paymentID)
+	_, err = db.Exec(query, paymentID)
 	return err
 }
 
@@ -493,9 +493,9 @@ func DeletePayment(paymentID string) error {
 //
 // Returns:
 //   - error: "order not found" or database error
-func AddRefundRequest(refund dtos.Refund, userID string) error {
+func AddRefundRequest(db DBExecutor, refund dtos.Refund, userID string) error {
 	// Validate order exists
-	exists, err := RecordExists("orders", "order_id = ?", refund.OrderID)
+	exists, err := RecordExists(db, "orders", "order_id = ?", refund.OrderID)
 	if err != nil {
 		return err
 	}
@@ -508,7 +508,7 @@ func AddRefundRequest(refund dtos.Refund, userID string) error {
 				  VALUES (?, ?, ?, ?, ?)
 	`
 
-	_, err = DB.Exec(query, userID, refund.OrderID, refund.Amount, refund.Reason, refund.Status)
+	_, err = db.Exec(query, userID, refund.OrderID, refund.Amount, refund.Reason, refund.Status)
 	if err != nil {
 		return err
 	}
@@ -527,9 +527,9 @@ func AddRefundRequest(refund dtos.Refund, userID string) error {
 //
 // Returns:
 //   - error: "refund not found" or database error
-func ProcessRefund(req dtos.RefundPayload, refundID string) error {
+func ProcessRefund(db DBExecutor, req dtos.RefundPayload, refundID string) error {
 	// Validate refund exists
-	exists, err := RecordExists("refunds", whereID, refundID)
+	exists, err := RecordExists(db, "refunds", whereID, refundID)
 	if err != nil {
 		return err
 	}
@@ -539,7 +539,7 @@ func ProcessRefund(req dtos.RefundPayload, refundID string) error {
 
 	// Update refund status
 	query := `UPDATE refunds SET status = ? WHERE id = ?`
-	_, err = DB.Exec(query, req.Status, refundID)
+	_, err = db.Exec(query, req.Status, refundID)
 	return err
 }
 
@@ -558,7 +558,7 @@ func ProcessRefund(req dtos.RefundPayload, refundID string) error {
 //   - Status, CreatedAt
 //   - *dtos.PaginationMeta: Pagination metadata
 //   - error: Database error or nil on success
-func ListRefunds(page, size int) ([]dtos.Refund, *dtos.PaginationMeta, error) {
+func ListRefunds(db DBExecutor, page, size int) ([]dtos.Refund, *dtos.PaginationMeta, error) {
 	// Validate and correct page number (minimum 1)
 	if page < 1 {
 		page = 1
@@ -572,13 +572,13 @@ func ListRefunds(page, size int) ([]dtos.Refund, *dtos.PaginationMeta, error) {
 
 	// Count total refunds
 	var total int
-	err := DB.QueryRow(`SELECT COUNT(*) FROM refunds`).Scan(&total)
+	err := db.QueryRow(`SELECT COUNT(*) FROM refunds`).Scan(&total)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Fetch paginated refunds ordered by most recent
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT id, user_id, order_id, amount, status, created_at
 		FROM refunds
 		ORDER BY created_at DESC
@@ -625,10 +625,10 @@ func ListRefunds(page, size int) ([]dtos.Refund, *dtos.PaginationMeta, error) {
 // Warning: This retrieves by user_id, not refund id. Consider renaming or
 //
 //	adding a separate function for refund id lookup.
-func GetRefundByID(id int) (*dtos.Refund, error) {
+func GetRefundByID(db DBExecutor, id int) (*dtos.Refund, error) {
 	var refund dtos.Refund
 	// Query by user_id (not refund id)
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT id, user_id, order_id, amount, status, created_at
 		FROM refunds
 		WHERE user_id = ?`, id).Scan(
@@ -653,7 +653,7 @@ func GetRefundByID(id int) (*dtos.Refund, error) {
 //
 // Returns:
 //   - error: Voucher not found, JSON marshal error, or database error
-func AddVoucherHistory(code string, amount float64, itemsLog []dtos.CartItem) error {
+func AddVoucherHistory(db DBExecutor, code string, amount float64, itemsLog []dtos.CartItem) error {
 	// Generate unique history ID
 	historyID, _ := shortid.Generate()
 
@@ -664,13 +664,13 @@ func AddVoucherHistory(code string, amount float64, itemsLog []dtos.CartItem) er
 	}
 
 	// Validate voucher exists
-	err = IsVoucherThereByCode(code)
+	err = IsVoucherThereByCode(db, code)
 	if err != nil {
 		return err
 	}
 
 	// Fetch voucher details
-	voucher, err := GetVoucherByCode(code)
+	voucher, err := GetVoucherByCode(db, code)
 	if err != nil {
 		return err
 	}
@@ -681,7 +681,7 @@ func AddVoucherHistory(code string, amount float64, itemsLog []dtos.CartItem) er
 		VALUES (?, ?, ?, ?)
 	`
 
-	_, err = DB.Exec(query, historyID, voucher.VoucherID, amount, jsonData)
+	_, err = db.Exec(query, historyID, voucher.VoucherID, amount, jsonData)
 	if err != nil {
 		return fmt.Errorf("failed to insert voucher history: %v", err)
 	}
@@ -703,7 +703,7 @@ func AddVoucherHistory(code string, amount float64, itemsLog []dtos.CartItem) er
 //
 // Returns:
 //   - error: Database error or nil on success
-func CreatePaymentOption(paymentOption dtos.PaymentOption) error {
+func CreatePaymentOption(db DBExecutor, paymentOption dtos.PaymentOption) error {
 	// Generate unique payment option ID
 	paymentOptionID, _ := shortid.Generate()
 
@@ -711,7 +711,7 @@ func CreatePaymentOption(paymentOption dtos.PaymentOption) error {
 	query := `
 		INSERT INTO payment_options (id, name, type, config_json, is_active)
 		VALUES (?, ?, ?, ?, ?)`
-	_, err := DB.Exec(query, paymentOptionID, paymentOption.Name, paymentOption.Type, paymentOption.Configs, paymentOption.IsActive)
+	_, err := db.Exec(query, paymentOptionID, paymentOption.Name, paymentOption.Type, paymentOption.Configs, paymentOption.IsActive)
 	return err
 }
 
@@ -730,7 +730,7 @@ func CreatePaymentOption(paymentOption dtos.PaymentOption) error {
 //   - []dtos.PaymentOption: Array of payment options with raw JSON configs
 //   - *dtos.PaginationMeta: Pagination metadata
 //   - error: Database error or nil on success
-func ListPaymentOptions(searchParam, status string, page, size int) ([]dtos.PaymentOption, *dtos.PaginationMeta, error) {
+func ListPaymentOptions(db DBExecutor, searchParam, status string, page, size int) ([]dtos.PaymentOption, *dtos.PaginationMeta, error) {
 	// Calculate pagination offset
 	offset := (page - 1) * size
 
@@ -762,7 +762,7 @@ func ListPaymentOptions(searchParam, status string, page, size int) ([]dtos.Paym
 
 	// Execute count query
 	var totalItems int
-	if err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
+	if err := db.QueryRow(countQuery, countArgs...).Scan(&totalItems); err != nil {
 		return nil, nil, err
 	}
 
@@ -782,7 +782,7 @@ func ListPaymentOptions(searchParam, status string, page, size int) ([]dtos.Paym
 	queryArgs = append(queryArgs, size, offset)
 
 	// Query rows
-	rows, err := DB.Query(query, queryArgs...)
+	rows, err := db.Query(query, queryArgs...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -820,9 +820,9 @@ func ListPaymentOptions(searchParam, status string, page, size int) ([]dtos.Paym
 //
 // Returns:
 //   - error: "payment option not found" if missing, nil if exists, or database error
-func isPaymentOptionThere(id string) error {
+func isPaymentOptionThere(db DBExecutor, id string) error {
 	// Check record existence using utility function
-	exists, err := RecordExists("payment_options", "id = ?", id)
+	exists, err := RecordExists(db, "payment_options", "id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -845,16 +845,16 @@ func isPaymentOptionThere(id string) error {
 //   - Configs (raw JSON string)
 //   - IsActive, CreatedAt
 //   - error: "payment option not found" or database error
-func GetPaymentOptionByID(id string) (*dtos.PaymentOption, error) {
+func GetPaymentOptionByID(db DBExecutor, id string) (*dtos.PaymentOption, error) {
 	// Validate payment option exists
-	err := isPaymentOptionThere(id)
+	err := isPaymentOptionThere(db, id)
 	if err != nil {
 		return nil, err
 	}
 
 	// Query payment option details
 	var p dtos.PaymentOption
-	err = DB.QueryRow(`SELECT id, name, type, config_json, is_active, created_at
+	err = db.QueryRow(`SELECT id, name, type, config_json, is_active, created_at
 		FROM payment_options WHERE id = ?`, id).Scan(&p.ID, &p.Name, &p.Type, &p.Configs, &p.IsActive, &p.CreatedAt)
 	if err != nil {
 		return nil, err
@@ -877,9 +877,9 @@ func GetPaymentOptionByID(id string) (*dtos.PaymentOption, error) {
 //
 // Returns:
 //   - error: "payment option not found" or database error
-func UpdatePaymentOption(id string, paymentOption dtos.PaymentOptionUpdate) error {
+func UpdatePaymentOption(db DBExecutor, id string, paymentOption dtos.PaymentOptionUpdate) error {
 	// Validate payment option exists
-	err := isPaymentOptionThere(id)
+	err := isPaymentOptionThere(db, id)
 	if err != nil {
 		return err
 	}
@@ -902,7 +902,7 @@ func UpdatePaymentOption(id string, paymentOption dtos.PaymentOptionUpdate) erro
 	args = append(args, id)
 
 	// Execute update
-	_, err = DB.Exec(query, args...)
+	_, err = db.Exec(query, args...)
 	return err
 }
 
@@ -916,16 +916,16 @@ func UpdatePaymentOption(id string, paymentOption dtos.PaymentOptionUpdate) erro
 //
 // Returns:
 //   - error: "payment option not found" or database error
-func DeletePaymentOption(id string) error {
+func DeletePaymentOption(db DBExecutor, id string) error {
 	// Validate payment option exists
-	err := isPaymentOptionThere(id)
+	err := isPaymentOptionThere(db, id)
 	if err != nil {
 		return err
 	}
 
 	// Hard delete payment option
 	query := `DELETE FROM payment_options WHERE id = ?`
-	_, err = DB.Exec(query, id)
+	_, err = db.Exec(query, id)
 	return err
 }
 
@@ -940,10 +940,10 @@ func DeletePaymentOption(id string) error {
 // Returns:
 //   - string: The checkout_request_id from M-Pesa STK Push
 //   - error: "checkout request ID not found" if no STK Push record exists, or database error
-func GetCheckoutRequestIDByOrderID(orderID string) (string, error) {
+func GetCheckoutRequestIDByOrderID(db DBExecutor, orderID string) (string, error) {
 	// Query most recent checkout request for order
 	var checkoutRequestID sql.NullString
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT checkout_request_id
 		FROM stk_push_responses
 		WHERE order_id = ? ORDER BY created_at DESC LIMIT 1`, orderID).Scan(&checkoutRequestID)

@@ -52,9 +52,9 @@ import (
 //
 // Returns:
 //   - error: nil if cart exists, "cart not found" error if not found, or database error
-func isCartThere(id string) error {
+func isCartThere(db DBExecutor, id string) error {
 	// Check if cart record exists in cart table
-	exists, err := RecordExists("cart", "cart_id = ?", id)
+	exists, err := RecordExists(db, "cart", "cart_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -74,9 +74,9 @@ func isCartThere(id string) error {
 //
 // Returns:
 //   - error: Database error if update fails, nil on success
-func UpdateCartTimestamp(cartID string) error {
+func UpdateCartTimestamp(db DBExecutor, cartID string) error {
 	// Update cart timestamp to NOW()
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
         UPDATE cart 
         SET updated_at = NOW() 
         WHERE cart_id = ?`, cartID)
@@ -99,26 +99,26 @@ func UpdateCartTimestamp(cartID string) error {
 //
 // Returns:
 //   - error: Validation error, stock error, or database error if insert fails
-func InsertCartItem(cartID string, productID string, quantity int) error {
+func InsertCartItem(db DBExecutor, cartID string, productID string, quantity int) error {
 	// Validate cart exists
-	err := isCartThere(cartID)
+	err := isCartThere(db, cartID)
 	if err != nil {
 		return err
 	}
 	// Validate product exists
-	err = IsProductThere(productID)
+	err = IsProductThere(db, productID)
 	if err != nil {
 		return err
 	}
 	// Check stock availability before adding to cart
-	if err := isStockAvailable(productID, quantity); err != nil {
+	if err := isStockAvailable(db, productID, quantity); err != nil {
 		return err
 	}
 	// Generate unique cart item ID
 	ID, _ := shortid.Generate()
 
 	// Insert or update cart item using ON DUPLICATE KEY UPDATE
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
         INSERT INTO cart_items(id, cart_id, product_id, quantity)
         VALUES (?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE quantity = VALUES(quantity)
@@ -127,7 +127,7 @@ func InsertCartItem(cartID string, productID string, quantity int) error {
 		return fmt.Errorf("failed to insert cart item: %w", err)
 	}
 	// Update cart timestamp to track activity
-	err = UpdateCartTimestamp(cartID)
+	err = UpdateCartTimestamp(db, cartID)
 	if err != nil {
 		return err
 	}
@@ -150,10 +150,10 @@ func InsertCartItem(cartID string, productID string, quantity int) error {
 // Error Messages:
 //   - "product not found" if productID doesn't exist
 //   - "requested quantity (X) exceeds available stock (Y)" if insufficient stock
-func isStockAvailable(productID string, quantity int) error {
+func isStockAvailable(db DBExecutor, productID string, quantity int) error {
 	var available int
 	// Query current stock quantity for product
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT stock_quantity
 		FROM products
 		WHERE product_id = ?
@@ -185,13 +185,13 @@ func isStockAvailable(productID string, quantity int) error {
 // Returns:
 //   - string: The cart_id (existing or newly created)
 //   - error: Database error if creation fails, nil on success
-func CreateCart(req dtos.CreateCartRequest) (string, error) {
+func CreateCart(db DBExecutor, req dtos.CreateCartRequest) (string, error) {
 	// Generate unique cart ID
 	cartID, _ := shortid.Generate()
 
 	// For authenticated users, check if cart already exists
 	if req.UserID != nil {
-		cartID, err := GetUserCart(*req.UserID)
+		cartID, err := GetUserCart(db, *req.UserID)
 		if err != nil {
 			return "", err
 		}
@@ -201,7 +201,7 @@ func CreateCart(req dtos.CreateCartRequest) (string, error) {
 		}
 	}
 	// Create new cart record
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
         INSERT INTO cart(cart_id, user_id)
         VALUES (?, ?)
     `, cartID, req.UserID)
@@ -219,10 +219,10 @@ func CreateCart(req dtos.CreateCartRequest) (string, error) {
 // Returns:
 //   - string: The cart_id if found, empty string if no cart exists
 //   - error: Database error if query fails (sql.ErrNoRows returns empty string, not error)
-func GetUserCart(userID string) (string, error) {
+func GetUserCart(db DBExecutor, userID string) (string, error) {
 	var cartID string
 	// Query for existing cart by user_id
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
         SELECT cart_id FROM cart WHERE user_id = ?
     `, userID).Scan(&cartID)
 
@@ -249,15 +249,15 @@ func GetUserCart(userID string) (string, error) {
 // CartItem Structure:
 //   - Product: Full product object with details, pricing, images
 //   - Quantity: Number of units in cart
-func GetCartItems(cartID string) ([]dtos.CartItem, error) {
+func GetCartItems(db DBExecutor, cartID string) ([]dtos.CartItem, error) {
 	// Validate cart exists before retrieving items
-	err := isCartThere(cartID)
+	err := isCartThere(db, cartID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Query all items in cart
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT c.product_id, c.quantity
 		FROM cart_items c
 		WHERE c.cart_id = ?
@@ -278,7 +278,7 @@ func GetCartItems(cartID string) ([]dtos.CartItem, error) {
 		}
 
 		// Fetch complete product details for this item
-		product, err := GetProductByID(productID)
+		product, err := GetProductByID(db, productID)
 		if err != nil {
 			return nil, err
 		}
@@ -306,24 +306,24 @@ func GetCartItems(cartID string) ([]dtos.CartItem, error) {
 //
 // Returns:
 //   - error: Validation error or database error if update fails
-func UpdateCartItem(cartID string, productID string, quantity int) error {
+func UpdateCartItem(db DBExecutor, cartID string, productID string, quantity int) error {
 	// Validate cart exists
-	err := isCartThere(cartID)
+	err := isCartThere(db, cartID)
 	if err != nil {
 		return err
 	}
 	// Validate product exists
-	err = IsProductThere(productID)
+	err = IsProductThere(db, productID)
 	if err != nil {
 		return err
 	}
 	// Update quantity for specific cart item
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		UPDATE cart_items SET quantity = ?
 		WHERE cart_id = ? AND product_id = ?
 	`, quantity, cartID, productID)
 	// Update cart timestamp to track activity
-	err = UpdateCartTimestamp(cartID)
+	err = UpdateCartTimestamp(db, cartID)
 	return err
 }
 
@@ -338,23 +338,23 @@ func UpdateCartItem(cartID string, productID string, quantity int) error {
 //
 // Returns:
 //   - error: Validation error or database error if deletion fails
-func DeleteCartItem(cartID, productID string) error {
+func DeleteCartItem(db DBExecutor, cartID, productID string) error {
 	// Validate cart exists
-	err := isCartThere(cartID)
+	err := isCartThere(db, cartID)
 	if err != nil {
 		return err
 	}
 	// Validate product exists
-	err = IsProductThere(productID)
+	err = IsProductThere(db, productID)
 	if err != nil {
 		return err
 	}
 	// Delete cart item record
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		DELETE FROM cart_items WHERE cart_id = ? AND product_id = ?
 	`, cartID, productID)
 	// Update cart timestamp to track activity
-	err = UpdateCartTimestamp(cartID)
+	err = UpdateCartTimestamp(db, cartID)
 	return err
 }
 
@@ -373,7 +373,7 @@ func DeleteCartItem(cartID, productID string) error {
 // PromotionData Structure:
 //   - Type: Promotion type name (e.g., "percentage", "buy_one_get_one")
 //   - Value: Promotion value (percentage number or fixed amount)
-func GetProductPromotionData(productID string) (dtos.PromotionData, error) {
+func GetProductPromotionData(db DBExecutor, productID string) (dtos.PromotionData, error) {
 	// Query with JOINs to get promotion type and value
 	query := `
 		SELECT 
@@ -390,7 +390,7 @@ func GetProductPromotionData(productID string) (dtos.PromotionData, error) {
 	var promotionValue float64 // Promotion value (percentage or amount)
 
 	// Execute query and scan result
-	err := DB.QueryRow(query, productID).Scan(&promotionType, &promotionValue)
+	err := db.QueryRow(query, productID).Scan(&promotionType, &promotionValue)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return dtos.PromotionData{}, nil // No promotion for product - not an error
@@ -426,11 +426,11 @@ func GetProductPromotionData(productID string) (dtos.PromotionData, error) {
 //   - Completed carts: updated within 7 days OR empty (checkout completed)
 //
 // Rate Calculation: (abandoned_carts / total_carts) * 100
-func GetCartAbandonmentRate(start, end time.Time) (*AbandonmentStats, error) {
+func GetCartAbandonmentRate(db DBExecutor, start, end time.Time) (*AbandonmentStats, error) {
 	var cartsCreated, completedPurchases, abandonedCarts int
 
 	// Count total carts created within the period
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT COUNT(*) 
 		FROM cart 
 		WHERE created_at BETWEEN ? AND ?
@@ -440,7 +440,7 @@ func GetCartAbandonmentRate(start, end time.Time) (*AbandonmentStats, error) {
 	}
 
 	// Count completed purchases (carts updated within 7 days OR empty carts)
-	err = DB.QueryRow(`
+	err = db.QueryRow(`
     SELECT COUNT(*)
     FROM (
         SELECT c.cart_id
@@ -457,7 +457,7 @@ func GetCartAbandonmentRate(start, end time.Time) (*AbandonmentStats, error) {
 
 	// Count abandoned carts (have items AND not updated in 7+ days)
 	threshold := time.Now().AddDate(0, 0, -7) // 7 days ago
-	err = DB.QueryRow(`
+	err = db.QueryRow(`
 		SELECT COUNT(DISTINCT c.cart_id)
 		FROM cart c
 		JOIN cart_items ci ON c.cart_id = ci.cart_id
@@ -528,7 +528,7 @@ type AbandonmentStats struct {
 //   - Date: Period identifier in appropriate format
 //   - CartsCreated: Total carts created in that period
 //   - AbandonmentRate: Percentage of abandoned carts in that period
-func GetCartAbandonmentTrend(start, end time.Time, period string) ([]AbandonmentTrend, error) {
+func GetCartAbandonmentTrend(db DBExecutor, start, end time.Time, period string) ([]AbandonmentTrend, error) {
 	var groupBy, periodSelect string
 
 	// Determine SQL grouping and date formatting based on period
@@ -567,7 +567,7 @@ func GetCartAbandonmentTrend(start, end time.Time, period string) ([]Abandonment
 	`, periodSelect, groupBy, groupBy)
 
 	// Execute query to get cart counts per period
-	rows, err := DB.Query(query, start, end)
+	rows, err := db.Query(query, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -596,7 +596,7 @@ func GetCartAbandonmentTrend(start, end time.Time, period string) ([]Abandonment
 			  AND c.updated_at < ?
 		`, periodSelect)
 
-		err = DB.QueryRow(abandonedQuery, periodDate, threshold).Scan(&abandonedCarts)
+		err = db.QueryRow(abandonedQuery, periodDate, threshold).Scan(&abandonedCarts)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, err
 		}
@@ -788,10 +788,10 @@ func (r *AnalyticsRepository) GetAbandonedCarts(page, size int) (*AbandonedCarts
 // Default Behavior:
 //   - Returns 16.0 if no "tax" charge exists in database
 //   - This is a fallback for unconfigured systems
-func GetEstimatedTax() (float64, error) {
+func GetEstimatedTax(db DBExecutor) (float64, error) {
 	var tax float64
 	// Query tax charge value from charges table
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT charge_value
 		FROM charges
 		WHERE charge_name = "tax"

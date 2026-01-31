@@ -52,9 +52,9 @@ import (
 // Returns:
 //   - *dtos.User: Pointer to the user object containing ID, names, email, phone, and role
 //   - error: sql.ErrNoRows if user not found (returns nil), or database error if query fails
-func GetUserByEmail(email string) (*dtos.User, error) {
+func GetUserByEmail(db DBExecutor, email string) (*dtos.User, error) {
 	// Execute query with JOIN to roles table
-	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE email = ?", email)
+	row := db.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE email = ?", email)
 
 	var user dtos.User
 	// Handle nullable database fields
@@ -92,7 +92,7 @@ func GetUserByEmail(email string) (*dtos.User, error) {
 	if phone.Valid {
 		user.Phone = phone.String
 	}
-	user.Permissions, err = GetPermissionsByRoleID(userRoleID)
+	user.Permissions, err = GetPermissionsByRoleID(db, userRoleID)
 	if err != nil {
 		return nil, err
 	}
@@ -111,9 +111,9 @@ func GetUserByEmail(email string) (*dtos.User, error) {
 // Returns:
 //   - *dtos.User: Pointer to the user object containing ID, names, email, phone, and role
 //   - error: sql.ErrNoRows if user not found (returns nil), or database error if query fails
-func GetUserByPhone(phone string) (*dtos.User, error) {
+func GetUserByPhone(db DBExecutor, phone string) (*dtos.User, error) {
 	// Execute query with JOIN to roles table
-	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE phone_number = ?", phone)
+	row := db.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE phone_number = ?", phone)
 
 	var user dtos.User
 	// Handle nullable database fields
@@ -146,7 +146,7 @@ func GetUserByPhone(phone string) (*dtos.User, error) {
 	if userEmail.Valid {
 		user.Email = userEmail.String
 	}
-	user.Permissions, err = GetPermissionsByRoleID(userRoleID)
+	user.Permissions, err = GetPermissionsByRoleID(db, userRoleID)
 	if err != nil {
 		return nil, err
 	}
@@ -156,8 +156,8 @@ func GetUserByPhone(phone string) (*dtos.User, error) {
 // helper function to get permissions by role id
 // params : roleID string
 // returns : []string , error
-func GetPermissionsByRoleID(roleID string) ([]string, error) {
-	rows, err := DB.Query(`SELECT pm.permission_key from permissions_master pm 
+func GetPermissionsByRoleID(db DBExecutor, roleID string) ([]string, error) {
+	rows, err := db.Query(`SELECT pm.permission_key from permissions_master pm 
 	JOIN role_permissions rp ON pm.permission_master_id = rp.permission_id
 	JOIN roles r ON rp.role_id = r.role_id
 	WHERE r.role_id = ?`, roleID)
@@ -200,9 +200,9 @@ func GetPermissionsByRoleID(roleID string) ([]string, error) {
 //
 // Returns:
 //   - error: nil if user exists, "user not found" error if not found, or database error
-func isUserThere(id string) error {
+func isUserThere(db DBExecutor, id string) error {
 	// Check if user record exists in users table
-	exists, err := RecordExists("users", "user_id = ?", id)
+	exists, err := RecordExists(db, "users", "user_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -221,9 +221,9 @@ func isUserThere(id string) error {
 //
 // Returns:
 //   - error: nil if product exists, "product with ID {id} not found" error if not found, or database error
-func IsProductThere(id string) error {
+func IsProductThere(db DBExecutor, id string) error {
 	// Check if product record exists in products table
-	exists, err := RecordExists("products", "product_id = ?", id)
+	exists, err := RecordExists(db, "products", "product_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -244,9 +244,9 @@ func IsProductThere(id string) error {
 //
 // Returns:
 //   - error: nil if no duplicate exists, "notification already exists" error if duplicate found, or database error
-func isRestockNotification(userID, productID string) error {
+func isRestockNotification(db DBExecutor, userID, productID string) error {
 	// Check if restock notification already exists for this user-product combination
-	exists, err := RecordExists("restock_notifications", "product_id = ? AND user_id = ?", productID, userID)
+	exists, err := RecordExists(db, "restock_notifications", "product_id = ? AND user_id = ?", productID, userID)
 	if err != nil {
 		return err
 	}
@@ -265,9 +265,9 @@ func isRestockNotification(userID, productID string) error {
 //
 // Returns:
 //   - error: nil if variant exists, "variant not found" error if not found, or database error
-func isVariantThere(id string) error {
+func isVariantThere(db DBExecutor, id string) error {
 	// Check if variant record exists in variants table
-	exists, err := RecordExists("variants", "variant_id = ?", id)
+	exists, err := RecordExists(db, "variants", "variant_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -295,15 +295,15 @@ func isVariantThere(id string) error {
 //   - Timestamps: LastLogin (nullable), CreatedAt
 //   - Status: Account status integer (active/inactive/suspended)
 //   - Addresses: Array of user delivery addresses
-func GetUserByUserID(id string) (*dtos.Users, error) {
+func GetUserByUserID(db DBExecutor, id string) (*dtos.Users, error) {
 	// Validate user exists before attempting retrieval
-	err := isUserThere(id)
+	err := isUserThere(db, id)
 	if err != nil {
 		return nil, err
 	}
 
 	// Execute query with JOIN to roles table for comprehensive user data
-	row := DB.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number, u.last_login, u.created_at, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE user_id = ?", id)
+	row := db.QueryRow("SELECT u.user_id, u.first_name, u.last_name, u.email, r.name, u.role_id, u.phone_number, u.last_login, u.created_at, u.status FROM users u JOIN roles r ON u.role_id = r.role_id WHERE user_id = ?", id)
 
 	var user dtos.Users
 	// Handle nullable database fields
@@ -350,8 +350,8 @@ func GetUserByUserID(id string) (*dtos.Users, error) {
 		user.LastLogin = lastLogin.Time.Format("2006-01-02 15:04:05")
 	}
 	// Fetch all associated addresses for this user
-	user.UserAddress, _ = GetUserAddresses(user.ID)
-	user.Permissions, err = GetPermissionsByRoleID(roleID)
+	user.UserAddress, _ = GetUserAddresses(db, user.ID)
+	user.Permissions, err = GetPermissionsByRoleID(db, roleID)
 	if err != nil {
 		return nil, err
 	}
@@ -374,9 +374,9 @@ func GetUserByUserID(id string) (*dtos.Users, error) {
 // Returns:
 //   - *dtos.User: Pointer to created user object with ID, names, email, role, and nil LastLogin
 //   - error: Validation error, role error, or database error if creation fails
-func CreateUser(input dtos.RegisterRequest) (*dtos.User, error) {
+func CreateUser(db DBExecutor, input dtos.RegisterRequest) (*dtos.User, error) {
 	// Validate unique email and phone to prevent duplicates
-	if err := validateUniqueUserIdentifiers(input.Email, input.Phonenumber); err != nil {
+	if err := validateUniqueUserIdentifiers(db, input.Email, input.Phonenumber); err != nil {
 		return nil, err
 	}
 
@@ -384,23 +384,23 @@ func CreateUser(input dtos.RegisterRequest) (*dtos.User, error) {
 	userID, _ := shortid.Generate()
 
 	// Resolve role ID (use provided or default to customer)
-	roleID, err := resolveRoleID(input.RoleID)
+	roleID, err := resolveRoleID(db, input.RoleID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Validate that the resolved role exists in database
-	if err := isRoleThere(roleID); err != nil {
+	if err := isRoleThere(db, roleID); err != nil {
 		return nil, err
 	}
 	// Fetch role name for response object
-	role, err := GetRoleNameByID(roleID)
+	role, err := GetRoleNameByID(db, roleID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Insert user record with dynamic fields (only non-empty values)
-	if err := insertUser(userID, roleID, input, role); err != nil {
+	if err := insertUser(db, userID, roleID, input, role); err != nil {
 		return nil, err
 	}
 
@@ -430,26 +430,26 @@ func CreateUser(input dtos.RegisterRequest) (*dtos.User, error) {
 // Returns:
 //   - *dtos.User: Pointer to created user object with ID, names, email, and role (no LastLogin field)
 //   - error: Validation error, role error, or database error if creation fails
-func AddUser(input dtos.RegisterRequest) (*dtos.User, error) {
+func AddUser(db DBExecutor, input dtos.RegisterRequest) (*dtos.User, error) {
 	// Validate unique email and phone to prevent duplicates
-	if err := validateUniqueUserIdentifiers(input.Email, input.Phonenumber); err != nil {
+	if err := validateUniqueUserIdentifiers(db, input.Email, input.Phonenumber); err != nil {
 		return nil, err
 	}
 	// Validate that the role exists in database
-	err := isRoleThere(input.RoleID)
+	err := isRoleThere(db, input.RoleID)
 	if err != nil {
 		return nil, err
 	}
 	// Generate unique user ID using shortid library
 	userID, _ := shortid.Generate()
 	// Fetch role name for response object
-	role, err := GetRoleNameByID(input.RoleID)
+	role, err := GetRoleNameByID(db, input.RoleID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Insert user record with dynamic fields (only non-empty values)
-	if err := insertUser(userID, input.RoleID, input, role); err != nil {
+	if err := insertUser(db, userID, input.RoleID, input, role); err != nil {
 		return nil, err
 	}
 
@@ -474,16 +474,16 @@ func AddUser(input dtos.RegisterRequest) (*dtos.User, error) {
 //
 // Returns:
 //   - error: nil if unique, "email already exists" or "phone number already exists" error if duplicate found
-func validateUniqueUserIdentifiers(email, phone string) error {
+func validateUniqueUserIdentifiers(db DBExecutor, email, phone string) error {
 	// Check email uniqueness if provided
 	if email != "" {
-		if exists, _ := EmailExistsForOtherUser("userID", email); exists {
+		if exists, _ := EmailExistsForOtherUser(db, "userID", email); exists {
 			return errors.New("email already exists for another user")
 		}
 	}
 	// Check phone number uniqueness if provided
 	if phone != "" {
-		if exists, _ := PhoneExistsForOtherUser("userID", phone); exists {
+		if exists, _ := PhoneExistsForOtherUser(db, "userID", phone); exists {
 			return errors.New("phone number already exists for another user")
 		}
 	}
@@ -505,14 +505,14 @@ func validateUniqueUserIdentifiers(email, phone string) error {
 //   - error: Error if customer role not found when defaulting, or database error
 //
 // This allows flexible user creation where role is optional and defaults to customer.
-func resolveRoleID(inputRoleID string) (string, error) {
+func resolveRoleID(db DBExecutor, inputRoleID string) (string, error) {
 	// If role ID is provided, use it as-is (no validation here)
 	if inputRoleID != "" {
 		return inputRoleID, nil
 	}
 
 	// Otherwise, default to the "customer" role
-	roleID, err := GetRoleIDForCustomerRole()
+	roleID, err := GetRoleIDForCustomerRole(db)
 	if err != nil {
 		return "", err
 	}
@@ -539,7 +539,7 @@ func resolveRoleID(inputRoleID string) (string, error) {
 //
 // Always inserts: user_id, role_id, role
 // Conditionally inserts (if not empty): first_name, last_name, email, phone_number
-func insertUser(userID, roleID string, input dtos.RegisterRequest, role string) error {
+func insertUser(db DBExecutor, userID, roleID string, input dtos.RegisterRequest, role string) error {
 	// Initialize base columns that are always inserted
 	columns := []string{"user_id", "role_id", "role"}
 	values := []interface{}{userID, roleID, role}
@@ -566,7 +566,7 @@ func insertUser(userID, roleID string, input dtos.RegisterRequest, role string) 
 	)
 
 	// Execute insert with dynamic values
-	_, err := DB.Exec(query, values...)
+	_, err := db.Exec(query, values...)
 	return err
 }
 
@@ -580,9 +580,9 @@ func insertUser(userID, roleID string, input dtos.RegisterRequest, role string) 
 //
 // Returns:
 //   - error: Database error if update fails, nil on success
-func UpdateLastLogin(userID string) error {
+func UpdateLastLogin(db DBExecutor, userID string) error {
 	// Update last_login to current timestamp
-	_, err := DB.Exec("UPDATE users SET last_login = ? WHERE user_id = ?", time.Now(), userID)
+	_, err := db.Exec("UPDATE users SET last_login = ? WHERE user_id = ?", time.Now(), userID)
 	return err
 }
 
@@ -599,16 +599,16 @@ func UpdateLastLogin(userID string) error {
 //
 // Returns:
 //   - error: nil if unique, "email already exists" or "phone number already exists" error if duplicate found
-func isEmailAndPhoneThere(email, phone, userID string) error {
+func isEmailAndPhoneThere(db DBExecutor, email, phone, userID string) error {
 	// Check email uniqueness if provided (excluding current user)
 	if email != "" {
-		if exists, _ := EmailExistsForOtherUser(userID, email); exists {
+		if exists, _ := EmailExistsForOtherUser(db, userID, email); exists {
 			return errors.New("email already exists for another user")
 		}
 	}
 	// Check phone number uniqueness if provided (excluding current user)
 	if phone != "" {
-		if exists, _ := PhoneExistsForOtherUser(userID, phone); exists {
+		if exists, _ := PhoneExistsForOtherUser(db, userID, phone); exists {
 			return errors.New("phone number already exists for another user")
 		}
 	}
@@ -682,27 +682,27 @@ func buildUpdateFields(input dtos.RegisterRequest, role string) ([]string, []int
 //   - error: Validation error, "no fields to update" error, or database error if update fails
 //
 // Only non-empty fields in input will be updated. Empty strings are ignored.
-func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, error) {
+func FindByIdAndUpdate(db DBExecutor, input dtos.RegisterRequest, userID string) (*dtos.Users, error) {
 	// Validate that user exists before attempting update
-	err := isUserThere(userID)
+	err := isUserThere(db, userID)
 	if err != nil {
 		return nil, err
 	}
 	role := ""
 	// Validate role exists if role_id is being changed
 	if input.RoleID != "" {
-		err = isRoleThere(input.RoleID)
+		err = isRoleThere(db, input.RoleID)
 		if err != nil {
 			return nil, err
 		}
 		// Fetch role name for update
-		role, err = GetRoleNameByID(input.RoleID)
+		role, err = GetRoleNameByID(db, input.RoleID)
 		if err != nil {
 			return nil, err
 		}
 	}
 	// Validate email/phone uniqueness against other users (excluding current user)
-	err = isEmailAndPhoneThere(input.Email, input.Phonenumber, userID)
+	err = isEmailAndPhoneThere(db, input.Email, input.Phonenumber, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -725,12 +725,12 @@ func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, 
 		WHERE user_id = ?`, strings.Join(setClauses, ", "))
 
 	// Execute update query
-	_, err = DB.Exec(query, values...)
+	_, err = db.Exec(query, values...)
 	if err != nil {
 		return nil, err
 	}
 	// Retrieve and return updated user object with complete profile
-	user, err := GetUserByUserID(userID)
+	user, err := GetUserByUserID(db, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -749,7 +749,7 @@ func FindByIdAndUpdate(input dtos.RegisterRequest, userID string) (*dtos.Users, 
 // Returns:
 //   - bool: true if email exists for another user, false if unique or only used by current user
 //   - error: Database error if query fails
-func EmailExistsForOtherUser(userID, email string) (bool, error) {
+func EmailExistsForOtherUser(db DBExecutor, userID, email string) (bool, error) {
 	var count int
 	// Count users with this email excluding the current user
 	query := `
@@ -757,7 +757,7 @@ func EmailExistsForOtherUser(userID, email string) (bool, error) {
 		FROM users 
 		WHERE email = ? 
 		  AND user_id <> ?`
-	err := DB.QueryRow(query, email, userID).Scan(&count)
+	err := db.QueryRow(query, email, userID).Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -776,7 +776,7 @@ func EmailExistsForOtherUser(userID, email string) (bool, error) {
 // Returns:
 //   - bool: true if phone exists for another user, false if unique or only used by current user
 //   - error: Database error if query fails
-func PhoneExistsForOtherUser(userID, phone string) (bool, error) {
+func PhoneExistsForOtherUser(db DBExecutor, userID, phone string) (bool, error) {
 	var count int
 	// Count users with this phone number excluding the current user
 	query := `
@@ -784,7 +784,7 @@ func PhoneExistsForOtherUser(userID, phone string) (bool, error) {
 		FROM users 
 		WHERE phone_number = ? 
 		  AND user_id <> ?`
-	err := DB.QueryRow(query, phone, userID).Scan(&count)
+	err := db.QueryRow(query, phone, userID).Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -804,15 +804,15 @@ func PhoneExistsForOtherUser(userID, phone string) (bool, error) {
 //   - error: sql.ErrNoRows if token not found, or database error if query fails
 //
 // Flow: token -> email lookup in reset_tokens table -> GetUserByEmail
-func GetUserByResetToken(token string) (*dtos.User, error) {
+func GetUserByResetToken(db DBExecutor, token string) (*dtos.User, error) {
 	var email string
 	// Look up email associated with this reset token
-	err := DB.QueryRow("SELECT email FROM reset_tokens WHERE token = ?", token).Scan(&email)
+	err := db.QueryRow("SELECT email FROM reset_tokens WHERE token = ?", token).Scan(&email)
 	if err != nil {
 		return nil, err
 	}
 	// Retrieve full user object by email
-	return GetUserByEmail(email)
+	return GetUserByEmail(db, email)
 }
 
 // StoreOTP stores a new one-time password (OTP) for a user with an expiration time.
@@ -832,7 +832,7 @@ func GetUserByResetToken(token string) (*dtos.User, error) {
 //   - Unique UUID id
 //   - Expiration timestamp (current time + duration)
 //   - used flag set to FALSE initially
-func StoreOTP(userID string, otp string, duration time.Duration) error {
+func StoreOTP(db DBExecutor, userID string, otp string, duration time.Duration) error {
 	// Calculate expiration time
 	expiry := time.Now().Add(duration)
 	// Generate unique OTP record ID
@@ -843,7 +843,7 @@ func StoreOTP(userID string, otp string, duration time.Duration) error {
 		INSERT INTO otps (id, user_id, code, expires_at, used)
 		VALUES (?, ?, ?, ?, FALSE)
 	`
-	_, err := DB.Exec(query, otpID, userID, otp, expiry)
+	_, err := db.Exec(query, otpID, userID, otp, expiry)
 	if err != nil {
 		log.Printf("Failed to store OTP: %v", err) // Log error for debugging
 	}
@@ -865,7 +865,7 @@ func StoreOTP(userID string, otp string, duration time.Duration) error {
 // Returns:
 //   - bool: true if OTP is valid (unused and not expired), false otherwise
 //   - error: Database error if query fails, nil for invalid/missing OTP
-func VerifyOTP(userID string, otp string) (bool, error) {
+func VerifyOTP(db DBExecutor, userID string, otp string) (bool, error) {
 	var id string
 	var expiresAt time.Time
 	var used bool
@@ -880,7 +880,7 @@ func VerifyOTP(userID string, otp string) (bool, error) {
 	`
 
 	// Retrieve OTP record
-	err := DB.QueryRow(query, userID, otp).Scan(&id, &expiresAt, &used)
+	err := db.QueryRow(query, userID, otp).Scan(&id, &expiresAt, &used)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return false, nil // OTP not found - not an error
@@ -895,7 +895,7 @@ func VerifyOTP(userID string, otp string) (bool, error) {
 	}
 
 	// Mark the OTP as used to prevent reuse
-	_, err = DB.Exec(`UPDATE otps SET used = TRUE WHERE id = ?`, id)
+	_, err = db.Exec(`UPDATE otps SET used = TRUE WHERE id = ?`, id)
 	if err != nil {
 		log.Printf("Error updating OTP to used: %v", err)
 		return false, err

@@ -27,9 +27,9 @@ var noEntry = "entry not found"
 //
 // Returns:
 //   - error: nil if account code exists, error if not found or database error
-func isChartAccountCodeThere(code string) error {
+func isChartAccountCodeThere(db DBExecutor, code string) error {
 	// Check if account code exists in chart_of_accounts table
-	exists, err := RecordExists("chart_of_accounts", "account_code = ?", code)
+	exists, err := RecordExists(db, "chart_of_accounts", "account_code = ?", code)
 	if err != nil {
 		// Database query failed
 		return err
@@ -52,9 +52,9 @@ func isChartAccountCodeThere(code string) error {
 // Returns:
 //   - string: Generated account ID if successful
 //   - error: Error if account code invalid or database operation fails
-var CreateAccount = func(req dtos.CreateAccountRequest) (string, error) {
+var CreateAccount = func(db DBExecutor, req dtos.CreateAccountRequest) (string, error) {
 	// Validate that the account code exists in the system
-	err := isChartAccountCodeThere(req.AccountCode)
+	err := isChartAccountCodeThere(db, req.AccountCode)
 	if err != nil {
 		// Account code validation failed
 		return "", err
@@ -63,7 +63,7 @@ var CreateAccount = func(req dtos.CreateAccountRequest) (string, error) {
 	id, _ := shortid.Generate()
 
 	// Insert new account into chart of accounts
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO chart_of_accounts (account_id, account_code, account_name, account_type)
 		VALUES (?, ?, ?, ?)`,
 		id, req.AccountCode, req.AccountName, req.AccountType,
@@ -82,10 +82,10 @@ var CreateAccount = func(req dtos.CreateAccountRequest) (string, error) {
 //   - []dtos.ChartOfAccount: List of accounts with ID, code, name, type, and current balance
 //   - dtos.PaginationMeta: Pagination metadata (total items, total pages, has next/prev)
 //   - error: Error if database operation fails
-var ListAccounts = func(page, size int) ([]dtos.ChartOfAccount, dtos.PaginationMeta, error) {
+var ListAccounts = func(db DBExecutor, page, size int) ([]dtos.ChartOfAccount, dtos.PaginationMeta, error) {
 	// Get total count of accounts for pagination metadata
 	var total int
-	err := DB.QueryRow(`SELECT COUNT(*) FROM chart_of_accounts`).Scan(&total)
+	err := db.QueryRow(`SELECT COUNT(*) FROM chart_of_accounts`).Scan(&total)
 	if err != nil {
 		// Failed to get count
 		return nil, dtos.PaginationMeta{}, err
@@ -94,7 +94,7 @@ var ListAccounts = func(page, size int) ([]dtos.ChartOfAccount, dtos.PaginationM
 	// Calculate offset for pagination
 	offset := (page - 1) * size
 	// Fetch paginated accounts ordered by account code
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT account_id, account_code, account_name, account_type, balance
 		FROM chart_of_accounts
 		ORDER BY account_code
@@ -137,9 +137,9 @@ var ListAccounts = func(page, size int) ([]dtos.ChartOfAccount, dtos.PaginationM
 // Returns:
 //   - dtos.ChartOfAccount: Account details including ID, code, name, type, and current balance
 //   - error: Error if account not found or database operation fails
-var GetAccount = func(id string) (dtos.ChartOfAccount, error) {
+var GetAccount = func(db DBExecutor, id string) (dtos.ChartOfAccount, error) {
 	// Check if account exists before querying
-	exists, err := RecordExists("chart_of_accounts", whereAccountID, id)
+	exists, err := RecordExists(db, "chart_of_accounts", whereAccountID, id)
 	if err != nil {
 		// Database error during existence check
 		return dtos.ChartOfAccount{}, err
@@ -150,7 +150,7 @@ var GetAccount = func(id string) (dtos.ChartOfAccount, error) {
 	}
 	// Fetch account details
 	var acc dtos.ChartOfAccount
-	err = DB.QueryRow(`
+	err = db.QueryRow(`
 		SELECT account_id, account_code, account_name, account_type, balance
 		FROM chart_of_accounts WHERE account_id = ?`, id).
 		Scan(&acc.AccountID, &acc.AccountCode, &acc.AccountName, &acc.AccountType, &acc.Balance)
@@ -166,9 +166,9 @@ var GetAccount = func(id string) (dtos.ChartOfAccount, error) {
 //
 // Returns:
 //   - error: Error if account not found or database operation fails
-var UpdateAccount = func(id string, req dtos.UpdateAccountRequest) error {
+var UpdateAccount = func(db DBExecutor, id string, req dtos.UpdateAccountRequest) error {
 	// Verify account exists before updating
-	exists, err := RecordExists("chart_of_accounts", whereAccountID, id)
+	exists, err := RecordExists(db, "chart_of_accounts", whereAccountID, id)
 	if err != nil {
 		// Database error during existence check
 		return err
@@ -178,7 +178,7 @@ var UpdateAccount = func(id string, req dtos.UpdateAccountRequest) error {
 		return errors.New(noAccount)
 	}
 	// Update account name and type (code and balance remain unchanged)
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		UPDATE chart_of_accounts SET account_name = ?, account_type = ? WHERE account_id = ?`,
 		req.AccountName, req.AccountType, id,
 	)
@@ -192,9 +192,9 @@ var UpdateAccount = func(id string, req dtos.UpdateAccountRequest) error {
 //
 // Returns:
 //   - error: Error if account not found or database operation fails
-var DeleteAccount = func(id string) error {
+var DeleteAccount = func(db DBExecutor, id string) error {
 	// Verify account exists before deletion
-	exists, err := RecordExists("chart_of_accounts", whereAccountID, id)
+	exists, err := RecordExists(db, "chart_of_accounts", whereAccountID, id)
 	if err != nil {
 		// Database error during existence check
 		return err
@@ -204,7 +204,7 @@ var DeleteAccount = func(id string) error {
 		return errors.New(noAccount)
 	}
 	// Delete account from chart of accounts
-	_, err = DB.Exec(`DELETE FROM chart_of_accounts WHERE account_id = ?`, id)
+	_, err = db.Exec(`DELETE FROM chart_of_accounts WHERE account_id = ?`, id)
 	return err
 }
 
@@ -220,9 +220,9 @@ var DeleteAccount = func(id string) error {
 // Returns:
 //   - string: Generated entry ID if successful
 //   - error: Error if referenced entities don't exist or database operation fails
-var CreateEntry = func(req dtos.CreateJournalEntryRequest) (string, error) {
+var CreateEntry = func(db DBExecutor, req dtos.CreateJournalEntryRequest) (string, error) {
 	// Validate that the account exists in chart of accounts
-	exists, err := RecordExists("chart_of_accounts", whereAccountID, req.AccountID)
+	exists, err := RecordExists(db, "chart_of_accounts", whereAccountID, req.AccountID)
 	if err != nil {
 		// Database error during account check
 		return "", err
@@ -233,7 +233,7 @@ var CreateEntry = func(req dtos.CreateJournalEntryRequest) (string, error) {
 	}
 	// Validate optional order reference if provided
 	if req.OrderID != nil {
-		err := IsOrderThere(*req.OrderID)
+		err := IsOrderThere(db, *req.OrderID)
 		if err != nil {
 			// Order not found
 			return "", err
@@ -241,7 +241,7 @@ var CreateEntry = func(req dtos.CreateJournalEntryRequest) (string, error) {
 	}
 	// Validate optional payment reference if provided
 	if req.PaymentID != nil {
-		err := isPaymentThere(*req.PaymentID)
+		err := isPaymentThere(db, *req.PaymentID)
 		if err != nil {
 			// Payment not found
 			return "", err
@@ -249,7 +249,7 @@ var CreateEntry = func(req dtos.CreateJournalEntryRequest) (string, error) {
 	}
 	// Validate optional purchase order reference if provided
 	if req.PoID != nil {
-		err := isPurchaseOrderThere(*req.PoID)
+		err := isPurchaseOrderThere(db, *req.PoID)
 		if err != nil {
 			// Purchase order not found
 			return "", err
@@ -259,7 +259,7 @@ var CreateEntry = func(req dtos.CreateJournalEntryRequest) (string, error) {
 	id, _ := shortid.Generate()
 
 	// Insert journal entry with debit/credit amounts and optional references
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO journal_entries (entry_id, order_id, payment_id, po_id, account_id, debit, credit, description)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		id, req.OrderID, req.PaymentID, req.PoID, req.AccountID, req.Debit, req.Credit, req.Description,
@@ -278,10 +278,10 @@ var CreateEntry = func(req dtos.CreateJournalEntryRequest) (string, error) {
 //   - []dtos.JournalEntry: List of journal entries with debit/credit amounts and references
 //   - dtos.PaginationMeta: Pagination metadata (total items, total pages, has next/prev)
 //   - error: Error if database operation fails
-var ListEntries = func(page, size int) ([]dtos.JournalEntry, dtos.PaginationMeta, error) {
+var ListEntries = func(db DBExecutor, page, size int) ([]dtos.JournalEntry, dtos.PaginationMeta, error) {
 	// Get total count of journal entries for pagination metadata
 	var total int
-	err := DB.QueryRow(`SELECT COUNT(*) FROM journal_entries`).Scan(&total)
+	err := db.QueryRow(`SELECT COUNT(*) FROM journal_entries`).Scan(&total)
 	if err != nil {
 		// Failed to get count
 		return nil, dtos.PaginationMeta{}, err
@@ -290,7 +290,7 @@ var ListEntries = func(page, size int) ([]dtos.JournalEntry, dtos.PaginationMeta
 	// Calculate offset for pagination
 	offset := (page - 1) * size
 	// Fetch paginated entries ordered by entry date descending
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT entry_id, order_id, payment_id, po_id, account_id, debit, credit, entry_date, description
 		FROM journal_entries
 		ORDER BY entry_date DESC
@@ -334,9 +334,9 @@ var ListEntries = func(page, size int) ([]dtos.JournalEntry, dtos.PaginationMeta
 // Returns:
 //   - dtos.JournalEntry: Entry details including debit/credit amounts, account, and optional references
 //   - error: Error if entry not found or database operation fails
-var GetEntry = func(id string) (dtos.JournalEntry, error) {
+var GetEntry = func(db DBExecutor, id string) (dtos.JournalEntry, error) {
 	// Check if journal entry exists before querying
-	exists, err := RecordExists("journal_entries", whereEntryID, id)
+	exists, err := RecordExists(db, "journal_entries", whereEntryID, id)
 	if err != nil {
 		// Database error during existence check
 		return dtos.JournalEntry{}, err
@@ -347,7 +347,7 @@ var GetEntry = func(id string) (dtos.JournalEntry, error) {
 	}
 	// Fetch journal entry details
 	var e dtos.JournalEntry
-	err = DB.QueryRow(`
+	err = db.QueryRow(`
 		SELECT entry_id, order_id, payment_id, po_id, account_id, debit, credit, entry_date, description
 		FROM journal_entries WHERE entry_id = ?`, id).
 		Scan(&e.EntryID, &e.OrderID, &e.PaymentID, &e.PoID, &e.AccountID, &e.Debit, &e.Credit, &e.EntryDate, &e.Description)
@@ -362,9 +362,9 @@ var GetEntry = func(id string) (dtos.JournalEntry, error) {
 //
 // Returns:
 //   - error: Error if entry not found or database operation fails
-var UpdateEntry = func(id string, req dtos.UpdateJournalEntryRequest) error {
+var UpdateEntry = func(db DBExecutor, id string, req dtos.UpdateJournalEntryRequest) error {
 	// Verify entry exists before updating
-	exists, err := RecordExists("journal_entries", whereEntryID, id)
+	exists, err := RecordExists(db, "journal_entries", whereEntryID, id)
 	if err != nil {
 		// Database error during existence check
 		return err
@@ -374,7 +374,7 @@ var UpdateEntry = func(id string, req dtos.UpdateJournalEntryRequest) error {
 		return errors.New(noEntry)
 	}
 	// Update debit and credit amounts (other fields remain unchanged)
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		UPDATE journal_entries SET debit = ?, credit = ? WHERE entry_id = ?`,
 		req.Debit, req.Credit, id,
 	)
@@ -388,9 +388,9 @@ var UpdateEntry = func(id string, req dtos.UpdateJournalEntryRequest) error {
 //
 // Returns:
 //   - error: Error if entry not found or database operation fails
-var DeleteEntry = func(id string) error {
+var DeleteEntry = func(db DBExecutor, id string) error {
 	// Verify entry exists before deletion
-	exists, err := RecordExists("journal_entries", whereEntryID, id)
+	exists, err := RecordExists(db, "journal_entries", whereEntryID, id)
 	if err != nil {
 		// Database error during existence check
 		return err
@@ -400,6 +400,6 @@ var DeleteEntry = func(id string) error {
 		return errors.New(noEntry)
 	}
 	// Delete journal entry
-	_, err = DB.Exec(`DELETE FROM journal_entries WHERE entry_id = ?`, id)
+	_, err = db.Exec(`DELETE FROM journal_entries WHERE entry_id = ?`, id)
 	return err
 }

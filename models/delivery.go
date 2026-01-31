@@ -45,7 +45,7 @@ import (
 //   - RETURNED: Package returned to sender
 func CreateNewDelivery(delivery dtos.Delivery) error {
 	// Validate order exists before creating delivery
-	exists, err := RecordExists("orders", "order_id = ?", delivery.OrderID)
+	exists, err := RecordExists(DB, "orders", "order_id = ?", delivery.OrderID)
 	if err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ func GetDeliveryByID(deliveryID string) (dtos.Delivery, error) {
 //   - PENDING → IN_TRANSIT → RETURNED (package returned)
 func UpdateDelivery(status, deliveryID string) error {
 	// Validate delivery exists
-	exists, err := RecordExists("deliveries", "delivery_id = ?", deliveryID)
+	exists, err := RecordExists(DB, "deliveries", "delivery_id = ?", deliveryID)
 	if err != nil {
 		return err
 	}
@@ -294,7 +294,7 @@ func UpdateDelivery(status, deliveryID string) error {
 //   - No cascading effects on orders (order remains)
 func DeleteDelivery(deliveryID string) error {
 	// Validate delivery exists
-	exists, err := RecordExists("deliveries", "delivery_id = ?", deliveryID)
+	exists, err := RecordExists(DB, "deliveries", "delivery_id = ?", deliveryID)
 	if err != nil {
 		return err
 	}

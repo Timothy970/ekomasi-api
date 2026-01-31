@@ -30,12 +30,12 @@ import (
 //
 // Returns:
 //   - error: Database error or nil on success
-func CreateSupplier(s dtos.Supplier) error {
+func CreateSupplier(db DBExecutor, s dtos.Supplier) error {
 	// Generate unique supplier ID
 	supplierID, _ := shortid.Generate()
 
 	// Insert new supplier record
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
 		INSERT INTO suppliers (supplier_id, name, contact_email, contact_phone, extra_details)
 		VALUES (?, ?, ?, ?, ?)`,
 		supplierID, s.Name, s.ContactEmail, s.ContactPhone, s.ExtraDetails,
@@ -61,19 +61,19 @@ func CreateSupplier(s dtos.Supplier) error {
 //   - ExtraDetails: Additional notes
 //   - dtos.PaginationMeta: Pagination info (page, size, totals, navigation flags)
 //   - error: Database error or nil on success
-func ListSuppliers(page, size int) ([]dtos.Supplier, dtos.PaginationMeta, error) {
+func ListSuppliers(db DBExecutor, page, size int) ([]dtos.Supplier, dtos.PaginationMeta, error) {
 	// Calculate offset for pagination
 	offset := (page - 1) * size
 
 	// Get total count of suppliers
 	var total int
-	err := DB.QueryRow(`SELECT COUNT(*) FROM suppliers`).Scan(&total)
+	err := db.QueryRow(`SELECT COUNT(*) FROM suppliers`).Scan(&total)
 	if err != nil {
 		return nil, dtos.PaginationMeta{}, err
 	}
 
 	// Query paginated suppliers
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT supplier_id, name, contact_email, contact_phone, extra_details
 		FROM suppliers
 		LIMIT ? OFFSET ?`, size, offset)
@@ -118,11 +118,11 @@ func ListSuppliers(page, size int) ([]dtos.Supplier, dtos.PaginationMeta, error)
 //   - ContactPhone: Phone number
 //   - ExtraDetails: Additional notes
 //   - error: "supplier doesn't exist", database error, or nil on success
-func GetSupplierByID(id string) (dtos.Supplier, error) {
+func GetSupplierByID(db DBExecutor, id string) (dtos.Supplier, error) {
 	var s dtos.Supplier
 
 	// Query supplier by ID
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT supplier_id, name, contact_email, contact_phone, extra_details
 		FROM suppliers
 		WHERE supplier_id = ?`, id).
@@ -149,9 +149,9 @@ func GetSupplierByID(id string) (dtos.Supplier, error) {
 //
 // Returns:
 //   - error: "supplier not found", database error, or nil if supplier exists
-func isSupplierThere(id string) error {
+func isSupplierThere(db DBExecutor, id string) error {
 	// Check supplier existence
-	exists, err := RecordExists("suppliers", "supplier_id = ?", id)
+	exists, err := RecordExists(db, "suppliers", "supplier_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -176,15 +176,15 @@ func isSupplierThere(id string) error {
 //
 // Returns:
 //   - error: "supplier not found", database error, or nil on success
-func UpdateSupplier(s dtos.Supplier, id string) error {
+func UpdateSupplier(db DBExecutor, s dtos.Supplier, id string) error {
 	// Validate supplier exists
-	err := isSupplierThere(id)
+	err := isSupplierThere(db, id)
 	if err != nil {
 		return err
 	}
 
 	// Update supplier information
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		UPDATE suppliers
 		SET name = ?, contact_email = ?, contact_phone = ?, extra_details = ?
 		WHERE supplier_id = ?`,
@@ -202,14 +202,14 @@ func UpdateSupplier(s dtos.Supplier, id string) error {
 //
 // Returns:
 //   - error: "supplier not found", database error, or nil on success
-func DeleteSupplier(id string) error {
+func DeleteSupplier(db DBExecutor, id string) error {
 	// Validate supplier exists
-	err := isSupplierThere(id)
+	err := isSupplierThere(db, id)
 	if err != nil {
 		return err
 	}
 
 	// Delete supplier record
-	_, err = DB.Exec(`DELETE FROM suppliers WHERE supplier_id = ?`, id)
+	_, err = db.Exec(`DELETE FROM suppliers WHERE supplier_id = ?`, id)
 	return err
 }

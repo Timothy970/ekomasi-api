@@ -58,7 +58,7 @@ func CreateVariant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create variant record in database
-	_, err := models.CreateVariant(*req)
+	_, err := models.CreateVariant(models.DB, *req)
 	if err != nil {
 		// Variant creation failed (duplicate, constraint violation, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -133,7 +133,7 @@ func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch products matching variant criteria with pagination
-	variant, pagination, err := models.GetVariantsWithProductsPaginated(variants, page, limit)
+	variant, pagination, err := models.GetVariantsWithProductsPaginated(models.DB, variants, page, limit)
 	if err != nil {
 		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -194,7 +194,7 @@ func GetVariant(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["variant_id"]
 
 	// Fetch specific variant details from database
-	variant, err := models.GetVariant(id)
+	variant, err := models.GetVariant(models.DB, id)
 	if err != nil {
 		// Variant not found or database error
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -248,7 +248,7 @@ func ListVariants(w http.ResponseWriter, r *http.Request) {
 	if cachedVariants == nil {
 		var err error
 		// Fetch all variants grouped by type from database
-		variants, err = models.ListVariants()
+		variants, err = models.ListVariants(models.DB)
 		if err != nil {
 			// Database query failed
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -326,7 +326,7 @@ func UpdateVariant(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["variant_id"]
 
 	// Update variant information in database
-	if err := models.UpdateVariantByID(id, *req); err != nil {
+	if err := models.UpdateVariantByID(models.DB, id, *req); err != nil {
 		// Variant update failed (not found, constraint violation, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -385,7 +385,7 @@ func DeleteVariant(w http.ResponseWriter, r *http.Request) {
 	// Extract variant ID from URL path parameters
 	id := mux.Vars(r)["variant_id"]
 	// Delete variant from database (may be soft delete)
-	if err := models.DeleteVariantByID(id); err != nil {
+	if err := models.DeleteVariantByID(models.DB, id); err != nil {
 		// Variant deletion failed (not found, has dependencies, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -458,7 +458,7 @@ func AddProductVariant(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["variant_id"]
 
 	// Create product-variant association in database
-	if err := models.AddProductVariant(id, *req); err != nil {
+	if err := models.AddProductVariant(models.DB, id, *req); err != nil {
 		// Association failed (duplicate, invalid IDs, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -521,7 +521,7 @@ func RemoveProductVariant(w http.ResponseWriter, r *http.Request) {
 	productID := mux.Vars(r)["product_id"]
 	variantID := mux.Vars(r)["variant_id"]
 	// Remove product-variant association from database
-	if err := models.RemoveProductVariant(productID, variantID); err != nil {
+	if err := models.RemoveProductVariant(models.DB, productID, variantID); err != nil {
 		// Remove operation failed (association not found or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -570,7 +570,7 @@ func ListProductVariants(w http.ResponseWriter, r *http.Request) {
 	// Extract product ID from URL path parameters
 	productID := mux.Vars(r)["product_id"]
 	// Fetch all variant options for the specified product from database
-	pv, err := models.ListProductVariants(productID)
+	pv, err := models.ListProductVariants(models.DB, productID)
 	if err != nil {
 		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -634,5 +634,5 @@ func MigrateImageURLs(w http.ResponseWriter, r *http.Request) {
 // Delegates to the models layer for database operations.
 func MigrateImageURLsService() (int64, error) {
 	// Execute batch image URL update in database
-	return models.UpdateImageURLs()
+	return models.UpdateImageURLs(models.DB)
 }

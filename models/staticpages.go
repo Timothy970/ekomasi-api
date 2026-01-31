@@ -74,7 +74,7 @@ func CreateStaticPage(req dtos.StaticPageRequest, userID string) error {
 //     database error, or nil if both are unique
 func isStaticPageThereByTitleOrPath(title, path string) error {
 	// Check if title already exists (case-insensitive)
-	exists, err := RecordExists("static_pages", "LOWER(title) = LOWER(?)", title)
+	exists, err := RecordExists(DB, "static_pages", "LOWER(title) = LOWER(?)", title)
 	if err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func isStaticPageThereByTitleOrPath(title, path string) error {
 	}
 
 	// Check if path already exists (case-insensitive)
-	exists, err = RecordExists("static_pages", "LOWER(path) = LOWER(?)", path)
+	exists, err = RecordExists(DB, "static_pages", "LOWER(path) = LOWER(?)", path)
 	if err != nil {
 		return err
 	}
@@ -204,7 +204,7 @@ func scanStaticPageRow(rows *sql.Rows) (dtos.StaticPageRequest, error) {
 	// Enrich with author display name
 	var err error
 	if userID.Valid {
-		sp.Author, err = GetUserDisplayName(userID.String)
+		sp.Author, err = GetUserDisplayName(DB, userID.String)
 		if err != nil {
 			log.Printf("scanStaticPageRow get user display name error: %v", err)
 			return sp, err
@@ -263,7 +263,7 @@ func GetStaticPageByID(staticPageID string) (*dtos.StaticPageRequest, error) {
 
 	// Enrich with author display name
 	if userID.Valid {
-		sp.Author, err = GetUserDisplayName(userID.String)
+		sp.Author, err = GetUserDisplayName(DB, userID.String)
 		if err != nil {
 			log.Printf("GetStaticPageByID get user display name error: %v", err)
 			return nil, err
@@ -357,7 +357,7 @@ func DeleteStaticPage(staticPageID string) error {
 //   - error: "static page not found", database error, or nil if page exists
 func isStaticPageThere(staticPageID string) error {
 	// Check page existence
-	exists, err := RecordExists("static_pages", "static_page_id = ?", staticPageID)
+	exists, err := RecordExists(DB, "static_pages", "static_page_id = ?", staticPageID)
 	if err != nil {
 		return err
 	}
