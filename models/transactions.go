@@ -118,7 +118,7 @@ func GetAllTransactions(page, limit int, status, q string) ([]dtos.TransactionsL
 //   - error: "transaction with ID <id> doesn't exist", database error, or nil on success
 func GetTransactionByID(transactionID string) (*dtos.TransactionsList, error) {
 	// Validate transaction exists
-	exists, err := RecordExists("transactions", "transaction_id = ?", transactionID)
+	exists, err := RecordExists(DB, "transactions", "transaction_id = ?", transactionID)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func GetTransactionByID(transactionID string) (*dtos.TransactionsList, error) {
 //
 // Returns:
 //   - error: Database error or nil on success
-func InsertTransaction(t *dtos.TransactionsList) error {
+func InsertTransaction(db DBExecutor, t *dtos.TransactionsList) error {
 	// Generate unique transaction ID
 	transactionID, _ := shortid.Generate()
 
@@ -168,7 +168,7 @@ func InsertTransaction(t *dtos.TransactionsList) error {
 		INSERT INTO transactions (transaction_id, order_id, mpesa_reference, transaction_reference, phone_number, amount, account_number, status, payment_method)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	_, err := DB.Exec(query, transactionID, t.OrderID, t.MpesaReference, t.TransactionReference, t.PhoneNumber, t.Amount, t.AccountNumber, t.Status, t.PaymentMethod)
+	_, err := db.Exec(query, transactionID, t.OrderID, t.MpesaReference, t.TransactionReference, t.PhoneNumber, t.Amount, t.AccountNumber, t.Status, t.PaymentMethod)
 	return err
 }
 
@@ -183,13 +183,13 @@ func InsertTransaction(t *dtos.TransactionsList) error {
 //
 // Returns:
 //   - error: Database error or nil on success
-func UpdateTransactionStatus(orderID, status string) error {
+func UpdateTransactionStatus(db DBExecutor, orderID, status string) error {
 	// Update transaction status for order
 	query := `
 		UPDATE transactions
 		SET status = ?
 		WHERE order_id = ?`
-	_, err := DB.Exec(query, status, orderID)
+	_, err := db.Exec(query, status, orderID)
 	return err
 }
 
@@ -205,13 +205,13 @@ func UpdateTransactionStatus(orderID, status string) error {
 //
 // Returns:
 //   - error: Database error or nil on success
-func UpdateMpesaReceiptNumber(mpesaReceiptNumber, orderID string) error {
+func UpdateMpesaReceiptNumber(db DBExecutor, mpesaReceiptNumber, orderID string) error {
 	// Update M-Pesa reference for order transactions
 	query := `
 		UPDATE transactions
 		SET mpesa_reference = ?
 		WHERE order_id = ?`
-	_, err := DB.Exec(query, mpesaReceiptNumber, orderID)
+	_, err := db.Exec(query, mpesaReceiptNumber, orderID)
 	return err
 }
 
@@ -227,20 +227,20 @@ func UpdateMpesaReceiptNumber(mpesaReceiptNumber, orderID string) error {
 // Returns:
 //   - string: The order ID associated with this transaction
 //   - error: Database error or nil on success
-func UpdateTransactionStatusByID(transactionID, status string) (string, error) {
+func UpdateTransactionStatusByID(db DBExecutor, transactionID, status string) (string, error) {
 	// Update transaction status
 	query := `
 		UPDATE transactions
 		SET status = ?
 		WHERE transaction_id = ?`
-	_, err := DB.Exec(query, status, transactionID)
+	_, err := db.Exec(query, status, transactionID)
 	if err != nil {
 		return "", err
 	}
 
 	// Retrieve associated order ID for order status synchronization
 	var orderID string
-	err = DB.QueryRow(`SELECT order_id FROM transactions WHERE transaction_id = ?`, transactionID).Scan(&orderID)
+	err = db.QueryRow(`SELECT order_id FROM transactions WHERE transaction_id = ?`, transactionID).Scan(&orderID)
 	if err != nil {
 		return "", err
 	}
@@ -259,12 +259,12 @@ func UpdateTransactionStatusByID(transactionID, status string) (string, error) {
 //
 // Returns:
 //   - error: Database error or nil on success
-func UpdateOrderPaymentStatus(orderID, status string) error {
+func UpdateOrderPaymentStatus(db DBExecutor, orderID, status string) error {
 	// Update order payment status
 	query := `
 		UPDATE orders
 		SET payment_status = ?
 		WHERE order_id = ?`
-	_, err := DB.Exec(query, status, orderID)
+	_, err := db.Exec(query, status, orderID)
 	return err
 }

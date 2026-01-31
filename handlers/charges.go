@@ -44,7 +44,7 @@ func AddChargeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	charge, err := models.AddCharge(*req)
+	charge, err := models.AddCharge(models.DB, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -105,7 +105,7 @@ func UpdateChargeHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Charges") {
 		return
 	}
-	charge, err := models.UpdateCharge(id, *req)
+	charge, err := models.UpdateCharge(models.DB, id, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -149,7 +149,7 @@ func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
 	id := mux.Vars(r)["charge_id"]
-	charge, err := models.GetChargeByID(id)
+	charge, err := models.GetChargeByID(models.DB, id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Charges",
@@ -189,7 +189,7 @@ func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 func GetAllChargesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
-	charges, err := models.GetAllCharges()
+	charges, err := models.GetAllCharges(models.DB)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Charges",
@@ -235,8 +235,7 @@ func DeleteChargeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := mux.Vars(r)["charge_id"]
-	err := models.DeleteCharge(id)
-	if err != nil {
+	if err := models.DeleteCharge(models.DB, id); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Charges",
 			Description: "Failed to delete charge with ID " + id,
@@ -290,7 +289,7 @@ func AddChargeToProductHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Charges") {
 		return
 	}
-	err := models.AddChargeToProduct(*req)
+	err := models.AddChargeToProduct(models.DB, *req)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Charges",

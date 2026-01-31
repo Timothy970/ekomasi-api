@@ -37,7 +37,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order, err := models.GetOrderByID(req.OrderID)
+	order, err := models.GetOrderByID(models.DB, req.OrderID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -99,7 +99,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		err = models.StoreStkResponse(response, *req)
+		err = models.StoreStkResponse(models.DB, response, *req)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
@@ -116,7 +116,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	err = storeTransactionLog(*req)
+	err = storeTransactionLog(models.DB, *req)
 	if err != nil {
 		log.Printf("Failed to store transaction log: %v", err)
 	}
@@ -145,7 +145,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func storeTransactionLog(req dtos.MpesaRequest) error {
+func storeTransactionLog(db models.DBExecutor, req dtos.MpesaRequest) error {
 	logEntry := &dtos.TransactionsList{
 		OrderID:              req.OrderID,
 		TransactionReference: req.Reference,
@@ -154,7 +154,7 @@ func storeTransactionLog(req dtos.MpesaRequest) error {
 		Status:               "PENDING",
 		PaymentMethod:        "MPESA",
 	}
-	return models.InsertTransaction(logEntry)
+	return models.InsertTransaction(db, logEntry)
 }
 
 func RegisterMpesaRoutesHandler(w http.ResponseWriter, r *http.Request) {
@@ -367,7 +367,7 @@ func sendCallbackToDevEnv(orderID string) {
 	resultCode := 0
 	resultDesc := "The service request is processed successfully."
 	merchantRequestID := "12345-" + orderID
-	checkoutRequestID, err := models.GetCheckoutRequestIDByOrderID(orderID)
+	checkoutRequestID, err := models.GetCheckoutRequestIDByOrderID(models.DB, orderID)
 	if err != nil {
 		resultCode = 1
 		resultDesc = "The service request cancelled by user"
@@ -437,7 +437,7 @@ func storeMpesaMpesaReceiptNumber(items []struct {
 			}
 		}
 	}
-	return models.UpdateMpesaReceiptNumber(mpesaCode, orderID)
+	return models.UpdateMpesaReceiptNumber(models.DB, mpesaCode, orderID)
 }
 
 // logCallbackInfo logs callback metadata
@@ -453,7 +453,7 @@ func handleSuccessfulPayment(w http.ResponseWriter, callback dtos.STKCallbackReq
 
 	log.Printf("SUCCESSFUL PAYMENT:\n- Phone: %s\n- Amount: %.2f\n- Code: %s\n", phone, amount, mpesaCode)
 
-	deliveryID, orderID, orderType, err := models.UpdateStkResponse(callback.Body.StkCallback.CheckoutRequestID, "SUCCESS")
+	deliveryID, orderID, orderType, err := models.UpdateStkResponse(models.DB, callback.Body.StkCallback.CheckoutRequestID, "SUCCESS")
 	if err != nil {
 		log.Printf("error updating STK response: %v", err)
 	}
@@ -462,7 +462,7 @@ func handleSuccessfulPayment(w http.ResponseWriter, callback dtos.STKCallbackReq
 	}
 	processOrderUpdate(orderType, deliveryID, orderID, "COMPLETED")
 	//update transaction log
-	err = models.UpdateTransactionStatus(orderID, "COMPLETED")
+	err = models.UpdateTransactionStatus(models.DB, orderID, "COMPLETED")
 	if err != nil {
 		log.Printf("error updating transaction status: %v", err)
 	}
@@ -487,7 +487,7 @@ func handleFailedPayment(w http.ResponseWriter, callback dtos.STKCallbackRequest
 	resultCode := callback.Body.StkCallback.ResultCode
 	resultDesc := callback.Body.StkCallback.ResultDesc
 	checkoutRequestID := callback.Body.StkCallback.CheckoutRequestID
-	deliveryID, orderID, orderType, err := models.UpdateStkResponse(checkoutRequestID, "FAILED")
+	deliveryID, orderID, orderType, err := models.UpdateStkResponse(models.DB, checkoutRequestID, "FAILED")
 	if err != nil {
 		log.Printf("error updating STK response: %v", err)
 	}
@@ -496,7 +496,7 @@ func handleFailedPayment(w http.ResponseWriter, callback dtos.STKCallbackRequest
 	}
 	processOrderUpdate(orderType, deliveryID, orderID, "FAILED")
 	//update transaction log
-	err = models.UpdateTransactionStatus(orderID, "FAILED")
+	err = models.UpdateTransactionStatus(models.DB, orderID, "FAILED")
 	if err != nil {
 		log.Printf("error updating transaction status: %v", err)
 	}
@@ -537,13 +537,13 @@ func processOrderUpdate(orderType, deliveryID, orderID, status string) {
 
 	switch strings.ToLower(orderType) {
 	case "voucher":
-		err = models.UpdateVoucherOrderTables(orderID, status)
+		err = models.UpdateVoucherOrderTables(models.DB, orderID, status)
 		if err != nil {
 			log.Printf("error updating voucher order: %v", err)
 		}
 		utils.SendToUser("", orderID, "voucher_order", buildPaymentSuccessPayload(orderID, nil, status))
 	default:
-		err = models.UpdateDeliveryOrderTables(deliveryID, orderID, status)
+		err = models.UpdateDeliveryOrderTables(models.DB, deliveryID, orderID, status)
 		if err != nil {
 			log.Printf("error updating delivery order: %v", err)
 		}
@@ -584,7 +584,7 @@ func randString(n int) string {
 	return string(b)
 }
 
-func HandleMpesaVoucherPayment(orderID, phoneNumber string, amount float64) error {
+func HandleMpesaVoucherPayment(db models.DBExecutor, orderID, phoneNumber string, amount float64) error {
 
 	req := &dtos.MpesaRequest{
 		OrderID:     orderID,
@@ -603,7 +603,7 @@ func HandleMpesaVoucherPayment(orderID, phoneNumber string, amount float64) erro
 	if err != nil {
 		return err
 	}
-	err = models.StoreStkResponse(response, *req)
+	err = models.StoreStkResponse(db, response, *req)
 	if err != nil {
 		return err
 	}
@@ -773,7 +773,7 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Accounts") {
 		return
 	}
-	order, err := models.GetOrderByID(req.OrderID)
+	order, err := models.GetOrderByID(models.DB, req.OrderID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

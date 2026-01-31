@@ -41,9 +41,9 @@ var wherepo = "po_id = ?"
 //  1. Validate supplier exists
 //  2. Generate unique purchase order ID
 //  3. Insert purchase order header (status defaults to "pending")
-func AddNewPurchaseOrder(req dtos.CreatePurchaseOrderRequest) error {
+func AddNewPurchaseOrder(db DBExecutor, req dtos.CreatePurchaseOrderRequest) error {
 	// Validate supplier exists
-	err := isSupplierThere(req.SupplierID)
+	err := isSupplierThere(db, req.SupplierID)
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func AddNewPurchaseOrder(req dtos.CreatePurchaseOrderRequest) error {
 	poID, _ := shortid.Generate()
 
 	// Create purchase order header
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO purchase_orders (po_id, supplier_id, total_cost)
 		VALUES (?, ?, ?)
 	`, poID, req.SupplierID, req.TotalCost)
@@ -76,9 +76,9 @@ func AddNewPurchaseOrder(req dtos.CreatePurchaseOrderRequest) error {
 //   - PoItemID, PoID, ProductID, VariantID
 //   - Quantity, UnitCost
 //   - error: Database error or nil on success
-func fetchPurchaseOrderItems(poID string) ([]dtos.PurchaseOrderItems, error) {
+func fetchPurchaseOrderItems(db DBExecutor, poID string) ([]dtos.PurchaseOrderItems, error) {
 	// Query all items for this purchase order
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT po_item_id, po_id, product_id, variant_id, quantity, unit_cost
 		FROM purchase_order_items
 		WHERE po_id = ?`, poID)
@@ -115,18 +115,18 @@ func fetchPurchaseOrderItems(poID string) ([]dtos.PurchaseOrderItems, error) {
 //   - []dtos.PurchaseOrderResponse: Array of purchase orders with items
 //   - *dtos.PaginationMeta: Pagination metadata (page, size, totals, navigation)
 //   - error: Database error or nil on success
-func ListPurchaseOrders(page, size int) ([]dtos.PurchaseOrderResponse, *dtos.PaginationMeta, error) {
+func ListPurchaseOrders(db DBExecutor, page, size int) ([]dtos.PurchaseOrderResponse, *dtos.PaginationMeta, error) {
 	// Calculate offset for pagination
 	offset := (page - 1) * size
 
 	// Get total count for pagination metadata
 	var totalItems int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM purchase_orders`).Scan(&totalItems); err != nil {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM purchase_orders`).Scan(&totalItems); err != nil {
 		return nil, nil, err
 	}
 
 	// Query purchase orders (newest first)
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT po_id, supplier_id, status, total_cost, created_at, approved_at
 		FROM purchase_orders
 		ORDER BY created_at DESC
@@ -145,7 +145,7 @@ func ListPurchaseOrders(page, size int) ([]dtos.PurchaseOrderResponse, *dtos.Pag
 		}
 
 		// Fetch line items for this purchase order
-		items, err := fetchPurchaseOrderItems(po.PoID)
+		items, err := fetchPurchaseOrderItems(db, po.PoID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -177,11 +177,11 @@ func ListPurchaseOrders(page, size int) ([]dtos.PurchaseOrderResponse, *dtos.Pag
 //   - TotalCost, CreatedAt, ApprovedAt
 //   - Items: Array of line items (product, variant, quantity, unit cost)
 //   - error: "purchase order not found", database error, or nil on success
-func GetPurchaseOrderByID(id string) (dtos.PurchaseOrderResponse, error) {
+func GetPurchaseOrderByID(db DBExecutor, id string) (dtos.PurchaseOrderResponse, error) {
 	var po dtos.PurchaseOrderResponse
 
 	// Query purchase order details
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT po_id, supplier_id, status, total_cost, created_at, approved_at
 		FROM purchase_orders WHERE po_id = ?`, id).
 		Scan(&po.PoID, &po.SupplierID, &po.Status, &po.TotalCost, &po.CreatedAt, &po.ApprovedAt)
@@ -194,7 +194,7 @@ func GetPurchaseOrderByID(id string) (dtos.PurchaseOrderResponse, error) {
 	}
 
 	// Fetch line items for this purchase order
-	items, err := fetchPurchaseOrderItems(po.PoID)
+	items, err := fetchPurchaseOrderItems(db, po.PoID)
 	if err != nil {
 		return dtos.PurchaseOrderResponse{}, err
 	}
@@ -212,9 +212,9 @@ func GetPurchaseOrderByID(id string) (dtos.PurchaseOrderResponse, error) {
 //
 // Returns:
 //   - error: "purchase order not found" if ID doesn't exist, database error, or nil if exists
-func isPurchaseOrderThere(id string) error {
+func isPurchaseOrderThere(db DBExecutor, id string) error {
 	// Check purchase order existence
-	exists, err := RecordExists("purchase_orders", wherepo, id)
+	exists, err := RecordExists(db, "purchase_orders", wherepo, id)
 	if err != nil {
 		return err
 	}
@@ -238,9 +238,9 @@ func isPurchaseOrderThere(id string) error {
 //
 // Returns:
 //   - error: "purchase order not found", database error, or nil on success
-func UpdatePurchaseOrder(req dtos.UpdatePurchaseOrderRequest, poID string) error {
+func UpdatePurchaseOrder(db DBExecutor, req dtos.UpdatePurchaseOrderRequest, poID string) error {
 	// Validate purchase order exists
-	err := isPurchaseOrderThere(poID)
+	err := isPurchaseOrderThere(db, poID)
 	if err != nil {
 		return err
 	}
@@ -276,7 +276,7 @@ func UpdatePurchaseOrder(req dtos.UpdatePurchaseOrderRequest, poID string) error
 	args = append(args, poID)
 
 	// Execute update
-	_, err = DB.Exec(query, args...)
+	_, err = db.Exec(query, args...)
 	if err != nil {
 		return err
 	}
@@ -294,15 +294,15 @@ func UpdatePurchaseOrder(req dtos.UpdatePurchaseOrderRequest, poID string) error
 //
 // Returns:
 //   - error: "purchase order not found", database error, or nil on success
-func DeletePurchaseOrder(id string) error {
+func DeletePurchaseOrder(db DBExecutor, id string) error {
 	// Validate purchase order exists
-	err := isPurchaseOrderThere(id)
+	err := isPurchaseOrderThere(db, id)
 	if err != nil {
 		return err
 	}
 
 	// Hard delete purchase order
-	_, err = DB.Exec(`DELETE FROM purchase_orders WHERE po_id = ?`, id)
+	_, err = db.Exec(`DELETE FROM purchase_orders WHERE po_id = ?`, id)
 	if err != nil {
 		return err
 	}
@@ -332,21 +332,21 @@ func DeletePurchaseOrder(id string) error {
 //  3. Validate variant exists
 //  4. Generate unique line item ID
 //  5. Insert line item into purchase_order_items
-func AddProductToPurchaseOrder(item dtos.PurchaseOrderItem) error {
+func AddProductToPurchaseOrder(db DBExecutor, item dtos.PurchaseOrderItem) error {
 	// Validate purchase order exists
-	err := isPurchaseOrderThere(item.PoID)
+	err := isPurchaseOrderThere(db, item.PoID)
 	if err != nil {
 		return err
 	}
 
 	// Validate product exists
-	err = IsProductThere(item.ProductID)
+	err = IsProductThere(db, item.ProductID)
 	if err != nil {
 		return err
 	}
 
 	// Validate variant exists
-	err = isVariantThere(item.VariantID)
+	err = isVariantThere(db, item.VariantID)
 	if err != nil {
 		return err
 	}
@@ -361,7 +361,7 @@ func AddProductToPurchaseOrder(item dtos.PurchaseOrderItem) error {
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
 
-	if _, err = DB.Exec(query, itemID, item.PoID, item.ProductID, item.VariantID, item.Quantity, item.UnitCost); err != nil {
+	if _, err = db.Exec(query, itemID, item.PoID, item.ProductID, item.VariantID, item.Quantity, item.UnitCost); err != nil {
 		return err
 	}
 	return nil
@@ -374,11 +374,11 @@ func AddProductToPurchaseOrder(item dtos.PurchaseOrderItem) error {
 //
 // Returns:
 //   - error: "no item found with given ID", database error, or nil on success
-func RemoveProductFromPurchaseOrder(itemID string) error {
+func RemoveProductFromPurchaseOrder(db DBExecutor, itemID string) error {
 	// Delete line item
 	query := `DELETE FROM purchase_order_items WHERE po_item_id = ?`
 
-	result, err := DB.Exec(query, itemID)
+	result, err := db.Exec(query, itemID)
 	if err != nil {
 		return err
 	}

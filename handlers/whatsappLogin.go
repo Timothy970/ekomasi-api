@@ -77,7 +77,7 @@ func WhatsAppLoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Attempt to fetch existing user by phone number
 	// user, err := fetchUser("", req.Phone)
-	user, err := models.GetUserByPhone(req.Phone)
+	user, err := models.GetUserByPhone(models.DB, req.Phone)
 	if err != nil {
 		log.Printf("ERR:::::::::::%v", err)
 		// User fetch failed, increment failed login attempts
@@ -90,7 +90,7 @@ func WhatsAppLoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// If user doesn't exist, create new account automatically (frictionless onboarding)
 	if user == nil {
-		user, err = models.CreateUser(request)
+		user, err = models.CreateUser(models.DB, request)
 		if err != nil {
 			// User creation failed
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -218,7 +218,7 @@ func VerifyWhatsAppHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch complete user record from database using user ID
-	user, err := models.GetUserByUserID(userID)
+	user, err := models.GetUserByUserID(models.DB, userID)
 	if err != nil {
 		// User not found (should not happen if token was valid)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -263,7 +263,10 @@ func VerifyWhatsAppHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update user's last login timestamp for analytics and security tracking
-	models.UpdateLastLogin(user.ID)
+	err = models.UpdateLastLogin(models.DB, user.ID)
+	if err != nil {
+		log.Printf("Error updating last login for user %s: %v", user.ID, err)
+	}
 
 	// Return success response with JWT token and expiration time (1 hour = 3600 seconds)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{

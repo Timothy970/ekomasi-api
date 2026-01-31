@@ -40,7 +40,7 @@ import (
 //  1. Generate unique return ID
 //  2. Insert return record with "Pending" status
 //  3. Associate returned products via insertIntoReturnProducts
-func CreateReturns(req dtos.ReturnRequest, userID string) error {
+func CreateReturns(db DBExecutor, req dtos.ReturnRequest, userID string) error {
 	// Generate unique return ID
 	returnID, _ := shortid.Generate()
 
@@ -49,13 +49,13 @@ func CreateReturns(req dtos.ReturnRequest, userID string) error {
 		INSERT INTO returns (return_id, reason, status, order_id, user_id)
 		VALUES (?, ?, ?, ?, ?)
 	`
-	_, err := DB.Exec(query, returnID, req.Reason, "Pending", req.OrderID, userID)
+	_, err := db.Exec(query, returnID, req.Reason, "Pending", req.OrderID, userID)
 	if err != nil {
 		return err
 	}
 
 	// Insert products associated with the return
-	err = insertIntoReturnProducts(returnID, req)
+	err = insertIntoReturnProducts(db, returnID, req)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func CreateReturns(req dtos.ReturnRequest, userID string) error {
 //
 // Returns:
 //   - error: Database error or nil on success
-func insertIntoReturnProducts(returnID string, req dtos.ReturnRequest) error {
+func insertIntoReturnProducts(db DBExecutor, returnID string, req dtos.ReturnRequest) error {
 	query := `
 		INSERT INTO return_products (return_product_id, return_id, product_id, quantity)
 		VALUES (?, ?, ?, ?)
@@ -84,7 +84,7 @@ func insertIntoReturnProducts(returnID string, req dtos.ReturnRequest) error {
 	for _, product := range req.ReturnProducts {
 		// Generate unique ID for each return product association
 		returnProductID, _ := shortid.Generate()
-		_, err := DB.Exec(query, returnProductID, returnID, product.ProductID, product.Quantity)
+		_, err := db.Exec(query, returnProductID, returnID, product.ProductID, product.Quantity)
 		if err != nil {
 			return err
 		}
@@ -104,12 +104,12 @@ func insertIntoReturnProducts(returnID string, req dtos.ReturnRequest) error {
 //
 // Returns:
 //   - error: Database error or nil on success
-func UpdateReturnStatus(returnID string, statusUpdate dtos.ReturnStatusUpdate) error {
+func UpdateReturnStatus(db DBExecutor, returnID string, statusUpdate dtos.ReturnStatusUpdate) error {
 	// Update return status (typically by admin)
 	query := `
 		UPDATE returns SET status = ? WHERE return_id = ?
 	`
-	_, err := DB.Exec(query, statusUpdate.Status, returnID)
+	_, err := db.Exec(query, statusUpdate.Status, returnID)
 	return err
 }
 
@@ -127,7 +127,7 @@ func UpdateReturnStatus(returnID string, statusUpdate dtos.ReturnStatusUpdate) e
 //   - Products: Array of returned products with quantities
 //   - TotalRefund: Calculated refund amount from order prices
 //   - error: sql.ErrNoRows if not found, database error, or nil on success
-func GetReturnByID(returnID string) (dtos.ReturnResponse, error) {
+func GetReturnByID(db DBExecutor, returnID string) (dtos.ReturnResponse, error) {
 	var ret dtos.ReturnResponse
 
 	// Query return details
@@ -136,7 +136,7 @@ func GetReturnByID(returnID string) (dtos.ReturnResponse, error) {
 		FROM returns r
 		WHERE r.return_id = ?
 	`
-	row := DB.QueryRow(query, returnID)
+	row := db.QueryRow(query, returnID)
 	err := row.Scan(&ret.ReturnID, &ret.Reason, &ret.Status, &ret.CreatedAt, &ret.OrderID)
 	if err != nil {
 		return ret, err
@@ -148,7 +148,7 @@ func GetReturnByID(returnID string) (dtos.ReturnResponse, error) {
 		FROM return_products rp
 		WHERE rp.return_id = ?
 	`
-	rows, err := DB.Query(productIDsQuery, returnID)
+	rows, err := db.Query(productIDsQuery, returnID)
 	if err != nil {
 		return ret, err
 	}
@@ -167,14 +167,14 @@ func GetReturnByID(returnID string) (dtos.ReturnResponse, error) {
 		}
 
 		// Get product details
-		product, err = GetProductByID(productID)
+		product, err = GetProductByID(db, productID)
 		product.StockQuantity = quantity // Set to return quantity (not actual stock)
 		if err != nil {
 			return ret, err
 		}
 
 		// Calculate refund for this product based on original order price
-		refund, err := GetProductRefundAmount(productID, quantity, ret.OrderID)
+		refund, err := GetProductRefundAmount(db, productID, quantity, ret.OrderID)
 		if err != nil {
 			return ret, err
 		}
@@ -198,7 +198,7 @@ func GetReturnByID(returnID string) (dtos.ReturnResponse, error) {
 // Returns:
 //   - float64: Total refund amount (unit_price * quantity)
 //   - error: sql.ErrNoRows if product not in order, database error, or nil on success
-func GetProductRefundAmount(productID string, quantity int, orderID string) (float64, error) {
+func GetProductRefundAmount(db DBExecutor, productID string, quantity int, orderID string) (float64, error) {
 	var price float64
 
 	// Get unit price from order_items (price at time of purchase)
@@ -208,7 +208,7 @@ func GetProductRefundAmount(productID string, quantity int, orderID string) (flo
 		WHERE oi.product_id = ? AND oi.order_id = ?
 		LIMIT 1
 	`
-	row := DB.QueryRow(query, productID, orderID)
+	row := db.QueryRow(query, productID, orderID)
 	err := row.Scan(&price)
 	if err != nil {
 		return 0, err
@@ -241,22 +241,22 @@ func GetProductRefundAmount(productID string, quantity int, orderID string) (flo
 //   - CountsByStatus: Status analytics (Pending, Approved, Rejected, Total Returns)
 //   - *dtos.PaginationMeta: Pagination metadata
 //   - error: Database error or nil on success
-func GetAllReturns(page, size int, status, q string) (*dtos.ReturnListResponse, *dtos.PaginationMeta, error) {
+func GetAllReturns(db DBExecutor, page, size int, status, q string) (*dtos.ReturnListResponse, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * size
 
 	where, args := buildReturnFilters(status, q)
 
-	totalRecords, err := countTotalReturns(where, args)
+	totalRecords, err := countTotalReturns(db, where, args)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	returns, err := fetchReturnsWithDetails(where, args, size, offset)
+	returns, err := fetchReturnsWithDetails(db, where, args, size, offset)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	counts, err := getReturnStatusCounts(totalRecords)
+	counts, err := getReturnStatusCounts(db, totalRecords)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -300,7 +300,7 @@ func buildReturnFilters(status, q string) (string, []interface{}) {
 }
 
 // countTotalReturns counts total matching records for pagination
-func countTotalReturns(where string, args []interface{}) (int, error) {
+func countTotalReturns(db DBExecutor, where string, args []interface{}) (int, error) {
 	countQuery := `
 		SELECT COUNT(DISTINCT r.return_id)
 		FROM returns r
@@ -309,12 +309,12 @@ func countTotalReturns(where string, args []interface{}) (int, error) {
 		` + where
 
 	var totalRecords int
-	err := DB.QueryRow(countQuery, args...).Scan(&totalRecords)
+	err := db.QueryRow(countQuery, args...).Scan(&totalRecords)
 	return totalRecords, err
 }
 
 // fetchReturnsWithDetails retrieves returns with product details and refunds
-func fetchReturnsWithDetails(where string, args []interface{}, size, offset int) ([]dtos.ReturnResponse, error) {
+func fetchReturnsWithDetails(db DBExecutor, where string, args []interface{}, size, offset int) ([]dtos.ReturnResponse, error) {
 	selectQuery := `
 		SELECT DISTINCT r.return_id, r.reason, r.status, r.created_at, r.order_id
 		FROM returns r
@@ -326,7 +326,7 @@ func fetchReturnsWithDetails(where string, args []interface{}, size, offset int)
 	`
 	argsWithPagination := append(args, size, offset)
 
-	rows, err := DB.Query(selectQuery, argsWithPagination...)
+	rows, err := db.Query(selectQuery, argsWithPagination...)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +341,7 @@ func fetchReturnsWithDetails(where string, args []interface{}, size, offset int)
 			return nil, err
 		}
 
-		products, totalRefund, err := fetchReturnProductsAndRefund(ret.ReturnID, ret.OrderID)
+		products, totalRefund, err := fetchReturnProductsAndRefund(db, ret.ReturnID, ret.OrderID)
 		if err != nil {
 			return nil, err
 		}
@@ -355,13 +355,13 @@ func fetchReturnsWithDetails(where string, args []interface{}, size, offset int)
 }
 
 // getReturnStatusCounts retrieves status counts for analytics
-func getReturnStatusCounts(totalRecords int) ([]dtos.ReturnsCounts, error) {
+func getReturnStatusCounts(db DBExecutor, totalRecords int) ([]dtos.ReturnsCounts, error) {
 	countsQuery := `
 	SELECT status, COUNT(*)
 	FROM returns
 	GROUP BY status
 `
-	countRows, err := DB.Query(countsQuery)
+	countRows, err := db.Query(countsQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -407,14 +407,14 @@ func getReturnStatusCounts(totalRecords int) ([]dtos.ReturnsCounts, error) {
 //   - []dtos.Product: Array of products with quantities (StockQuantity set to return quantity)
 //   - float64: Total refund amount for all products
 //   - error: Database error or nil on success
-func fetchReturnProductsAndRefund(returnID, orderID string) ([]dtos.Product, float64, error) {
+func fetchReturnProductsAndRefund(db DBExecutor, returnID, orderID string) ([]dtos.Product, float64, error) {
 	// Query return products and quantities
 	productIDsQuery := `
 		SELECT rp.product_id, rp.quantity
 		FROM return_products rp
 		WHERE rp.return_id = ?
 	`
-	productRows, err := DB.Query(productIDsQuery, returnID)
+	productRows, err := db.Query(productIDsQuery, returnID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -432,14 +432,14 @@ func fetchReturnProductsAndRefund(returnID, orderID string) ([]dtos.Product, flo
 		}
 
 		// Get product details
-		product, err := GetProductByID(productID)
+		product, err := GetProductByID(db, productID)
 		product.StockQuantity = quantity // Set to return quantity (not actual stock)
 		if err != nil {
 			return nil, 0, err
 		}
 
 		// Calculate refund for this product
-		refund, err := GetProductRefundAmount(productID, quantity, orderID)
+		refund, err := GetProductRefundAmount(db, productID, quantity, orderID)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -460,12 +460,12 @@ func fetchReturnProductsAndRefund(returnID, orderID string) ([]dtos.Product, flo
 //
 // Returns:
 //   - error: Database error or nil on success
-func DeleteReturn(returnID string) error {
+func DeleteReturn(db DBExecutor, returnID string) error {
 	// Hard delete return record
 	query := `
 		DELETE FROM returns WHERE return_id = ?
 	`
-	_, err := DB.Exec(query, returnID)
+	_, err := db.Exec(query, returnID)
 	return err
 }
 
@@ -482,16 +482,16 @@ func DeleteReturn(returnID string) error {
 //
 // Returns:
 //   - error: "order not found", "product not found in order", or nil if valid
-func ValidateReturnRequest(req dtos.ReturnRequest) error {
+func ValidateReturnRequest(db DBExecutor, req dtos.ReturnRequest) error {
 	// Check if order exists
-	err := IsOrderThere(req.OrderID)
+	err := IsOrderThere(db, req.OrderID)
 	if err != nil {
 		return err
 	}
 
 	// Check if each product exists in the order
 	for _, product := range req.ReturnProducts {
-		err := IsProductInOrder(req.OrderID, product.ProductID)
+		err := IsProductInOrder(db, req.OrderID, product.ProductID)
 		if err != nil {
 			return err
 		}
@@ -511,9 +511,9 @@ func ValidateReturnRequest(req dtos.ReturnRequest) error {
 // Returns:
 //   - error: "product not found", "product with ID X not found in order Y",
 //     database error, or nil if product is in order
-func IsProductInOrder(orderID, productID string) error {
+func IsProductInOrder(db DBExecutor, orderID, productID string) error {
 	// First validate product exists globally
-	err := IsProductThere(productID)
+	err := IsProductThere(db, productID)
 	if err != nil {
 		return err
 	}
@@ -524,7 +524,7 @@ func IsProductInOrder(orderID, productID string) error {
 		WHERE order_id = ? AND product_id = ?
 	`
 	var count int
-	err = DB.QueryRow(query, orderID, productID).Scan(&count)
+	err = db.QueryRow(query, orderID, productID).Scan(&count)
 	if err != nil {
 		return err
 	}
@@ -549,7 +549,7 @@ func IsProductInOrder(orderID, productID string) error {
 // Returns:
 //   - []dtos.ReturnResponse: Array of returns with products and refund amounts
 //   - error: Database error or nil on success
-func GetAllOwnerReturns(status, q, ownerID string) ([]dtos.ReturnResponse, error) {
+func GetAllOwnerReturns(db DBExecutor, status, q, ownerID string) ([]dtos.ReturnResponse, error) {
 	// Build dynamic WHERE clause for filtering
 	where := "WHERE 1=1"
 	var args []interface{}
@@ -586,7 +586,7 @@ func GetAllOwnerReturns(status, q, ownerID string) ([]dtos.ReturnResponse, error
 		ORDER BY r.created_at DESC
 	`
 
-	rows, err := DB.Query(selectQuery, args...)
+	rows, err := db.Query(selectQuery, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -603,7 +603,7 @@ func GetAllOwnerReturns(status, q, ownerID string) ([]dtos.ReturnResponse, error
 		}
 
 		// Fetch products and calculate refund for this return
-		products, totalRefund, err := fetchReturnProductsAndRefund(ret.ReturnID, ret.OrderID)
+		products, totalRefund, err := fetchReturnProductsAndRefund(db, ret.ReturnID, ret.OrderID)
 		if err != nil {
 			return nil, err
 		}
@@ -631,7 +631,7 @@ func GetAllOwnerReturns(status, q, ownerID string) ([]dtos.ReturnResponse, error
 //   - Products: Array of returned products with quantities
 //   - TotalRefund: Calculated refund amount from order prices
 //   - error: sql.ErrNoRows if not found or user doesn't own it, database error, or nil on success
-func GetOwnerReturnByID(returnID, ownerID string) (dtos.ReturnResponse, error) {
+func GetOwnerReturnByID(db DBExecutor, returnID, ownerID string) (dtos.ReturnResponse, error) {
 	var ret dtos.ReturnResponse
 
 	// Query return details with owner verification
@@ -640,7 +640,7 @@ func GetOwnerReturnByID(returnID, ownerID string) (dtos.ReturnResponse, error) {
 		FROM returns r
 		WHERE r.return_id = ? AND r.user_id = ?
 	`
-	row := DB.QueryRow(query, returnID, ownerID)
+	row := db.QueryRow(query, returnID, ownerID)
 	err := row.Scan(&ret.ReturnID, &ret.Reason, &ret.Status, &ret.CreatedAt, &ret.OrderID)
 	if err != nil {
 		return ret, err
@@ -652,7 +652,7 @@ func GetOwnerReturnByID(returnID, ownerID string) (dtos.ReturnResponse, error) {
 		FROM return_products rp
 		WHERE rp.return_id = ?
 	`
-	rows, err := DB.Query(productIDsQuery, returnID)
+	rows, err := db.Query(productIDsQuery, returnID)
 	if err != nil {
 		return ret, err
 	}
@@ -671,14 +671,14 @@ func GetOwnerReturnByID(returnID, ownerID string) (dtos.ReturnResponse, error) {
 		}
 
 		// Get product details
-		product, err = GetProductByID(productID)
+		product, err = GetProductByID(db, productID)
 		product.StockQuantity = quantity // Set to return quantity (not actual stock)
 		if err != nil {
 			return ret, err
 		}
 
 		// Calculate refund for this product based on original order price
-		refund, err := GetProductRefundAmount(productID, quantity, ret.OrderID)
+		refund, err := GetProductRefundAmount(db, productID, quantity, ret.OrderID)
 		if err != nil {
 			return ret, err
 		}

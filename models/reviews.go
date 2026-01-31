@@ -25,8 +25,8 @@ import (
 //
 // Returns:
 //   - error: "review not found", database error, or nil if review exists
-func isReviewThere(reviewID string) error {
-	exists, err := RecordExists("product_reviews", "review_id = ?", reviewID)
+func isReviewThere(db DBExecutor, reviewID string) error {
+	exists, err := RecordExists(db, "product_reviews", "review_id = ?", reviewID)
 	if err != nil {
 		return err
 	}
@@ -52,15 +52,15 @@ func isReviewThere(reviewID string) error {
 //   - []dtos.ReviewResponse: Single-item array with review details
 //   - *dtos.PaginationMeta: nil (no pagination for single review)
 //   - error: "product not found", "review not found", "review for the product not found", or nil on success
-func GetProductReview(productID, reviewID string, limit, page int) ([]dtos.ReviewResponse, *dtos.PaginationMeta, error) {
+func GetProductReview(db DBExecutor, productID, reviewID string, limit, page int) ([]dtos.ReviewResponse, *dtos.PaginationMeta, error) {
 	// Validate product exists
-	err := IsProductThere(productID)
+	err := IsProductThere(db, productID)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Validate review exists
-	err = isReviewThere(reviewID)
+	err = isReviewThere(db, reviewID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -75,7 +75,7 @@ func GetProductReview(productID, reviewID string, limit, page int) ([]dtos.Revie
 
 	var r dtos.ReviewResponse
 	var userID string
-	err = DB.QueryRow(query, productID, reviewID).
+	err = db.QueryRow(query, productID, reviewID).
 		Scan(&r.ID, &userID, &r.Score, &r.Details, &r.CreatedAt)
 
 	if err != nil {
@@ -86,7 +86,7 @@ func GetProductReview(productID, reviewID string, limit, page int) ([]dtos.Revie
 	}
 
 	// Resolve user display name (first+last name, email, phone, or "Unknown User")
-	r.User, err = GetUserDisplayName(userID)
+	r.User, err = GetUserDisplayName(db, userID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -115,20 +115,20 @@ func GetProductReview(productID, reviewID string, limit, page int) ([]dtos.Revie
 //   - ScoreCounts: Array of 5 items (scores 1-5) with counts (missing = 0)
 //   - *dtos.PaginationMeta: Page info (page, size, totals, navigation flags)
 //   - error: Database error or nil on success
-func GetProductReviews(productID, sortBy string, rating, limit, page int) (*dtos.DetailedReviewResponse, *dtos.PaginationMeta, error) {
+func GetProductReviews(db DBExecutor, productID, sortBy string, rating, limit, page int) (*dtos.DetailedReviewResponse, *dtos.PaginationMeta, error) {
 	offset := (page - 1) * limit
 
-	totalItems, err := countReviews(productID, rating)
+	totalItems, err := countReviews(db, productID, rating)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	reviewList, err := fetchPaginatedReviews(productID, sortBy, rating, limit, offset)
+	reviewList, err := fetchPaginatedReviews(db, productID, sortBy, rating, limit, offset)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	finalScoreCounts, averageScore, err := calculateScoreAnalytics(productID, totalItems)
+	finalScoreCounts, averageScore, err := calculateScoreAnalytics(db, productID, totalItems)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -152,7 +152,7 @@ func GetProductReviews(productID, sortBy string, rating, limit, page int) (*dtos
 }
 
 // countReviews counts total reviews matching the filter criteria
-func countReviews(productID string, rating int) (int, error) {
+func countReviews(db DBExecutor, productID string, rating int) (int, error) {
 	countArgs := []interface{}{productID}
 	countQuery := `
 		SELECT COUNT(*)
@@ -165,12 +165,12 @@ func countReviews(productID string, rating int) (int, error) {
 	}
 
 	var totalItems int
-	err := DB.QueryRow(countQuery, countArgs...).Scan(&totalItems)
+	err := db.QueryRow(countQuery, countArgs...).Scan(&totalItems)
 	return totalItems, err
 }
 
 // fetchPaginatedReviews retrieves reviews with sorting and pagination
-func fetchPaginatedReviews(productID, sortBy string, rating, limit, offset int) ([]dtos.ReviewResponse, error) {
+func fetchPaginatedReviews(db DBExecutor, productID, sortBy string, rating, limit, offset int) ([]dtos.ReviewResponse, error) {
 	queryArgs := []interface{}{productID}
 	query := `
 		SELECT review_id, user_id, score, details, created_at
@@ -187,7 +187,7 @@ func fetchPaginatedReviews(productID, sortBy string, rating, limit, offset int) 
 	query += " LIMIT ? OFFSET ?"
 	queryArgs = append(queryArgs, limit, offset)
 
-	rows, err := DB.Query(query, queryArgs...)
+	rows, err := db.Query(query, queryArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ func fetchPaginatedReviews(productID, sortBy string, rating, limit, offset int) 
 			return nil, err
 		}
 
-		r.User, err = GetUserDisplayName(userID)
+		r.User, err = GetUserDisplayName(db, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -228,7 +228,7 @@ func getSortClauseData(sortBy string) string {
 }
 
 // calculateScoreAnalytics computes rating distribution and average score
-func calculateScoreAnalytics(productID string, totalItems int) ([]dtos.ScoreCount, float64, error) {
+func calculateScoreAnalytics(db DBExecutor, productID string, totalItems int) ([]dtos.ScoreCount, float64, error) {
 	scoreQuery := `
 		SELECT score, COUNT(*)
 		FROM product_reviews
@@ -236,7 +236,7 @@ func calculateScoreAnalytics(productID string, totalItems int) ([]dtos.ScoreCoun
 		GROUP BY score
 	`
 
-	scoreRows, err := DB.Query(scoreQuery, productID)
+	scoreRows, err := db.Query(scoreQuery, productID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -284,7 +284,7 @@ func calculateScoreAnalytics(productID string, totalItems int) ([]dtos.ScoreCoun
 // Returns:
 //   - string: Display name following fallback hierarchy
 //   - error: Database error or nil on success
-func GetUserDisplayName(userID string) (string, error) {
+func GetUserDisplayName(db DBExecutor, userID string) (string, error) {
 
 	var firstName, lastName, email, phone sql.NullString
 
@@ -294,7 +294,7 @@ func GetUserDisplayName(userID string) (string, error) {
 		WHERE user_id = ?
 	`
 
-	err := DB.QueryRow(query, userID).Scan(&firstName, &lastName, &email, &phone)
+	err := db.QueryRow(query, userID).Scan(&firstName, &lastName, &email, &phone)
 	if err != nil {
 		return "", err
 	}
@@ -339,7 +339,7 @@ func GetUserDisplayName(userID string) (string, error) {
 //   - CreatedAt: Current timestamp
 //   - error: "user has not purchased this product or order not delivered",
 //     "user has already reviewed this product", database error, or nil on success
-func AddNewReview(req dtos.ReviewRequest, productID string) (dtos.ReviewResponse, error) {
+func AddNewReview(db DBExecutor, req dtos.ReviewRequest, productID string) (dtos.ReviewResponse, error) {
 	// Step 1: Verify user purchased the product with a delivered/completed order
 	var purchaseCount int
 	purchaseQuery := `
@@ -348,7 +348,7 @@ func AddNewReview(req dtos.ReviewRequest, productID string) (dtos.ReviewResponse
 		JOIN orders o ON oi.order_id = o.order_id
 		WHERE oi.product_id = ? AND o.user_id = ? AND (LOWER(o.status) = LOWER('delivered') OR LOWER(o.status) = LOWER('completed'))
 	`
-	err := DB.QueryRow(purchaseQuery, productID, req.UserID).Scan(&purchaseCount)
+	err := db.QueryRow(purchaseQuery, productID, req.UserID).Scan(&purchaseCount)
 
 	if err != nil {
 		return dtos.ReviewResponse{}, fmt.Errorf("failed to check product purchase: %v", err)
@@ -364,7 +364,7 @@ func AddNewReview(req dtos.ReviewRequest, productID string) (dtos.ReviewResponse
 		FROM product_reviews 
 		WHERE product_id = ? AND user_id = ?
 	`
-	err = DB.QueryRow(reviewCheckQuery, productID, req.UserID).Scan(&reviewCount)
+	err = db.QueryRow(reviewCheckQuery, productID, req.UserID).Scan(&reviewCount)
 	if err != nil {
 		return dtos.ReviewResponse{}, fmt.Errorf("failed to check existing review: %v", err)
 	}
@@ -378,13 +378,13 @@ func AddNewReview(req dtos.ReviewRequest, productID string) (dtos.ReviewResponse
 		INSERT INTO product_reviews (review_id, product_id, user_id, score, details)
 		VALUES (?, ?, ?, ?, ?)
 	`
-	_, err = DB.Exec(insertQuery, reviewID, productID, req.UserID, req.Score, req.Details)
+	_, err = db.Exec(insertQuery, reviewID, productID, req.UserID, req.Score, req.Details)
 	if err != nil {
 		return dtos.ReviewResponse{}, fmt.Errorf("failed to insert review for user %s: %v", req.UserID, err)
 	}
 
 	// Step 4: Build and return the response with user display name
-	user, err := GetUserDisplayName(req.UserID)
+	user, err := GetUserDisplayName(db, req.UserID)
 	if err != nil {
 		return dtos.ReviewResponse{}, err
 	}
@@ -419,15 +419,15 @@ func AddNewReview(req dtos.ReviewRequest, productID string) (dtos.ReviewResponse
 // Returns:
 //   - error: "review not found", "product not found", "review does not belong to the specified product",
 //     database error, or nil on success
-func UpdateReview(req dtos.UpdateReview, reviewID string, productID string) error {
+func UpdateReview(db DBExecutor, req dtos.UpdateReview, reviewID string, productID string) error {
 	// Validate review exists
-	err := isReviewThere(reviewID)
+	err := isReviewThere(db, reviewID)
 	if err != nil {
 		return err
 	}
 
 	// Validate product exists
-	err = IsProductThere(productID)
+	err = IsProductThere(db, productID)
 	if err != nil {
 		return err
 	}
@@ -435,7 +435,7 @@ func UpdateReview(req dtos.UpdateReview, reviewID string, productID string) erro
 	// Verify review belongs to the product
 	var existingProductID string
 	reviewCheckQuery := "SELECT product_id FROM product_reviews WHERE review_id = ?"
-	err = DB.QueryRow(reviewCheckQuery, reviewID).Scan(&existingProductID)
+	err = db.QueryRow(reviewCheckQuery, reviewID).Scan(&existingProductID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch review: %v", err)
 	}
@@ -469,7 +469,7 @@ func UpdateReview(req dtos.UpdateReview, reviewID string, productID string) erro
 	query += " " + strings.Join(updates, ", ") + " WHERE review_id = ?"
 	args = append(args, reviewID)
 
-	if _, err := DB.Exec(query, args...); err != nil {
+	if _, err := db.Exec(query, args...); err != nil {
 		return fmt.Errorf("failed to update review: %v", err)
 	}
 
@@ -487,9 +487,9 @@ func UpdateReview(req dtos.UpdateReview, reviewID string, productID string) erro
 //
 // Returns:
 //   - error: "review not found", database error, or nil on success
-func DeleteReview(reviewID string) error {
+func DeleteReview(db DBExecutor, reviewID string) error {
 	// Validate review exists before deletion
-	exists, err := RecordExists("product_reviews", "review_id = ?", reviewID)
+	exists, err := RecordExists(db, "product_reviews", "review_id = ?", reviewID)
 	if err != nil {
 		return err
 	}
@@ -498,6 +498,6 @@ func DeleteReview(reviewID string) error {
 	}
 
 	// Hard delete the review
-	_, err = DB.Exec("DELETE FROM product_reviews WHERE review_id = ?", reviewID)
+	_, err = db.Exec("DELETE FROM product_reviews WHERE review_id = ?", reviewID)
 	return err
 }

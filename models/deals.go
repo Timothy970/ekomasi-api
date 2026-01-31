@@ -40,9 +40,9 @@ import (
 // Returns:
 //   - string: Generated deal_id (shortid format)
 //   - error: "deal with name {name} already exists" if name exists, or database error
-func CreateDeal(deal dtos.CreateDeal) (string, error) {
+func CreateDeal(db DBExecutor, deal dtos.CreateDeal) (string, error) {
 	// Validate deal name is unique
-	exists, err := RecordExists("deals", "name = ?", deal.Name)
+	exists, err := RecordExists(db, "deals", "name = ?", deal.Name)
 	if err != nil {
 		return "", err
 	}
@@ -54,7 +54,7 @@ func CreateDeal(deal dtos.CreateDeal) (string, error) {
 	dealID, _ := shortid.Generate()
 
 	// Insert new deal into database
-	_, err = DB.Exec(`INSERT INTO deals (deal_id, name, description, discount, start_date, end_date, image) VALUES (?, ?, ?, ?, ?, ?, ?)`, dealID, deal.Name, deal.Description, deal.Discount, deal.StartDate, deal.EndDate, deal.Image)
+	_, err = db.Exec(`INSERT INTO deals (deal_id, name, description, discount, start_date, end_date, image) VALUES (?, ?, ?, ?, ?, ?, ?)`, dealID, deal.Name, deal.Description, deal.Discount, deal.StartDate, deal.EndDate, deal.Image)
 	if err != nil {
 		return "", err
 	}
@@ -78,13 +78,13 @@ func CreateDeal(deal dtos.CreateDeal) (string, error) {
 // Deal Link Format:
 //   - {BASE_URL}/products/deals/{deal_id}
 //   - Used for promotional campaigns and marketing
-func GetAllDeals(page, size int) ([]dtos.Deal, *dtos.PaginationMeta, error) {
+func GetAllDeals(db DBExecutor, page, size int) ([]dtos.Deal, *dtos.PaginationMeta, error) {
 	// Get total count for pagination calculation
 	var countTotal int
-	err := DB.QueryRow(`SELECT COUNT(*) FROM deals`).Scan(&countTotal)
+	err := db.QueryRow(`SELECT COUNT(*) FROM deals`).Scan(&countTotal)
 
 	// Query deals with pagination
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 	SELECT deal_id, name, start_date, end_date, is_active, image
 	FROM deals d
 	LIMIT ? OFFSET ?
@@ -103,7 +103,7 @@ func GetAllDeals(page, size int) ([]dtos.Deal, *dtos.PaginationMeta, error) {
 		}
 
 		// Fetch all products associated with this deal
-		products, err := GetProductsByDealID(d.DealID)
+		products, err := GetProductsByDealID(db, d.DealID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -138,9 +138,9 @@ func GetAllDeals(page, size int) ([]dtos.Deal, *dtos.PaginationMeta, error) {
 // Returns:
 //   - error: nil if deal exists, "deal with ID {id} does not exist" error if not found,
 //     or database error if query fails
-func isDealThere(dealID string) error {
+func isDealThere(db DBExecutor, dealID string) error {
 	// Check if deal record exists in database
-	if exists, err := RecordExists("deals", "deal_id = ?", dealID); err != nil {
+	if exists, err := RecordExists(db, "deals", "deal_id = ?", dealID); err != nil {
 		return err
 	} else if !exists {
 		return fmt.Errorf("deal with ID %s does not exist", dealID)
@@ -164,21 +164,21 @@ func isDealThere(dealID string) error {
 //
 // Returns:
 //   - error: "deal with ID {id} does not exist" if deal not found, or database error
-func UpdateDeal(dealID string, deal dtos.Deal) error {
+func UpdateDeal(db DBExecutor, dealID string, deal dtos.Deal) error {
 	// Validate deal exists
-	if err := isDealThere(dealID); err != nil {
+	if err := isDealThere(db, dealID); err != nil {
 		return err
 	}
 
 	// If image is provided, update including image field
 	if deal.Image != nil {
-		_, err := DB.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ?, is_active = ?, image = ? WHERE deal_id = ?`,
+		_, err := db.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ?, is_active = ?, image = ? WHERE deal_id = ?`,
 			deal.Name, deal.StartDate, deal.EndDate, *deal.IsActive, deal.Image, dealID)
 		return err
 	}
 
 	// Otherwise, update without changing image
-	_, err := DB.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ?, is_active = ? WHERE deal_id = ?`,
+	_, err := db.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ?, is_active = ? WHERE deal_id = ?`,
 		deal.Name, deal.StartDate, deal.EndDate, *deal.IsActive, dealID)
 	return err
 }
@@ -197,14 +197,14 @@ func UpdateDeal(dealID string, deal dtos.Deal) error {
 //   - No check for associated deal_products - deletion may fail if foreign key constraints exist
 //   - Consider implementing cascade delete or removing products first
 //   - May want to implement soft delete for audit trail
-func DeleteDeal(dealID string) error {
+func DeleteDeal(db DBExecutor, dealID string) error {
 	// Validate deal exists
-	if err := isDealThere(dealID); err != nil {
+	if err := isDealThere(db, dealID); err != nil {
 		return err
 	}
 
 	// Delete deal from database
-	_, err := DB.Exec(`DELETE FROM deals WHERE deal_id = ?`, dealID)
+	_, err := db.Exec(`DELETE FROM deals WHERE deal_id = ?`, dealID)
 	return err
 }
 
@@ -226,33 +226,33 @@ func DeleteDeal(dealID string) error {
 //   - If product-deal association exists, updates the discount and discount_type (idempotent)
 //   - If association doesn't exist, creates new entry with generated product_deal_id
 //   - Validates both deal and product existence before operation
-func AddProductToDeal(dealID, productID string, discountType *string, discount *float64) error {
+func AddProductToDeal(db DBExecutor, dealID, productID string, discountType *string, discount *float64) error {
 	// Validate deal exists
-	if err := isDealThere(dealID); err != nil {
+	if err := isDealThere(db, dealID); err != nil {
 		return err
 	}
 
 	// Validate product exists
-	if err := IsProductThere(productID); err != nil {
+	if err := IsProductThere(db, productID); err != nil {
 		return err
 	}
 
 	// Check if product is already associated with this deal
-	exists, err := RecordExists("deal_products", "deal_id = ? AND product_id = ?", dealID, productID)
+	exists, err := RecordExists(db, "deal_products", "deal_id = ? AND product_id = ?", dealID, productID)
 	if err != nil {
 		return err
 	}
 
 	if exists {
 		// Update existing product-deal association (idempotent operation)
-		_, err := DB.Exec(`UPDATE deal_products SET discount = ?, discount_type = ? WHERE deal_id = ? AND product_id = ?`,
+		_, err := db.Exec(`UPDATE deal_products SET discount = ?, discount_type = ? WHERE deal_id = ? AND product_id = ?`,
 			discount, discountType, dealID, productID)
 		return err
 	}
 
 	// Create new product-deal association
 	productDealID, _ := shortid.Generate()
-	_, err = DB.Exec(`INSERT INTO deal_products (product_deal_id, deal_id, product_id, discount, discount_type) VALUES (?, ?, ?, ?, ?)`,
+	_, err = db.Exec(`INSERT INTO deal_products (product_deal_id, deal_id, product_id, discount, discount_type) VALUES (?, ?, ?, ?, ?)`,
 		productDealID, dealID, productID, discount, discountType)
 	return err
 }
@@ -268,19 +268,19 @@ func AddProductToDeal(dealID, productID string, discountType *string, discount *
 //
 // Returns:
 //   - error: Validation error if deal or product doesn't exist, or database error
-func RemoveProductFromDeal(dealID, productID string) error {
+func RemoveProductFromDeal(db DBExecutor, dealID, productID string) error {
 	// Validate deal exists
-	if err := isDealThere(dealID); err != nil {
+	if err := isDealThere(db, dealID); err != nil {
 		return err
 	}
 
 	// Validate product exists
-	if err := IsProductThere(productID); err != nil {
+	if err := IsProductThere(db, productID); err != nil {
 		return err
 	}
 
 	// Delete product-deal association
-	_, err := DB.Exec(`DELETE FROM deal_products WHERE deal_id = ? AND product_id = ?`, dealID, productID)
+	_, err := db.Exec(`DELETE FROM deal_products WHERE deal_id = ? AND product_id = ?`, dealID, productID)
 	return err
 }
 
@@ -303,9 +303,9 @@ func RemoveProductFromDeal(dealID, productID string) error {
 //   - Includes deal_id, name, start/end dates, active status, and image
 //   - Products include full details: variants, images, warranties, tax, specifications
 //   - Link field contains deep link for marketing ({BASE_URL}/products/deals/{deal_id})
-func GetDealWithProducts(dealID string, page, limit int) (*dtos.DealWithProducts, dtos.PaginationMeta, error) {
+func GetDealWithProducts(db DBExecutor, dealID string, page, limit int) (*dtos.DealWithProducts, dtos.PaginationMeta, error) {
 	// Validate deal exists
-	if err := isDealThere(dealID); err != nil {
+	if err := isDealThere(db, dealID); err != nil {
 		return nil, dtos.PaginationMeta{}, err
 	}
 
@@ -317,7 +317,7 @@ func GetDealWithProducts(dealID string, page, limit int) (*dtos.DealWithProducts
 		WHERE d.deal_id = ?
 	`
 
-	row := DB.QueryRow(query, dealID)
+	row := db.QueryRow(query, dealID)
 
 	var deal dtos.DealWithProducts
 	var (
@@ -340,7 +340,7 @@ func GetDealWithProducts(dealID string, page, limit int) (*dtos.DealWithProducts
 	deal.EndDate = endDate.Time
 
 	// Fetch paginated deal products with full details
-	products, pagination, err := GetProductsByDealIDWithPagination(dealID, page, limit)
+	products, pagination, err := GetProductsByDealIDWithPagination(db, dealID, page, limit)
 	if err != nil {
 		return nil, dtos.PaginationMeta{}, err
 	}
@@ -372,7 +372,7 @@ func GetDealWithProducts(dealID string, page, limit int) (*dtos.DealWithProducts
 //   - Related data: images, variants, warranties, tax (fetched via helper functions)
 //
 // TODO1: Use products pagination for all deals
-func GetProductsByDealID(dealID string) ([]dtos.DealProduct, error) {
+func GetProductsByDealID(db DBExecutor, dealID string) ([]dtos.DealProduct, error) {
 	// Query products with deal associations and specifications
 	query := `
 		SELECT 
@@ -386,7 +386,7 @@ func GetProductsByDealID(dealID string) ([]dtos.DealProduct, error) {
 		WHERE dp.deal_id = ?
 	`
 
-	rows, err := DB.Query(query, dealID)
+	rows, err := db.Query(query, dealID)
 	if err != nil {
 		return nil, err
 	}
@@ -409,28 +409,28 @@ func GetProductsByDealID(dealID string) ([]dtos.DealProduct, error) {
 		}
 
 		// Fetch product images (main image and additional images)
-		images, err := fetchProductImages(p.ID)
+		images, err := fetchProductImages(db, p.ID)
 		if err != nil {
 			return nil, err
 		}
 		p.Images = images
 
 		// Fetch warranty information
-		warranties, err := FetchProductWarranties(p.ID)
+		warranties, err := FetchProductWarranties(db, p.ID)
 		if err != nil {
 			return nil, err
 		}
 		p.Warranty = &warranties
 
 		// Fetch product variants (size, color, etc.)
-		variants, err := getProductVariants(p.ID)
+		variants, err := getProductVariants(db, p.ID)
 		if err != nil {
 			return nil, err
 		}
 		p.ProductVariants = variants
 
 		// Fetch tax information
-		tax, err := fetchProductTax(p.ID)
+		tax, err := fetchProductTax(db, p.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -471,11 +471,11 @@ func GetProductsByDealID(dealID string) ([]dtos.DealProduct, error) {
 // Performance:
 //   - Uses LIMIT/OFFSET for efficient pagination
 //   - Queries total count separately for pagination metadata
-func GetProductsByDealIDWithPagination(dealID string, page, limit int) ([]dtos.DealProduct, *dtos.PaginationMeta, error) {
+func GetProductsByDealIDWithPagination(db DBExecutor, dealID string, page, limit int) ([]dtos.DealProduct, *dtos.PaginationMeta, error) {
 	// Get total product count for pagination
 	countQuery := `SELECT COUNT(*) FROM deal_products WHERE deal_id = ?`
 	var totalItems int
-	err := DB.QueryRow(countQuery, dealID).Scan(&totalItems)
+	err := db.QueryRow(countQuery, dealID).Scan(&totalItems)
 
 	// Query products with pagination
 	query := `
@@ -493,7 +493,7 @@ func GetProductsByDealIDWithPagination(dealID string, page, limit int) ([]dtos.D
 
 	// Calculate pagination offset
 	offset := (page - 1) * limit
-	rows, err := DB.Query(query, dealID, limit, offset)
+	rows, err := db.Query(query, dealID, limit, offset)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -516,28 +516,28 @@ func GetProductsByDealIDWithPagination(dealID string, page, limit int) ([]dtos.D
 		}
 
 		// Fetch product images (main image and additional images)
-		images, err := fetchProductImages(p.ID)
+		images, err := fetchProductImages(db, p.ID)
 		if err != nil {
 			return nil, nil, err
 		}
 		p.Images = images
 
 		// Fetch warranty information
-		warranty, err := FetchProductWarranties(p.ID)
+		warranty, err := FetchProductWarranties(db, p.ID)
 		if err != nil {
 			return nil, nil, err
 		}
 		p.Warranty = &warranty
 
 		// Fetch product variants (size, color, etc.)
-		variants, err := getProductVariants(p.ID)
+		variants, err := getProductVariants(db, p.ID)
 		if err != nil {
 			return nil, nil, err
 		}
 		p.ProductVariants = variants
 
 		// Fetch tax information
-		tax, err := fetchProductTax(p.ID)
+		tax, err := fetchProductTax(db, p.ID)
 		if err != nil {
 			return nil, nil, err
 		}

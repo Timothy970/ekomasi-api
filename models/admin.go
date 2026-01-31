@@ -25,7 +25,7 @@ import (
 //
 // Returns:
 //   - error: Error if date format invalid or database operation fails
-func CreateCoupon(promo dtos.PromoCode) error {
+func CreateCoupon(db DBExecutor, promo dtos.PromoCode) error {
 	// Generate unique coupon ID
 	couponID, _ := shortid.Generate()
 	// Validate date format matches expected layout
@@ -41,7 +41,7 @@ func CreateCoupon(promo dtos.PromoCode) error {
 		INSERT INTO coupons (coupon_id, code, discount_pct, expires_at)
 		VALUES (?, ?, ?, ?)
 	`
-	_, err = DB.Exec(query, couponID, promo.Code, promo.DiscountPercentage, promo.ExpiryDate)
+	_, err = db.Exec(query, couponID, promo.Code, promo.DiscountPercentage, promo.ExpiryDate)
 	if err != nil {
 		// Database insert failed
 		return fmt.Errorf("failed to insert promo code: %v", err)
@@ -58,12 +58,12 @@ func CreateCoupon(promo dtos.PromoCode) error {
 // Returns:
 //   - float64: Discount percentage if coupon is valid (e.g., 20.0 for 20% off)
 //   - error: Error if coupon invalid, expired, or database error
-func ValidateCoupon(couponCode string) (float64, error) {
+func ValidateCoupon(db DBExecutor, couponCode string) (float64, error) {
 	var discount float64
 	var expiry string
 
 	// Query coupon details from database
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT discount_pct, expires_at 
 		FROM coupons 
 		WHERE code = ?
@@ -107,13 +107,13 @@ func ValidateCoupon(couponCode string) (float64, error) {
 // Returns:
 //   - float64: Remaining voucher balance if valid
 //   - error: Error if voucher invalid, expired, inactive, or has no balance
-func ValidateVoucher(voucherCode string) (float64, error) {
+func ValidateVoucher(db DBExecutor, voucherCode string) (float64, error) {
 	var balance float64
 	var expiry time.Time
 	var isActive string
 
 	// Query voucher details from database
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT balance, expiry_date, status
 		FROM vouchers 
 		WHERE code = ?
@@ -162,12 +162,12 @@ func ValidateVoucher(voucherCode string) (float64, error) {
 // Returns:
 //   - dtos.PromoCodeData: Promo code details including discount type, value, and usage info
 //   - error: Error if promo invalid, expired, inactive, used up, or order value too low
-func ValidatePromoCode(voucherCode string, orderValue float64) (dtos.PromoCodeData, error) {
+func ValidatePromoCode(db DBExecutor, voucherCode string, orderValue float64) (dtos.PromoCodeData, error) {
 	var promoCode dtos.PromoCodeData
 	var expiry time.Time
 	var isActive bool
 	// Query promo code details from database
-	err := DB.QueryRow(`
+	err := db.QueryRow(`
 	SELECT discount_type, expires_at, is_active, discount_value, minimum_order_value, maximum_use
 	FROM promocodes 
 	WHERE code = ?
@@ -223,10 +223,10 @@ func ValidatePromoCode(voucherCode string, orderValue float64) (dtos.PromoCodeDa
 //
 // Returns:
 //   - error: Error if database operation fails
-func IncrementPromoCodeUsage(code string) error {
+func IncrementPromoCodeUsage(db DBExecutor, code string) error {
 	// Decrement maximum_use and increment times_used atomically
 	// Only updates if maximum_use > 0 to prevent negative values
-	_, err := DB.Exec(`UPDATE promocodes SET maximum_use = maximum_use - 1, times_used = times_used + 1 WHERE code = ? AND maximum_use > 0`, code)
+	_, err := db.Exec(`UPDATE promocodes SET maximum_use = maximum_use - 1, times_used = times_used + 1 WHERE code = ? AND maximum_use > 0`, code)
 	return err
 }
 
@@ -239,10 +239,10 @@ func IncrementPromoCodeUsage(code string) error {
 //
 // Returns:
 //   - error: Error if database operation fails
-func UpdateVoucherBalance(code string, newBalance float64) error {
+func UpdateVoucherBalance(db DBExecutor, code string, newBalance float64) error {
 	// Mark voucher as redeemed when balance is updated
 	isRedeemed := true
-	_, err := DB.Exec(`UPDATE vouchers SET balance = ?, is_redeemed = ? WHERE code = ?`, newBalance, isRedeemed, code)
+	_, err := db.Exec(`UPDATE vouchers SET balance = ?, is_redeemed = ? WHERE code = ?`, newBalance, isRedeemed, code)
 	return err
 }
 
@@ -258,11 +258,11 @@ func UpdateVoucherBalance(code string, newBalance float64) error {
 // Returns:
 //   - *dtos.ProductFeature: Created feature with generated ID
 //   - error: Error if product not found or database operation fails
-func AddProductFeature(input dtos.ProductFeature, productID string) (*dtos.ProductFeature, error) {
+func AddProductFeature(db DBExecutor, input dtos.ProductFeature, productID string) (*dtos.ProductFeature, error) {
 	log.Println("Adding feature to product:", productID)
 	log.Printf("Feature input: %+v", input)
 	// Validate that product exists before adding feature
-	err := IsProductThere(productID)
+	err := IsProductThere(db, productID)
 	if err != nil {
 		// Product not found
 		return nil, err
@@ -274,7 +274,7 @@ func AddProductFeature(input dtos.ProductFeature, productID string) (*dtos.Produ
 	jsonTopSection, _ := json.Marshal(input.TopSection)
 	jsonImages, _ := json.Marshal(input.Images)
 	// Insert product feature into database
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO product_features (feature_id, product_id, header, description, image, image_position, product_specifications, top_section, design_type, images)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		featureID, productID, input.Header, input.Description, input.Image, input.ImagePosition, jsonProductSpecifications, jsonTopSection, input.DesignType, jsonImages,
@@ -307,9 +307,9 @@ func AddProductFeature(input dtos.ProductFeature, productID string) (*dtos.Produ
 //
 // Returns:
 //   - error: Error if feature not found or database error
-func isFeatureThere(id string) error {
+func isFeatureThere(db DBExecutor, id string) error {
 	// Check if feature exists in product_features table
-	exists, err := RecordExists("product_features", "feature_id = ?", id)
+	exists, err := RecordExists(db, "product_features", "feature_id = ?", id)
 	if err != nil {
 		// Database query failed
 		return err
@@ -331,9 +331,9 @@ func isFeatureThere(id string) error {
 // Returns:
 //   - *dtos.ProductFeature: Updated feature with all fields
 //   - error: Error if feature not found or database operation fails
-func UpdateProductFeature(input dtos.ProductFeature, featureID string) (*dtos.ProductFeature, error) {
+func UpdateProductFeature(db DBExecutor, input dtos.ProductFeature, featureID string) (*dtos.ProductFeature, error) {
 	// Validate that feature exists before updating
-	err := isFeatureThere(featureID)
+	err := isFeatureThere(db, featureID)
 	if err != nil {
 		// Feature not found
 		return nil, err
@@ -371,14 +371,14 @@ func UpdateProductFeature(input dtos.ProductFeature, featureID string) (*dtos.Pr
 	args = append(args, input.Header, input.Description, input.ImagePosition, input.DesignType, featureID)
 
 	// Execute update query
-	_, err = DB.Exec(query, args...)
+	_, err = db.Exec(query, args...)
 	if err != nil {
 		// Database update failed
 		return nil, err
 	}
 
 	// Fetch and return updated feature
-	return GetProductFeatureByID(featureID)
+	return GetProductFeatureByID(db, featureID)
 }
 
 // GetProductFeaturesByProductID retrieves all features for a specific product.
@@ -390,9 +390,9 @@ func UpdateProductFeature(input dtos.ProductFeature, featureID string) (*dtos.Pr
 // Returns:
 //   - []dtos.ProductFeature: List of all features for the product
 //   - error: Error if product not found or database operation fails
-func GetProductFeaturesByProductID(productID string) ([]dtos.ProductFeature, error) {
+func GetProductFeaturesByProductID(db DBExecutor, productID string) ([]dtos.ProductFeature, error) {
 	// Validate that product exists
-	err := IsProductThere(productID)
+	err := IsProductThere(db, productID)
 	if err != nil {
 		// Product not found
 		return nil, err
@@ -400,7 +400,7 @@ func GetProductFeaturesByProductID(productID string) ([]dtos.ProductFeature, err
 	// Prepare nullable string variables for JSON fields
 	var topSectionStr, productSpecificationsStr, imagesStr sql.NullString
 	// Query all features for the product
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT feature_id, product_id, header, description, image, image_position, product_specifications, top_section, design_type, images
 		FROM product_features
 		WHERE product_id = ?
@@ -442,9 +442,9 @@ func GetProductFeaturesByProductID(productID string) ([]dtos.ProductFeature, err
 // Returns:
 //   - *dtos.ProductFeature: Feature details with all fields including JSON data
 //   - error: Error if feature not found or database operation fails
-func GetProductFeatureByID(featureID string) (*dtos.ProductFeature, error) {
+func GetProductFeatureByID(db DBExecutor, featureID string) (*dtos.ProductFeature, error) {
 	// Validate that feature exists
-	err := isFeatureThere(featureID)
+	err := isFeatureThere(db, featureID)
 	if err != nil {
 		// Feature not found
 		return nil, err
@@ -453,7 +453,7 @@ func GetProductFeatureByID(featureID string) (*dtos.ProductFeature, error) {
 	// Prepare nullable string variables for JSON fields
 	var topSectionStr, productSpecificationsStr, imagesStr sql.NullString
 	// Query feature details
-	err = DB.QueryRow(`
+	err = db.QueryRow(`
 		SELECT feature_id, product_id, header, description, image, image_position, product_specifications, top_section, design_type, images
 		FROM product_features
 		WHERE feature_id = ?
@@ -484,15 +484,15 @@ func GetProductFeatureByID(featureID string) (*dtos.ProductFeature, error) {
 //
 // Returns:
 //   - error: Error if feature not found or database operation fails
-func DeleteProductFeature(featureID string) error {
+func DeleteProductFeature(db DBExecutor, featureID string) error {
 	// Validate that feature exists before deletion
-	err := isFeatureThere(featureID)
+	err := isFeatureThere(db, featureID)
 	if err != nil {
 		// Feature not found
 		return err
 	}
 	// Delete feature from database
-	_, err = DB.Exec(`DELETE FROM product_features WHERE feature_id = ?`, featureID)
+	_, err = db.Exec(`DELETE FROM product_features WHERE feature_id = ?`, featureID)
 	return err
 }
 
@@ -506,16 +506,16 @@ func DeleteProductFeature(featureID string) error {
 // Returns:
 //   - *dtos.ProductFeature: Newly created feature
 //   - error: Error if product not found or database operation fails
-func UpdateProductFeatures(input dtos.ProductFeature, productID string) (*dtos.ProductFeature, error) {
+func UpdateProductFeatures(db DBExecutor, input dtos.ProductFeature, productID string) (*dtos.ProductFeature, error) {
 	log.Println("Adding feature to product:", productID)
 	// Validate that product exists
-	err := IsProductThere(productID)
+	err := IsProductThere(db, productID)
 	if err != nil {
 		// Product not found
 		return nil, err
 	}
 	// Delete all existing features for the product
-	_, err = DB.Exec(`DELETE FROM product_features WHERE product_id = ?`, productID)
+	_, err = db.Exec(`DELETE FROM product_features WHERE product_id = ?`, productID)
 	if err != nil {
 		// Failed to delete existing features
 		return nil, err
@@ -527,7 +527,7 @@ func UpdateProductFeatures(input dtos.ProductFeature, productID string) (*dtos.P
 	jsonTopSection, _ := json.Marshal(input.TopSection)
 	jsonImages, _ := json.Marshal(input.Images)
 	// Insert new product feature
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO product_features (feature_id, product_id, header, description, image, image_position, product_specifications, top_section, design_type, images)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		featureID, productID, input.Header, input.Description, input.Image, input.ImagePosition, jsonProductSpecifications, jsonTopSection, input.DesignType, jsonImages,

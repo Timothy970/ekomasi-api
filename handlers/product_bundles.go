@@ -80,7 +80,7 @@ func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 
-	bundles, pagination, err := models.GetBundleProducts(limit, page)
+	bundles, pagination, err := models.GetBundleProducts(models.DB, limit, page)
 	if err != nil {
 		// Return error response if database query fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -137,7 +137,7 @@ func GetBundleByIDProductsHandler(w http.ResponseWriter, r *http.Request) {
 	bundleID := mux.Vars(r)["bundle_id"]
 
 	// Retrieve bundle from database by ID
-	bundles, err := models.GetBundleByIDProducts(bundleID)
+	bundle, err := models.GetBundleByIDProducts(models.DB, bundleID)
 	if err != nil {
 		// Return error response if bundle not found or query fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -161,7 +161,7 @@ func GetBundleByIDProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Description: "Bundle fetched successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   bundles,
+		Payload:   bundle,
 		Message:   "Bundle fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -285,7 +285,7 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create bundle in database associated with admin user
-	err = models.CreateBundle(*req, authuser.ID)
+	err = models.CreateBundle(models.DB, *req, authuser.ID)
 	if err != nil {
 		// Return error if bundle creation fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -423,7 +423,7 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update bundle in database
-	err := models.UpdateBundle(*req, bundleID)
+	err := models.UpdateBundle(models.DB, *req, bundleID)
 	if err != nil {
 		// Return error if bundle update fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -484,8 +484,7 @@ func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
 	bundleID := mux.Vars(r)["bundle_id"]
 
 	// Delete bundle from database
-	err := models.DeleteBundle(bundleID)
-	if err != nil {
+	if err := models.DeleteBundle(models.DB, bundleID); err != nil {
 		// Return error if bundle deletion fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -558,7 +557,7 @@ func AddProductsToBundleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add products to bundle in database
-	err := models.AddProductsToBundle(*req, mux.Vars(r)["bundle_id"])
+	err := models.AddProductsToBundle(models.DB, *req, mux.Vars(r)["bundle_id"])
 	if err != nil {
 		// Return error if adding products fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -635,8 +634,7 @@ func RemoveProductsFromBundleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Remove products from bundle in database
-	err := models.RemoveProductsFromBundle(*req, bundleID)
-	if err != nil {
+	if err := models.RemoveProductsFromBundle(models.DB, *req, bundleID); err != nil {
 		// Return error if removing products fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

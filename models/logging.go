@@ -72,7 +72,7 @@ type UserLogFilters struct {
 //   - Separate count query for better MySQL optimization
 //   - Indexed date range filtering
 //   - Optimized search with EXISTS subquery
-func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.PaginationMeta, error) {
+func GetUserLogsOptimized(db DBExecutor, filters UserLogFilters) ([]dtos.UserLog, *dtos.PaginationMeta, error) {
 	// Calculate pagination offset
 	offset := (filters.Page - 1) * filters.Limit
 
@@ -89,7 +89,7 @@ func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.Paginat
 
 	// Execute count query for pagination metadata
 	var total int
-	if err := DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
+	if err := db.QueryRow(countQuery, args...).Scan(&total); err != nil {
 		return nil, nil, fmt.Errorf("count query failed: %w", err)
 	}
 
@@ -123,7 +123,7 @@ func GetUserLogsOptimized(filters UserLogFilters) ([]dtos.UserLog, *dtos.Paginat
 	args = append(args, filters.Limit, offset)
 
 	// Execute main data query
-	rows, err := DB.Query(query, args...)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -388,7 +388,7 @@ func buildUserLogsFilter(filters UserLogFilters) (string, []interface{}) {
 // Returns:
 //   - []dtos.UserLog: Array of processed logs with user details
 //   - error: Scan error, metadata parsing error, or user fetch error
-func processUserLogRows(rows *sql.Rows) ([]dtos.UserLog, error) {
+func processUserLogRows(db DBExecutor, rows *sql.Rows) ([]dtos.UserLog, error) {
 	var logs []dtos.UserLog
 
 	// Iterate through result rows
@@ -414,7 +414,7 @@ func processUserLogRows(rows *sql.Rows) ([]dtos.UserLog, error) {
 		}
 
 		// Enrich with user details
-		if err := assignUserToLogger(&logger, userID); err != nil {
+		if err := assignUserToLogger(db, &logger, userID); err != nil {
 			log.Printf("Error fetching user for log %s: %v", logger.LogID, err)
 			return nil, err
 		}
@@ -487,11 +487,11 @@ func mapMetadataToLogger(logger *dtos.UserLog, metadata string) error {
 //
 // Returns:
 //   - error: User fetch error if user lookup fails
-func assignUserToLogger(logger *dtos.UserLog, userID string) error {
+func assignUserToLogger(db DBExecutor, logger *dtos.UserLog, userID string) error {
 	// Check if user is known
 	if userID != "unknown" {
 		// Fetch full user details
-		user, err := GetUserByUserID(userID)
+		user, err := GetUserByUserID(db, userID)
 		if err != nil {
 			return err
 		}
@@ -548,9 +548,9 @@ func ConvertStringToMap(data string) (map[string]interface{}, error) {
 //   - *dtos.PaginationMeta: Pagination metadata
 //   - error: "user not found" if user doesn't exist,
 //     or database error
-func GetUserLogsByUserID(userID string, limit, page int) ([]dtos.UserLog, *dtos.PaginationMeta, error) {
+func GetUserLogsByUserID(db DBExecutor, userID string, limit, page int) ([]dtos.UserLog, *dtos.PaginationMeta, error) {
 	// Validate user exists
-	if err := isUserThere(userID); err != nil {
+	if err := isUserThere(db, userID); err != nil {
 		return nil, nil, err
 	}
 
@@ -561,7 +561,7 @@ func GetUserLogsByUserID(userID string, limit, page int) ([]dtos.UserLog, *dtos.
 
 	// Count total logs for pagination metadata
 	var total int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM logs WHERE user_id = ?`, userID).Scan(&total); err != nil {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM logs WHERE user_id = ?`, userID).Scan(&total); err != nil {
 		return nil, nil, err
 	}
 
@@ -573,14 +573,14 @@ func GetUserLogsByUserID(userID string, limit, page int) ([]dtos.UserLog, *dtos.
 		ORDER BY timestamp DESC
 		LIMIT ? OFFSET ?`
 
-	rows, err := DB.Query(query, userID, limit, offset)
+	rows, err := db.Query(query, userID, limit, offset)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
 
 	// Process rows into DTOs with metadata parsing and user enrichment
-	logs, err := processUserLogRows(rows)
+	logs, err := processUserLogRows(db, rows)
 	if err != nil {
 		log.Printf("Error processing logs for user %s: %v", userID, err)
 		return nil, nil, err

@@ -79,7 +79,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Get user's wishlist or create default "My Wishlist" if none exists (frictionless onboarding)
-	wishlistID, err := models.GetOrCreateWishlist(user.ID, "My Wishlist")
+	wishlistID, err := models.GetOrCreateWishlist(models.DB, user.ID, "My Wishlist")
 	if err != nil {
 		// Failed to get or create wishlist
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -96,7 +96,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Add product to wishlist (prevents duplicates at database level)
-	err = models.CreateWishListItem(wishlistID, item.ProductID, user.ID)
+	err = models.CreateWishListItem(models.DB, wishlistID, item.ProductID, user.ID)
 	if err != nil {
 		// Failed to add item (duplicate, product not found, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -113,7 +113,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Fetch updated wishlist with all products to return in response
-	myWishlist, err := models.GetMyWishlistItems(user.ID)
+	myWishlist, err := models.GetMyWishlistItems(models.DB, user.ID)
 	if err != nil {
 		// Failed to fetch updated wishlist
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -184,7 +184,7 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 	productID := mux.Vars(r)["product_id"]
 
 	// Get user's wishlist ID
-	wishlistID, err := models.GetWishlistByUserID(user.ID)
+	wishlistID, err := models.GetWishlistByUserID(models.DB, user.ID)
 	if err != nil {
 		// Wishlist not found for user
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -201,7 +201,7 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Remove product from wishlist
-	err = models.RemoveWishlistItem(wishlistID, productID, user.ID)
+	err = models.RemoveWishlistItem(models.DB, wishlistID, productID, user.ID)
 	if err != nil {
 		// Failed to remove item (product not in wishlist or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -218,7 +218,7 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Fetch updated wishlist with remaining products to return in response
-	myWishlist, err := models.GetMyWishlistItems(user.ID)
+	myWishlist, err := models.GetMyWishlistItems(models.DB, user.ID)
 	if err != nil {
 		// Failed to fetch updated wishlist
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -307,7 +307,7 @@ func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
 		page, _ = strconv.Atoi(pageStr)
 	}
 	// Fetch user's wishlists with pagination
-	wishlists, pagination, err := models.GetAllUserWishList(user.ID, wishlistID, limit, page)
+	wishlists, pagination, err := models.GetAllUserWishList(models.DB, user.ID, wishlistID, limit, page)
 	if err != nil {
 		log.Printf("no wishlist:: %s", err)
 		// No wishlists found for user
@@ -391,7 +391,7 @@ func CreateWishList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Create new wishlist in database
-	newList, err := models.CreateWishList(*body, user.ID)
+	newList, err := models.CreateWishList(models.DB, *body, user.ID)
 	if err != nil {
 		// Wishlist creation failed (duplicate name or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -470,12 +470,13 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Validate all required fields (recipient email, sender name, message)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Auth") {
-		// Validation failed, ValidateStructAndRespond already sent error response
+	_, ok = utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "")
+	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Fetch user's wishlist with all products
-	wishlists, err := models.GetMyWishlistItems(user.ID)
+	wishlists, err := models.GetMyWishlistItems(models.DB, user.ID)
 
 	if err != nil || len(wishlists.Products) == 0 {
 		// Wishlist not found or empty (no products to share)
@@ -619,9 +620,9 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch wishlist details from database
-	wishlists, err := models.GetWishlistByID(wishlistID)
+	wishlistsByID, err := models.GetWishlistByID(models.DB, wishlistID)
 
-	if err != nil || len(wishlists) == 0 {
+	if err != nil || len(wishlistsByID) == 0 {
 		// Wishlist not found or empty
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -638,7 +639,7 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get first wishlist from results
-	wishlist := wishlists[0]
+	wishlist := wishlistsByID[0]
 	// Verify wishlist is marked as public (privacy check)
 	if !wishlist.IsPublic {
 		// Wishlist is private, cannot be viewed via public link
@@ -709,7 +710,7 @@ func DeleteWishList(w http.ResponseWriter, r *http.Request) {
 	// Extract wishlist ID from URL path parameters
 	wishlistID := mux.Vars(r)["wishlist_id"]
 	// Delete wishlist and all its items (verifies ownership)
-	err := models.DeleteWishList(wishlistID, user.ID)
+	err := models.DeleteWishList(models.DB, wishlistID, user.ID)
 	if err != nil {
 		// Deletion failed (wishlist not found, not owned by user, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -778,7 +779,7 @@ func GetMyWishList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Fetch user's primary wishlist with all product details
-	myWishlist, err := models.GetMyWishlistItems(user.ID)
+	myWishlist, err := models.GetMyWishlistItems(models.DB, user.ID)
 	if err != nil {
 		// Failed to retrieve wishlist
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

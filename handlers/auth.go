@@ -336,7 +336,7 @@ func verifySignIn(user *dtos.User, req dtos.VerifyOTP, w http.ResponseWriter, r 
 		return
 	}
 	// update last login for user
-	models.UpdateLastLogin(user.ID)
+	models.UpdateLastLogin(models.DB, user.ID)
 	//invalidate otp after successful login
 	InvalidateOTP(user.ID)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -421,7 +421,7 @@ func VerifySignUp(w http.ResponseWriter, r *http.Request, req *dtos.VerifyOTP, s
 		Lastname:    pending.Lastname,
 		Password:    pending.Password,
 	}
-	user, err := models.CreateUser(newUserReq)
+	user, err := models.CreateUser(models.DB, newUserReq)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -835,7 +835,7 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	refreshToken, _ := generateToken(user, "refresh_token", 12*time.Hour)
 	// Update last login timestamp
-	models.UpdateLastLogin(user.ID)
+	models.UpdateLastLogin(models.DB, user.ID)
 
 	// Return success response
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -1209,9 +1209,9 @@ func getIdentifier(req *dtos.LoginRequest) string {
 // trying fetching user by email or phone
 func fetchUser(email, phone string) (*dtos.User, error) {
 	if email != "" {
-		return models.GetUserByEmail(email)
+		return models.GetUserByEmail(models.DB, email)
 	}
-	return models.GetUserByPhone(phone)
+	return models.GetUserByPhone(models.DB, phone)
 }
 
 // Error handling helpers

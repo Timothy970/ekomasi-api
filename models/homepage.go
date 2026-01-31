@@ -52,9 +52,9 @@ var whereID = "id = ?"
 //   - CompanyAddress: Physical address
 //   - ContactEmail: Contact email address
 //   - PhoneNumber: Contact phone number
-func GetFooterData() ([]dtos.Footer, error) {
+func GetFooterData(db DBExecutor) ([]dtos.Footer, error) {
 	// Query footer/contact information (limited to 1 record)
-	rows, err := DB.Query("SELECT copyright_text, company_address, contact_email, phone_number FROM contact_info LIMIT 1")
+	rows, err := db.Query("SELECT copyright_text, company_address, contact_email, phone_number FROM contact_info LIMIT 1")
 	if err != nil {
 		return nil, err
 	}
@@ -88,9 +88,9 @@ func GetFooterData() ([]dtos.Footer, error) {
 //   - Platform: Platform name (e.g., "Facebook", "Twitter")
 //   - URL: Link to social media profile
 //   - IconClass: CSS class for icon (e.g., "fa-facebook", "fa-twitter")
-func GetSocialsData() ([]dtos.SocialLink, error) {
+func GetSocialsData(db DBExecutor) ([]dtos.SocialLink, error) {
 	// Query social links ordered by display preference
-	rows, err := DB.Query("SELECT platform, url, icon_class FROM social_links ORDER BY display_order")
+	rows, err := db.Query("SELECT platform, url, icon_class FROM social_links ORDER BY display_order")
 	if err != nil {
 		return nil, err
 	}
@@ -123,9 +123,9 @@ func GetSocialsData() ([]dtos.SocialLink, error) {
 // Menu Link Fields:
 //   - Title: Display text for the menu item
 //   - HREF: URL path for the menu item
-func GetMenuData() ([]dtos.MenuLink, error) {
+func GetMenuData(db DBExecutor) ([]dtos.MenuLink, error) {
 	// Query static pages for menu navigation (most recent first)
-	rows, err := DB.Query("SELECT  title, path FROM static_pages ORDER BY updated_at DESC")
+	rows, err := db.Query("SELECT  title, path FROM static_pages ORDER BY updated_at DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -160,9 +160,9 @@ func GetMenuData() ([]dtos.MenuLink, error) {
 //   - ButtonText, ButtonURL: Call-to-action button
 //   - DisplayOrder: Position ordering
 //   - IsActive, Type: Filtering criteria
-func GetBannersData(value string) ([]dtos.Banner, error) {
+func GetBannersData(db DBExecutor, value string) ([]dtos.Banner, error) {
 	// Query active banners of specific type, ordered by display preference
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT id, image_url, text, heading, button_text, button_url, display_order, is_active, type
 		FROM banners WHERE is_active = true AND type = ? ORDER BY display_order ASC`, value)
 	if err != nil {
@@ -204,7 +204,7 @@ func GetBannersData(value string) ([]dtos.Banner, error) {
 //   - Basic: ID, Name, StartDate, EndDate, IsActive
 //   - Type Info: PromotionType, PromotionDescription, Amount
 //   - Products: PromotionProducts (grouped by category)
-func GetPromotions() ([]dtos.Promotion, error) {
+func GetPromotions(db DBExecutor) ([]dtos.Promotion, error) {
 	// Get current timestamp for date range filtering
 	now := time.Now()
 
@@ -226,7 +226,7 @@ func GetPromotions() ([]dtos.Promotion, error) {
 	  AND p.end_date >= ?
 `
 
-	rows, err := DB.Query(promotionQuery, now, now)
+	rows, err := db.Query(promotionQuery, now, now)
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +243,7 @@ func GetPromotions() ([]dtos.Promotion, error) {
 		log.Printf("Got promotion ::::::::%v", promo)
 
 		// Fetch associated products grouped by category
-		products, err := getPromotionProductGroups(promo.ID)
+		products, err := getPromotionProductGroups(db, promo.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -271,7 +271,7 @@ func GetPromotions() ([]dtos.Promotion, error) {
 // Product Group Structure:
 //   - ID, PromotionID, ProductID: Relationship identifiers
 //   - Categories: Array of CategoryGroup with products
-func getPromotionProductGroups(promotionID string) ([]dtos.PromotionProductGroup, error) {
+func getPromotionProductGroups(db DBExecutor, promotionID string) ([]dtos.PromotionProductGroup, error) {
 	// Query promotion-product associations
 	query := `
 		SELECT promotion_product_id, promotion_id, product_id 
@@ -279,7 +279,7 @@ func getPromotionProductGroups(promotionID string) ([]dtos.PromotionProductGroup
 		WHERE promotion_id = ?
 	`
 
-	rows, err := DB.Query(query, promotionID)
+	rows, err := db.Query(query, promotionID)
 	if err != nil {
 		return nil, err
 	}
@@ -295,7 +295,7 @@ func getPromotionProductGroups(promotionID string) ([]dtos.PromotionProductGroup
 		}
 
 		// Fetch full product details with category
-		product, category, err := getProductWithCategory(pp.ProductID)
+		product, category, err := getProductWithCategory(db, pp.ProductID)
 		if err != nil {
 			return nil, err
 		}
@@ -346,7 +346,7 @@ func getPromotionProductGroups(promotionID string) ([]dtos.PromotionProductGroup
 //
 // Category Fields:
 //   - CategoryID, Name, ParentCategoryID, Description
-func getProductWithCategory(productID string) (dtos.Product, dtos.CategoryGroup, error) {
+func getProductWithCategory(db DBExecutor, productID string) (dtos.Product, dtos.CategoryGroup, error) {
 	// Query product with joined category data
 	query := `
 		SELECT 
@@ -362,7 +362,7 @@ func getProductWithCategory(productID string) (dtos.Product, dtos.CategoryGroup,
 	var category dtos.CategoryGroup
 
 	// Scan product and category data
-	row := DB.QueryRow(query, productID)
+	row := db.QueryRow(query, productID)
 	err := row.Scan(
 		&product.ID, &product.Name, &product.Description, &product.SKU, &product.Price,
 		&product.CategoryID, &product.StockQuantity, &product.SearchVector,
@@ -374,7 +374,7 @@ func getProductWithCategory(productID string) (dtos.Product, dtos.CategoryGroup,
 	}
 
 	// Fetch associated product images
-	imageRows, err := DB.Query(`
+	imageRows, err := db.Query(`
 		SELECT image_id, url, is_primary 
 		FROM product_images 
 		WHERE product_id = ?`, productID,
@@ -445,9 +445,9 @@ func getProductWithCategory(productID string) (dtos.Product, dtos.CategoryGroup,
 //   - Tax: Associated tax/charge information
 //   - Discount: Deal-specific discount if applicable
 //   - Specifications: Weight, dimensions, manufacturer, weight limit
-func GetCategoriesWithProducts() ([]dtos.CategoryWithProducts, error) {
+func GetCategoriesWithProducts(db DBExecutor) ([]dtos.CategoryWithProducts, error) {
 	// Query categories with products, deals, and specifications
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT 
 			c.category_id, c.name, c.parent_category_id, c.description,
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
@@ -486,7 +486,7 @@ func GetCategoriesWithProducts() ([]dtos.CategoryWithProducts, error) {
 
 		// If product exists, enrich with images, warranty, and tax
 		if product.ID != "" {
-			enrichedProduct, err := enrichProductDetails(product)
+			enrichedProduct, err := enrichProductDetails(db, product)
 			if err != nil {
 				return nil, err
 			}
@@ -514,23 +514,23 @@ func GetCategoriesWithProducts() ([]dtos.CategoryWithProducts, error) {
 // Returns:
 //   - dtos.Product: Enriched product with images, warranty, and tax
 //   - error: Database error if any enrichment query fails
-func enrichProductDetails(product dtos.Product) (dtos.Product, error) {
+func enrichProductDetails(db DBExecutor, product dtos.Product) (dtos.Product, error) {
 	// Fetch product images
-	images, err := fetchProductImages(product.ID)
+	images, err := fetchProductImages(db, product.ID)
 	if err != nil {
 		return dtos.Product{}, err
 	}
 	product.Images = images
 
 	// Fetch warranty information
-	warranty, err := FetchProductWarranties(product.ID)
+	warranty, err := FetchProductWarranties(db, product.ID)
 	if err != nil {
 		return dtos.Product{}, err
 	}
 	product.Warranty = &warranty
 
 	// Fetch tax/charge information
-	tax, err := fetchProductTax(product.ID)
+	tax, err := fetchProductTax(db, product.ID)
 	if err != nil {
 		return dtos.Product{}, err
 	}
@@ -585,8 +585,8 @@ func scanCategoryProductRow(rows *sql.Rows) (string, string, string, *string, dt
 //   - URL: Image URL path
 //   - IsPrimary: Boolean indicating main product image
 //   - Type: Image type/category
-func fetchProductImages(productID string) ([]dtos.Image, error) {
-	rows, err := DB.Query(`
+func fetchProductImages(db DBExecutor, productID string) ([]dtos.Image, error) {
+	rows, err := db.Query(`
 		SELECT image_id, url, is_primary, type
 		FROM product_images 
 		WHERE product_id = ?`, productID,
@@ -618,13 +618,13 @@ func fetchProductImages(productID string) ([]dtos.Image, error) {
 // Returns:
 //   - dtos.ProductTax: Tax information (ID, Name, Value) or empty struct if none
 //   - error: Database error if query fails (sql.ErrNoRows returns empty struct, not error)
-func fetchProductTax(productID string) (dtos.ProductTax, error) {
+func fetchProductTax(db DBExecutor, productID string) (dtos.ProductTax, error) {
 	query := `SELECT c.charge_id, c.charge_name, c.charge_value
 		FROM product_charges pc
 		JOIN charges c ON pc.charge_id = c.charge_id
 		WHERE pc.product_id = ? LIMIT 1`
 	var tax dtos.ProductTax
-	err := DB.QueryRow(query, productID).Scan(&tax.ID, &tax.Name, &tax.Value)
+	err := db.QueryRow(query, productID).Scan(&tax.ID, &tax.Name, &tax.Value)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return dtos.ProductTax{}, nil
@@ -651,7 +651,7 @@ func fetchProductTax(productID string) (dtos.ProductTax, error) {
 //   - ManufacturingDate, ExpiryDate: Warranty validity dates
 //   - WarrantyType: Type description (e.g., "Manufacturer", "Extended")
 //   - WarrantyID: Warranty type identifier
-func FetchProductWarranties(productID string) (dtos.ProductWarranty, error) {
+func FetchProductWarranties(db DBExecutor, productID string) (dtos.ProductWarranty, error) {
 	query := `
 		SELECT pw.warranty_period, pw.manufacturing_date, pw.expiry_date, wt.name, wt.warranty_type_id
 		FROM product_warranties pw
@@ -663,7 +663,7 @@ func FetchProductWarranties(productID string) (dtos.ProductWarranty, error) {
 
 	var warranty dtos.ProductWarranty
 
-	err := DB.QueryRow(query, productID).
+	err := db.QueryRow(query, productID).
 		Scan(&warranty.WarrantyPeriod, &warranty.ManufacturingDate, &warranty.ExpiryDate, &warranty.WarrantyType, &warranty.WarrantyID)
 
 	if err == sql.ErrNoRows {
@@ -695,13 +695,13 @@ func FetchProductWarranties(productID string) (dtos.ProductWarranty, error) {
 //   - Image: Feature illustration image URL
 //   - Description: Feature details
 //   - ImagePosition: Layout position ("left", "right", etc.)
-func fetchProductFeatures(productID string) ([]dtos.ProductFeature, error) {
+func fetchProductFeatures(db DBExecutor, productID string) ([]dtos.ProductFeature, error) {
 	query := `
 		SELECT feature_id, product_id, header, image, description, image_position, product_specifications, top_section, design_type, images
 		FROM product_features
 		WHERE product_id = ?
 		ORDER BY created_at ASC`
-	rows, err := DB.Query(query, productID)
+	rows, err := db.Query(query, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -751,9 +751,9 @@ func fetchProductFeatures(productID string) ([]dtos.ProductFeature, error) {
 //
 // Returns:
 //   - error: Database error if insertion fails
-func InsertBannerDetails(url string, req dtos.BannerInfo) error {
+func InsertBannerDetails(db DBExecutor, url string, req dtos.BannerInfo) error {
 	query := `INSERT INTO banners (image_url, text, heading, button_text, button_url, display_order, is_active, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := DB.Exec(query, url, req.Text, req.Heading, req.ButtonText, req.ButtonURL, req.DisplayOrder, req.IsActive, req.Type)
+	_, err := db.Exec(query, url, req.Text, req.Heading, req.ButtonText, req.ButtonURL, req.DisplayOrder, req.IsActive, req.Type)
 	return err
 }
 
@@ -776,9 +776,9 @@ func InsertBannerDetails(url string, req dtos.BannerInfo) error {
 //   - error: "banner not found" if banner doesn't exist,
 //     "request cannot be empty" if no fields provided,
 //     or database error
-func UpdateBannerDetails(req dtos.UpdateBannerInfo, bannerID string) error {
+func UpdateBannerDetails(db DBExecutor, req dtos.UpdateBannerInfo, bannerID string) error {
 	// Validate banner exists
-	exists, err := RecordExists("banners", whereID, bannerID)
+	exists, err := RecordExists(db, "banners", whereID, bannerID)
 	if err != nil {
 		return err
 	}
@@ -1210,7 +1210,7 @@ func CreateBlog(blog dtos.BlogRequest, authorID string) error {
 //   - Author: Author information object
 //   - Tags: Array of tag strings
 func GetBlogByID(blogID string) (*dtos.BlogRequest, error) {
-	exists, err := RecordExists("blogs", fetchblog, blogID)
+	exists, err := RecordExists(DB, "blogs", fetchblog, blogID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check blog existence: %w", err)
 	}
@@ -1303,7 +1303,7 @@ func GetBlogByID(blogID string) (*dtos.BlogRequest, error) {
 //   - published → draft: Sets published_at=NULL, is_published=false
 func UpdateBlog(blog dtos.BlogRequest, blogID string) error {
 	// Verify blog exists
-	exists, err := RecordExists("blogs", fetchblog, blogID)
+	exists, err := RecordExists(DB, "blogs", fetchblog, blogID)
 	if err != nil {
 		return err
 	}
@@ -1375,7 +1375,7 @@ func UpdateBlog(blog dtos.BlogRequest, blogID string) error {
 //   - error: "blog not found" if blog doesn't exist or database error
 func DeleteBlog(blogID string) error {
 	// Verify blog exists
-	exists, err := RecordExists("blogs", fetchblog, blogID)
+	exists, err := RecordExists(DB, "blogs", fetchblog, blogID)
 	if err != nil {
 		return err
 	}
@@ -1609,7 +1609,7 @@ func parseBlogFields(
 //   - error: "banner not found" if banner doesn't exist or database error
 func DeleteBanner(bannerID string) error {
 	// Verify banner exists
-	exists, err := RecordExists("banners", whereID, bannerID)
+	exists, err := RecordExists(DB, "banners", whereID, bannerID)
 	if err != nil {
 		return err
 	}
@@ -1644,7 +1644,7 @@ func DeleteBanner(bannerID string) error {
 //   - ParentID set: Creates submenu under specified parent
 func CreateMenuLink(req dtos.MenuLinkRequest) error {
 	// Validate menu title uniqueness
-	exists, err := RecordExists("menu_links", "title = ?", req.Title)
+	exists, err := RecordExists(DB, "menu_links", "title = ?", req.Title)
 	if err != nil {
 		return err
 	}
@@ -1698,7 +1698,7 @@ func CreateMenuLink(req dtos.MenuLinkRequest) error {
 //   - error: "menu link not found" if menu doesn't exist or database error
 func UpdateMenuLink(menu dtos.MenuLinkRequest, menuLinkID int) error {
 	// Verify menu link exists
-	exists, err := RecordExists("menu_links", whereID, menuLinkID)
+	exists, err := RecordExists(DB, "menu_links", whereID, menuLinkID)
 	if err != nil {
 		return err
 	}
@@ -1724,7 +1724,7 @@ func UpdateMenuLink(menu dtos.MenuLinkRequest, menuLinkID int) error {
 //   - error: "menu link not found" if menu doesn't exist or database error
 func DeleteMenuLink(menuLinkID int) error {
 	// Verify menu link exists
-	exists, err := RecordExists("menu_links", whereID, menuLinkID)
+	exists, err := RecordExists(DB, "menu_links", whereID, menuLinkID)
 	if err != nil {
 		return err
 	}
@@ -1755,7 +1755,7 @@ func DeleteMenuLink(menuLinkID int) error {
 //     or database error
 func CreateSocialLink(link *dtos.SocialLinkRequest) error {
 	// Validate platform uniqueness
-	exists, err := RecordExists("social_links", "platform = ?", link.Platform)
+	exists, err := RecordExists(DB, "social_links", "platform = ?", link.Platform)
 	if err != nil {
 		return err
 	}
@@ -1787,7 +1787,7 @@ func CreateSocialLink(link *dtos.SocialLinkRequest) error {
 //   - error: "social not found" if link doesn't exist or database error
 func UpdateSocialLink(socialID int, link dtos.SocialLinkRequest) error {
 	// Verify social link exists
-	exists, err := RecordExists("social_links", whereID, socialID)
+	exists, err := RecordExists(DB, "social_links", whereID, socialID)
 	if err != nil {
 		return err
 	}
@@ -1810,7 +1810,7 @@ func UpdateSocialLink(socialID int, link dtos.SocialLinkRequest) error {
 //   - error: "social not found" if link doesn't exist or database error
 func DeleteSocialLink(id int) error {
 	// Verify social link exists
-	exists, err := RecordExists("social_links", whereID, id)
+	exists, err := RecordExists(DB, "social_links", whereID, id)
 	if err != nil {
 		return err
 	}
@@ -1837,7 +1837,7 @@ func DeleteSocialLink(id int) error {
 //     or database error (including duplicate if already featured)
 func AddFeaturedProduct(productID string) error {
 	// Verify product exists
-	exists, err := RecordExists("products", "product_id =? ", productID)
+	exists, err := RecordExists(DB, "products", "product_id =? ", productID)
 	if err != nil {
 		return err
 	}
@@ -1860,7 +1860,7 @@ func AddFeaturedProduct(productID string) error {
 //   - error: "product not found" if product doesn't exist or database error
 func RemoveFeaturedProduct(productID string) error {
 	// Verify product exists
-	exists, err := RecordExists("products", "product_id =? ", productID)
+	exists, err := RecordExists(DB, "products", "product_id =? ", productID)
 	if err != nil {
 		return err
 	}
@@ -1920,21 +1920,21 @@ func GetFeaturedProducts() ([]dtos.Product, error) {
 		}
 
 		// Enrich product with images
-		images, err := fetchProductImages(product.ID)
+		images, err := fetchProductImages(DB, product.ID)
 		if err != nil {
 			return nil, err
 		}
 		product.Images = images
 
 		// Enrich product with warranty info
-		warranty, err := FetchProductWarranties(product.ID)
+		warranty, err := FetchProductWarranties(DB, product.ID)
 		if err != nil {
 			return nil, err
 		}
 		product.Warranty = &warranty
 
 		// Enrich product with tax/charge info
-		tax, err := fetchProductTax(product.ID)
+		tax, err := fetchProductTax(DB, product.ID)
 		if err != nil {
 			return nil, err
 		}

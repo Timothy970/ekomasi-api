@@ -32,15 +32,15 @@ var getAddress = "user_id = ? AND address_id = ?"
 //
 // Returns:
 //   - error: "user not found", database error, or nil on success
-func DeleteUserByID(userID string) error {
+func DeleteUserByID(db DBExecutor, userID string) error {
 	// Validate user exists
-	err := isUserThere(userID)
+	err := isUserThere(db, userID)
 	if err != nil {
 		return err
 	}
 
 	// Delete user record
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		DELETE FROM users
 		WHERE user_id = ?
 	`, userID)
@@ -57,10 +57,10 @@ func DeleteUserByID(userID string) error {
 //
 // Returns:
 //   - string: User status ("active" or "inactive")
-func getUserStatus(userID string) string {
+func getUserStatus(db DBExecutor, userID string) string {
 	var status string
 	// Query user status (ignores errors, returns empty string if not found)
-	_ = DB.QueryRow(`SELECT status FROM users WHERE user_id = ?`, userID).Scan(&status)
+	_ = db.QueryRow(`SELECT status FROM users WHERE user_id = ?`, userID).Scan(&status)
 	return status
 }
 
@@ -74,21 +74,21 @@ func getUserStatus(userID string) string {
 //
 // Returns:
 //   - error: "user not found", "user is already active", database error, or nil on success
-func ActivateUserByID(userID string) error {
+func ActivateUserByID(db DBExecutor, userID string) error {
 	// Validate user exists
-	err := isUserThere(userID)
+	err := isUserThere(db, userID)
 	if err != nil {
 		return err
 	}
 
 	// Check current status
-	status := getUserStatus(userID)
+	status := getUserStatus(db, userID)
 	if status == "active" {
 		return fmt.Errorf("user is already active")
 	}
 
 	// Activate user
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		UPDATE users
 		SET status = "active"
 		WHERE user_id = ?
@@ -107,21 +107,21 @@ func ActivateUserByID(userID string) error {
 //
 // Returns:
 //   - error: "user not found", "user is already deactivated", database error, or nil on success
-func DeactivateUserByID(userID string) error {
+func DeactivateUserByID(db DBExecutor, userID string) error {
 	// Validate user exists
-	err := isUserThere(userID)
+	err := isUserThere(db, userID)
 	if err != nil {
 		return err
 	}
 
 	// Check current status
-	status := getUserStatus(userID)
+	status := getUserStatus(db, userID)
 	if status == "inactive" {
 		return fmt.Errorf("user is already deactivated")
 	}
 
 	// Deactivate user
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		UPDATE users
 		SET status = "inactive"
 		WHERE user_id = ?
@@ -141,11 +141,11 @@ func DeactivateUserByID(userID string) error {
 // Returns:
 //   - string: The user ID associated with the token
 //   - error: Database error, "no rows" if token not found, or nil on success
-func GetUserIdByToken(token string) (string, error) {
+func GetUserIdByToken(db DBExecutor, token string) (string, error) {
 	var userID string
 
 	// Query user ID by token
-	err := DB.QueryRow("SELECT user_id FROM user_tokens WHERE token = ?", token).Scan(&userID)
+	err := db.QueryRow("SELECT user_id FROM user_tokens WHERE token = ?", token).Scan(&userID)
 	if err != nil {
 		return "", err
 	}
@@ -169,12 +169,12 @@ func GetUserIdByToken(token string) (string, error) {
 //
 // Returns:
 //   - error: Database error or nil on success
-func CreateUserAddress(req dtos.UserAdress, userID string) error {
+func CreateUserAddress(db DBExecutor, req dtos.UserAdress, userID string) error {
 	// Generate unique address ID
 	addressID, _ := shortid.Generate()
 
 	// Insert new address record
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
 		INSERT INTO user_addresses (address_id, user_id, address, country, apartment,city,zip_code)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		addressID, userID, req.Address, req.Country, req.Apartment, req.City, req.ZipCode,
@@ -201,9 +201,9 @@ func CreateUserAddress(req dtos.UserAdress, userID string) error {
 //   - City: City name
 //   - ZipCode: Postal/ZIP code
 //   - error: Database error or nil on success
-func GetUserAddresses(userID string) ([]dtos.UserAddress, error) {
+func GetUserAddresses(db DBExecutor, userID string) ([]dtos.UserAddress, error) {
 	// Query user addresses ordered by creation date
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT address_id, address, country,apartment,city,zip_code
 		FROM user_addresses
 		WHERE user_id = ?
@@ -240,9 +240,9 @@ func GetUserAddresses(userID string) ([]dtos.UserAddress, error) {
 //
 // Returns:
 //   - error: "address not found", database error, or nil if address exists
-func isAddressThere(addressID string) error {
+func isAddressThere(db DBExecutor, addressID string) error {
 	// Check address existence
-	exists, err := RecordExists("user_addresses", "address_id = ?", addressID)
+	exists, err := RecordExists(db, "user_addresses", "address_id = ?", addressID)
 	if err != nil {
 		return err
 	}
@@ -270,15 +270,15 @@ func isAddressThere(addressID string) error {
 // Returns:
 //   - error: "address not found", "address provided does not belong to user",
 //     database error, or nil on success
-func UpdateUserAddress(addressID, userID string, req *dtos.UserAdress) error {
+func UpdateUserAddress(db DBExecutor, addressID, userID string, req *dtos.UserAdress) error {
 	// Validate address exists
-	err := isAddressThere(addressID)
+	err := isAddressThere(db, addressID)
 	if err != nil {
 		return err
 	}
 
 	// Verify address belongs to user
-	exists, err := RecordExists("user_addresses", "user_id = ? AND address_id = ?", userID, addressID)
+	exists, err := RecordExists(db, "user_addresses", "user_id = ? AND address_id = ?", userID, addressID)
 	if err != nil {
 		return fmt.Errorf("failed to check variant existence: %w", err)
 	}
@@ -287,7 +287,7 @@ func UpdateUserAddress(addressID, userID string, req *dtos.UserAdress) error {
 	}
 
 	// Update address details
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		UPDATE user_addresses
 		SET address = ?, country = ? ,apartment = ?, city = ?, zip_code = ?
 		WHERE user_id = ? AND address_id = ?
@@ -307,9 +307,9 @@ func UpdateUserAddress(addressID, userID string, req *dtos.UserAdress) error {
 // Returns:
 //   - error: "address not found", "failed to delete user address",
 //     database error, or nil on success
-func DeleteUserAddress(addressID, userID string) error {
+func DeleteUserAddress(db DBExecutor, addressID, userID string) error {
 	// Check if address exists and belongs to user
-	exists, err := RecordExists("user_addresses", getAddress, userID, addressID)
+	exists, err := RecordExists(db, "user_addresses", getAddress, userID, addressID)
 	if err != nil {
 		return fmt.Errorf("failed to check variant existence: %w", err)
 	}
@@ -318,7 +318,7 @@ func DeleteUserAddress(addressID, userID string) error {
 	}
 
 	// Delete address record
-	_, err = DB.Exec("DELETE FROM user_addresses WHERE user_id = ? AND address_id = ?", userID, addressID)
+	_, err = db.Exec("DELETE FROM user_addresses WHERE user_id = ? AND address_id = ?", userID, addressID)
 	if err != nil {
 		return fmt.Errorf("failed to delete user address: %w", err)
 	}
@@ -343,20 +343,20 @@ func DeleteUserAddress(addressID, userID string) error {
 //   - []dtos.Users: Array of users with addresses, roles, and status
 //   - *dtos.PaginationMeta: Pagination info (page, size, totals, navigation flags)
 //   - error: Database error or nil on success
-func GetAllUsersWithPagination(limit, offset int, q, role string) ([]dtos.Users, *dtos.PaginationMeta, error) {
+func GetAllUsersWithPagination(db DBExecutor, limit, offset int, q, role string) ([]dtos.Users, *dtos.PaginationMeta, error) {
 	// Set default limit
 	if limit <= 0 {
 		limit = 10
 	}
 
 	// Step 1: Count total users matching filters
-	totalItems, err := countUsers(q, role)
+	totalItems, err := countUsers(db, q, role)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Step 2: Fetch paginated users
-	users, err := fetchUsers(limit, offset, q, role)
+	users, err := fetchUsers(db, limit, offset, q, role)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -379,7 +379,7 @@ func GetAllUsersWithPagination(limit, offset int, q, role string) ([]dtos.Users,
 // Returns:
 //   - int: Total count of matching users
 //   - error: Database error or nil on success
-func countUsers(q, role string) (int, error) {
+func countUsers(db DBExecutor, q, role string) (int, error) {
 	query := "SELECT COUNT(*) FROM users"
 	var args []interface{}
 	var conditions []string
@@ -404,7 +404,7 @@ func countUsers(q, role string) (int, error) {
 
 	// Execute count query
 	var total int
-	if err := DB.QueryRow(query, args...).Scan(&total); err != nil {
+	if err := db.QueryRow(query, args...).Scan(&total); err != nil {
 		return 0, fmt.Errorf("failed to count users: %w", err)
 	}
 	return total, nil
@@ -424,7 +424,7 @@ func countUsers(q, role string) (int, error) {
 // Returns:
 //   - []dtos.Users: Array of users (without addresses populated)
 //   - error: Database error or nil on success
-func fetchUsers(limit, offset int, q, role string) ([]dtos.Users, error) {
+func fetchUsers(db DBExecutor, limit, offset int, q, role string) ([]dtos.Users, error) {
 	query := `
 		SELECT user_id, first_name, last_name, email, role, phone_number, last_login, created_at, status
 		FROM users
@@ -456,7 +456,7 @@ func fetchUsers(limit, offset int, q, role string) ([]dtos.Users, error) {
 	args = append(args, limit, offset)
 
 	// Execute query
-	rows, err := DB.Query(query, args...)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query users: %w", err)
 	}
@@ -465,7 +465,7 @@ func fetchUsers(limit, offset int, q, role string) ([]dtos.Users, error) {
 	// Process each user row
 	var users []dtos.Users
 	for rows.Next() {
-		user, err := scanUserRow(rows)
+		user, err := scanUserRow(db, rows)
 		if err != nil {
 			return nil, err
 		}
@@ -486,7 +486,7 @@ func fetchUsers(limit, offset int, q, role string) ([]dtos.Users, error) {
 // Returns:
 //   - dtos.Users: User struct with all fields populated
 //   - error: Database error or nil on success
-func scanUserRow(rows *sql.Rows) (dtos.Users, error) {
+func scanUserRow(db DBExecutor, rows *sql.Rows) (dtos.Users, error) {
 	var user dtos.Users
 	var phone, firstName, lastName, userEmail sql.NullString
 	var dateJoined, lastLogin sql.NullTime
@@ -522,7 +522,7 @@ func scanUserRow(rows *sql.Rows) (dtos.Users, error) {
 	}
 
 	// Fetch user addresses (ignores errors, returns empty array on failure)
-	user.UserAddress, _ = GetUserAddresses(user.ID)
+	user.UserAddress, _ = GetUserAddresses(db, user.ID)
 
 	return user, nil
 }
@@ -565,9 +565,9 @@ func buildPagination(limit, offset, totalItems int) *dtos.PaginationMeta {
 // Returns:
 //   - []string: Array of distinct category IDs from purchased products
 //   - error: Database error or nil on success
-func GetPurchasedCategories(userID string) ([]string, error) {
+func GetPurchasedCategories(db DBExecutor, userID string) ([]string, error) {
 	// Query distinct categories from user's order history
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT DISTINCT p.category_id
 		FROM orders o
 		JOIN order_items oi ON o.order_id = oi.order_id
@@ -600,9 +600,9 @@ func GetPurchasedCategories(userID string) ([]string, error) {
 // Returns:
 //   - []string: Array of distinct category IDs from wishlist products
 //   - error: Database error or nil on success
-func GetWishlistCategories(userID string) ([]string, error) {
+func GetWishlistCategories(db DBExecutor, userID string) ([]string, error) {
 	// Query distinct categories from user's wishlist
-	rows, err := DB.Query(`
+	rows, err := db.Query(`
 		SELECT DISTINCT p.category_id
 		FROM wishlists w
 		JOIN wishlist_items wi ON w.wishlist_id = wi.wishlist_id
@@ -639,7 +639,7 @@ func GetWishlistCategories(userID string) ([]string, error) {
 //   - []dtos.Product: Array of enriched products with images, warranties, features, variants, tax
 //   - dtos.PaginationMeta: Pagination info (page, size, totals, navigation flags)
 //   - error: Database error or nil on success (returns empty result if no categories)
-func GetProductsByCategories(categories []string, page, size int) ([]dtos.Product, dtos.PaginationMeta, error) {
+func GetProductsByCategories(db DBExecutor, categories []string, page, size int) ([]dtos.Product, dtos.PaginationMeta, error) {
 	// Return empty result if no categories provided
 	if len(categories) == 0 {
 		return []dtos.Product{}, dtos.PaginationMeta{}, nil
@@ -668,7 +668,7 @@ func GetProductsByCategories(categories []string, page, size int) ([]dtos.Produc
 	args[len(categories)+1] = offset
 
 	// Execute query
-	rows, err := DB.Query(query, args...)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, dtos.PaginationMeta{}, err
 	}
@@ -687,31 +687,31 @@ func GetProductsByCategories(categories []string, page, size int) ([]dtos.Produc
 		}
 
 		// Fetch product images (ignores errors)
-		p.Images, _ = fetchProductImages(p.ID)
+		p.Images, _ = fetchProductImages(db, p.ID)
 
 		// Fetch product warranties
-		warranties, err := FetchProductWarranties(p.ID)
+		warranties, err := FetchProductWarranties(db, p.ID)
 		if err != nil {
 			return nil, dtos.PaginationMeta{}, err
 		}
 		p.Warranty = &warranties
 
 		// Fetch product features
-		features, err := fetchProductFeatures(p.ID)
+		features, err := fetchProductFeatures(db, p.ID)
 		if err != nil {
 			return nil, dtos.PaginationMeta{}, err
 		}
 		p.Features = features
 
 		// Fetch product variants
-		variants, err := getProductVariants(p.ID)
+		variants, err := getProductVariants(db, p.ID)
 		if err != nil {
 			return nil, dtos.PaginationMeta{}, err
 		}
 		p.ProductVariants = variants
 
 		// Fetch product tax information
-		tax, err := fetchProductTax(p.ID)
+		tax, err := fetchProductTax(db, p.ID)
 		if err != nil {
 			return nil, dtos.PaginationMeta{}, err
 		}
@@ -722,7 +722,7 @@ func GetProductsByCategories(categories []string, page, size int) ([]dtos.Produc
 
 	// Get total count using FOUND_ROWS()
 	var totalItems int
-	if err := DB.QueryRow(`SELECT FOUND_ROWS()`).Scan(&totalItems); err != nil {
+	if err := db.QueryRow(`SELECT FOUND_ROWS()`).Scan(&totalItems); err != nil {
 		return nil, dtos.PaginationMeta{}, err
 	}
 
@@ -749,9 +749,9 @@ func GetProductsByCategories(categories []string, page, size int) ([]dtos.Produc
 //
 // Returns:
 //   - error: "email already subscribed" if exists, database error, or nil if unique
-func isSubscriberThere(email string) error {
+func isSubscriberThere(db DBExecutor, email string) error {
 	// Check if email already subscribed
-	exists, err := RecordExists("subscribers", "email = ?", email)
+	exists, err := RecordExists(db, "subscribers", "email = ?", email)
 	if err != nil {
 		return err
 	}
@@ -770,9 +770,9 @@ func isSubscriberThere(email string) error {
 //
 // Returns:
 //   - error: "email already subscribed", database error, or nil on success
-func CreateSubscribers(email string) error {
+func CreateSubscribers(db DBExecutor, email string) error {
 	// Validate email not already subscribed
-	err := isSubscriberThere(email)
+	err := isSubscriberThere(db, email)
 	if err != nil {
 		return err
 	}
@@ -781,7 +781,7 @@ func CreateSubscribers(email string) error {
 	subscriberID, _ := shortid.Generate()
 
 	// Insert new subscriber
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO subscribers (subscriber_id, email)
 		VALUES (?, ?)`,
 		subscriberID, email,

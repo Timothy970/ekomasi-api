@@ -143,7 +143,7 @@ func GetWarehouseByID(id string) (*dtos.Warehouse, error) {
 //   - error: "warehouse not found", database error, or nil on success
 func UpdateWarehouse(id string, req dtos.UpdateWarehouseRequest) error {
 	// Validate warehouse exists
-	exists, err := RecordExists("warehouses", "warehouse_id = ?", id)
+	exists, err := RecordExists(DB, "warehouses", "warehouse_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -170,7 +170,7 @@ func UpdateWarehouse(id string, req dtos.UpdateWarehouseRequest) error {
 //   - error: "warehouse not found", database error, or nil on success
 func DeleteWarehouse(id string) error {
 	// Validate warehouse exists
-	exists, err := RecordExists("warehouses", "warehouse_id = ?", id)
+	exists, err := RecordExists(DB, "warehouses", "warehouse_id = ?", id)
 	if err != nil {
 		return err
 	}

@@ -30,13 +30,13 @@ import (
 //
 // Returns:
 //   - error: Database error or nil on success
-func CreateWarrantType(wt dtos.CreateWarrantyTypeRequest) error {
+func CreateWarrantType(db DBExecutor, wt dtos.CreateWarrantyTypeRequest) error {
 	// Generate unique warranty type ID
 	warrantyID, _ := shortid.Generate()
 
 	// Insert warranty type record
 	query := `INSERT INTO warranty_types (warranty_type_id, name, description) VALUES (?, ?, ?)`
-	_, err := DB.Exec(query, warrantyID, wt.Name, wt.Description)
+	_, err := db.Exec(query, warrantyID, wt.Name, wt.Description)
 	return err
 }
 
@@ -48,10 +48,10 @@ func CreateWarrantType(wt dtos.CreateWarrantyTypeRequest) error {
 // Returns:
 //   - []dtos.WarrantyType: Array of all warranty types
 //   - error: Database error or nil on success
-func GetAllWarrantTypes() ([]dtos.WarrantyType, error) {
+func GetAllWarrantTypes(db DBExecutor) ([]dtos.WarrantyType, error) {
 	// Retrieve all warranty types
 	query := `SELECT warranty_type_id, name, description FROM warranty_types`
-	rows, err := DB.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -81,9 +81,9 @@ func GetAllWarrantTypes() ([]dtos.WarrantyType, error) {
 //
 // Returns:
 //   - error: "warranty type does not exist" if not found, database error, or nil if exists
-func isWarrantyTypeThere(warrantyID string) error {
+func isWarrantyTypeThere(db DBExecutor, warrantyID string) error {
 	// Check warranty type existence
-	exists, err := RecordExists("warranty_types", "warranty_type_id = ?", warrantyID)
+	exists, err := RecordExists(db, "warranty_types", "warranty_type_id = ?", warrantyID)
 	if err != nil {
 		return err
 	}
@@ -106,15 +106,15 @@ func isWarrantyTypeThere(warrantyID string) error {
 //
 // Returns:
 //   - error: "warranty type does not exist", database error, or nil on success
-func UpdateWarrantType(warrantyID string, wt dtos.WarrantyType) error {
+func UpdateWarrantType(db DBExecutor, warrantyID string, wt dtos.WarrantyType) error {
 	// Validate warranty type exists
-	if err := isWarrantyTypeThere(warrantyID); err != nil {
+	if err := isWarrantyTypeThere(db, warrantyID); err != nil {
 		return err
 	}
 
 	// Update warranty type information
 	query := `UPDATE warranty_types SET name = ?, description = ? WHERE warranty_type_id = ?`
-	_, err := DB.Exec(query, wt.Name, wt.Description, warrantyID)
+	_, err := db.Exec(query, wt.Name, wt.Description, warrantyID)
 	return err
 }
 
@@ -125,15 +125,15 @@ func UpdateWarrantType(warrantyID string, wt dtos.WarrantyType) error {
 //
 // Returns:
 //   - error: "warranty type does not exist", database error, or nil on success
-func DeleteWarrantType(warrantyID string) error {
+func DeleteWarrantType(db DBExecutor, warrantyID string) error {
 	// Validate warranty type exists
-	if err := isWarrantyTypeThere(warrantyID); err != nil {
+	if err := isWarrantyTypeThere(db, warrantyID); err != nil {
 		return err
 	}
 
 	// Delete warranty type record
 	query := `DELETE FROM warranty_types WHERE warranty_type_id = ?`
-	_, err := DB.Exec(query, warrantyID)
+	_, err := db.Exec(query, warrantyID)
 	return err
 }
 
@@ -161,15 +161,15 @@ func DeleteWarrantType(warrantyID string) error {
 //
 // Returns:
 //   - error: "product not found", "warranty type does not exist", database error, or nil on success
-func AddProductWarranties(pw dtos.AddProductWarrantiesRequest) error {
+func AddProductWarranties(db DBExecutor, pw dtos.AddProductWarrantiesRequest) error {
 	// Validate product exists
-	err := IsProductThere(pw.ProductID)
+	err := IsProductThere(db, pw.ProductID)
 	if err != nil {
 		return err
 	}
 
 	// Validate warranty type exists
-	err = isWarrantyTypeThere(pw.WarrantyTypeID)
+	err = isWarrantyTypeThere(db, pw.WarrantyTypeID)
 	if err != nil {
 		log.Printf("warranty type check error: %s with id %s", err, pw.WarrantyTypeID)
 		return err
@@ -180,21 +180,21 @@ func AddProductWarranties(pw dtos.AddProductWarrantiesRequest) error {
 
 	// Get existing warranty IDs for this product
 	var warrantyIDS []string
-	warrantyIDS, err = GetProductWarrantyIDs(pw.ProductID)
+	warrantyIDS, err = GetProductWarrantyIDs(db, pw.ProductID)
 	if err != nil {
 		return err
 	}
 
 	// Insert new warranty record
 	query := `INSERT INTO product_warranties (warranty_id, product_id, warranty_type_id, warranty_period, manufacturing_date, expiry_date) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err = DB.Exec(query, warrantyID, pw.ProductID, pw.WarrantyTypeID, pw.WarrantyPeriod, pw.ManufacturingDate, pw.ExpiryDate)
+	_, err = db.Exec(query, warrantyID, pw.ProductID, pw.WarrantyTypeID, pw.WarrantyPeriod, pw.ManufacturingDate, pw.ExpiryDate)
 	if err != nil {
 		return err
 	}
 
 	// Remove old warranties (ensures product has only one active warranty)
 	for _, id := range warrantyIDS {
-		err = RemoveProductWarranty(id)
+		err = RemoveProductWarranty(db, id)
 		if err != nil {
 			return err
 		}
@@ -213,10 +213,10 @@ func AddProductWarranties(pw dtos.AddProductWarrantiesRequest) error {
 // Returns:
 //   - []string: Array of warranty IDs (empty if product has no warranties)
 //   - error: Database error or nil on success
-func GetProductWarrantyIDs(productID string) ([]string, error) {
+func GetProductWarrantyIDs(db DBExecutor, productID string) ([]string, error) {
 	// Retrieve all warranty IDs for the product
 	query := `SELECT warranty_id FROM product_warranties WHERE product_id = ?`
-	rows, err := DB.Query(query, productID)
+	rows, err := db.Query(query, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -245,9 +245,9 @@ func GetProductWarrantyIDs(productID string) ([]string, error) {
 //
 // Returns:
 //   - error: Database error or nil on success
-func RemoveProductWarranty(warrantyID string) error {
+func RemoveProductWarranty(db DBExecutor, warrantyID string) error {
 	// Delete warranty assignment record
 	query := `DELETE FROM product_warranties WHERE warranty_id = ?`
-	_, err := DB.Exec(query, warrantyID)
+	_, err := db.Exec(query, warrantyID)
 	return err
 }

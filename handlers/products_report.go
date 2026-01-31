@@ -57,7 +57,7 @@ func GetProductPerformanceSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate product performance report from database
-	report, err := models.GetProductPerformance(startTime, endTime, categoryID)
+	report, err := models.GetProductPerformance(models.DB, startTime, endTime, categoryID)
 	if err != nil {
 		// Return error if report generation fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -122,7 +122,7 @@ func GetIndividualProductPerformanceSummary(w http.ResponseWriter, r *http.Reque
 	productID := mux.Vars(r)["product_id"]
 
 	// Generate individual product performance report from database
-	report, err := models.GetSingleProductPerformance(productID, startTime, endTime)
+	performance, err := models.GetSingleProductPerformance(models.DB, productID, startTime, endTime)
 	if err != nil {
 		// Return error if report generation fails or product not found
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -147,7 +147,7 @@ func GetIndividualProductPerformanceSummary(w http.ResponseWriter, r *http.Reque
 			Description: "Individual product performance report generated successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   report,
+		Payload:   performance,
 		Message:   "individual product performance report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),

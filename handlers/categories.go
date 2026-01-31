@@ -34,7 +34,7 @@ func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.GetCache("category_data", &cachedCategories)
 	if cachedCategories == nil {
 		var err error
-		categories, err = models.GetAllCategories()
+		categories, err = models.GetAllCategories(models.DB)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
@@ -87,7 +87,7 @@ func GetCategoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 	id := mux.Vars(r)["id"]
 
-	category, err := models.GetCategoryByID(id)
+	category, err := models.GetCategoryByID(models.DB, id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -157,7 +157,7 @@ func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	categoryName := r.URL.Query().Get("q")
-	categories, pagination, err := models.GetAdminCategories(page, limit, categoryName)
+	categories, pagination, err := models.GetAdminCategories(models.DB, page, limit, categoryName)
 	if err != nil {
 		log.Printf("Failed to get categories: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -203,7 +203,7 @@ func GetCategoriesWithSubCategoriesHandler(w http.ResponseWriter, r *http.Reques
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 
-	categories, err := models.GetCategoriesWithSubCategories()
+	categories, err := models.GetCategoriesWithSubCategories(models.DB)
 	if err != nil {
 		log.Printf("Failed to get categories: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

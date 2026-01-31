@@ -63,7 +63,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Attempt to create the account in the database
-	_, err := models.CreateAccount(*req)
+	_, err := models.CreateAccount(models.DB, *req)
 	if err != nil {
 		// Return error response if account creation fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -147,7 +147,7 @@ func ListAccounts(w http.ResponseWriter, r *http.Request) {
 	if cachedAccounts == nil {
 		var err error
 		// Fetch accounts from database with pagination
-		accounts, meta, err = models.ListAccounts(page, size)
+		accounts, meta, err = models.ListAccounts(models.DB, page, size)
 		if err != nil {
 			// Return error response if database query fails
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -213,7 +213,7 @@ func GetAccount(w http.ResponseWriter, r *http.Request) {
 	accountId := mux.Vars(r)["account_id"]
 
 	// Fetch account from database by ID
-	acc, err := models.GetAccount(accountId)
+	acc, err := models.GetAccount(models.DB, accountId)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -288,7 +288,7 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	accountId := mux.Vars(r)["account_id"]
 
 	// Attempt to update the account in the database
-	if err := models.UpdateAccount(accountId, *req); err != nil {
+	if err := models.UpdateAccount(models.DB, accountId, *req); err != nil {
 		// Return error response if update fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -353,7 +353,7 @@ func DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	accountId := mux.Vars(r)["account_id"]
 
 	// Attempt to delete the account from the database
-	if err := models.DeleteAccount(accountId); err != nil {
+	if err := models.DeleteAccount(models.DB, accountId); err != nil {
 		// Return error response if deletion fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -434,7 +434,7 @@ func CreateEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Attempt to create the journal entry in the database
-	_, err := models.CreateEntry(*req)
+	_, err := models.CreateEntry(models.DB, *req)
 	if err != nil {
 		// Return error response if entry creation fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -516,7 +516,7 @@ func ListEntries(w http.ResponseWriter, r *http.Request) {
 	if cachedEntries == nil {
 		var err error
 		// Fetch journal entries from database with pagination
-		entries, meta, err = models.ListEntries(page, size)
+		entries, meta, err = models.ListEntries(models.DB, page, size)
 		if err != nil {
 			// Return error response if database query fails
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -584,7 +584,7 @@ func GetEntry(w http.ResponseWriter, r *http.Request) {
 	entryId := mux.Vars(r)["entry_id"]
 
 	// Fetch journal entry from database by ID
-	entry, err := models.GetEntry(entryId)
+	entry, err := models.GetEntry(models.DB, entryId)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -659,7 +659,7 @@ func UpdateEntry(w http.ResponseWriter, r *http.Request) {
 	entryId := mux.Vars(r)["entry_id"]
 
 	// Attempt to update the journal entry in the database
-	if err := models.UpdateEntry(entryId, *req); err != nil {
+	if err := models.UpdateEntry(models.DB, entryId, *req); err != nil {
 		// Return error response if update fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -724,7 +724,7 @@ func DeleteEntry(w http.ResponseWriter, r *http.Request) {
 	entryID := mux.Vars(r)["entry_id"]
 
 	// Attempt to delete the journal entry from the database
-	if err := models.DeleteEntry(entryID); err != nil {
+	if err := models.DeleteEntry(models.DB, entryID); err != nil {
 		// Return error response if deletion fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

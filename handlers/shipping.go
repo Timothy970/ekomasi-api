@@ -53,7 +53,7 @@ func GetShippingCostHandler(w http.ResponseWriter, r *http.Request) {
 	// }
 
 	// Query database for delivery rate based on location
-	charge, dbResult, err := models.GetDeliveryRate(req.Location)
+	charge, dbResult, err := models.GetDeliveryRate(models.DB, req.Location)
 
 	if err != nil {
 		// Database query failed or location not found
@@ -131,7 +131,7 @@ func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Create new shipping rate record in database
-	err := models.AddNewShippingRate(*req)
+	err := models.AddNewShippingRate(models.DB, *req)
 	if err != nil {
 		// Shipping rate creation failed (duplicate location or database error)
 		log.Printf("Error adding new shipping rate: %v", err)
@@ -190,7 +190,7 @@ func SubmitFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Save delivery feedback to database for quality tracking
-	err := models.AddNewDeliveryFeedback(*req)
+	err := models.AddNewDeliveryFeedback(models.DB, *req)
 	if err != nil {
 		// Feedback submission failed (invalid delivery ID or database error)
 		log.Printf("Error adding new feed back: %v", err)
@@ -244,7 +244,7 @@ func GetDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 	deliveryID := mux.Vars(r)["delivery_id"]
 
 	// Fetch feedback data from database for the specified delivery
-	feedback, err := models.GetDeliveryFeedBack(deliveryID)
+	feedback, err := models.GetDeliveryFeedBack(models.DB, deliveryID)
 	if err != nil {
 		// Handle different error types with appropriate responses
 		if err == sql.ErrNoRows {
@@ -315,7 +315,7 @@ func GetUserDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 	// Extract user ID from URL path parameters
 	userID := mux.Vars(r)["user_id"]
 	// Fetch all feedback submitted by the user from database
-	feedback, err := models.GetDeliveryUserFeedBack(userID)
+	feedback, err := models.GetDeliveryUserFeedBack(models.DB, userID)
 	if err != nil {
 		// Handle different error types with appropriate responses
 		if err == sql.ErrNoRows {
@@ -445,7 +445,7 @@ func ListLocations(w http.ResponseWriter, r *http.Request) {
 	if cachedLocation == nil {
 		// Cache miss - fetch from database
 		var err error
-		locations, pagination, err = models.ListLocations(page, size)
+		locations, pagination, err = models.ListLocations(models.DB, page, size)
 		if err != nil {
 			// Database query failed
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -512,7 +512,7 @@ func GetLocation(w http.ResponseWriter, r *http.Request) {
 	// Convert location ID string to integer
 	id, _ := strconv.Atoi(locationID)
 	// Fetch location details from database
-	loc, err := models.GetLocationByID(id)
+	loc, err := models.GetLocationByID(models.DB, id)
 	if err != nil {
 		// Location not found or database error
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -585,7 +585,7 @@ func UpdateLocation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update location details in database
-	if err := models.UpdateLocation(*req, locationID); err != nil {
+	if err := models.UpdateLocation(models.DB, *req, locationID); err != nil {
 		// Update failed (location not found or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -646,7 +646,7 @@ func DeleteLocation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Permanently delete location from database
-	if err := models.DeleteLocation(locationID); err != nil {
+	if err := models.DeleteLocation(models.DB, locationID); err != nil {
 		// Deletion failed (location not found, in use, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -699,7 +699,7 @@ func DeleteFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 	feedbackID := mux.Vars(r)["feedback_id"]
 
 	// Permanently delete feedback from database
-	err := models.DeleteDeliveryFeedback(feedbackID)
+	err := models.DeleteDeliveryFeedback(models.DB, feedbackID)
 	if err != nil {
 		// Deletion failed (feedback not found or database error)
 		log.Printf("Error adding new feed back: %v", err)

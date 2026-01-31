@@ -38,7 +38,7 @@ import (
 //   - []dtos.GetBundleRequest: Array of bundles with products and images
 //   - *dtos.PaginationMeta: Pagination metadata
 //   - error: Database error or nil on success
-func GetBundleProducts(limit, page int) ([]dtos.GetBundleRequest, *dtos.PaginationMeta, error) {
+func GetBundleProducts(db DBExecutor, limit, page int) ([]dtos.GetBundleRequest, *dtos.PaginationMeta, error) {
 	// ----- Count total bundles -----
 	// Count total bundles for pagination
 	var total int
@@ -47,7 +47,7 @@ func GetBundleProducts(limit, page int) ([]dtos.GetBundleRequest, *dtos.Paginati
 		FROM products 
 		WHERE product_type = 'bundle'
 	`
-	if err := DB.QueryRow(countQuery).Scan(&total); err != nil {
+	if err := db.QueryRow(countQuery).Scan(&total); err != nil {
 		return nil, nil, err
 	}
 
@@ -75,7 +75,7 @@ func GetBundleProducts(limit, page int) ([]dtos.GetBundleRequest, *dtos.Paginati
 		LIMIT ? OFFSET ?
 	`
 
-	rows, err := DB.Query(query, limit, offset)
+	rows, err := db.Query(query, limit, offset)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -96,14 +96,14 @@ func GetBundleProducts(limit, page int) ([]dtos.GetBundleRequest, *dtos.Paginati
 		}
 
 		// Fetch products included in this bundle
-		products, err := getProductsForBundle(bundle.ID)
+		products, err := getProductsForBundle(db, bundle.ID)
 		if err != nil {
 			return nil, nil, err
 		}
 		bundle.Products = products
 
 		// Fetch bundle images
-		images, err := fetchProductImages(bundle.ID)
+		images, err := fetchProductImages(db, bundle.ID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -125,7 +125,7 @@ func GetBundleProducts(limit, page int) ([]dtos.GetBundleRequest, *dtos.Paginati
 // Returns:
 //   - []dtos.GetBundleRequest: Array with single bundle (or empty if not found)
 //   - error: Database error or nil on success
-func GetBundleByIDProducts(bundleID string) ([]dtos.GetBundleRequest, error) {
+func GetBundleByIDProducts(db DBExecutor, bundleID string) ([]dtos.GetBundleRequest, error) {
 	// Fetch specific bundle by ID
 	query := `
 		SELECT 
@@ -136,7 +136,7 @@ func GetBundleByIDProducts(bundleID string) ([]dtos.GetBundleRequest, error) {
 		ORDER BY created_at DESC
 	`
 
-	rows, err := DB.Query(query, bundleID)
+	rows, err := db.Query(query, bundleID)
 	if err != nil {
 		return nil, err
 	}
@@ -157,14 +157,14 @@ func GetBundleByIDProducts(bundleID string) ([]dtos.GetBundleRequest, error) {
 		}
 
 		// Fetch products included in this bundle
-		products, err := getProductsForBundle(bundle.ID)
+		products, err := getProductsForBundle(db, bundle.ID)
 		if err != nil {
 			return nil, err
 		}
 		bundle.Products = products
 
 		// Fetch bundle images
-		images, err := fetchProductImages(bundle.ID)
+		images, err := fetchProductImages(db, bundle.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -188,14 +188,14 @@ func GetBundleByIDProducts(bundleID string) ([]dtos.GetBundleRequest, error) {
 // Returns:
 //   - []dtos.Product: Array of products with bundle quantities
 //   - error: Database error or nil on success
-func getProductsForBundle(bundleID string) ([]dtos.Product, error) {
+func getProductsForBundle(db DBExecutor, bundleID string) ([]dtos.Product, error) {
 	// Query bundle product associations
 	query := `
 		SELECT product_id, quantity
 		FROM bundle_products
 		WHERE bundle_id = ?
 	`
-	rows, err := DB.Query(query, bundleID)
+	rows, err := db.Query(query, bundleID)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +211,7 @@ func getProductsForBundle(bundleID string) ([]dtos.Product, error) {
 		}
 
 		// Fetch full product details using reusable function
-		product, err := GetProductByID(productID)
+		product, err := GetProductByID(db, productID)
 		if err != nil {
 			// Skip missing products instead of failing entire bundle
 			// (handles cases where product was deleted but bundle_products entry remains)
@@ -242,10 +242,10 @@ func getProductsForBundle(bundleID string) ([]dtos.Product, error) {
 //
 // Returns:
 //   - error: "product not found", database error, or nil on success
-func CreateBundle(req dtos.Bundle, userID string) error {
+func CreateBundle(db DBExecutor, req dtos.Bundle, userID string) error {
 	// Validate all products in bundle exist
 	for _, product := range req.Products {
-		err := IsProductThere(product.ProductID)
+		err := IsProductThere(db, product.ProductID)
 		if err != nil {
 			return err
 		}
@@ -255,7 +255,7 @@ func CreateBundle(req dtos.Bundle, userID string) error {
 	productID, _ := shortid.Generate()
 
 	// Insert bundle as product with product_type='bundle'
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
 		INSERT INTO products (product_id, name, description, sku, price, stock_quantity, created_by_id, buying_price, search_vector, product_type)
 		VALUES (?,?,?,?,?,?,?,?,?, 'bundle')
 	`, productID, req.Name, req.Description, "BUNDLE-"+productID, req.Price, req.StockQuantity, userID, req.CompareAtPrice, req.Name)
@@ -264,14 +264,14 @@ func CreateBundle(req dtos.Bundle, userID string) error {
 	}
 
 	// Add bundle image (set as primary)
-	err = InsertProductImage(productID, req.Image, "gallery", true)
+	err = InsertProductImage(db, productID, req.Image, "gallery", true)
 	if err != nil {
 		return err
 	}
 
 	// Associate products with bundle
 	if len(req.Products) > 0 {
-		err = AddProductsToBundle(req.Products, productID)
+		err = AddProductsToBundle(db, req.Products, productID)
 		if err != nil {
 			return err
 		}
@@ -290,24 +290,24 @@ func CreateBundle(req dtos.Bundle, userID string) error {
 //
 // Returns:
 //   - error: "product not found", database error, or nil on success
-func UpdateBundle(req dtos.Bundle, bundleID string) error {
+func UpdateBundle(db DBExecutor, req dtos.Bundle, bundleID string) error {
 	// Validate bundle exists
-	if err := IsProductThere(bundleID); err != nil {
+	if err := IsProductThere(db, bundleID); err != nil {
 		return err
 	}
 
 	// Update bundle metadata
-	if err := updateBundleMetadata(req, bundleID); err != nil {
+	if err := updateBundleMetadata(db, req, bundleID); err != nil {
 		return err
 	}
 
 	// Update bundle image if provided
-	if err := updateBundleImage(req.Image, bundleID); err != nil {
+	if err := updateBundleImage(db, req.Image, bundleID); err != nil {
 		return err
 	}
 
 	// Replace bundle products if provided
-	if err := replaceBundleProducts(req.Products, bundleID); err != nil {
+	if err := replaceBundleProducts(db, req.Products, bundleID); err != nil {
 		return err
 	}
 
@@ -315,7 +315,7 @@ func UpdateBundle(req dtos.Bundle, bundleID string) error {
 }
 
 // updateBundleMetadata updates bundle fields based on provided data
-func updateBundleMetadata(req dtos.Bundle, bundleID string) error {
+func updateBundleMetadata(db DBExecutor, req dtos.Bundle, bundleID string) error {
 	query := "UPDATE products SET"
 	args := []interface{}{}
 	updates := []string{}
@@ -349,40 +349,40 @@ func updateBundleMetadata(req dtos.Bundle, bundleID string) error {
 	query += " " + strings.Join(updates, ", ") + " WHERE product_id = ?"
 	args = append(args, bundleID)
 
-	if _, err := DB.Exec(query, args...); err != nil {
+	if _, err := db.Exec(query, args...); err != nil {
 		return fmt.Errorf("failed to update bundle: %v", err)
 	}
 	return nil
 }
 
 // updateBundleImage updates the bundle image if provided
-func updateBundleImage(image, bundleID string) error {
+func updateBundleImage(db DBExecutor, image, bundleID string) error {
 	if image == "" {
 		return nil
 	}
 
 	imageQuery := `UPDATE product_images SET url = ? WHERE product_id = ?`
-	if _, err := DB.Exec(imageQuery, image, bundleID); err != nil {
+	if _, err := db.Exec(imageQuery, image, bundleID); err != nil {
 		return fmt.Errorf("failed to update bundle image: %v", err)
 	}
 	return nil
 }
 
 // replaceBundleProducts replaces all products in a bundle
-func replaceBundleProducts(products []dtos.BundleProducts, bundleID string) error {
+func replaceBundleProducts(db DBExecutor, products []dtos.BundleProducts, bundleID string) error {
 	if len(products) == 0 {
 		return nil
 	}
 
 	// Delete all existing product associations
 	deleteQuery := `DELETE FROM bundle_products WHERE bundle_id = ?`
-	if _, err := DB.Exec(deleteQuery, bundleID); err != nil {
+	if _, err := db.Exec(deleteQuery, bundleID); err != nil {
 		log.Printf("Delete bundle_products err::%s", err)
 		return err
 	}
 
 	// Add new product associations
-	return AddProductsToBundle(products, bundleID)
+	return AddProductsToBundle(db, products, bundleID)
 }
 
 // DeleteBundle deletes a product bundle.
@@ -397,16 +397,16 @@ func replaceBundleProducts(products []dtos.BundleProducts, bundleID string) erro
 //
 // Returns:
 //   - error: "product not found", database error, or nil on success
-func DeleteBundle(bundleID string) error {
+func DeleteBundle(db DBExecutor, bundleID string) error {
 	// Validate bundle exists
-	err := IsProductThere(bundleID)
+	err := IsProductThere(db, bundleID)
 	if err != nil {
 		return err
 	}
 
 	// Delete bundle (cascade deletes handle related records)
 	query := `DELETE FROM products WHERE product_id = ?`
-	_, err = DB.Exec(query, bundleID)
+	_, err = db.Exec(query, bundleID)
 	if err != nil {
 		return err
 	}
@@ -425,9 +425,9 @@ func DeleteBundle(bundleID string) error {
 //
 // Returns:
 //   - error: "product not found", database error, or nil on success
-func AddProductsToBundle(req []dtos.BundleProducts, bundleID string) error {
+func AddProductsToBundle(db DBExecutor, req []dtos.BundleProducts, bundleID string) error {
 	// Validate bundle exists
-	err := IsProductThere(bundleID)
+	err := IsProductThere(db, bundleID)
 	if err != nil {
 		return fmt.Errorf("%s", nobundle)
 	}
@@ -438,7 +438,7 @@ func AddProductsToBundle(req []dtos.BundleProducts, bundleID string) error {
 	for _, product := range req {
 		// Check if product already exists in bundle (idempotent behavior)
 		var count int
-		if err := DB.QueryRow(checkQuery, bundleID, product.ProductID).Scan(&count); err != nil {
+		if err := db.QueryRow(checkQuery, bundleID, product.ProductID).Scan(&count); err != nil {
 			return err
 		}
 
@@ -451,7 +451,7 @@ func AddProductsToBundle(req []dtos.BundleProducts, bundleID string) error {
 		bundleProductID, _ := shortid.Generate()
 
 		// Insert product into bundle with quantity
-		if _, err := DB.Exec(insertQuery, bundleProductID, bundleID, product.ProductID, product.Quantity); err != nil {
+		if _, err := db.Exec(insertQuery, bundleProductID, bundleID, product.ProductID, product.Quantity); err != nil {
 			return err
 		}
 	}
@@ -469,9 +469,9 @@ func AddProductsToBundle(req []dtos.BundleProducts, bundleID string) error {
 //
 // Returns:
 //   - error: "product not found", "no products provided", database error, or nil on success
-func RemoveProductsFromBundle(req dtos.AddProductsToBundle, bundleID string) error {
+func RemoveProductsFromBundle(db DBExecutor, req dtos.AddProductsToBundle, bundleID string) error {
 	// Validate bundle exists
-	err := IsProductThere(bundleID)
+	err := IsProductThere(db, bundleID)
 	if err != nil {
 		return err
 	}
@@ -485,7 +485,7 @@ func RemoveProductsFromBundle(req dtos.AddProductsToBundle, bundleID string) err
 
 	// Remove each product from bundle
 	for _, productID := range req.ProductIDs {
-		if _, err := DB.Exec(deleteQuery, bundleID, productID); err != nil {
+		if _, err := db.Exec(deleteQuery, bundleID, productID); err != nil {
 			return fmt.Errorf("failed to remove product %s from bundle: %v", productID, err)
 		}
 	}

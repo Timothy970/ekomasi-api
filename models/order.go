@@ -43,7 +43,7 @@ import (
 //   - string: Generated order_id
 //   - string: Generated delivery_id
 //   - error: Database error or nil on success
-func CreateOrder(req dtos.OrderRequest, totalAmount, totalDiscount string) (string, string, error) {
+func CreateOrder(db DBExecutor, req dtos.OrderRequest, totalAmount, totalDiscount string) (string, string, error) {
 	// Generate unique IDs for order and delivery
 	orderID, _ := shortid.Generate()
 	deliveryID, _ := shortid.Generate()
@@ -55,7 +55,7 @@ func CreateOrder(req dtos.OrderRequest, totalAmount, totalDiscount string) (stri
 	}
 
 	// Insert order with status defaulted to 'pending'
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
 	INSERT INTO orders (
 		order_id, user_id, is_guest_order, status,
 		total_amount, total_discount, delivery_id, guest_personal_details, guest_delivery_address
@@ -84,12 +84,12 @@ func CreateOrder(req dtos.OrderRequest, totalAmount, totalDiscount string) (stri
 // Returns:
 //   - string: Generated order_item_id
 //   - error: Database error or nil on success
-func CreateOrderItem(orderID, productID, variantID string, quantity int, unitPrice float64) (string, error) {
+func CreateOrderItem(db DBExecutor, orderID, productID, variantID string, quantity int, unitPrice float64) (string, error) {
 	// Generate unique ID for this order item
 	orderItemID, _ := shortid.Generate()
 
 	// Insert order item with product, variant, quantity, and price
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
 		INSERT INTO order_items (
 			order_item_id, order_id, product_id, variant_id,
 			quantity, unit_price
@@ -123,14 +123,14 @@ func CreateOrderItem(orderID, productID, variantID string, quantity int, unitPri
 //   - If storeID is provided: Validates warehouse, sets pickup details
 //   - If storeID is nil/empty: Creates standard delivery with "To be assigned to rider"
 //   - Initial delivery status: "Processing"
-func CreateDeliveries(orderID, deliveryID string, req dtos.OrderRequest, storeID *string) error {
+func CreateDeliveries(db DBExecutor, orderID, deliveryID string, req dtos.OrderRequest, storeID *string) error {
 	// Default courier assignment
 	courierDetails := "To be assigned to rider"
 
 	// Handle warehouse pickup scenario
 	if storeID != nil && *storeID != "" {
 		// Validate warehouse exists
-		exists, err := RecordExists("warehouses", "warehouse_id = ?", *storeID)
+		exists, err := RecordExists(db, "warehouses", "warehouse_id = ?", *storeID)
 		if err != nil {
 			return err
 		}
@@ -140,7 +140,7 @@ func CreateDeliveries(orderID, deliveryID string, req dtos.OrderRequest, storeID
 
 		// Fetch warehouse name for display
 		var warehouseName string
-		err = DB.QueryRow("SELECT name FROM warehouses WHERE warehouse_id = ?", *storeID).Scan(&warehouseName)
+		err = db.QueryRow("SELECT name FROM warehouses WHERE warehouse_id = ?", *storeID).Scan(&warehouseName)
 		if err != nil {
 			return err
 		}
@@ -151,7 +151,7 @@ func CreateDeliveries(orderID, deliveryID string, req dtos.OrderRequest, storeID
 	}
 
 	// Insert delivery record with status "Processing"
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
 		INSERT INTO deliveries (
 			delivery_id, order_id, delivery_charge, status, courier_details, delivery_address
 		) VALUES (?, ?, ?, 'Processing', ?, ?)
@@ -202,7 +202,7 @@ func CreateDeliveries(orderID, deliveryID string, req dtos.OrderRequest, storeID
 // Financial Calculations:
 //   - EstimatedTax = TotalAmount * tax_rate / 100
 //   - SubTotal = TotalAmount - TotalDiscount - DeliveryCharge - EstimatedTax
-func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
+func GetOrderByUser(db DBExecutor, orderID, userID string) (*dtos.Order, error) {
 	// Query order with LEFT JOIN to deliveries for comprehensive data
 	query := `
 		SELECT 
@@ -228,7 +228,7 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 	var totalAmount float64
 
 	// Scan order and delivery fields
-	err := DB.QueryRow(query, orderID, userID).Scan(
+	err := db.QueryRow(query, orderID, userID).Scan(
 		&ord.OrderID,
 		&totalAmount,
 		&ord.TotalDiscount,
@@ -252,7 +252,7 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 	}
 
 	// Calculate estimated tax from system settings
-	estimatedTax, _ := GetEstimatedTax()
+	estimatedTax, _ := GetEstimatedTax(db)
 	ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 	ord.TotalAmount = totalAmount
 
@@ -271,14 +271,14 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 	}
 
 	// Fetch order items with product details, images, and warranties
-	items, err := getOrderProducts(orderID, userID)
+	items, err := getOrderProducts(db, orderID, userID)
 	if err != nil {
 		return nil, err
 	}
 	ord.Items = items
 
 	// Fetch user's address for registered users
-	address, err := GetUserAddresses(userID)
+	address, err := GetUserAddresses(db, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -305,7 +305,7 @@ func GetOrderByUser(orderID, userID string) (*dtos.Order, error) {
 //   - Guest personal and delivery details (for guest orders)
 //   - Calculated tax and subtotal
 //   - error: Database error or nil on success
-func GetAllOrders(status *string) ([]dtos.Order, error) {
+func GetAllOrders(db DBExecutor, status *string) ([]dtos.Order, error) {
 	var (
 		query string
 		rows  *sql.Rows
@@ -335,10 +335,10 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
 	// Apply status filter if provided
 	if status != nil {
 		query = baseQuery + " WHERE o.status = ? ORDER BY o.order_id"
-		rows, err = DB.Query(query, *status)
+		rows, err = db.Query(query, *status)
 	} else {
 		query = baseQuery + " ORDER BY o.order_id"
-		rows, err = DB.Query(query)
+		rows, err = db.Query(query)
 	}
 
 	if err != nil {
@@ -375,7 +375,7 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
 		}
 
 		// Calculate tax and subtotal
-		estimatedTax, _ := GetEstimatedTax()
+		estimatedTax, _ := GetEstimatedTax(db)
 		ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 		ord.TotalAmount = totalAmount
 		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
@@ -394,7 +394,7 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
 		}
 
 		// Fetch items for this order (empty userID for general order list)
-		items, err := getOrderProducts(ord.OrderID, "")
+		items, err := getOrderProducts(db, ord.OrderID, "")
 		if err != nil {
 			return nil, err
 		}
@@ -426,13 +426,13 @@ func GetAllOrders(status *string) ([]dtos.Order, error) {
 //   - Guest details (if applicable)
 //   - *dtos.PaginationMeta: Pagination metadata (Page, Size, TotalItems, TotalPages, HasPrev, HasNext)
 //   - error: Database error or nil on success
-func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.PaginationMeta, error) {
+func ListOrdersByUser(db DBExecutor, userID string, page, limit int) ([]dtos.Order, *dtos.PaginationMeta, error) {
 	// Calculate pagination offset
 	offset := (page - 1) * limit
 
 	// Count total orders for this user
 	var total int
-	err := DB.QueryRow(`SELECT COUNT(*) FROM orders WHERE user_id = ?`, userID).Scan(&total)
+	err := db.QueryRow(`SELECT COUNT(*) FROM orders WHERE user_id = ?`, userID).Scan(&total)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -459,7 +459,7 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
         WHERE o.user_id = ?
         ORDER BY o.created_at DESC LIMIT ? OFFSET ?`
 
-	rows, err := DB.Query(query, userID, limit, offset)
+	rows, err := db.Query(query, userID, limit, offset)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -493,7 +493,7 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 		}
 
 		// Calculate tax and subtotal
-		estimatedTax, _ := GetEstimatedTax()
+		estimatedTax, _ := GetEstimatedTax(db)
 		ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 		ord.TotalAmount = totalAmount
 		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
@@ -510,14 +510,14 @@ func ListOrdersByUser(userID string, page, limit int) ([]dtos.Order, *dtos.Pagin
 		}
 
 		// Fetch items with product details and review status
-		items, err := getOrderProducts(ord.OrderID, "")
+		items, err := getOrderProducts(db, ord.OrderID, "")
 		if err != nil {
 			return nil, nil, err
 		}
 		ord.Items = items
 
 		// Fetch user's address
-		address, err := GetUserAddresses(userID)
+		address, err := GetUserAddresses(db, userID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -571,7 +571,7 @@ func ptrToFloat(v *float64) float64 {
 // Security:
 //   - Uses LIKE queries on JSON guest_personal_details to verify both email and phone
 //   - Returns nil (not found) if credentials don't match
-func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
+func ListGuestOrders(db DBExecutor, orderID, email, phone string) (*dtos.Order, error) {
 	// Query with email and phone verification
 	query := `
         SELECT 
@@ -600,7 +600,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 	var totalAmount float64
 
 	// Search for email and phone in JSON guest details
-	err := DB.QueryRow(query, orderID, "%"+email+"%", "%"+phone+"%").Scan(
+	err := db.QueryRow(query, orderID, "%"+email+"%", "%"+phone+"%").Scan(
 		&ord.OrderID,
 		&totalAmount,
 		&ord.TotalDiscount,
@@ -624,7 +624,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 	}
 
 	// Calculate tax and subtotal
-	estimatedTax, _ := GetEstimatedTax()
+	estimatedTax, _ := GetEstimatedTax(db)
 	ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 	ord.TotalAmount = totalAmount
 	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
@@ -641,7 +641,7 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 	}
 
 	// Fetch items for this order
-	items, err := getOrderProducts(orderID, "")
+	items, err := getOrderProducts(db, orderID, "")
 	if err != nil {
 		return nil, err
 	}
@@ -673,9 +673,9 @@ func ListGuestOrders(orderID, email, phone string) (*dtos.Order, error) {
 //   - Updates orders table for: Status, PaymentMethod, PaymentStatus
 //   - Updates deliveries table for: DeliveryStatus, DeliveredAt
 //   - Skips database operations if no fields provided for a table
-func UpdateOrderStatus(orderID string, req dtos.UpdateOrderStatusRequest) error {
+func UpdateOrderStatus(db DBExecutor, orderID string, req dtos.UpdateOrderStatusRequest) error {
 	// Validate order existence
-	if err := IsOrderThere(orderID); err != nil {
+	if err := IsOrderThere(db, orderID); err != nil {
 		return err
 	}
 
@@ -701,7 +701,7 @@ func UpdateOrderStatus(orderID string, req dtos.UpdateOrderStatusRequest) error 
 		query := fmt.Sprintf("UPDATE orders SET %s WHERE order_id = ?", strings.Join(setParts, ", "))
 		args = append(args, orderID)
 
-		if _, err := DB.Exec(query, args...); err != nil {
+		if _, err := db.Exec(query, args...); err != nil {
 			return err
 		}
 	}
@@ -739,7 +739,7 @@ func UpdateOrderStatus(orderID string, req dtos.UpdateOrderStatusRequest) error 
 		query := fmt.Sprintf("UPDATE deliveries SET %s WHERE order_id = ?", strings.Join(deliveryParts, ", "))
 		deliveryArgs = append(deliveryArgs, orderID)
 
-		if _, err := DB.Exec(query, deliveryArgs...); err != nil {
+		if _, err := db.Exec(query, deliveryArgs...); err != nil {
 			return err
 		}
 	}
@@ -757,8 +757,8 @@ func UpdateOrderStatus(orderID string, req dtos.UpdateOrderStatusRequest) error 
 //
 // Returns:
 //   - error: "order not found" if ID doesn't exist, database error, or nil if exists
-func IsOrderThere(id string) error {
-	exists, err := RecordExists("orders", "order_id = ?", id)
+func IsOrderThere(db DBExecutor, id string) error {
+	exists, err := RecordExists(db, "orders", "order_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -785,9 +785,9 @@ func IsOrderThere(id string) error {
 //   - Guest details (for guest orders)
 //   - Calculated tax and subtotal
 //   - error: "order not found", sql.ErrNoRows, or database error
-func GetOrderByID(orderID string) (*dtos.Order, error) {
+func GetOrderByID(db DBExecutor, orderID string) (*dtos.Order, error) {
 	// Validate order exists
-	err := IsOrderThere(orderID)
+	err := IsOrderThere(db, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -837,7 +837,7 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 	)
 
 	// Calculate tax and subtotal
-	estimatedTax, _ := GetEstimatedTax()
+	estimatedTax, _ := GetEstimatedTax(DB)
 	ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 	ord.TotalAmount = totalAmount
 	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
@@ -859,7 +859,7 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 
 	// Fetch user address if this is a registered user order
 	if userID.Valid {
-		address, err := GetUserAddresses(userID.String)
+		address, err := GetUserAddresses(db, userID.String)
 		if err != nil {
 			return nil, err
 		}
@@ -869,7 +869,7 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 	}
 
 	// Fetch items with product details
-	items, err := getOrderProducts(orderID, userID.String)
+	items, err := getOrderProducts(db, orderID, userID.String)
 	if err != nil {
 		return nil, err
 	}
@@ -896,7 +896,7 @@ func GetOrderByID(orderID string) (*dtos.Order, error) {
 //   - IsReviewed: Boolean if user has reviewed this product
 //   - ReviewID: The user's review ID if reviewed
 //   - error: Database error or nil on success
-func getOrderProducts(orderID string, userID string) ([]dtos.OrderProduct, error) {
+func getOrderProducts(db DBExecutor, orderID string, userID string) ([]dtos.OrderProduct, error) {
 	// Query joins order_items with products to get complete product info
 	itemsQuery := `
         SELECT 
@@ -914,7 +914,7 @@ func getOrderProducts(orderID string, userID string) ([]dtos.OrderProduct, error
         JOIN products p ON oi.product_id = p.product_id
         WHERE oi.order_id = ?`
 
-	rows, err := DB.Query(itemsQuery, orderID)
+	rows, err := db.Query(itemsQuery, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -941,14 +941,14 @@ func getOrderProducts(orderID string, userID string) ([]dtos.OrderProduct, error
 		}
 
 		// Fetch product images
-		images, err := fetchProductImages(item.ID)
+		images, err := fetchProductImages(db, item.ID)
 		if err != nil {
 			return nil, err
 		}
 		item.Images = images
 
 		// Fetch product warranty
-		warranty, err := FetchProductWarranties(item.ID)
+		warranty, err := FetchProductWarranties(db, item.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -956,7 +956,7 @@ func getOrderProducts(orderID string, userID string) ([]dtos.OrderProduct, error
 
 		// Check if user has reviewed this product
 		if userID != "" {
-			item.IsReviewed, item.ReviewID = checkIfReviewed(item.ID, userID)
+			item.IsReviewed, item.ReviewID = checkIfReviewed(db, item.ID, userID)
 		}
 
 		items = append(items, item)
@@ -977,10 +977,10 @@ func getOrderProducts(orderID string, userID string) ([]dtos.OrderProduct, error
 // Returns:
 //   - bool: true if user has reviewed the product, false otherwise
 //   - string: The review_id if reviewed, empty string otherwise
-func checkIfReviewed(productID, userID string) (bool, string) {
+func checkIfReviewed(db DBExecutor, productID, userID string) (bool, string) {
 	query := `SELECT review_id FROM product_reviews WHERE product_id = ? AND user_id = ?`
 	var reviewID string
-	err := DB.QueryRow(query, productID, userID).Scan(&reviewID)
+	err := db.QueryRow(query, productID, userID).Scan(&reviewID)
 	if err != nil {
 		return false, ""
 	}
@@ -1058,7 +1058,7 @@ type AdminOrderParameters struct {
 //   - Searches across guest details, order IDs, addresses, payment method, user info
 //   - Supports name search in both "first last" and "last first" order
 //   - Uses LIKE queries with wildcards for flexible matching
-func ListOrdersByAdmin(params AdminOrderParameters) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
+func ListOrdersByAdmin(db DBExecutor, params AdminOrderParameters) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
 	// Calculate pagination offset
 	offset := (params.Page - 1) * params.Limit
 
@@ -1066,21 +1066,21 @@ func ListOrdersByAdmin(params AdminOrderParameters) ([]dtos.AdminOrder, *dtos.Pa
 	conds := buildAdminOrderConditions(params)
 
 	// Get total count for pagination
-	total, err := getAdminOrderCount(conds)
+	total, err := getAdminOrderCount(db, conds)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Build and execute main query
 	query, queryArgs := buildAdminOrderQuery(conds, params.Limit, offset)
-	rows, err := DB.Query(query, queryArgs...)
+	rows, err := db.Query(query, queryArgs...)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
 
 	// Scan and enrich order rows
-	orders, err := scanAdminOrderRows(rows)
+	orders, err := scanAdminOrderRows(db, rows)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1304,7 +1304,7 @@ func buildAdminOrderConditions(params AdminOrderParameters) OrderConditions {
 // Returns:
 //   - int: Total number of matching orders
 //   - error: Database error or nil on success
-func getAdminOrderCount(conds OrderConditions) (int, error) {
+func getAdminOrderCount(db DBExecutor, conds OrderConditions) (int, error) {
 	// Build count query with required joins
 	countQuery := "SELECT COUNT(*) FROM orders o"
 	if conds.JoinUsers {
@@ -1318,7 +1318,7 @@ func getAdminOrderCount(conds OrderConditions) (int, error) {
 	}
 
 	var total int
-	err := DB.QueryRow(countQuery, conds.Args...).Scan(&total)
+	err := db.QueryRow(countQuery, conds.Args...).Scan(&total)
 	return total, err
 }
 
@@ -1413,10 +1413,10 @@ func joinConditions(conditions []string) string {
 // Returns:
 //   - []dtos.AdminOrder: Array of enriched admin orders
 //   - error: Scan error, JSON parse error, or database error
-func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
+func scanAdminOrderRows(db DBExecutor, rows *sql.Rows) ([]dtos.AdminOrder, error) {
 	var orders []dtos.AdminOrder
 	for rows.Next() {
-		ord, err := scanSingleAdminOrder(rows)
+		ord, err := scanSingleAdminOrder(db, rows)
 		if err != nil {
 			return nil, err
 		}
@@ -1426,7 +1426,7 @@ func scanAdminOrderRows(rows *sql.Rows) ([]dtos.AdminOrder, error) {
 }
 
 // scanSingleAdminOrder scans and enriches a single admin order row.
-func scanSingleAdminOrder(rows *sql.Rows) (dtos.AdminOrder, error) {
+func scanSingleAdminOrder(db DBExecutor, rows *sql.Rows) (dtos.AdminOrder, error) {
 	var ord dtos.AdminOrder
 	var guestAddrStr, guestDetailsStr sql.NullString
 	var userID, deliveryAddressStr sql.NullString
@@ -1455,13 +1455,13 @@ func scanSingleAdminOrder(rows *sql.Rows) (dtos.AdminOrder, error) {
 	}
 
 	// Calculate tax and subtotal
-	calculateOrderFinancials(&ord)
+	calculateOrderFinancials(db, &ord)
 
 	// Parse and set optional fields
 	parseOrderOptionalFields(&ord, guestAddrStr, guestDetailsStr, deliveryAddressStr, deliveredAt)
 
 	// Enrich with items and user data
-	if err := enrichOrderWithItemsAndUser(&ord, userID); err != nil {
+	if err := enrichOrderWithItemsAndUser(db, &ord, userID); err != nil {
 		return ord, err
 	}
 
@@ -1469,8 +1469,8 @@ func scanSingleAdminOrder(rows *sql.Rows) (dtos.AdminOrder, error) {
 }
 
 // calculateOrderFinancials calculates tax and subtotal for an order.
-func calculateOrderFinancials(ord *dtos.AdminOrder) {
-	estimatedTax, _ := GetEstimatedTax()
+func calculateOrderFinancials(db DBExecutor, ord *dtos.AdminOrder) {
+	estimatedTax, _ := GetEstimatedTax(db)
 	ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
 	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
 }
@@ -1492,9 +1492,9 @@ func parseOrderOptionalFields(ord *dtos.AdminOrder, guestAddrStr, guestDetailsSt
 }
 
 // enrichOrderWithItemsAndUser fetches and attaches order items and user data.
-func enrichOrderWithItemsAndUser(ord *dtos.AdminOrder, userID sql.NullString) error {
+func enrichOrderWithItemsAndUser(db DBExecutor, ord *dtos.AdminOrder, userID sql.NullString) error {
 	// Fetch order items and set count
-	items, err := getOrderProducts(ord.OrderID, userID.String)
+	items, err := getOrderProducts(db, ord.OrderID, userID.String)
 	if err != nil {
 		return err
 	}
@@ -1503,7 +1503,7 @@ func enrichOrderWithItemsAndUser(ord *dtos.AdminOrder, userID sql.NullString) er
 
 	// Fetch user details if registered user order
 	if userID.Valid {
-		user, err := GetUserByUserID(userID.String)
+		user, err := GetUserByUserID(db, userID.String)
 		if err != nil {
 			return err
 		}
@@ -1525,14 +1525,14 @@ func enrichOrderWithItemsAndUser(ord *dtos.AdminOrder, userID sql.NullString) er
 //   - TotalAmount: Sum of total_amount for orders with this status
 //   - Final row: Status="Total Orders" with overall count and amount
 //   - error: Database error or nil on success
-func GetOrderCountsByStatus() ([]dtos.OrderStatusCount, error) {
+func GetOrderCountsByStatus(db DBExecutor) ([]dtos.OrderStatusCount, error) {
 	// Group orders by status with counts and sums
 	query := `
 		SELECT status, COUNT(*) as count, SUM(total_amount) as total_amount
 		FROM orders
 		GROUP BY status
 	`
-	rows, err := DB.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -1589,9 +1589,9 @@ func GetOrderCountsByStatus() ([]dtos.OrderStatusCount, error) {
 //   - Payment verification required
 //   - Inventory availability check
 //   - High-value order review
-func HoldOrder(orderID string) error {
+func HoldOrder(db DBExecutor, orderID string) error {
 	query := `INSERT INTO held_orders (order_id, held_at) VALUES (?, ?)`
-	_, err := DB.Exec(query, orderID, time.Now())
+	_, err := db.Exec(query, orderID, time.Now())
 	return err
 }
 
@@ -1605,9 +1605,9 @@ func HoldOrder(orderID string) error {
 //
 // Returns:
 //   - error: Database error or nil on success
-func ReleaseOrder(orderID string) error {
+func ReleaseOrder(db DBExecutor, orderID string) error {
 	query := `DELETE FROM held_orders WHERE order_id = ?`
-	_, err := DB.Exec(query, orderID)
+	_, err := db.Exec(query, orderID)
 	return err
 }
 
@@ -1622,13 +1622,13 @@ func ReleaseOrder(orderID string) error {
 //
 // Returns:
 //   - error: Database error or nil on success
-func DeductProductStock(productID string, quantity int) error {
+func DeductProductStock(db DBExecutor, productID string, quantity int) error {
 	// Atomic stock decrement
 	query := `
 		UPDATE products
 		SET stock_quantity = stock_quantity - ?
 		WHERE product_id = ?`
-	_, err := DB.Exec(query, quantity, productID)
+	_, err := db.Exec(query, quantity, productID)
 	return err
 }
 
@@ -1643,9 +1643,9 @@ func DeductProductStock(productID string, quantity int) error {
 //
 // Returns:
 //   - error: Database error or nil on success
-func MarkOrderNotificationSent(orderID, status string) error {
+func MarkOrderNotificationSent(db DBExecutor, orderID, status string) error {
 	query := `UPDATE order_notifications SET status = ? WHERE order_id = ?`
-	_, err := DB.Exec(query, status, orderID)
+	_, err := db.Exec(query, status, orderID)
 	return err
 }
 
@@ -1662,8 +1662,8 @@ func MarkOrderNotificationSent(orderID, status string) error {
 //
 // Returns:
 //   - error: Database error or nil on success
-func UpdateOrderTotals(order *dtos.Order) error {
+func UpdateOrderTotals(db DBExecutor, order *dtos.Order) error {
 	query := `UPDATE orders SET total_amount = ?, total_discount = ? WHERE order_id = ?`
-	_, err := DB.Exec(query, order.TotalAmount, order.TotalDiscount, order.OrderID)
+	_, err := db.Exec(query, order.TotalAmount, order.TotalDiscount, order.OrderID)
 	return err
 }

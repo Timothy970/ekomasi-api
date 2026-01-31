@@ -28,9 +28,9 @@ import (
 // Returns:
 //   - error: nil if charge exists, "tax with ID {id} not found" error if not found,
 //     or database error if query fails
-func isChargeThere(id string) error {
+func isChargeThere(db DBExecutor, id string) error {
 	// Check if charge record exists in database
-	exists, err := RecordExists("charges", "charge_id = ?", id)
+	exists, err := RecordExists(db, "charges", "charge_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -53,12 +53,12 @@ func isChargeThere(id string) error {
 // Returns:
 //   - *dtos.Charge: Pointer to created charge with generated charge_id
 //   - error: Database error if insertion fails
-func AddCharge(input dtos.Charge) (*dtos.Charge, error) {
+func AddCharge(db DBExecutor, input dtos.Charge) (*dtos.Charge, error) {
 	// Generate unique charge ID using shortid for user-friendly identifiers
 	chargeID, _ := shortid.Generate()
 
 	// Insert new charge into database
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
 		INSERT INTO charges (charge_id, charge_name, charge_value)
 		VALUES (?, ?, ?)`,
 		chargeID, input.Type, input.Value,
@@ -89,15 +89,15 @@ func AddCharge(input dtos.Charge) (*dtos.Charge, error) {
 // Returns:
 //   - *dtos.Charge: Pointer to updated charge with provided values
 //   - error: "tax with ID {id} not found" if charge doesn't exist, or database error
-func UpdateCharge(id string, input dtos.Charge) (*dtos.Charge, error) {
+func UpdateCharge(db DBExecutor, id string, input dtos.Charge) (*dtos.Charge, error) {
 	// Validate charge exists before updating
-	err := isChargeThere(id)
+	err := isChargeThere(db, id)
 	if err != nil {
 		return nil, err
 	}
 
 	// Update charge name and value
-	_, err = DB.Exec(`
+	_, err = db.Exec(`
 		UPDATE charges
 		SET charge_name = ?, charge_value = ?
 		WHERE charge_id = ?`,
@@ -125,15 +125,15 @@ func UpdateCharge(id string, input dtos.Charge) (*dtos.Charge, error) {
 // Returns:
 //   - *dtos.Charge: Pointer to charge object with ID, Type (name), and Value (amount)
 //   - error: "tax with ID {id} not found" if charge doesn't exist, or database error
-func GetChargeByID(id string) (*dtos.Charge, error) {
+func GetChargeByID(db DBExecutor, id string) (*dtos.Charge, error) {
 	// Validate charge exists
-	err := isChargeThere(id)
+	err := isChargeThere(db, id)
 	if err != nil {
 		return nil, err
 	}
 
 	// Query charge details
-	row := DB.QueryRow(`SELECT charge_id, charge_name, charge_value FROM charges WHERE charge_id = ?`, id)
+	row := db.QueryRow(`SELECT charge_id, charge_name, charge_value FROM charges WHERE charge_id = ?`, id)
 
 	var c dtos.Charge
 	// Scan charge data into DTO
@@ -158,9 +158,9 @@ func GetChargeByID(id string) (*dtos.Charge, error) {
 // Returns:
 //   - []dtos.Charge: Array of all charges with ID, Type (name), and Value (amount)
 //   - error: Database error if query fails
-func GetAllCharges() ([]dtos.Charge, error) {
+func GetAllCharges(db DBExecutor) ([]dtos.Charge, error) {
 	// Query all charges from database
-	rows, err := DB.Query(`SELECT charge_id, charge_name, charge_value FROM charges`)
+	rows, err := db.Query(`SELECT charge_id, charge_name, charge_value FROM charges`)
 	if err != nil {
 		return nil, err
 	}
@@ -192,15 +192,15 @@ func GetAllCharges() ([]dtos.Charge, error) {
 //   - No check for associated product_charges - deletion may fail if foreign key constraints exist
 //   - Consider checking product_charges associations before deletion to prevent constraint violations
 //   - May want to implement soft delete or cascade rules depending on business requirements
-func DeleteCharge(id string) error {
+func DeleteCharge(db DBExecutor, id string) error {
 	// Validate charge exists
-	err := isChargeThere(id)
+	err := isChargeThere(db, id)
 	if err != nil {
 		return err
 	}
 
 	// Delete charge from database
-	_, err = DB.Exec(`DELETE FROM charges WHERE charge_id = ?`, id)
+	_, err = db.Exec(`DELETE FROM charges WHERE charge_id = ?`, id)
 	return err
 }
 
@@ -222,9 +222,9 @@ func DeleteCharge(id string) error {
 //   - Validates both product and charge exist before creating association
 //   - If association already exists, returns nil without error (idempotent)
 //   - Generates unique product_charge_id for the association record
-func AddChargeToProduct(input dtos.AddChargeToProductRequest) error {
+func AddChargeToProduct(db DBExecutor, input dtos.AddChargeToProductRequest) error {
 	// Step 1: Validate product exists
-	err := IsProductThere(input.ProductID)
+	err := IsProductThere(db, input.ProductID)
 	if err != nil {
 		return err
 	}
@@ -233,13 +233,13 @@ func AddChargeToProduct(input dtos.AddChargeToProductRequest) error {
 	productChargeID, _ := shortid.Generate()
 
 	// Step 2: Validate charge exists
-	err = isChargeThere(input.ChargeID)
+	err = isChargeThere(db, input.ChargeID)
 	if err != nil {
 		return err
 	}
 
 	// Step 3: Check if this charge is already associated with this product
-	exists, err := isProductCharge(input.ChargeID, input.ProductID)
+	exists, err := isProductCharge(db, input.ChargeID, input.ProductID)
 	if err != nil {
 		return err
 	}
@@ -249,7 +249,7 @@ func AddChargeToProduct(input dtos.AddChargeToProductRequest) error {
 		return nil
 	} else {
 		// Step 4: Create new product-charge association
-		_, err = DB.Exec(`
+		_, err = db.Exec(`
 		INSERT INTO product_charges (product_charge_id,product_id, charge_id)
 		VALUES (?, ?,?)`,
 			productChargeID, input.ProductID, input.ChargeID,
@@ -269,9 +269,9 @@ func AddChargeToProduct(input dtos.AddChargeToProductRequest) error {
 // Returns:
 //   - bool: true if association exists, false otherwise
 //   - error: Database error if query fails
-func isProductCharge(chargeID, productID string) (bool, error) {
+func isProductCharge(db DBExecutor, chargeID, productID string) (bool, error) {
 	// Check if product-charge association exists in database
-	exists, err := RecordExists("product_charges", "charge_id = ? and product_id = ?", chargeID, productID)
+	exists, err := RecordExists(db, "product_charges", "charge_id = ? and product_id = ?", chargeID, productID)
 	if err != nil {
 		return false, err
 	}

@@ -67,7 +67,7 @@ func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Create stock transfer record and update inventory levels in both warehouses
-	if err := models.CreateStockTransfer(*req); err != nil {
+	if err := models.CreateStockTransfer(models.DB, *req); err != nil {
 		// Transfer creation failed (insufficient stock, invalid warehouses, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -130,7 +130,7 @@ func ListStockTransfers(w http.ResponseWriter, r *http.Request) {
 	// Parse pagination parameters from query string
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	// Fetch paginated stock transfers from database with search filtering
-	transfers, meta, err := models.ListStockTransfers(page, size, q)
+	transfers, meta, err := models.ListStockTransfers(models.DB, page, size, q)
 	if err != nil {
 		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -182,7 +182,7 @@ func GetStockTransfer(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["transfer_id"]
 
 	// Fetch specific stock transfer details from database
-	st, err := models.GetStockTransferByID(id)
+	st, err := models.GetStockTransferByID(models.DB, id)
 	if err != nil {
 		// Transfer not found or database error
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -257,7 +257,7 @@ func UpdateStockTransfer(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["transfer_id"]
 
 	// Update stock transfer quantity in database and adjust inventory levels
-	if err := models.UpdateStockTransfer(req.Quantity, id); err != nil {
+	if err := models.UpdateStockTransfer(models.DB, req.Quantity, id); err != nil {
 		// Update failed (insufficient stock, invalid transfer, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

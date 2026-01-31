@@ -6,6 +6,7 @@ package handlers
 
 import (
 	"adenzo_backend/dtos"
+	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"log"
@@ -48,7 +49,7 @@ func RequestRestockNotification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := models.CreateRestockNotification(*req); err != nil {
+	if err := models.CreateRestockNotification(models.DB, *req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
@@ -95,10 +96,14 @@ func ListUserRestockNotifications(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 	// Extract user ID from URL path parameters
-	userID := mux.Vars(r)["user_id"]
+	// The user ID from the path is not directly used for fetching notifications
+	// as the authenticated user's ID is preferred for security.
+	_ = mux.Vars(r)["user_id"]
 
+	// Extract authenticated user from context for secure listing
+	authuser, _ := middleware.UserFromContext(r.Context())
 	// Fetch all active restock notifications for this user from database
-	notifications, err := models.ListRestockNotificationsByUser(userID)
+	notifications, err := models.ListRestockNotificationsByUser(models.DB, authuser.ID)
 	// Debug logging to track notification retrieval
 	log.Printf("******nots %v", notifications)
 	if err != nil {
@@ -106,7 +111,7 @@ func ListUserRestockNotifications(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
-				Description: "Failed to list restock notifications for user ID " + userID,
+				Description: "Failed to list restock notifications for user",
 				Code:        http.StatusBadRequest,
 			},
 			Message:   err.Error(),
@@ -120,7 +125,7 @@ func ListUserRestockNotifications(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
-			Description: "Restock notifications for user ID " + userID + " retrieved successfully",
+			Description: "Restock notifications retrieved successfully",
 			Code:        http.StatusOK,
 		},
 		Payload:   notifications,
@@ -151,11 +156,14 @@ func CancelRestockNotification(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 	// Extract notification ID and user ID from URL path parameters
 	notificationID := mux.Vars(r)["notification_id"]
-	userID := mux.Vars(r)["user_id"]
+	_ = mux.Vars(r)["user_id"] // Placeholder for unused path variable
+
+	// Extract authenticated user from context for secure cancellation
+	authuser, _ := middleware.UserFromContext(r.Context())
 
 	// Delete the restock notification from database
 	// Verifies user owns this notification before deletion for security
-	if err := models.DeleteRestockNotification(notificationID, userID); err != nil {
+	if err := models.DeleteRestockNotification(models.DB, notificationID, authuser.ID); err != nil {
 		// Deletion failed (notification not found or user doesn't own it)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -217,7 +225,7 @@ func TriggerRestockNotifications(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch all pending notifications for this product/variant from database
-	notifications, err := models.GetNotificationsByProduct(productID, variantPtr)
+	notifications, err := models.GetNotificationsByProduct(models.DB, productID, variantPtr)
 	if err != nil {
 		// Database query failed, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

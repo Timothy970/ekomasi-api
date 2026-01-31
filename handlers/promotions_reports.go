@@ -34,7 +34,7 @@ func GetEffectiveness(w http.ResponseWriter, r *http.Request) {
 	promotionID := mux.Vars(r)["promotion_id"]
 
 	// Fetch promotion effectiveness metrics from database
-	results, err := models.GetEffectiveness(promotionID)
+	effectiveness, err := models.GetEffectiveness(models.DB, promotionID)
 	if err != nil {
 		// Database query failed or promotion not found, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -58,7 +58,7 @@ func GetEffectiveness(w http.ResponseWriter, r *http.Request) {
 			Description: "Promotion effectiveness report generated successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   results,
+		Payload:   effectiveness,
 		Message:   "Promotion effectiveness report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -93,7 +93,7 @@ func GetComparison(w http.ResponseWriter, r *http.Request) {
 	// Parse and validate start and end date from query parameters
 	startTime, endTime, err := ParseDateRange(r)
 	// Fetch promotion comparison data for the specified date range
-	results, err := models.GetComparison(promotionID, startTime, endTime)
+	comparison, err := models.GetComparison(models.DB, promotionID, startTime, endTime)
 	if err != nil {
 		// Date parsing failed or database query error, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -117,7 +117,7 @@ func GetComparison(w http.ResponseWriter, r *http.Request) {
 			Description: "Promotion for promotion ID " + promotionID + " comparison report generated successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   results,
+		Payload:   comparison,
 		Message:   "Promotion comparison report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
@@ -149,7 +149,7 @@ func GetSummary(w http.ResponseWriter, r *http.Request) {
 	// Parse and validate start and end date from query parameters
 	startTime, endTime, err := ParseDateRange(r)
 	// Fetch aggregate promotion summary data for the date range
-	results, err := models.GetPromotionSummary(startTime, endTime)
+	summary, err := models.GetPromotionSummary(models.DB, startTime, endTime)
 	if err != nil {
 		// Date parsing failed or database query error, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -173,7 +173,7 @@ func GetSummary(w http.ResponseWriter, r *http.Request) {
 			Description: "Promotion summary report generated successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   results,
+		Payload:   summary,
 		Message:   "Promotion summary report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),

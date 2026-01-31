@@ -96,7 +96,7 @@ func GetNotificationByID(id string) (*dtos.Notification, error) {
 //   - error: "notification not found" if ID doesn't exist, or database error
 func UpdateNotification(status, notificationID string) error {
 	// Validate notification exists before updating
-	exists, err := RecordExists("notifications", "notification_id = ?", notificationID)
+	exists, err := RecordExists(DB, "notifications", "notification_id = ?", notificationID)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func UpdateNotification(status, notificationID string) error {
 // Warning: This is a permanent delete operation with no soft-delete or recovery.
 func DeleteNotification(id string) error {
 	// Validate notification exists before deleting
-	exists, err := RecordExists("notifications", "notification_id = ?", id)
+	exists, err := RecordExists(DB, "notifications", "notification_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -337,7 +337,7 @@ func GetLowStockProducts() ([]dtos.Product, error) {
 		}
 
 		// Fetch full product details for each low stock item
-		product, err := GetProductByID(productID)
+		product, err := GetProductByID(DB, productID)
 		if err != nil {
 			return nil, err
 		}

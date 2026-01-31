@@ -243,15 +243,15 @@ func validateUniqueSKUs(products []dtos.BulkUploadProduct) error {
 
 // validateAndCreateProduct validates a product and creates it in the database
 func validateAndCreateProduct(product dtos.BulkUploadProduct, userID string) error {
-	if err := models.IsSkuThere(product.SKU); err != nil {
+	if err := models.IsSkuThere(models.DB, product.SKU); err != nil {
 		return err
 	}
 
-	if err := models.CategoryExists(product.CategoryID); err != nil {
+	if err := models.CategoryExists(models.DB, product.CategoryID); err != nil {
 		return fmt.Errorf("sub category does not exist: %s", product.CategoryID)
 	}
 
-	if err := models.IsCategoryParent(product.CategoryID); err != nil {
+	if err := models.IsCategoryParent(models.DB, product.CategoryID); err != nil {
 		return err
 	}
 
@@ -272,7 +272,7 @@ func validateAndCreateProduct(product dtos.BulkUploadProduct, userID string) err
 		}
 	}
 
-	err := models.AddNewBulkProduct(product, userID)
+	err := models.AddNewBulkProduct(models.DB, product, userID)
 	if err != nil {
 		return fmt.Errorf("error adding product: %w", err)
 	}
@@ -322,7 +322,7 @@ func GetBulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
 	q := r.URL.Query().Get("q")
-	products, pagination, err := models.GetBulkUploadProducts(startDate, endDate, q, page, limit)
+	products, pagination, err := models.GetBulkUploadProducts(models.DB, startDate, endDate, q, page, limit)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -387,7 +387,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	productID := r.FormValue("product_id")
 	videoLink := r.FormValue("video_link")
 	productDetails := r.Form["product_details"]
-	bulkProduct, err := models.GetBulkProductByID(productID)
+	bulkProduct, err := models.GetBulkProductByID(models.DB, productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -418,7 +418,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		BuyingPrice:   &bulkProduct.BuyingPrice,
 		Details:       productDetails,
 	}
-	product, err := models.AddNewProduct(createRequest, authuser.ID)
+	product, err := models.AddNewProduct(models.DB, createRequest, authuser.ID)
 	if err != nil {
 		log.Printf("Error for adding new product %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -437,20 +437,20 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	//handle product specifications
 	specificationsRequest := dtos.ProductSpecification{
 		ProductID:        product.ID,
-		Age:              models.GetAgeVariantIDs(*bulkProduct.AgeRange), //should be IDS
-		Brand:            models.GetBrandID(*bulkProduct.Brand),          //should be ID
+		Age:              models.GetAgeVariantIDs(models.DB, *bulkProduct.AgeRange), //should be IDS
+		Brand:            models.GetBrandID(models.DB, *bulkProduct.Brand),          //should be ID
 		CategoryID:       bulkProduct.CategoryID,
-		Color:            models.GetColorIDs(*bulkProduct.Colors), //should be IDs
+		Color:            models.GetColorIDs(models.DB, *bulkProduct.Colors), //should be IDS
 		Dimensions:       *bulkProduct.Dimensions,
 		ExpiryDate:       bulkProduct.ExpiryDate,
 		ManufacturerDate: bulkProduct.ManufacturingDate,
 		Manufacturer:     *bulkProduct.Manufacturer,
-		Material:         models.GetMaterialIDs(*bulkProduct.Material), //should be IDs
-		Size:             models.GetSizeIDs(*bulkProduct.Sizes),        //should be IDs
+		Material:         models.GetMaterialIDs(models.DB, *bulkProduct.Material), //should be IDs
+		Size:             models.GetSizeIDs(models.DB, *bulkProduct.Sizes),        //should be IDs
 		WarrantyPeriod:   *bulkProduct.WarrantyPeriod,
 		Weight:           *bulkProduct.Weight,
 		WeightLimit:      *bulkProduct.WeightLimit,
-		WarrantyType:     models.GetDefaultWarrantyType(),
+		WarrantyType:     models.GetDefaultWarrantyType(models.DB),
 	}
 	state := "add"
 	err = handleProductSpecs(specificationsRequest, state)
@@ -486,7 +486,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	//handle product warranty
-	specificationsRequest.WarrantyType = models.GetManufacturingWarrantyID()
+	specificationsRequest.WarrantyType = models.GetManufacturingWarrantyID(models.DB)
 	err = handleProductsWarranty(specificationsRequest)
 
 	if err != nil {
@@ -506,7 +506,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	//handle product images
 	//first video link if any
 	if videoLink != "" {
-		if err := models.InsertProductImage(product.ID, videoLink, "video", false); err != nil {
+		if err := models.InsertProductImage(models.DB, product.ID, videoLink, "video", false); err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
@@ -547,7 +547,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		uploadedResults = append(uploadedResults, results...)
 	}
 	//delete bulk product after publishing
-	err = models.DeleteBulkProductByID(bulkProduct.ProductID)
+	err = models.DeleteBulkProductByID(models.DB, bulkProduct.ProductID)
 	if err != nil {
 		log.Printf("Error deleting bulk product ID %s: %s", bulkProduct.ProductID, err.Error())
 	}

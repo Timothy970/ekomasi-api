@@ -182,8 +182,26 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
+	// Start transaction
+	tx, err := models.DB.Begin()
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Transactions",
+				Description: "Failed to start transaction",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	defer tx.Rollback()
+
 	// Update transaction status in database and retrieve associated order ID
-	orderID, err := models.UpdateTransactionStatusByID(transactionID, req.Status)
+	orderID, err := models.UpdateTransactionStatusByID(tx, transactionID, req.Status)
 	if err != nil {
 		// Transaction status update failed (invalid transaction, status, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -201,7 +219,7 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Synchronize payment status with the associated order for consistency
-	err = models.UpdateOrderPaymentStatus(orderID, req.Status)
+	err = models.UpdateOrderPaymentStatus(tx, orderID, req.Status)
 	if err != nil {
 		// Order payment status synchronization failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

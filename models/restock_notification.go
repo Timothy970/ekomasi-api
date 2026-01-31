@@ -42,29 +42,29 @@ import (
 //  4. If variant specified, validate variant exists
 //  5. Generate unique notification ID
 //  6. Insert subscription record
-func CreateRestockNotification(rn dtos.RestockNotificationRequest) error {
+func CreateRestockNotification(db DBExecutor, rn dtos.RestockNotificationRequest) error {
 	// Validate user exists
-	err := isUserThere(rn.UserID)
+	err := isUserThere(db, rn.UserID)
 	if err != nil {
 		return err
 	}
 
 	// Validate product exists
-	err = IsProductThere(rn.ProductID)
+	err = IsProductThere(db, rn.ProductID)
 
 	if err != nil {
 		return err
 	}
 
 	// Check for duplicate subscription (prevent user from subscribing twice)
-	err = isRestockNotification(rn.UserID, rn.ProductID)
+	err = isRestockNotification(db, rn.UserID, rn.ProductID)
 	if err != nil {
 		return err
 	}
 
 	// If variant specified, validate variant exists
 	if rn.VariantID != nil {
-		err = isVariantThere(*rn.VariantID)
+		err = isVariantThere(db, *rn.VariantID)
 		if err != nil {
 			return err
 		}
@@ -78,7 +78,7 @@ func CreateRestockNotification(rn dtos.RestockNotificationRequest) error {
 		INSERT INTO restock_notifications (notification_id, user_id, product_id, variant_id)
 		VALUES (?, ?, ?, ?)
 	`
-	_, err = DB.Exec(query, notificationID, rn.UserID, rn.ProductID, rn.VariantID)
+	_, err = db.Exec(query, notificationID, rn.UserID, rn.ProductID, rn.VariantID)
 	return err
 }
 
@@ -98,9 +98,9 @@ func CreateRestockNotification(rn dtos.RestockNotificationRequest) error {
 //   - VariantID: Optional specific variant (nil if monitoring all variants)
 //   - CreatedAt: Subscription creation timestamp
 //   - error: "user not found", database error, or nil on success
-func ListRestockNotificationsByUser(userID string) ([]dtos.RestockNotification, error) {
+func ListRestockNotificationsByUser(db DBExecutor, userID string) ([]dtos.RestockNotification, error) {
 	// Validate user exists
-	err := isUserThere(userID)
+	err := isUserThere(db, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func ListRestockNotificationsByUser(userID string) ([]dtos.RestockNotification, 
 		WHERE user_id = ?
 		ORDER BY created_at DESC
 	`
-	rows, err := DB.Query(query, userID)
+	rows, err := db.Query(query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -141,9 +141,9 @@ func ListRestockNotificationsByUser(userID string) ([]dtos.RestockNotification, 
 //
 // Returns:
 //   - error: "notification not found", "user not found", database error, or nil on success
-func DeleteRestockNotification(notificationID, userID string) error {
+func DeleteRestockNotification(db DBExecutor, notificationID, userID string) error {
 	// Validate notification exists
-	exists, err := RecordExists("restock_notifications", "notification_id = ?", notificationID)
+	exists, err := RecordExists(db, "restock_notifications", "notification_id = ?", notificationID)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func DeleteRestockNotification(notificationID, userID string) error {
 	}
 
 	// Validate user exists
-	err = isUserThere(userID)
+	err = isUserThere(db, userID)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func DeleteRestockNotification(notificationID, userID string) error {
 		DELETE FROM restock_notifications
 		WHERE notification_id = ? AND user_id = ?
 	`
-	_, err = DB.Exec(query, notificationID, userID)
+	_, err = db.Exec(query, notificationID, userID)
 	return err
 }
 
@@ -190,7 +190,7 @@ func DeleteRestockNotification(notificationID, userID string) error {
 // Usage:
 //   - Variant restocked: GetNotificationsByProduct("prod123", &"var456") - notify variant-specific subscribers
 //   - General product restocked: GetNotificationsByProduct("prod123", nil) - notify all subscribers
-func GetNotificationsByProduct(productID string, variantID *string) ([]dtos.RestockNotification, error) {
+func GetNotificationsByProduct(db DBExecutor, productID string, variantID *string) ([]dtos.RestockNotification, error) {
 	// Build base query for product subscriptions
 	query := `
 		SELECT notification_id, user_id, product_id, variant_id, created_at
@@ -203,10 +203,10 @@ func GetNotificationsByProduct(productID string, variantID *string) ([]dtos.Rest
 	// Add variant filter if specific variant restocked
 	if variantID != nil {
 		query += " AND variant_id = ?"
-		rows, err = DB.Query(query, productID, variantID)
+		rows, err = db.Query(query, productID, variantID)
 	} else {
 		// No variant filter - all subscribers for this product
-		rows, err = DB.Query(query, productID)
+		rows, err = db.Query(query, productID)
 	}
 
 	if err != nil {

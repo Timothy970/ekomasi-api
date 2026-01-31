@@ -67,7 +67,7 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Insert promo code into database
-	promo, err := models.AddPromoCode(*req)
+	promo, err := models.AddPromoCode(models.DB, *req)
 	if err != nil {
 		// Database insertion failed, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -151,7 +151,7 @@ func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Update promo code in database
-	promo, err := models.UpdatePromoCode(id, *req)
+	promo, err := models.UpdatePromoCode(models.DB, id, *req)
 	if err != nil {
 		// Database update failed, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -207,7 +207,7 @@ func GetPromoCodeByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract promo code ID from URL path parameters
 	id := mux.Vars(r)["promo_id"]
 	// Fetch promo code details from database
-	promo, err := models.GetPromoCodeByID(id)
+	promo, err := models.GetPromoCodeByID(models.DB, id)
 	if err != nil {
 		// Promo code not found or database error, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
@@ -262,7 +262,7 @@ func GetAllPromoCodesHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse pagination parameters from query string
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	// Fetch paginated promo codes from database
-	promos, pagination, err := models.GetAllPromoCodes(page, limit)
+	promos, pagination, err := models.GetAllPromoCodes(models.DB, page, limit)
 	if err != nil {
 		// Database query failed, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
@@ -319,7 +319,7 @@ func DeletePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["promo_id"]
 
 	// Delete promo code from database
-	err := models.DeletePromoCode(id)
+	err := models.DeletePromoCode(models.DB, id)
 	if err != nil {
 		// Deletion failed or promo code not found, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
@@ -392,7 +392,7 @@ func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update promo code active status in database
-	err := models.SetPromoCodeActiveStatus(id, req.IsActive)
+	err := models.SetPromoCodeActiveStatus(models.DB, id, req.IsActive)
 	if err != nil {
 		// Status update failed, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -469,7 +469,7 @@ func AddPromotionToProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Create product-promotion association in database
-	if err := models.AddPromotionToProduct(*req); err != nil {
+	if err := models.AddPromotionToProduct(models.DB, *req); err != nil {
 		// Association creation failed, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",

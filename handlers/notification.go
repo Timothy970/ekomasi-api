@@ -61,7 +61,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Verify recipient user exists in database
-	exists, err := models.RecordExists("users", "user_id = ?", req.RecipientID)
+	exists, err := models.RecordExists(models.DB, "users", "user_id = ?", req.RecipientID)
 	if err != nil {
 		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -166,7 +166,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 // Returns error if user doesn't have required contact information for the channel.
 func sendNotification(req dtos.Notification) error {
 	// Fetch user details for contact information
-	user, err := models.GetUserByUserID(req.RecipientID)
+	user, err := models.GetUserByUserID(models.DB, req.RecipientID)
 	if err != nil {
 		// User not found (should have been caught earlier)
 		return err
@@ -537,7 +537,7 @@ func processPendingOrderNotifications() {
 // Permanent failures (e.g., no email) are handled internally and marked as failed.
 func processSingleOrder(orderID string, emailType string) error {
 	// Fetch order details from database
-	order, err := models.GetOrderByID(orderID)
+	order, err := models.GetOrderByID(models.DB, orderID)
 	if err != nil {
 		// Cannot fetch order - likely permanent failure (bad ID)
 		// Skip and don't retry to avoid blocking other orders
@@ -557,7 +557,7 @@ func processSingleOrder(orderID string, emailType string) error {
 	if userEmail == "" {
 		log.Printf("INFO: No email found for order %s. Marking as 'failed'.", orderID)
 		// Permanent failure - mark as failed so we don't retry
-		if err := models.MarkOrderNotificationSent(orderID, "failed"); err != nil {
+		if err := models.MarkOrderNotificationSent(models.DB, orderID, "failed"); err != nil {
 			// Failed to mark as failed - return error to retry status update
 			log.Printf("ERROR: Failed to mark order %s as 'failed': %v", orderID, err)
 			return fmt.Errorf("marking order %s as failed: %w", orderID, err)
@@ -578,7 +578,7 @@ func processSingleOrder(orderID string, emailType string) error {
 	}
 
 	// Step 4: Mark notification as sent in database
-	if err := models.MarkOrderNotificationSent(orderID, "sent"); err != nil {
+	if err := models.MarkOrderNotificationSent(models.DB, orderID, "sent"); err != nil {
 		// Email sent but failed to update status - return error to retry update
 		// Risk of duplicate email, but better than losing track of sent status
 		log.Printf("ERROR: Email sent for order %s, but failed to mark as 'sent': %v", orderID, err)
@@ -595,7 +595,7 @@ func processSingleOrder(orderID string, emailType string) error {
 func getCustomerDetails(order *dtos.Order) (email string, name string, err error) {
 	if order.UserID != nil {
 		// Registered user - fetch from users table
-		user, err := models.GetUserByUserID(*order.UserID)
+		user, err := models.GetUserByUserID(models.DB, *order.UserID)
 		if err != nil {
 			// User ID present but user record not found
 			return "", "", fmt.Errorf("getting user %s: %w", *order.UserID, err)

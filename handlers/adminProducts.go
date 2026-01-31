@@ -125,7 +125,7 @@ func AdminSearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Execute product search with admin privileges (second parameter = true)
 	// Admin search includes all product data including inventory and restricted fields
-	products, pagination, err := models.SearchProducts(searchParams, true)
+	products, pagination, err := models.SearchProducts(models.DB, searchParams, true)
 	if err != nil {
 		// Return error response if search operation fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

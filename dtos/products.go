@@ -230,22 +230,22 @@ type UpdateProductFeature struct {
 }
 type ProductSpecification struct {
 	ProductID        string   `json:"product_id" validate:"required"`
-	Age              []string `json:"age"`   //ids of the age variants
-	Brand            string   `json:"brand"` //brand id for the variant brand
-	CategoryID       string   `json:"category_id"`
-	Color            []string `json:"color"` //color variants ids
-	Dimensions       string   `json:"dimensions"`
-	DiscountType     string   `json:"discount_type"` // type id
-	ExpiryDate       *string  `json:"expiry_date"`
-	ManufacturerDate *string  `json:"manufacture_date"`
+	Age              []string `json:"age" validate:"required,min=1"` //ids of the age variants
+	Brand            string   `json:"brand" validate:"required"`     //brand id for the variant brand
+	CategoryID       string   `json:"category_id" validate:"required"`
+	Color            []string `json:"color" validate:"required,min=1"` //color variants ids
+	Dimensions       string   `json:"dimensions" validate:"required"`
+	DiscountType     string   `json:"discount_type" validate:"required"` // type id
+	ExpiryDate       *string  `json:"expiry_date" validate:"required"`
+	ManufacturerDate *string  `json:"manufacture_date" validate:"required"`
 	Manufacturer     string   `json:"manufacturer"`
-	Material         []string `json:"material"` //material variant ids
-	Size             []string `json:"size"`     //size variant ids
-	Tax              string   `json:"tax"`      //charge id
-	WarrantyType     string   `json:"warranty_type"`
-	WarrantyPeriod   int      `json:"warranty_period"` //in months
-	Weight           int      `json:"weight"`
-	WeightLimit      int      `json:"weight_limit"`
+	Material         []string `json:"material" validate:"required,min=1"`  //material variant ids
+	Size             []string `json:"size" validate:"required,min=1"`      //size variant ids
+	Tax              string   `json:"tax" validate:"required"`             //charge id
+	WarrantyType     string   `json:"warranty_type"`                       //warranty type id
+	WarrantyPeriod   int      `json:"warranty_period" validate:"required"` //in months
+	Weight           int      `json:"weight" validate:"required"`
+	WeightLimit      int      `json:"weight_limit" validate:"required"`
 }
 type ExpensiveCheapProduct struct {
 	CheapestProduct  Product `json:"cheapest_product"`

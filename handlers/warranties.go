@@ -53,7 +53,7 @@ func CreateWarrantType(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Create warranty type record in database
-	err := models.CreateWarrantType(*req)
+	err := models.CreateWarrantType(models.DB, *req)
 	if err != nil {
 		// Warranty type creation failed (duplicate name, invalid data, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -103,7 +103,7 @@ func GetAllWarrantyTypes(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	// Fetch all warranty types from database
-	warrantyTypes, err := models.GetAllWarrantTypes()
+	warrantyTypes, err := models.GetAllWarrantTypes(models.DB)
 	if err != nil {
 		// Database query failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -177,7 +177,7 @@ func UpdateWarrantType(w http.ResponseWriter, r *http.Request) {
 	// Extract warranty type ID from URL path parameters
 	warrantID := mux.Vars(r)["warranty_type_id"]
 	// Update warranty type information in database
-	err := models.UpdateWarrantType(warrantID, *req)
+	err := models.UpdateWarrantType(models.DB, warrantID, *req)
 	if err != nil {
 		// Update failed (warranty type not found, invalid data, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -235,7 +235,7 @@ func DeleteWarrantType(w http.ResponseWriter, r *http.Request) {
 	// Extract warranty type ID from URL path parameters
 	warrantID := mux.Vars(r)["warranty_type_id"]
 	// Delete warranty type from database (may be soft delete)
-	err := models.DeleteWarrantType(warrantID)
+	err := models.DeleteWarrantType(models.DB, warrantID)
 	if err != nil {
 		// Deletion failed (warranty type not found, has dependencies, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -304,7 +304,7 @@ func AddProductWarranties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Create product-warranty associations in database
-	err := models.AddProductWarranties(*req)
+	err := models.AddProductWarranties(models.DB, *req)
 	if err != nil {
 		// Association failed (product not found, invalid warranty types, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

@@ -45,7 +45,7 @@ func ListInventory(w http.ResponseWriter, r *http.Request) {
 	storeID := r.URL.Query().Get("store_id")
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	q := r.URL.Query().Get("q")
-	inventories, pagination, err := models.ListInventory(page, size, categoryID, stock, storeID, q)
+	inventories, pagination, err := models.ListInventory(models.DB, page, size, categoryID, stock, storeID, q)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -110,7 +110,7 @@ func CreateInventory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := models.CreateInventory(*req); err != nil {
+	if err := models.CreateInventory(models.DB, *req); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
@@ -163,7 +163,7 @@ func GetInventory(w http.ResponseWriter, r *http.Request) {
 	}
 	id := mux.Vars(r)["inventory_id"]
 
-	inv, err := models.GetInventory(id)
+	inv, err := models.GetInventory(models.DB, id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -215,7 +215,7 @@ func DownloadInventoryCSV(w http.ResponseWriter, r *http.Request) {
 	}
 	id := mux.Vars(r)["inventory_id"]
 
-	inv, err := models.GetInventory(id)
+	inv, err := models.GetInventory(models.DB, id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -273,7 +273,7 @@ func DownloadInventoryPDF(w http.ResponseWriter, r *http.Request) {
 	}
 	id := mux.Vars(r)["inventory_id"]
 
-	inv, err := models.GetInventory(id)
+	inv, err := models.GetInventory(models.DB, id)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -360,7 +360,7 @@ func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 	}
 	id := mux.Vars(r)["inventory_id"]
 
-	if err := models.UpdateInventory(id, req.Quantity, req.LowStockThreshold); err != nil {
+	if err := models.UpdateInventory(models.DB, id, req.Quantity, req.LowStockThreshold); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
@@ -414,7 +414,7 @@ func DeleteInventory(w http.ResponseWriter, r *http.Request) {
 	}
 	id := mux.Vars(r)["inventory_id"]
 
-	if err := models.DeleteInventory(id); err != nil {
+	if err := models.DeleteInventory(models.DB, id); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
@@ -465,7 +465,7 @@ func GetInventoryTurnover(w http.ResponseWriter, r *http.Request) {
 		groupBy = periodStr
 	}
 	start, end, _ := ParseDateRange(r)
-	data, err := models.GetInventoryTurnover(start, end, groupBy)
+	data, err := models.GetInventoryTurnover(models.DB, start, end, groupBy)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -529,7 +529,7 @@ func GetInventoryTurnoverByProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	start, end, _ := ParseDateRange(r)
 
-	data, err := models.GetInventoryTurnoverByProduct(productID, start, end, groupBy)
+	data, err := models.GetInventoryTurnoverByProduct(models.DB, productID, start, end, groupBy)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -786,12 +786,37 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Start Transaction
+	tx, err := models.DB.Begin()
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to start transaction when creating stock entry",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   "Internal Server Error",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	// Single defer with proper cleanup
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p) // re-panic after rollback
+		}
+	}()
+
 	var invetoryIDS []string
 	for _, warehouse := range req.StoreQuantity {
 		storeID := warehouse.StoreID
 		quantity := warehouse.Quantity
-		inventoryID, err := handleInventoryTracking(req, storeID, quantity)
+		inventoryID, err := handleInventoryTracking(tx, req, storeID, quantity)
 		if err != nil {
+			tx.Rollback()
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Inventory",
@@ -806,8 +831,9 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		invetoryIDS = append(invetoryIDS, inventoryID)
-		batchID, err := handleBatch(req, inventoryID)
+		batchID, err := handleBatch(tx, req, inventoryID)
 		if err != nil {
+			tx.Rollback()
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Inventory",
@@ -821,8 +847,9 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 				RawBody:   requestSummary})
 			return
 		}
-		err = handleInspection(req, batchID)
+		err = handleInspection(tx, req, batchID)
 		if err != nil {
+			tx.Rollback()
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Inventory",
@@ -836,8 +863,9 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 				RawBody:   requestSummary})
 			return
 		}
-		err = handleStoreConditonsAndNotes(req, batchID)
+		err = handleStoreConditonsAndNotes(tx, req, batchID)
 		if err != nil {
+			tx.Rollback()
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Inventory",
@@ -853,7 +881,8 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	//update product buying price and selling price
-	if err := models.UpdateProductPrices(req.ProductID, req.BuyingPrice, req.SellingPrice); err != nil {
+	if err := models.UpdateProductPrices(tx, req.ProductID, req.BuyingPrice, req.SellingPrice); err != nil {
+		tx.Rollback()
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
@@ -861,6 +890,22 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Commit Transaction
+	if err := tx.Commit(); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: "Failed to commit transaction when creating stock entry",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   "Internal Server Error",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -898,7 +943,7 @@ func handleImageUpload(r *http.Request, field string) ([]string, error) {
 	}
 	return urls, nil
 }
-func handleInventoryTracking(req *dtos.StockEntryRequest, storeID string, quantity int) (string, error) {
+func handleInventoryTracking(db models.DBExecutor, req *dtos.StockEntryRequest, storeID string, quantity int) (string, error) {
 
 	inventoryData := dtos.InventoryTracking{
 		ProductID:         req.ProductID,
@@ -907,14 +952,14 @@ func handleInventoryTracking(req *dtos.StockEntryRequest, storeID string, quanti
 		StoreID:           storeID,
 		SupplierID:        req.SupplierID}
 	// insert into db
-	inventoryID, err := models.StoreInventoryTracking(inventoryData)
+	inventoryID, err := models.StoreInventoryTracking(db, inventoryData)
 	if err != nil {
 		return "", err
 	}
 	return inventoryID, nil
 }
 
-func handleBatch(req *dtos.StockEntryRequest, inventoryID string) (string, error) {
+func handleBatch(db models.DBExecutor, req *dtos.StockEntryRequest, inventoryID string) (string, error) {
 	//  Store batch details in DB along with urls
 	var images []string
 	if req.BatchImages != nil {
@@ -928,14 +973,14 @@ func handleBatch(req *dtos.StockEntryRequest, inventoryID string) (string, error
 		ExpiryDate:        req.ExpiryDate,
 		ManufacturingDate: req.ManufacturingDate,
 	}
-	batchID, err := models.StoreBatchDetails(batchData)
+	batchID, err := models.StoreBatchDetails(db, batchData)
 	if err != nil {
 		return "", err
 	}
 
 	return batchID, nil
 }
-func handleInspection(req *dtos.StockEntryRequest, batchID string) error {
+func handleInspection(db models.DBExecutor, req *dtos.StockEntryRequest, batchID string) error {
 
 	// Store inspection details in DB
 	var images []string
@@ -950,7 +995,7 @@ func handleInspection(req *dtos.StockEntryRequest, batchID string) error {
 		InspectionNotes: req.InspectionNotes,
 		Images:          images,
 	}
-	err := models.StoreInspectionDetails(inspectionData)
+	err := models.StoreInspectionDetails(db, inspectionData)
 	if err != nil {
 		return err
 	}
@@ -958,14 +1003,14 @@ func handleInspection(req *dtos.StockEntryRequest, batchID string) error {
 	return nil
 }
 
-func handleStoreConditonsAndNotes(req *dtos.StockEntryRequest, batchID string) error {
+func handleStoreConditonsAndNotes(db models.DBExecutor, req *dtos.StockEntryRequest, batchID string) error {
 	conditionData := dtos.InventoryCondition{
 		BatchID:       batchID,
 		ConditionID:   req.ConditionID,
 		HandlingNotes: req.HandlingNotes,
 	}
 	// Update inventory quantity
-	err := models.StoreHandlingNotes(conditionData)
+	err := models.StoreHandlingNotes(db, conditionData)
 	if err != nil {
 		return err
 	}
@@ -1016,7 +1061,7 @@ func GetInventoryStockSummary(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["inventory_id"]
 	//add filter by store id
 	storeID := r.URL.Query().Get("store_id")
-	inv, err := models.GetInventoryStockSummary(id, storeID)
+	inv, err := models.GetInventoryStockSummary(models.DB, id, storeID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1057,7 +1102,7 @@ func GetInventoryStockHistory(w http.ResponseWriter, r *http.Request) {
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	id := mux.Vars(r)["inventory_id"]
 	//add filter by store id
-	inv, pagination, err := models.GetInventoryStockHistory(id, page, size)
+	inv, pagination, err := models.GetInventoryStockHistory(models.DB, id, page, size)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

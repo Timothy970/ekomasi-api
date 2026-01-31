@@ -37,13 +37,13 @@ var fetchwishlist = "wishlist_id = ?"
 // Returns:
 //   - *dtos.Wishlist: The created wishlist with ID, name, and visibility
 //   - error: Database error or nil on success
-func CreateWishList(body dtos.CreateWishlist, userID string) (*dtos.Wishlist, error) {
+func CreateWishList(db DBExecutor, body dtos.CreateWishlist, userID string) (*dtos.Wishlist, error) {
 	// Generate unique wishlist ID
 	wishlistID, _ := shortid.Generate()
 
 	// Insert wishlist record
 	query := `INSERT INTO wishlists (wishlist_id, user_id, name, is_public) VALUES (?, ?, ?, ?)`
-	_, err := DB.Exec(query, wishlistID, userID, body.Name, body.IsPublic)
+	_, err := db.Exec(query, wishlistID, userID, body.Name, body.IsPublic)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func CreateWishList(body dtos.CreateWishlist, userID string) (*dtos.Wishlist, er
 //   - []dtos.AllWishlist: Array of wishlists with products
 //   - *dtos.PaginationMeta: Pagination metadata (nil if specific wishlist requested)
 //   - error: "userID is required", "no wishlist found", database error, or nil on success
-func GetAllUserWishList(userID, wishlistID string, limit, page int) ([]dtos.AllWishlist, *dtos.PaginationMeta, error) {
+func GetAllUserWishList(db DBExecutor, userID, wishlistID string, limit, page int) ([]dtos.AllWishlist, *dtos.PaginationMeta, error) {
 	// Validate user ID is provided
 	if userID == "" {
 		return nil, nil, errors.New("userID is required")
@@ -78,7 +78,7 @@ func GetAllUserWishList(userID, wishlistID string, limit, page int) ([]dtos.AllW
 	// Build query based on whether specific wishlist or all wishlists requested
 	query, args := buildWishlistQuery(userID, wishlistID, limit, page)
 
-	rows, err := DB.Query(query, args...)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -93,7 +93,7 @@ func GetAllUserWishList(userID, wishlistID string, limit, page int) ([]dtos.AllW
 		}
 
 		// Fetch products for this wishlist
-		products, err := fetchProductsForWishlist(wishlist.WishlistID)
+		products, err := fetchProductsForWishlist(db, wishlist.WishlistID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -113,7 +113,7 @@ func GetAllUserWishList(userID, wishlistID string, limit, page int) ([]dtos.AllW
 	}
 
 	// Build pagination metadata for all wishlists query
-	meta, err := buildPaginationMeta(userID, limit, page)
+	meta, err := buildPaginationMeta(db, userID, limit, page)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -177,7 +177,7 @@ func scanWishlistRow(rows *sql.Rows) (dtos.AllWishlist, error) {
 // Returns:
 //   - []dtos.Product: Array of products with images
 //   - error: Database error or nil on success
-func fetchProductsForWishlist(wishlistID string) ([]dtos.Product, error) {
+func fetchProductsForWishlist(db DBExecutor, wishlistID string) ([]dtos.Product, error) {
 	// Join wishlist_items with products to get product details
 	query := `
 		SELECT 
@@ -188,7 +188,7 @@ func fetchProductsForWishlist(wishlistID string) ([]dtos.Product, error) {
 		WHERE wi.wishlist_id = ?
 	`
 
-	rows, err := DB.Query(query, wishlistID)
+	rows, err := db.Query(query, wishlistID)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func fetchProductsForWishlist(wishlistID string) ([]dtos.Product, error) {
 		}
 
 		// Fetch product images
-		images, err := fetchProductImages(p.ID)
+		images, err := fetchProductImages(db, p.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -226,10 +226,10 @@ func fetchProductsForWishlist(wishlistID string) ([]dtos.Product, error) {
 // Returns:
 //   - *dtos.PaginationMeta: Pagination metadata (page, size, total, has prev/next)
 //   - error: Database error or nil on success
-func buildPaginationMeta(userID string, limit, page int) (*dtos.PaginationMeta, error) {
+func buildPaginationMeta(db DBExecutor, userID string, limit, page int) (*dtos.PaginationMeta, error) {
 	// Count total wishlists for user
 	var totalItems int
-	err := DB.QueryRow(`SELECT COUNT(*) FROM wishlists WHERE user_id = ?`, userID).Scan(&totalItems)
+	err := db.QueryRow(`SELECT COUNT(*) FROM wishlists WHERE user_id = ?`, userID).Scan(&totalItems)
 	if err != nil {
 		return nil, err
 	}
@@ -258,20 +258,20 @@ func buildPaginationMeta(userID string, limit, page int) (*dtos.PaginationMeta, 
 // Returns:
 //   - string: Wishlist ID (existing or newly created)
 //   - error: Database error or nil on success
-func GetOrCreateWishlist(userID, wishlistName string) (string, error) {
+func GetOrCreateWishlist(db DBExecutor, userID, wishlistName string) (string, error) {
 	// Check if wishlist exists for user
-	exists, err := RecordExists("wishlists", "user_id = ?", userID)
+	exists, err := RecordExists(db, "wishlists", "user_id = ?", userID)
 	if err != nil {
 		return "", err
 	}
 
 	if exists {
 		// Return existing wishlist ID
-		return GetWishlistByUserID(userID)
+		return GetWishlistByUserID(db, userID)
 	}
 
 	// Create new wishlist
-	return CreateNewWishList(wishlistName, userID)
+	return CreateNewWishList(db, wishlistName, userID)
 }
 
 // GetWishlistByUserID retrieves the first wishlist for a user.
@@ -285,11 +285,11 @@ func GetOrCreateWishlist(userID, wishlistName string) (string, error) {
 // Returns:
 //   - string: Wishlist ID
 //   - error: Database error, "no rows" if no wishlist, or nil on success
-func GetWishlistByUserID(userID string) (string, error) {
+func GetWishlistByUserID(db DBExecutor, userID string) (string, error) {
 	var wishlistID string
 	// Get first wishlist for user
 	query := `SELECT wishlist_id FROM wishlists WHERE user_id = ? LIMIT 1`
-	err := DB.QueryRow(query, userID).Scan(&wishlistID)
+	err := db.QueryRow(query, userID).Scan(&wishlistID)
 	if err != nil {
 		return "", err
 	}
@@ -307,13 +307,13 @@ func GetWishlistByUserID(userID string) (string, error) {
 // Returns:
 //   - string: Generated wishlist ID
 //   - error: Database error or nil on success
-func CreateNewWishList(Name, userID string) (string, error) {
+func CreateNewWishList(db DBExecutor, Name, userID string) (string, error) {
 	// Generate unique wishlist ID
 	wishlistID, _ := shortid.Generate()
 
 	// Insert wishlist record (default public)
 	query := `INSERT INTO wishlists (wishlist_id, user_id, name, is_public) VALUES (?, ?, ?, ?)`
-	_, err := DB.Exec(query, wishlistID, userID, Name, 1)
+	_, err := db.Exec(query, wishlistID, userID, Name, 1)
 	if err != nil {
 		return "", err
 	}
@@ -336,15 +336,15 @@ func CreateNewWishList(Name, userID string) (string, error) {
 // Returns:
 //   - error: "product not found", "wishlist not found", "product already in wishlist",
 //     database error, or nil on success
-func CreateWishListItem(wishlistID, productID, userID string) error {
+func CreateWishListItem(db DBExecutor, wishlistID, productID, userID string) error {
 	// Validate product exists
-	err := IsProductThere(productID)
+	err := IsProductThere(db, productID)
 	if err != nil {
 		return err
 	}
 
 	// Validate wishlist exists
-	exists, err := RecordExists("wishlists", fetchwishlist, wishlistID)
+	exists, err := RecordExists(db, "wishlists", fetchwishlist, wishlistID)
 	if err != nil {
 		return err
 	}
@@ -353,7 +353,7 @@ func CreateWishListItem(wishlistID, productID, userID string) error {
 	}
 
 	// Check if product already in wishlist (prevent duplicates)
-	exists, err = RecordExists("wishlist_items", "wishlist_id = ? AND product_id = ?", wishlistID, productID)
+	exists, err = RecordExists(db, "wishlist_items", "wishlist_id = ? AND product_id = ?", wishlistID, productID)
 	if err != nil {
 		return err
 	}
@@ -366,7 +366,7 @@ func CreateWishListItem(wishlistID, productID, userID string) error {
 
 	// Insert wishlist item
 	query := `INSERT INTO wishlist_items (wishlist_item_id, wishlist_id, product_id) VALUES (?, ?, ?)`
-	_, err = DB.Exec(query, itemID, wishlistID, productID)
+	_, err = db.Exec(query, itemID, wishlistID, productID)
 	if err != nil {
 		return err
 	}
@@ -388,9 +388,9 @@ func CreateWishListItem(wishlistID, productID, userID string) error {
 // Returns:
 //   - error: "product not found", "wishlist not found", "product not in wishlist",
 //     database error, or nil on success
-func RemoveWishlistItem(wishlistID, productID, userID string) error {
+func RemoveWishlistItem(db DBExecutor, wishlistID, productID, userID string) error {
 	// Validate product exists
-	exists, err := RecordExists("products", "product_id = ?", productID)
+	exists, err := RecordExists(db, "products", "product_id = ?", productID)
 	if err != nil {
 		return err
 	}
@@ -399,7 +399,7 @@ func RemoveWishlistItem(wishlistID, productID, userID string) error {
 	}
 
 	// Validate wishlist exists
-	exists, err = RecordExists("wishlists", fetchwishlist, wishlistID)
+	exists, err = RecordExists(db, "wishlists", fetchwishlist, wishlistID)
 	if err != nil {
 		return err
 	}
@@ -408,7 +408,7 @@ func RemoveWishlistItem(wishlistID, productID, userID string) error {
 	}
 
 	// Validate product is in wishlist
-	exists, err = RecordExists("wishlist_items", "wishlist_id = ? AND product_id = ?", wishlistID, productID)
+	exists, err = RecordExists(db, "wishlist_items", "wishlist_id = ? AND product_id = ?", wishlistID, productID)
 	if err != nil {
 		return err
 	}
@@ -418,7 +418,7 @@ func RemoveWishlistItem(wishlistID, productID, userID string) error {
 
 	// Remove wishlist item
 	query := `DELETE FROM wishlist_items WHERE product_id = ?`
-	_, err = DB.Exec(query, productID)
+	_, err = db.Exec(query, productID)
 	if err != nil {
 		return err
 	}
@@ -436,10 +436,10 @@ func RemoveWishlistItem(wishlistID, productID, userID string) error {
 // Returns:
 //   - []dtos.AllWishlist: Array containing the wishlist (single element), or nil if not found
 //   - error: Database error or nil on success
-func GetWishlistByID(wishlistID string) ([]dtos.AllWishlist, error) {
+func GetWishlistByID(db DBExecutor, wishlistID string) ([]dtos.AllWishlist, error) {
 	// Retrieve wishlist by ID
 	query := `SELECT wishlist_id, name, is_public FROM wishlists WHERE wishlist_id = ?`
-	rows, err := DB.Query(query, wishlistID)
+	rows, err := db.Query(query, wishlistID)
 	if err != nil {
 		return nil, err
 	}
@@ -461,7 +461,7 @@ func GetWishlistByID(wishlistID string) ([]dtos.AllWishlist, error) {
 			JOIN products p ON wi.product_id = p.product_id
 			WHERE wi.wishlist_id = ?
 		`
-		productRows, err := DB.Query(productQuery, w.WishlistID)
+		productRows, err := db.Query(productQuery, w.WishlistID)
 		if err != nil {
 			return nil, err
 		}
@@ -500,9 +500,9 @@ func GetWishlistByID(wishlistID string) ([]dtos.AllWishlist, error) {
 //
 // Returns:
 //   - error: "wishlist not found", database error, or nil on success
-func DeleteWishList(wishlistID, userID string) error {
+func DeleteWishList(db DBExecutor, wishlistID, userID string) error {
 	// Validate wishlist exists
-	exists, err := RecordExists("wishlists", fetchwishlist, wishlistID)
+	exists, err := RecordExists(db, "wishlists", fetchwishlist, wishlistID)
 	if err != nil {
 		return err
 	}
@@ -511,7 +511,7 @@ func DeleteWishList(wishlistID, userID string) error {
 	}
 
 	// Delete wishlist (cascade should remove wishlist_items)
-	_, err = DB.Exec("DELETE FROM wishlists WHERE wishlist_id = ? AND user_id = ?", wishlistID, userID)
+	_, err = db.Exec("DELETE FROM wishlists WHERE wishlist_id = ? AND user_id = ?", wishlistID, userID)
 	return err
 }
 
@@ -524,7 +524,7 @@ func DeleteWishList(wishlistID, userID string) error {
 // Returns:
 //   - int64: Number of rows affected (categories updated)
 //   - error: Database error or nil on success
-func UpdateImageURLs() (int64, error) {
+func UpdateImageURLs(db DBExecutor) (int64, error) {
 	// Batch update category image URLs
 	query := `
         UPDATE categories
@@ -535,7 +535,7 @@ func UpdateImageURLs() (int64, error) {
         )
         WHERE image LIKE 'https://storage.googleapis.com/m_tickets%';`
 
-	res, err := DB.Exec(query)
+	res, err := db.Exec(query)
 	if err != nil {
 		return 0, err
 	}
@@ -561,14 +561,14 @@ func UpdateImageURLs() (int64, error) {
 // Returns:
 //   - dtos.AllWishlist: Wishlist with products
 //   - error: "no wishlist found for user", database error, or nil on success
-func GetMyWishlistItems(userID string) (dtos.AllWishlist, error) {
+func GetMyWishlistItems(db DBExecutor, userID string) (dtos.AllWishlist, error) {
 	var wishlistID string
 	var Name string
 	var IsPublic bool
 
 	// Get user's first wishlist (users typically have one primary wishlist)
 	query := `SELECT wishlist_id, name, is_public FROM wishlists WHERE user_id = ? LIMIT 1`
-	err := DB.QueryRow(query, userID).Scan(&wishlistID, &Name, &IsPublic)
+	err := db.QueryRow(query, userID).Scan(&wishlistID, &Name, &IsPublic)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -578,7 +578,7 @@ func GetMyWishlistItems(userID string) (dtos.AllWishlist, error) {
 	}
 
 	// Fetch all products in the wishlist
-	products, err := fetchProductsForWishlist(wishlistID)
+	products, err := fetchProductsForWishlist(db, wishlistID)
 	if err != nil {
 		return dtos.AllWishlist{}, err
 	}

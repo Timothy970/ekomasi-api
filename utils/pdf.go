@@ -399,7 +399,7 @@ func GenerateInventoryPDF(inv dtos.SingleInventory) ([]byte, error) {
 	value(inv.SupplierInfo.ContactEmail)
 
 	label("Buying Price:")
-	value(fmt.Sprintf("%.2f", inv.BuyingPrice)) // Purchase cost formatted
+	value(fmt.Sprintf("%.2f", *inv.BuyingPrice)) // Purchase cost formatted
 
 	sectionBox() // Visual separator
 
