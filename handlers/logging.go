@@ -223,7 +223,7 @@ func GetUserLogsByUserID(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["user_id"]
 
 	// Retrieve logs for the specified user from the database
-	logs, meta, err := models.GetUserLogsByUserID(models.DB, userID, page, limit)
+	logs, meta, err := models.GetUserLogsByUserID(models.DB, userID, limit, page)
 	if err != nil {
 		// Return error response if log retrieval fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

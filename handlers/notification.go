@@ -578,7 +578,7 @@ func processSingleOrder(orderID string, emailType string) error {
 	}
 
 	// Step 4: Mark notification as sent in database
-	if err := models.MarkOrderNotificationSent(models.DB, orderID, emailType); err != nil {
+	if err := models.MarkOrderNotificationSent(models.DB, orderID, "sent"); err != nil {
 		// Email sent but failed to update status - return error to retry update
 		// Risk of duplicate email, but better than losing track of sent status
 		log.Printf("ERROR: Email sent for order %s, but failed to mark as 'sent': %v", orderID, err)

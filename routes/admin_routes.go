@@ -226,7 +226,7 @@ func SetupAdminRoutes(api *mux.Router) {
 	admin.Handle("/roles", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateRoleHandler))).Methods("POST")
 	admin.Handle("/roles", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetRolesHandler))).Methods("GET")
 	admin.Handle("/roles/{role_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateRoleHandler))).Methods("PATCH")
-	admin.Handle("roles/{role_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteRoleHandler))).Methods("DELETE")
+	admin.Handle("/roles/{role_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteRoleHandler))).Methods("DELETE")
 
 	// Admin permissions
 	// admin.Handle("/permissions", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreatePermissionHandler))).Methods("POST")

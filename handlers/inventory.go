@@ -802,15 +802,11 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	// Defer rollback
+	// Single defer with proper cleanup
 	defer func() {
-		if r := recover(); r != nil {
+		if p := recover(); p != nil {
 			tx.Rollback()
-		} else if err != nil {
-			// err is not strictly tracked here for the surrounding scope, but we rely on early returns setting err or just rollbacking if function didn't complete
-			// A better pattern is explicit commit at end. If not committed, rollback.
-			// However, since we return on every error, we can just defer Rollback (it does nothing if committed).
-			tx.Rollback()
+			panic(p) // re-panic after rollback
 		}
 	}()
 

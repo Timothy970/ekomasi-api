@@ -273,9 +273,18 @@ func UpdateRoleHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract role ID from URL path
 	params := mux.Vars(r)
 	roleID := params["role_id"]
-
+	permissions := []dtos.AvailablePermission{}
+	for _, key := range req.PermissionKeys {
+		// Find the permission in SupportedPermissions by matching the key
+		for _, supportedPerm := range utils.SupportedPermissions {
+			if strings.EqualFold(supportedPerm.Key, key) {
+				permissions = append(permissions, supportedPerm)
+				break
+			}
+		}
+	}
 	// Update role in database (name and description only)
-	if err := models.UpdateRole(models.DB, req.Name, req.Description, roleID); err != nil {
+	if err := models.UpdateRole(models.DB, *req, permissions, roleID); err != nil {
 		// Update failed (role not found or duplicate name)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

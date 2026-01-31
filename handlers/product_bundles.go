@@ -80,7 +80,7 @@ func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 
-	bundles, pagination, err := models.GetBundleProducts(models.DB, page, limit)
+	bundles, pagination, err := models.GetBundleProducts(models.DB, limit, page)
 	if err != nil {
 		// Return error response if database query fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

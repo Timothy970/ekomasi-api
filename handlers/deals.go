@@ -560,7 +560,7 @@ func parseDealProductRequest(r *http.Request) (*dtos.FlashDealProducts, error) {
 	// Upload to GCS (placeholder)
 	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 	if err != nil {
-		return nil, fmt.Errorf("%s", "Failed to upload image") // Assuming uploadImageError is a constant
+		return nil, fmt.Errorf("%s", "Failed to upload image")
 	}
 
 	products, err := parseProducts(r.FormValue("products"))

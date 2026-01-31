@@ -160,12 +160,10 @@ func CancelRestockNotification(w http.ResponseWriter, r *http.Request) {
 
 	// Extract authenticated user from context for secure cancellation
 	authuser, _ := middleware.UserFromContext(r.Context())
-	// Extract product ID from query parameters (if needed by model)
-	productID := r.URL.Query().Get("product_id")
 
 	// Delete the restock notification from database
 	// Verifies user owns this notification before deletion for security
-	if err := models.DeleteRestockNotification(models.DB, authuser.ID, productID); err != nil {
+	if err := models.DeleteRestockNotification(models.DB, notificationID, authuser.ID); err != nil {
 		// Deletion failed (notification not found or user doesn't own it)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

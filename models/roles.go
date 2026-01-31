@@ -271,21 +271,31 @@ func isRoleThere(db DBExecutor, id string) error {
 	return nil
 }
 
-// UpdateRole updates a role's name and description.
+// UpdateRole updates a role's name, description, and permissions.
 //
 // Parameters:
-//   - name: string - New role name
-//   - newDescription: string - New role description
+//   - req: dtos.RoleRequest - Contains name, description, and permissions
 //   - roleID: string - The role_id to update
 //
 // Returns:
 //   - error: "role not found", database error, or nil on success
-func UpdateRole(db DBExecutor, name, newDescription, roleID string) error {
+func UpdateRole(db DBExecutor, req dtos.RoleRequest, permissions []dtos.AvailablePermission, roleID string) error {
 	// Validate role exists
 	err := isRoleThere(db, roleID)
 	if err != nil {
 		return err
 	}
+
+	// Initiate db transaction
+	dbInterface, ok := db.(DatabaseInterface)
+	if !ok {
+		return errors.New("database does not support transactions")
+	}
+	tx, err := dbInterface.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 
 	// Update role name and description
 	query := `
@@ -293,12 +303,25 @@ func UpdateRole(db DBExecutor, name, newDescription, roleID string) error {
 		SET description = ?, name = ?
 		WHERE role_id = ?
 	`
-	_, err = db.Exec(query, newDescription, name, roleID)
+	_, err = tx.Exec(query, req.Description, req.Name, roleID)
 	if err != nil {
 		return err
 	}
 
-	return err
+	// Delete current permissions
+	deleteQuery := `DELETE FROM role_permissions WHERE role_id = ?`
+	_, err = tx.Exec(deleteQuery, roleID)
+	if err != nil {
+		return err
+	}
+	// Insert new permissions
+	err = processRolePermissions(tx, roleID, permissions)
+	if err != nil {
+		return err
+	}
+
+	// Commit transaction
+	return tx.Commit()
 }
 
 // DeleteRole permanently removes a role from the database.

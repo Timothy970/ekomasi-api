@@ -1,6 +1,9 @@
 package dtos
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type MpesaRequest struct {
 	Phone       string `json:"phone_number" validate:"required"`
@@ -68,7 +71,7 @@ type BuyVoucherData struct {
 
 type VoucherData struct {
 	VoucherID  string    `json:"voucher_id"`
-	Code       string    `json:"code"`
+	Code       string    `json:"code,omitempty"`
 	Amount     float64   `json:"amount"`
 	Balance    float64   `json:"balance"`
 	Status     string    `json:"status"`
@@ -80,7 +83,7 @@ type VoucherData struct {
 }
 type SingleVoucherData struct {
 	VoucherID      string           `json:"voucher_id"`
-	Code           string           `json:"code"`
+	Code           string           `json:"code,omitempty"`
 	Amount         float64          `json:"amount"`
 	Balance        float64          `json:"balance"`
 	Status         string           `json:"status"`
@@ -182,7 +185,7 @@ type VoucherEmailInfo struct {
 
 type VoucherPurchaseData struct {
 	VoucherID    string     `json:"voucher_id"`
-	Code         string     `json:"code"`
+	Code         string     `json:"code,omitempty"`
 	Amount       float64    `json:"amount"`
 	Balance      float64    `json:"balance"`
 	FromName     *string    `json:"from_name"`
@@ -193,6 +196,37 @@ type VoucherPurchaseData struct {
 	DesignURL    *string    `json:"design_url"`
 	CreatedAt    *time.Time `json:"created_at"`
 	DeliveryTime *string    `json:"delivery_time,omitempty"`
+}
+
+func (v VoucherPurchaseData) MarshalJSON() ([]byte, error) {
+	type Alias VoucherPurchaseData
+	return json.Marshal(&struct {
+		Code string `json:"code"`
+		*Alias
+	}{
+		Code:  "*********",
+		Alias: (*Alias)(&v),
+	})
+}
+func (v VoucherData) MarshalJSON() ([]byte, error) {
+	type Alias VoucherData
+	return json.Marshal(&struct {
+		Code string `json:"code"`
+		*Alias
+	}{
+		Code:  "*********",
+		Alias: (*Alias)(&v),
+	})
+}
+func (v SingleVoucherData) MarshalJSON() ([]byte, error) {
+	type Alias SingleVoucherData
+	return json.Marshal(&struct {
+		Code string `json:"code"`
+		*Alias
+	}{
+		Code:  "*********",
+		Alias: (*Alias)(&v),
+	})
 }
 
 type PaymentOption struct {
