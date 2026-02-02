@@ -1284,7 +1284,7 @@ func GetAllVoucherDesigns(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	q := r.URL.Query().Get("q")
 
-	designs, pagination, err := models.GetAllVoucherDesigns(models.DB, page, limit, status, q)
+	designs, pagination, err := models.GetAllVoucherDesigns(models.DB, page, limit, q, status)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
