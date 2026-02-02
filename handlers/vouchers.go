@@ -778,7 +778,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//insert into voucher purchases
-	err = models.InsertIntoVoucherPurchases(tx, *req, voucherID, authuser.ID)
+	err = models.InsertIntoVoucherPurchases(tx, *req, authuser.ID, voucherID)
 	if err != nil {
 		// Purchase recording failed
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
