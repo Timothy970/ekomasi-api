@@ -529,13 +529,8 @@ func handleFileUploads(r *http.Request, productID, fileType string, isPrimary bo
 		// Upload file to Google Cloud Storage
 		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fileHeader})
 		if err != nil {
-			log.Printf("error uploading %s: %v", fileType, err)
-			log.Printf("using hardcoded url")
-			// return nil, fmt.Errorf("failed to upload %s: %w", fileType, err)
+			return nil, fmt.Errorf("failed to upload %s: %w", fileType, err)
 		}
-		// TODO: remove the hardcoded url
-		url = "https://cdn.pixabay.com/photo/2018/05/18/15/30/web-design-3411373_1280.jpg"
-
 		// Insert product image record into database
 		if err := models.InsertProductImage(models.DB, productID, url, fileType, isPrimary); err != nil {
 			return nil, fmt.Errorf("failed to insert %s into DB: %w", fileType, err)
