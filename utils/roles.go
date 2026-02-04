@@ -70,8 +70,8 @@ var SupportedPermissions = []dtos.AvailablePermission{
 	{Category: "Suppliers", Key: "suppliers.delete", Description: "Remove supplier"},
 
 	// SETTINGS
-	{Category: "Settings", Key: "settings.view", Description: "View system settings"},
-	{Category: "Settings", Key: "settings.update", Description: "Modify application settings"},
+	// {Category: "Settings", Key: "settings.view", Description: "View system settings"},
+	// {Category: "Settings", Key: "settings.update", Description: "Modify application settings"},
 
 	// WAREHOUSE
 	{Category: "Warehouse", Key: "warehouse.view", Description: "View warehouse stock and details"},
@@ -80,8 +80,8 @@ var SupportedPermissions = []dtos.AvailablePermission{
 	{Category: "Warehouse", Key: "warehouse.delete", Description: "Delete warehouse"},
 
 	// LOGS & AUDIT
-	{Category: "Logs", Key: "logs.view", Description: "View system or user activity logs"},
-	{Category: "Logs", Key: "logs.export", Description: "Export system logs for analysis"},
+	// {Category: "Logs", Key: "logs.view", Description: "View system or user activity logs"},
+	// {Category: "Logs", Key: "logs.export", Description: "Export system logs for analysis"},
 
 	//ACCOUNTS
 	{Category: "Accounts", Key: "accounts.view", Description: "View account details and balances"},
@@ -90,8 +90,14 @@ var SupportedPermissions = []dtos.AvailablePermission{
 	{Category: "Accounts", Key: "accounts.create", Description: "Create a new account"},
 
 	//PROMOTIONS
-	{Category: "Promotions", Key: "promotions.create", Description: "Create new promotion or discount"},
-	{Category: "Promotions", Key: "promotions.view", Description: "View promotions and discounts"},
-	{Category: "Promotions", Key: "promotions.update", Description: "Edit existing promotions"},
-	{Category: "Promotions", Key: "promotions.delete", Description: "Remove a promotion"},
+	{Category: "Promotions & Vouchers", Key: "promotions.create", Description: "Create new promotion or discount"},
+	{Category: "Promotions & Vouchers", Key: "promotions.view", Description: "View promotions and discounts"},
+	{Category: "Promotions & Vouchers", Key: "promotions.update", Description: "Edit existing promotions"},
+	{Category: "Promotions & Vouchers", Key: "promotions.delete", Description: "Remove a promotion"},
+
+	// CONTENT (Blogs & Static Pages)
+	{Category: "Blogs & Static pages", Key: "content.create", Description: "Create new content"},
+	{Category: "Blogs & Static pages", Key: "content.view", Description: "View content"},
+	{Category: "Blogs & Static pages", Key: "content.update", Description: "Edit existing content"},
+	{Category: "Blogs & Static pages", Key: "content.delete", Description: "Delete content"},
 }
