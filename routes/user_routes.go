@@ -22,6 +22,8 @@ func SetupUserRoutes(api *mux.Router) {
 	user.Handle("/profile/addresses", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserAddress))).Methods("GET")
 	user.Handle("/profile/addresses/{address_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateAddress))).Methods("PATCH")
 	user.Handle("/profile/addresses/{address_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteAddress))).Methods("DELETE")
+	//deactivate user account
+	user.Handle("/deactivate", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeactivateMyAccount))).Methods("DELETE")
 
 	// User recommendations
 	user.Handle("/products/recommendations", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserBasedProductsRecommendations))).Methods("GET")

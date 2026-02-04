@@ -1367,3 +1367,66 @@ func AddSubscriber(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// DeactivateMyAccount deactivates the authenticated user's account.
+//
+// @Summary      Deactivate my account
+// @Description  Deactivate the account of the currently authenticated user.
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        user  body      dtos.RegisterRequest  true  "User Deactivation Details"
+// @Success      201   {object}  map[string]interface{} "Account deactivated successfully"
+// @Failure      400   {object}  map[string]string      "Invalid request payload or missing mandatory fields"
+// @Failure      401   {object}  map[string]string      "Unauthorized"
+// @Failure      500   {object}  map[string]string      "Internal server error"
+// @Router       /api/admin/users [delete]
+func DeactivateMyAccount(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Get request summary for logging
+	requestSummary := utils.GetRequestSummary(r)
+	authUser, ok := middleware.UserFromContext(r.Context())
+	if !ok {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "User not authenticated",
+				Code:        http.StatusUnauthorized,
+			},
+			Message:   "User not authenticated",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	err := models.DeactivateUserByID(models.DB, authUser.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to deactivate user account",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Response
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "User deactivated successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "User deactivated successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
