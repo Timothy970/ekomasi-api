@@ -231,16 +231,16 @@ type UpdateProductFeature struct {
 type ProductSpecification struct {
 	ProductID        string   `json:"product_id" validate:"required"`
 	Age              []string `json:"age" validate:"required,min=1"` //ids of the age variants
-	Brand            string   `json:"brand" validate:"required"`     //brand id for the variant brand
+	Brand            string   `json:"brand"`                         //brand id for the variant brand
 	CategoryID       string   `json:"category_id" validate:"required"`
 	Color            []string `json:"color" validate:"required,min=1"` //color variants ids
-	Dimensions       string   `json:"dimensions" validate:"required"`
-	DiscountType     string   `json:"discount_type" validate:"required"` // type id
-	ExpiryDate       *string  `json:"expiry_date" validate:"required"`
-	ManufacturerDate *string  `json:"manufacture_date" validate:"required"`
+	Dimensions       string   `json:"dimensions"`
+	DiscountType     string   `json:"discount_type"` // type id
+	ExpiryDate       *string  `json:"expiry_date"`
+	ManufacturerDate *string  `json:"manufacture_date"`
 	Manufacturer     string   `json:"manufacturer"`
 	Material         []string `json:"material" validate:"required,min=1"`  //material variant ids
-	Size             []string `json:"size" validate:"required,min=1"`      //size variant ids
+	Size             []string `json:"size"`                                //size variant ids
 	Tax              string   `json:"tax" validate:"required"`             //charge id
 	WarrantyType     string   `json:"warranty_type"`                       //warranty type id
 	WarrantyPeriod   int      `json:"warranty_period" validate:"required"` //in months
@@ -286,6 +286,7 @@ type BulkUploadProduct struct {
 	WarrantyPeriod          *int      `json:"warranty_period"`
 	ExpiryDate              *string   `json:"expiry_date"`
 	ManufacturingDate       *string   `json:"manufacturing_date"`
+	CreatedAt               time.Time `json:"created_at"`
 }
 type VoucherDesign struct {
 	DesignID   string  `json:"design_id"`

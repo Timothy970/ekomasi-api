@@ -20,9 +20,9 @@ type AddProductWarrantiesRequest struct {
 }
 
 type ProductWarranty struct {
-	WarrantyID        string `json:"warranty_id"`
-	WarrantyType      string `json:"warranty_type"`
-	WarrantyPeriod    int    `json:"warranty_period"` // in months
-	ManufacturingDate string `json:"manufacturing_date"`
-	ExpiryDate        string `json:"expiry_date"`
+	WarrantyID        string  `json:"warranty_id"`
+	WarrantyType      string  `json:"warranty_type"`
+	WarrantyPeriod    int     `json:"warranty_period"` // in months
+	ManufacturingDate *string `json:"manufacturing_date"`
+	ExpiryDate        *string `json:"expiry_date"`
 }

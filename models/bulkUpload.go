@@ -69,7 +69,7 @@ func GetBulkUploadProducts(db DBExecutor, startDate, endDate, name string, page,
 	}
 
 	// Select query
-	query := "SELECT id, name, description, sku, price, sub_category_id, stock_quantity, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, buying_price, weight, weight_limit, dimensions, age_range, brand, manufacturer, material, colors, sizes, warranty_period, created_by_id, expiry_date, manufacturing_date FROM bulk_products WHERE 1=1" + conditions + " LIMIT ? OFFSET ?"
+	query := "SELECT id, name, description, sku, price, sub_category_id, stock_quantity, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, buying_price, weight, weight_limit, dimensions, age_range, brand, manufacturer, material, colors, sizes, warranty_period, created_by_id, expiry_date, manufacturing_date, created_at FROM bulk_products WHERE 1=1" + conditions + " LIMIT ? OFFSET ?"
 	queryArgs := append(args, limit, offset)
 	rows, err := db.Query(query, queryArgs...)
 	if err != nil {
@@ -82,7 +82,7 @@ func GetBulkUploadProducts(db DBExecutor, startDate, endDate, name string, page,
 		err := rows.Scan(&product.ProductID, &product.Name, &product.Description, &product.SKU, &product.Price, &product.CategoryID,
 			&product.StockQuantity, &product.Tag, &product.LowStockQuantityWarning, &product.SellWhenOutOfStock, &product.ShowStockQuantity,
 			&product.BuyingPrice, &product.Weight, &product.WeightLimit, &product.Dimensions, &age, &product.Brand, &product.Manufacturer,
-			&material, &colors, &sizes, &product.WarrantyPeriod, &product.CreatedByID, &product.ExpiryDate, &product.ManufacturingDate)
+			&material, &colors, &sizes, &product.WarrantyPeriod, &product.CreatedByID, &product.ExpiryDate, &product.ManufacturingDate, &product.CreatedAt)
 		if err != nil {
 			return products, nil, err
 		}
@@ -123,12 +123,12 @@ func GetBulkProductByID(db DBExecutor, productID string) (dtos.BulkUploadProduct
 		SELECT id, name, description, sku, price, sub_category_id,
 			stock_quantity, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity,
 			buying_price, weight, weight_limit, dimensions, age_range, brand, manufacturer, material, colors, sizes, warranty_period,
-			created_by_id, expiry_date, manufacturing_date
+			created_by_id, expiry_date, manufacturing_date, created_at
 		FROM bulk_products WHERE id = ?
 	`, productID).Scan(&product.ProductID, &product.Name, &product.Description, &product.SKU, &product.Price, &product.CategoryID,
 		&product.StockQuantity, &product.Tag, &product.LowStockQuantityWarning, &product.SellWhenOutOfStock, &product.ShowStockQuantity,
 		&product.BuyingPrice, &product.Weight, &product.WeightLimit, &product.Dimensions, &age, &product.Brand, &product.Manufacturer,
-		&material, &colors, &sizes, &product.WarrantyPeriod, &product.CreatedByID, &product.ExpiryDate, &product.ManufacturingDate)
+		&material, &colors, &sizes, &product.WarrantyPeriod, &product.CreatedByID, &product.ExpiryDate, &product.ManufacturingDate, &product.CreatedAt)
 	if err != nil {
 		return dtos.BulkUploadProduct{}, err
 	}
