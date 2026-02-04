@@ -437,20 +437,29 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 	`
 
 	var (
-		p           dtos.Product
-		detailsData []byte // JSON blob for product details
+		p            dtos.Product
+		detailsData  []byte // JSON blob for product details
+		categotyID   sql.NullString
+		categoryName sql.NullString
 	)
 
 	// Scan basic product data
 	err = db.QueryRow(query, productID).Scan(
-		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &p.CategoryID,
+		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &categotyID,
 		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
-		&p.CategoryName, &p.Tag, &detailsData, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit,
+		&categoryName, &p.Tag, &detailsData, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit,
 	)
 	if err != nil {
 		return nil, err
 	}
 
+	if categotyID.Valid {
+		p.CategoryID = categotyID.String
+	}
+
+	if categoryName.Valid {
+		p.CategoryName = categoryName.String
+	}
 	// Unmarshal JSON details if present
 	if len(detailsData) > 0 {
 		err := json.Unmarshal(detailsData, &p.Details)

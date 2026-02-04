@@ -515,38 +515,22 @@ func GetPromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 
-	var cachedPromotions []dtos.PromotionType
-	var promotions []dtos.PromotionType
-
-	// Try getting from cache
-	_ = utils.GetCache("promotionTypes", &cachedPromotions)
-
-	if cachedPromotions == nil {
-		// Fetch from DB
-		var err error
-		promotions, err = models.GetPromotionsTypes()
-		if err != nil {
-			log.Printf("promotion types error::%s", err)
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Promotions",
-					Description: "Failed to fetch promotion types",
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   "Failed to fetch promotion types",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-
-		// Cache the result
-		_ = utils.SetCache("promotionTypes", promotions)
-	} else {
-		// Use cached data
-		promotions = cachedPromotions
+	promotions, err := models.GetPromotionsTypes()
+	if err != nil {
+		log.Printf("promotion types error::%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Promotions",
+				Description: "Failed to fetch promotion types",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   "Failed to fetch promotion types",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
 	}
 
 	// Respond
@@ -558,6 +542,188 @@ func GetPromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 		},
 		Payload:   promotions,
 		Message:   "Promotion types fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+// CreatePromotionsTypesHandler handles POST /api/promotions/types
+//
+// @Summary      Create promotions types
+// @Description  create promotions types
+// @Tags         Promotions
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Failure      500  {object}  dtos.ErrorResponse
+// @Router       /api/home/promotions/types [post]
+func CreatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Verify user has admin privileges (required for media uploads)
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.create")
+	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
+		return
+	}
+	req, ok := DecodeRequestBody[dtos.PromotionType](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
+		return
+	}
+	err := models.CreatePromotionType(*req)
+	if err != nil {
+		log.Printf("promotion types error::%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Promotions",
+				Description: "Failed to create promotion type",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   "Failed to create promotion type",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Respond
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Promotions",
+			Description: "Promotion type created successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "Promotion type created successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+// EditPromotionsTypesHandler handles PATCH /api/promotions/types/{id}
+//
+// @Summary      Update promotions types
+// @Description  update promotions types
+// @Tags         Promotions
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Failure      500  {object}  dtos.ErrorResponse
+// @Router       /api/home/promotions/types/{id} [patch]
+func UpdatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Verify user has admin privileges (required for media uploads)
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.create")
+	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
+		return
+	}
+	req, ok := DecodeRequestBody[dtos.PromotionType](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
+		return
+	}
+	typeID := mux.Vars(r)["id"]
+	err := models.UpdatePromotionType(typeID, *req)
+	if err != nil {
+		log.Printf("promotion types error::%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Promotions",
+				Description: "Failed to update promotion type",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   "Failed to update promotion type",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Respond
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Promotions",
+			Description: "Promotion type updated successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "Promotion type updated successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+// DeletePromotionsTypesHandler handles DELETE /api/promotions/types/{id}
+//
+// @Summary      Delete promotions types
+// @Description  delete promotions types
+// @Tags         Promotions
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Failure      500  {object}  dtos.ErrorResponse
+// @Router       /api/home/promotions/types/{id} [delete]
+func DeletePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Verify user has admin privileges (required for media uploads)
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.create")
+	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
+		return
+	}
+
+	typeID := mux.Vars(r)["id"]
+	err := models.DeletePromotionType(typeID)
+	if err != nil {
+		log.Printf("promotion types error::%s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Promotions",
+				Description: "Failed to delete promotion type",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   "Failed to delete promotion type",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Respond
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Promotions",
+			Description: "Promotion type deleted successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "Promotion type deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

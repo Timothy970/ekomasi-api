@@ -4,6 +4,7 @@ type VariantRequest struct {
 	VariantType string  `json:"variant_type" validate:"required"`
 	Name        string  `json:"name" validate:"required"`
 	HexCode     *string `json:"hex_code,omitempty"` // only relevant for colors
+	VariantID   string  `json:"variant_id"`
 }
 
 type VariantResponse struct {

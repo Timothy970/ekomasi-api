@@ -238,9 +238,9 @@ type DeliveryFeedback struct {
 
 type PromotionType struct {
 	ID          string `json:"promotion_type_id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Value       string `json:"value"`
+	Name        string `json:"name" validate:"required"`
+	Description string `json:"description" validate:"required"`
+	Value       string `json:"value" validate:"required"`
 }
 type NewPromotion struct {
 	Name            string    `json:"name" validate:"required"`

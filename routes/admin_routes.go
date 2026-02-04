@@ -27,7 +27,7 @@ func SetupAdminRoutes(api *mux.Router) {
 	admin.Handle("/products/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteProductHandler))).Methods("DELETE")
 
 	// Admin product variants
-	admin.HandleFunc("/products/variants/{variant_id}", handlers.UpdateVariant).Methods("PATCH")
+	admin.Handle("/products/variants/{variant_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateVariant))).Methods("PATCH")
 	admin.Handle("/products/variants", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateVariant))).Methods("POST")
 	admin.Handle("/products/variants/{variant_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteVariant))).Methods("DELETE")
 	admin.Handle("/add-products/variants/{variant_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductVariant))).Methods("POST")
@@ -252,4 +252,9 @@ func SetupAdminRoutes(api *mux.Router) {
 	admin.Handle("/payment-options", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListPaymentOptionsHandler))).Methods("GET")
 	admin.Handle(paymentOptionID, middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePaymentOptionHandler))).Methods("PATCH")
 	admin.Handle("/payment-options", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreatePaymentOptionHandler))).Methods("POST")
+
+	//promotion types
+	admin.Handle("/promotions/types", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreatePromotionsTypesHandler))).Methods("POST")
+	admin.Handle("/promotions/types/{id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePromotionsTypesHandler))).Methods("DELETE")
+	admin.Handle("/promotions/types/{id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePromotionsTypesHandler))).Methods("PATCH")
 }

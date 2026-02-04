@@ -94,13 +94,13 @@ func ListVariants(db DBExecutor) ([]dtos.GroupedVariants, error) {
 	rows, err := db.Query(`
         SELECT variant_id, variant_type, name, hex_code
         FROM variants
-        ORDER BY variant_type, name`)
+        ORDER BY lower(variant_type), name`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	// Group variants by type while preserving insertion order
+	// Group variants by type (case-insensitive) while preserving insertion order
 	groupMap := make(map[string][]dtos.VariantResponse)
 	order := []string{} // Track first appearance of each variant type
 
@@ -109,11 +109,13 @@ func ListVariants(db DBExecutor) ([]dtos.GroupedVariants, error) {
 		if err := rows.Scan(&v.VariantID, &v.VariantType, &v.Name, &v.HexCode); err != nil {
 			return nil, err
 		}
+		// Use lowercase variant type as key for case-insensitive grouping
+		key := strings.ToLower(v.VariantType)
 		// Track first occurrence of this variant type
-		if _, exists := groupMap[v.VariantType]; !exists {
-			order = append(order, v.VariantType)
+		if _, exists := groupMap[key]; !exists {
+			order = append(order, key)
 		}
-		groupMap[v.VariantType] = append(groupMap[v.VariantType], v)
+		groupMap[key] = append(groupMap[key], v)
 	}
 
 	// Build grouped slice in deterministic order

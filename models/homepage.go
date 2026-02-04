@@ -878,6 +878,63 @@ func GetPromotionsTypes() ([]dtos.PromotionType, error) {
 	return types, nil
 }
 
+// helper function to check if a record exists
+func isPromotionTypeThere(promotionTypeID string) error {
+	exists, err := RecordExists(DB, "promotion_types", whereID, promotionTypeID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("promotion type does not exist")
+	}
+	return nil
+}
+
+//Create new Promotion type
+// Parameters:
+//   - req: dtos.NewPromotionType containing:
+//   - Name: Promotion type name
+
+// Returns:
+//   - error: Database error if insertion fails
+func CreatePromotionType(req dtos.PromotionType) error {
+	_, err := DB.Exec(`
+		INSERT INTO promotion_types(name, description, value)
+		VALUES (?, ?, ?)
+	`, req.Name, req.Description, req.Value)
+	return err
+}
+
+// UpdatePromotionType updates an existing promotion type.
+//
+// This function updates the name, description, and value of a promotion type.
+func UpdatePromotionType(typeID string, req dtos.PromotionType) error {
+	err := isPromotionTypeThere(typeID)
+	if err != nil {
+		return err
+	}
+	_, err = DB.Exec(`
+		UPDATE promotion_types
+		SET name = ?, description = ?, value = ?
+		WHERE id = ?
+	`, req.Name, req.Description, req.Value, typeID)
+	return err
+}
+
+// DeletePromotionType removes a promotion type from the database.
+//
+// This function deletes a promotion type by its ID.
+func DeletePromotionType(typeID string) error {
+	err := isPromotionTypeThere(typeID)
+	if err != nil {
+		return err
+	}
+	_, err = DB.Exec(`
+		DELETE FROM promotion_types WHERE id = ?
+	`, typeID)
+	return err
+}
+
 // CreateNewPromotion creates a new promotion in the database.
 //
 // This function creates a time-limited promotional campaign with a specific type.

@@ -1686,7 +1686,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product specifications: " + err.Error(),
-				Code:        http.StatusInternalServerError,
+				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
@@ -1704,7 +1704,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product variants: " + err.Error(),
-				Code:        http.StatusInternalServerError,
+				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
@@ -1721,7 +1721,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product warranty: " + err.Error(),
-				Code:        http.StatusInternalServerError,
+				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
@@ -1738,7 +1738,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product tax: " + err.Error(),
-				Code:        http.StatusInternalServerError,
+				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
@@ -1756,7 +1756,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product discount: " + err.Error(),
-				Code:        http.StatusInternalServerError,
+				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
@@ -1820,7 +1820,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update product specifications: " + err.Error(),
-				Code:        http.StatusInternalServerError,
+				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
@@ -1837,7 +1837,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update product variants: " + err.Error(),
-				Code:        http.StatusInternalServerError,
+				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
@@ -1854,7 +1854,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update product warranty: " + err.Error(),
-				Code:        http.StatusInternalServerError,
+				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
@@ -1871,7 +1871,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update product tax: " + err.Error(),
-				Code:        http.StatusInternalServerError,
+				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
@@ -1888,7 +1888,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update product discount: " + err.Error(),
-				Code:        http.StatusInternalServerError,
+				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
@@ -1971,6 +1971,9 @@ func handleProductsVariants(req dtos.ProductSpecification, state string) error {
 	// Loop through each variant group
 	for variantType, variantIDs := range variantGroups {
 		for _, id := range variantIDs {
+			if id == "" {
+				continue
+			}
 			if err := addProductVariantWithHandling(id, variantType, data, noVariantMsg); err != nil {
 				return err
 			}
