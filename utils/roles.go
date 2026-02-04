@@ -100,4 +100,8 @@ var SupportedPermissions = []dtos.AvailablePermission{
 	{Category: "Blogs & Static pages", Key: "content.view", Description: "View content"},
 	{Category: "Blogs & Static pages", Key: "content.update", Description: "Edit existing content"},
 	{Category: "Blogs & Static pages", Key: "content.delete", Description: "Delete content"},
+
+	//POS
+	{Category: "POS", Key: "payments.create", Description: "Initiate new payment"},
+	{Category: "Orders", Key: "orders.create", Description: "Create new order"},
 }
