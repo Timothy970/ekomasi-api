@@ -1223,6 +1223,13 @@ func createOrderAndDelivery(db models.DBExecutor, order *dtos.OrderRequest, stor
 		return "", "", err
 	}
 
+	//if finalAmount is zero, mark order as paid
+	if finalAmount == 0 {
+		if err := models.MarkOrderAsPaid(db, orderID); err != nil {
+			return "", "", err
+		}
+	}
+
 	return orderID, deliveryID, nil
 }
 

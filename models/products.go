@@ -428,7 +428,7 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 	query := `
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag, p.details, dp.discount, dp.discount_type, ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag, p.details, dp.discount, dp.discount_type, ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit, p.product_type
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
 		LEFT JOIN deal_products dp ON p.product_id = dp.product_id
@@ -441,13 +441,14 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 		detailsData  []byte // JSON blob for product details
 		categotyID   sql.NullString
 		categoryName sql.NullString
+		productType  sql.NullString
 	)
 
 	// Scan basic product data
 	err = db.QueryRow(query, productID).Scan(
 		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &categotyID,
 		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
-		&categoryName, &p.Tag, &detailsData, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit,
+		&categoryName, &p.Tag, &detailsData, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit, &productType,
 	)
 	if err != nil {
 		return nil, err
@@ -504,7 +505,128 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 	}
 	p.Tax = &tax
 
+	// Fetch bundle products if this is a bundle
+	if productType.Valid && productType.String == "bundle" {
+		bundleProducts, err := getBundleProducts(db, p.ID)
+		if err != nil {
+			return nil, err
+		}
+		p.BundleProducts = bundleProducts
+	}
+
 	return &p, nil
+}
+
+// getBundleProducts fetches all products that are part of a bundle.
+//
+// This function retrieves products linked to a bundle product through the bundle_products table.
+// Each product is enriched with complete details including images, warranties, features, variants, and tax.
+//
+// Parameters:
+//   - bundleID: string - The product_id of the bundle (from bundle_products.bundle_id)
+//
+// Returns:
+//   - []dtos.Product: Array of products in the bundle with complete details
+//   - error: Database error or nil on success
+func getBundleProducts(db DBExecutor, bundleID string) ([]dtos.Product, error) {
+	// Query to get all products in the bundle
+	query := `
+		SELECT 
+			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, 
+			c.name, p.tag, p.details, dp.discount, dp.discount_type, 
+			ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit
+		FROM bundle_products bp
+		INNER JOIN products p ON bp.product_id = p.product_id
+		LEFT JOIN categories c ON p.category_id = c.category_id
+		LEFT JOIN deal_products dp ON p.product_id = dp.product_id
+		LEFT JOIN product_specifications ps ON p.product_id = ps.product_id
+		WHERE bp.bundle_id = ?
+	`
+
+	rows, err := db.Query(query, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []dtos.Product
+
+	for rows.Next() {
+		var (
+			p            dtos.Product
+			detailsData  []byte
+			categoryID   sql.NullString
+			categoryName sql.NullString
+		)
+
+		// Scan product data
+		err = rows.Scan(
+			&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &categoryID,
+			&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
+			&categoryName, &p.Tag, &detailsData, &p.Discount, &p.DiscountType,
+			&p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if categoryID.Valid {
+			p.CategoryID = categoryID.String
+		}
+		if categoryName.Valid {
+			p.CategoryName = categoryName.String
+		}
+
+		// Unmarshal JSON details if present
+		if len(detailsData) > 0 {
+			err := json.Unmarshal(detailsData, &p.Details)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			p.Details = []string{}
+		}
+
+		// Fetch associated product images
+		images, err := fetchProductImages(db, p.ID)
+		if err != nil {
+			return nil, err
+		}
+		p.Images = images
+
+		// Fetch product warranties
+		warranties, err := FetchProductWarranties(db, p.ID)
+		if err != nil {
+			return nil, err
+		}
+		p.Warranty = &warranties
+
+		// Fetch product features
+		features, err := fetchProductFeatures(db, p.ID)
+		if err != nil {
+			return nil, err
+		}
+		p.Features = features
+
+		// Fetch product variants
+		variants, err := getProductVariants(db, p.ID)
+		if err != nil {
+			return nil, err
+		}
+		p.ProductVariants = variants
+
+		// Fetch tax information
+		tax, err := fetchProductTax(db, p.ID)
+		if err != nil {
+			return nil, err
+		}
+		p.Tax = &tax
+
+		products = append(products, p)
+	}
+
+	return products, nil
 }
 
 // IsSkuThere validates that a SKU does not already exist in the database.

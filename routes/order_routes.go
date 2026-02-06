@@ -19,4 +19,8 @@ func SetupOrderRoutes(api *mux.Router) {
 	order.HandleFunc("/pos/view", handlers.ViewOrderPOS).Methods("GET")
 	order.Handle("/list-orders", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListOrders))).Methods("GET")
 	order.HandleFunc("/guest-orders/{order_id}/{email}/{phone_number}", handlers.ListGuestOrders).Methods("GET")
+	//get rider orders
+	order.Handle("/rider", middleware.AuthenticateToken(http.HandlerFunc(handlers.RiderListOrders))).Methods("GET")
+	// Update order status by rider
+	order.Handle("/rider/status", middleware.AuthenticateToken(http.HandlerFunc(handlers.RiderUpdateOrderStatus))).Methods("PATCH")
 }
