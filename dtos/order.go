@@ -47,6 +47,7 @@ type AdminOrder struct {
 	ItemsCount           int                  `json:"items_count"`
 	Items                []OrderProduct       `json:"items"`
 	User                 *Users               `json:"user"`
+	Rider                *Rider               `json:"rider"`
 }
 type GuestPersonalDetails struct {
 	FirstName string `json:"first_name"`
@@ -62,6 +63,14 @@ type GuestDeliveryAddress struct {
 	State      string `json:"state"`
 	PostalCode string `json:"postal_code"`
 	Country    string `json:"country"`
+}
+
+type Rider struct {
+	UserID    string  `json:"user_id"`
+	FirstName *string `json:"first_name"`
+	LastName  *string `json:"last_name"`
+	Email     *string `json:"email"`
+	Phone     *string `json:"phone"`
 }
 
 type OrderProduct struct {
@@ -226,4 +235,14 @@ type OrderEmailData struct {
 	Discount        float64
 	TotalAmount     float64
 	DeliveryAddress string
+}
+
+type AssignOrderToRiderRequest struct {
+	OrderID string `json:"order_id" validate:"required"`
+	RiderID string `json:"rider_id" validate:"required"`
+}
+
+type UpdateOrderDeliveryStatusRequest struct {
+	OrderID        string `json:"order_id" validate:"required"`
+	DeliveryStatus string `json:"status" validate:"required"`
 }

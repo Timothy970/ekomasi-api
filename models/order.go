@@ -1030,6 +1030,8 @@ type AdminOrderParameters struct {
 	Limit          int
 	StartDate      string
 	EndDate        string
+	Past           string
+	RiderID        string
 }
 
 // ListOrdersByAdmin retrieves paginated orders with advanced filtering for admin dashboards.
@@ -1058,7 +1060,7 @@ type AdminOrderParameters struct {
 //   - Searches across guest details, order IDs, addresses, payment method, user info
 //   - Supports name search in both "first last" and "last first" order
 //   - Uses LIKE queries with wildcards for flexible matching
-func ListOrdersByAdmin(db DBExecutor, params AdminOrderParameters) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
+func ListOrdersByAdmin(db DBExecutor, params AdminOrderParameters, riderID string) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
 	// Calculate pagination offset
 	offset := (params.Page - 1) * params.Limit
 
@@ -1105,17 +1107,22 @@ func ListOrdersByAdmin(db DBExecutor, params AdminOrderParameters) ([]dtos.Admin
 //   - Corresponding query arguments
 //   - Whether users table JOIN is needed (for user search)
 //   - Whether deliveries table JOIN is needed (for delivery search/filter)
+//   - Whether rider_orders table JOIN is needed (for rider filtering)
 //
 // Fields:
 //   - Conditions: []string - Array of WHERE clause fragments (e.g., "o.status LIKE ?")
 //   - Args: []interface{} - Corresponding query arguments
 //   - JoinUsers: bool - true if users table JOIN required
 //   - JoinDeliveries: bool - true if deliveries table JOIN required
+//   - JoinRiderOrders: bool - true if rider_orders table JOIN required
+//   - JoinRiderUsers: bool - true if rider users table JOIN required
 type OrderConditions struct {
-	Conditions     []string
-	Args           []interface{}
-	JoinUsers      bool
-	JoinDeliveries bool
+	Conditions      []string
+	Args            []interface{}
+	JoinUsers       bool
+	JoinDeliveries  bool
+	JoinRiderOrders bool
+	JoinRiderUsers  bool
 }
 
 // calculateTimeRange returns start and end times for predefined time ranges.
@@ -1188,6 +1195,24 @@ func buildAdminOrderConditions(params AdminOrderParameters) OrderConditions {
 	var args []interface{}
 	joinUsers := false
 	joinDeliveries := false
+	// Always join rider tables to include rider info in response
+	joinRiderOrders := true
+	joinRiderUsers := true
+
+	// Filter by rider ID when provided
+	if params.RiderID != "" {
+		conditions = append(conditions, "ro.rider_id = ?")
+		args = append(args, params.RiderID)
+	}
+
+	// Handle "past" parameter for rider orders
+	if params.RiderID != "" && params.Past == "" {
+		// Show only non-delivered/non-completed orders
+		conditions = append(conditions, "o.status NOT IN ('delivered', 'completed')")
+	} else if params.RiderID != "" && params.Past != "" {
+		// Show only delivered/completed orders
+		conditions = append(conditions, "o.status IN ('delivered', 'completed')")
+	}
 
 	// Filter by order status
 	if params.OrderStatus != "" {
@@ -1286,10 +1311,12 @@ func buildAdminOrderConditions(params AdminOrderParameters) OrderConditions {
 	}
 
 	return OrderConditions{
-		Conditions:     conditions,
-		Args:           args,
-		JoinUsers:      joinUsers,
-		JoinDeliveries: joinDeliveries,
+		Conditions:      conditions,
+		Args:            args,
+		JoinUsers:       joinUsers,
+		JoinDeliveries:  joinDeliveries,
+		JoinRiderOrders: joinRiderOrders,
+		JoinRiderUsers:  joinRiderUsers,
 	}
 }
 
@@ -1307,6 +1334,9 @@ func buildAdminOrderConditions(params AdminOrderParameters) OrderConditions {
 func getAdminOrderCount(db DBExecutor, conds OrderConditions) (int, error) {
 	// Build count query with required joins
 	countQuery := "SELECT COUNT(*) FROM orders o"
+	if conds.JoinRiderOrders {
+		countQuery += " LEFT JOIN rider_orders ro ON o.order_id = ro.order_id"
+	}
 	if conds.JoinUsers {
 		countQuery += " LEFT JOIN users u ON u.user_id = o.user_id"
 	}
@@ -1354,9 +1384,24 @@ func buildAdminOrderQuery(conds OrderConditions, limit, offset int) (string, []i
 			o.guest_personal_details,
 			o.created_at,
 			o.is_guest_order,
-			d.delivered_at
+			d.delivered_at,
+			ro.rider_id AS rider_user_id,
+			rider.first_name AS rider_first_name,
+			rider.last_name AS rider_last_name,
+			rider.email AS rider_email,
+			rider.phone_number AS rider_phone
 		FROM orders o
 		LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id`
+
+	// Add rider_orders JOIN if needed
+	if conds.JoinRiderOrders {
+		query += " LEFT JOIN rider_orders ro ON o.order_id = ro.order_id"
+	}
+
+	// Add rider users JOIN if needed
+	if conds.JoinRiderUsers {
+		query += " LEFT JOIN users rider ON ro.rider_id = rider.user_id"
+	}
 
 	// Add users JOIN if needed for search
 	if conds.JoinUsers {
@@ -1431,8 +1476,9 @@ func scanSingleAdminOrder(db DBExecutor, rows *sql.Rows) (dtos.AdminOrder, error
 	var guestAddrStr, guestDetailsStr sql.NullString
 	var userID, deliveryAddressStr sql.NullString
 	var deliveredAt sql.NullTime
+	var riderUserID, riderFirstName, riderLastName, riderEmail, riderPhone sql.NullString
 
-	// Scan all order fields including nullable columns
+	// Scan all order fields including nullable columns and rider details
 	if err := rows.Scan(
 		&userID,
 		&ord.OrderID,
@@ -1450,6 +1496,11 @@ func scanSingleAdminOrder(db DBExecutor, rows *sql.Rows) (dtos.AdminOrder, error
 		&ord.CreatedAt,
 		&ord.IsGuestOrder,
 		&deliveredAt,
+		&riderUserID,
+		&riderFirstName,
+		&riderLastName,
+		&riderEmail,
+		&riderPhone,
 	); err != nil {
 		return ord, err
 	}
@@ -1459,6 +1510,9 @@ func scanSingleAdminOrder(db DBExecutor, rows *sql.Rows) (dtos.AdminOrder, error
 
 	// Parse and set optional fields
 	parseOrderOptionalFields(&ord, guestAddrStr, guestDetailsStr, deliveryAddressStr, deliveredAt)
+
+	// Parse and set rider details
+	parseRiderDetails(&ord, riderUserID, riderFirstName, riderLastName, riderEmail, riderPhone)
 
 	// Enrich with items and user data
 	if err := enrichOrderWithItemsAndUser(db, &ord, userID); err != nil {
@@ -1488,6 +1542,27 @@ func parseOrderOptionalFields(ord *dtos.AdminOrder, guestAddrStr, guestDetailsSt
 	}
 	if deliveredAt.Valid {
 		ord.DeliveredAt = &deliveredAt.Time
+	}
+}
+
+// parseRiderDetails parses rider information and sets the Rider field.
+func parseRiderDetails(ord *dtos.AdminOrder, riderUserID, riderFirstName, riderLastName, riderEmail, riderPhone sql.NullString) {
+	if riderUserID.Valid {
+		ord.Rider = &dtos.Rider{
+			UserID: riderUserID.String,
+		}
+		if riderFirstName.Valid {
+			ord.Rider.FirstName = &riderFirstName.String
+		}
+		if riderLastName.Valid {
+			ord.Rider.LastName = &riderLastName.String
+		}
+		if riderEmail.Valid {
+			ord.Rider.Email = &riderEmail.String
+		}
+		if riderPhone.Valid {
+			ord.Rider.Phone = &riderPhone.String
+		}
 	}
 }
 
@@ -1665,5 +1740,73 @@ func MarkOrderNotificationSent(db DBExecutor, orderID, status string) error {
 func UpdateOrderTotals(db DBExecutor, order *dtos.Order) error {
 	query := `UPDATE orders SET total_amount = ?, total_discount = ? WHERE order_id = ?`
 	_, err := db.Exec(query, order.TotalAmount, order.TotalDiscount, order.OrderID)
+	return err
+}
+
+// Mark order as paid
+// Parameters:
+// - orderID: string - The order to mark as paid
+// Returns:
+// - error: Database error or nil on success
+func MarkOrderAsPaid(db DBExecutor, orderID string) error {
+	query := `UPDATE orders SET payment_status = 'PAID' WHERE order_id = ?`
+	_, err := db.Exec(query, orderID)
+	return err
+}
+
+// Assign order to a rider
+// Parameters:
+// - orderID: string - The order to assign
+// - riderID: string - The rider to assign the order to
+// Returns:
+// - error: Database error or nil on success
+func AssignOrderToRider(db DBExecutor, req dtos.AssignOrderToRiderRequest) error {
+	//check if the rider exists and is active
+	var existingUser string
+	err := db.QueryRow(`SELECT user_id FROM users WHERE user_id = ? AND status = 'active'`, req.RiderID).Scan(&existingUser)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("rider not found or inactive")
+		}
+		return err
+	}
+	//firts check if order exists and is not already assigned
+	var existingRiderID sql.NullString
+	err = db.QueryRow(`SELECT rider_id FROM rider_orders WHERE order_id = ?`, req.OrderID).Scan(&existingRiderID)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	//if order already assigned to a rider, update the assignment
+	if existingRiderID.Valid {
+		_, err = db.Exec(`UPDATE rider_orders SET rider_id = ? WHERE order_id = ?`, req.RiderID, req.OrderID)
+	} else {
+		riderOrderID, _ := shortid.Generate()
+		//if order not assigned, create new assignment
+		_, err = db.Exec(`INSERT INTO rider_orders (rider_order_id, order_id, rider_id) VALUES (?, ?, ?)`, riderOrderID, req.OrderID, req.RiderID)
+	}
+	return err
+}
+
+// Model to update order status(mostly for delivery) by a rider
+// First check if the order is assigned to the rider, then update the delivery status
+// Parameters:
+// - orderID: string - The order to update
+// - riderID: string - The rider updating the status
+// - deliveryStatus: string - The new delivery status
+// Returns:
+// - error: Database error or nil on success
+func UpdateOrderByRider(db DBExecutor, req dtos.UpdateOrderDeliveryStatusRequest, riderID string) error {
+	// Check if the order is assigned to the rider
+	var existingRiderID sql.NullString
+	err := db.QueryRow(`SELECT rider_id FROM rider_orders WHERE order_id = ?`, req.OrderID).Scan(&existingRiderID)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if !existingRiderID.Valid || existingRiderID.String != riderID {
+		return fmt.Errorf("order not assigned to this rider")
+	}
+	// Update the delivery status
+	query := `UPDATE deliveries SET status = ? WHERE order_id = ?`
+	_, err = db.Exec(query, req.DeliveryStatus, req.OrderID)
 	return err
 }

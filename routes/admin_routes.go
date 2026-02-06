@@ -257,4 +257,7 @@ func SetupAdminRoutes(api *mux.Router) {
 	admin.Handle("/promotions/types", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreatePromotionsTypesHandler))).Methods("POST")
 	admin.Handle("/promotions/types/{id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePromotionsTypesHandler))).Methods("DELETE")
 	admin.Handle("/promotions/types/{id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdatePromotionsTypesHandler))).Methods("PATCH")
+
+	// Admin assign order to rider
+	admin.Handle("/orders/assign-rider", middleware.AuthenticateToken(http.HandlerFunc(handlers.RiderAssignOrder))).Methods("POST")
 }

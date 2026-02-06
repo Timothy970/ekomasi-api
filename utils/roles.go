@@ -103,5 +103,9 @@ var SupportedPermissions = []dtos.AvailablePermission{
 
 	//POS
 	{Category: "POS", Key: "payments.create", Description: "Initiate new payment"},
-	{Category: "Orders", Key: "orders.create", Description: "Create new order"},
+	{Category: "POS", Key: "orders.create", Description: "Create new order"},
+
+	//RIDER
+	{Category: "Rider", Key: "orders.view", Description: "View assigned orders"},
+	{Category: "Rider", Key: "orders.update", Description: "Update order status"},
 }

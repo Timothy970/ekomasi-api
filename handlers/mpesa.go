@@ -139,6 +139,11 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		// In development, always simulate the M-Pesa callback instead of calling the real API.
 		go sendCallbackToDevEnv(req.OrderID)
 	} else if req.Amount == 0 {
+		//if the amount is zero, we can skip calling M-Pesa and directly mark the order as paid and send the callback
+		err := models.MarkOrderAsPaid(models.DB, req.OrderID)
+		if err != nil {
+			log.Printf("Failed to mark order as paid: %v", err)
+		}
 		// For zero-amount orders we never call M-Pesa, even in production.
 		// We reuse the simulated callback helper to complete the order flow.
 		go sendCallbackToDevEnv(req.OrderID)

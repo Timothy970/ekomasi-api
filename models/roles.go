@@ -308,6 +308,17 @@ func UpdateRole(db DBExecutor, req dtos.RoleRequest, permissions []dtos.Availabl
 		return err
 	}
 
+	//update role name in users table
+	updateUsersQuery := `
+		UPDATE users
+		SET role = ?
+		WHERE role_id = ?
+	`
+	_, err = tx.Exec(updateUsersQuery, req.Name, roleID)
+	if err != nil {
+		return err
+	}
+
 	// Delete current permissions
 	deleteQuery := `DELETE FROM role_permissions WHERE role_id = ?`
 	_, err = tx.Exec(deleteQuery, roleID)
