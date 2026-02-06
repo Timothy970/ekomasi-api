@@ -1060,7 +1060,7 @@ type AdminOrderParameters struct {
 //   - Searches across guest details, order IDs, addresses, payment method, user info
 //   - Supports name search in both "first last" and "last first" order
 //   - Uses LIKE queries with wildcards for flexible matching
-func ListOrdersByAdmin(db DBExecutor, params AdminOrderParameters, riderID string) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
+func ListOrdersByAdmin(db DBExecutor, params AdminOrderParameters) ([]dtos.AdminOrder, *dtos.PaginationMeta, error) {
 	// Calculate pagination offset
 	offset := (params.Page - 1) * params.Limit
 
@@ -1770,7 +1770,7 @@ func AssignOrderToRider(db DBExecutor, req dtos.AssignOrderToRiderRequest) error
 		}
 		return err
 	}
-	//firts check if order exists and is not already assigned
+	//first check if order exists and is not already assigned
 	var existingRiderID sql.NullString
 	err = db.QueryRow(`SELECT rider_id FROM rider_orders WHERE order_id = ?`, req.OrderID).Scan(&existingRiderID)
 	if err != nil && err != sql.ErrNoRows {

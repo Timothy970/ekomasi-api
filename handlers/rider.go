@@ -73,7 +73,7 @@ func RiderListOrders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch orders based on parameters
-	orders, pagination, err := models.ListOrdersByAdmin(models.DB, params, "")
+	orders, pagination, err := models.ListOrdersByAdmin(models.DB, params)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

@@ -658,7 +658,7 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch orders based on parameters
-	orders, pagination, err := models.ListOrdersByAdmin(models.DB, params, "")
+	orders, pagination, err := models.ListOrdersByAdmin(models.DB, params)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -747,7 +747,7 @@ func StreamOrdersCSV(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for {
-		orders, meta, err := models.ListOrdersByAdmin(models.DB, params, "")
+		orders, meta, err := models.ListOrdersByAdmin(models.DB, params)
 		if err != nil {
 			writeCSVError(w, "Failed to fetch orders: "+err.Error())
 			return
@@ -1305,7 +1305,7 @@ func DownloadOrderInvoicePDF(w http.ResponseWriter, r *http.Request) {
 		Page:    page,
 		Limit:   limit,
 	}
-	orders, _, err := models.ListOrdersByAdmin(models.DB, params, "")
+	orders, _, err := models.ListOrdersByAdmin(models.DB, params)
 	if err != nil {
 		log.Printf("%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
