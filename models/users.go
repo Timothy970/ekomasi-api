@@ -343,20 +343,20 @@ func DeleteUserAddress(db DBExecutor, addressID, userID string) error {
 //   - []dtos.Users: Array of users with addresses, roles, and status
 //   - *dtos.PaginationMeta: Pagination info (page, size, totals, navigation flags)
 //   - error: Database error or nil on success
-func GetAllUsersWithPagination(db DBExecutor, limit, offset int, q, role string) ([]dtos.Users, *dtos.PaginationMeta, error) {
+func GetAllUsersWithPagination(db DBExecutor, limit, offset int, q, role string, isAdmin string) ([]dtos.Users, *dtos.PaginationMeta, error) {
 	// Set default limit
 	if limit <= 0 {
 		limit = 10
 	}
 
 	// Step 1: Count total users matching filters
-	totalItems, err := countUsers(db, q, role)
+	totalItems, err := countUsers(db, q, role, isAdmin)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Step 2: Fetch paginated users
-	users, err := fetchUsers(db, limit, offset, q, role)
+	users, err := fetchUsers(db, limit, offset, q, role, isAdmin)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -375,11 +375,12 @@ func GetAllUsersWithPagination(db DBExecutor, limit, offset int, q, role string)
 // Parameters:
 //   - q: string - Search term for name, email, or phone
 //   - role: string - Role filter
+//   - isAdmin: string - If not empty, excludes customer role
 //
 // Returns:
 //   - int: Total count of matching users
 //   - error: Database error or nil on success
-func countUsers(db DBExecutor, q, role string) (int, error) {
+func countUsers(db DBExecutor, q, role, isAdmin string) (int, error) {
 	query := "SELECT COUNT(*) FROM users"
 	var args []interface{}
 	var conditions []string
@@ -395,6 +396,12 @@ func countUsers(db DBExecutor, q, role string) (int, error) {
 	if role != "" {
 		conditions = append(conditions, `LOWER(role) = ?`)
 		args = append(args, strings.ToLower(role))
+	}
+
+	// Exclude customer role when isAdmin is not empty
+	if isAdmin != "" {
+		conditions = append(conditions, `LOWER(role) != ?`)
+		args = append(args, "customer")
 	}
 
 	// Combine filters with WHERE clause
@@ -420,11 +427,12 @@ func countUsers(db DBExecutor, q, role string) (int, error) {
 //   - offset: int - Number of users to skip
 //   - q: string - Search term
 //   - role: string - Role filter
+//   - isAdmin: string - If not empty, excludes customer role
 //
 // Returns:
 //   - []dtos.Users: Array of users (without addresses populated)
 //   - error: Database error or nil on success
-func fetchUsers(db DBExecutor, limit, offset int, q, role string) ([]dtos.Users, error) {
+func fetchUsers(db DBExecutor, limit, offset int, q, role, isAdmin string) ([]dtos.Users, error) {
 	query := `
 		SELECT user_id, first_name, last_name, email, role, phone_number, last_login, created_at, status
 		FROM users
@@ -444,6 +452,12 @@ func fetchUsers(db DBExecutor, limit, offset int, q, role string) ([]dtos.Users,
 	if role != "" {
 		conditions = append(conditions, `LOWER(role) = ?`)
 		args = append(args, strings.ToLower(role))
+	}
+
+	// Exclude customer role when isAdmin is not empty
+	if isAdmin != "" {
+		conditions = append(conditions, `LOWER(role) != ?`)
+		args = append(args, "customer")
 	}
 
 	// Combine conditions
