@@ -157,9 +157,10 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	role := r.URL.Query().Get("role")
 	offset := (page - 1) * limit
+	isAdmin := r.URL.Query().Get("isAdmin")
 
 	// Fetch users from database with pagination and filters
-	users, meta, err := models.GetAllUsersWithPagination(models.DB, limit, offset, q, role)
+	users, meta, err := models.GetAllUsersWithPagination(models.DB, limit, offset, q, role, isAdmin)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
