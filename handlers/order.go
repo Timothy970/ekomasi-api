@@ -642,6 +642,7 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 	timeRange := r.URL.Query().Get("time_range")
 	orderID := r.URL.Query().Get("order_id")
 	q := r.URL.Query().Get("q")
+	userID := r.URL.Query().Get("user_id")
 
 	params := models.AdminOrderParameters{
 		OrderStatus:    orderStatus,
@@ -655,6 +656,7 @@ func AdminListOrders(w http.ResponseWriter, r *http.Request) {
 		Limit:          limit,
 		StartDate:      startDate,
 		EndDate:        endDate,
+		UserID:         userID,
 	}
 
 	// Fetch orders based on parameters

@@ -1032,6 +1032,7 @@ type AdminOrderParameters struct {
 	EndDate        string
 	Past           string
 	RiderID        string
+	UserID         string
 }
 
 // ListOrdersByAdmin retrieves paginated orders with advanced filtering for admin dashboards.
@@ -1212,6 +1213,13 @@ func buildAdminOrderConditions(params AdminOrderParameters) OrderConditions {
 	} else if params.RiderID != "" && params.Past != "" {
 		// Show only delivered/completed orders
 		conditions = append(conditions, "o.status IN ('delivered', 'completed')")
+	}
+
+	// Filter by user ID when provided
+	if params.UserID != "" {
+		joinUsers = true
+		conditions = append(conditions, "o.user_id = ?")
+		args = append(args, params.UserID)
 	}
 
 	// Filter by order status
