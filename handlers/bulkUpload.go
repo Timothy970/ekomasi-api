@@ -648,7 +648,7 @@ func DeleteBulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Get bulk product ID from URL path
-	bulkProductID := mux.Vars(r)["product_id"]
+	bulkProductID := mux.Vars(r)["bulk_product_id"]
 	err := models.DeleteBulkProductByID(models.DB, bulkProductID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

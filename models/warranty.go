@@ -33,7 +33,7 @@ import (
 //   - error: Database error or nil on success
 func CreateWarrantType(db DBExecutor, wt dtos.CreateWarrantyTypeRequest) error {
 	//validate warranty type with the same name is not already there
-	err := isWarrantyTypeNameUnique(db, wt.Name)
+	err := isWarrantyTypeNameUnique(db, wt.Name, "")
 	if err != nil {
 		return err
 	}
@@ -49,9 +49,19 @@ func CreateWarrantType(db DBExecutor, wt dtos.CreateWarrantyTypeRequest) error {
 // helper function to validate that a warranty type with the same name does not already exist
 // parameters - name: the warranty type name to validate
 // returns - error if a warranty type with the same name already exists, nil otherwise
-func isWarrantyTypeNameUnique(db DBExecutor, name string) error {
+func isWarrantyTypeNameUnique(db DBExecutor, name string, warrantyID string) error {
+	// Build condition to check warranty type name uniqueness
+	condition := "LOWER(name) = LOWER(?)"
+	args := []interface{}{strings.ToLower(name)}
+
+	// Exclude current record if warrantyID is provided (for updates)
+	if warrantyID != "" {
+		condition += " AND warranty_type_id != ?"
+		args = append(args, warrantyID)
+	}
+
 	// Check if warranty type with the same name already exists
-	exists, err := RecordExists(db, "warranty_types", "LOWER(name) = LOWER(?)", strings.ToLower(name))
+	exists, err := RecordExists(db, "warranty_types", condition, args...)
 	if err != nil {
 		return err
 	}
@@ -133,7 +143,7 @@ func UpdateWarrantType(db DBExecutor, warrantyID string, wt dtos.WarrantyType) e
 		return err
 	}
 	// Validate warranty type name uniqueness (if name is being updated)
-	err := isWarrantyTypeNameUnique(db, wt.Name)
+	err := isWarrantyTypeNameUnique(db, wt.Name, warrantyID)
 	if err != nil {
 		return err
 	}
