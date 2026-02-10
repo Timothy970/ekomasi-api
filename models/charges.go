@@ -13,6 +13,7 @@ import (
 	"adenzo_backend/dtos"
 	"database/sql"
 	"errors"
+	"strconv"
 
 	"github.com/teris-io/shortid"
 )
@@ -54,11 +55,16 @@ func isChargeThere(db DBExecutor, id string) error {
 //   - *dtos.Charge: Pointer to created charge with generated charge_id
 //   - error: Database error if insertion fails
 func AddCharge(db DBExecutor, input dtos.Charge) (*dtos.Charge, error) {
+	//validate charge with that name or value is not already there
+	err := validateCharge(db, input.Type, input.Value)
+	if err != nil {
+		return nil, err
+	}
 	// Generate unique charge ID using shortid for user-friendly identifiers
 	chargeID, _ := shortid.Generate()
 
 	// Insert new charge into database
-	_, err := db.Exec(`
+	_, err = db.Exec(`
 		INSERT INTO charges (charge_id, charge_name, charge_value)
 		VALUES (?, ?, ?)`,
 		chargeID, input.Type, input.Value,
@@ -73,6 +79,32 @@ func AddCharge(db DBExecutor, input dtos.Charge) (*dtos.Charge, error) {
 		Type:  input.Type,
 		Value: input.Value,
 	}, nil
+}
+
+// helper function to validate that a charge with the same name or value does not already exist
+// parameters - name: the charge name to validate
+//
+//	value: the charge value to validate
+//
+// returns - error if a charge with the same name or value already exists, nil otherwise
+func validateCharge(db DBExecutor, name string, value float64) error {
+	// Check if charge with the same name already exists
+	exists, err := RecordExists(db, "charges", "charge_name = ?", name)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("charge with name " + name + " already exists")
+	}
+	// Check if charge with the same value already exists
+	exists, err = RecordExists(db, "charges", "charge_value = ?", value)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("charge with value " + strconv.FormatFloat(value, 'f', -1, 64) + " already exists")
+	}
+	return nil
 }
 
 // UpdateCharge updates an existing charge's name and value.
@@ -95,7 +127,11 @@ func UpdateCharge(db DBExecutor, id string, input dtos.Charge) (*dtos.Charge, er
 	if err != nil {
 		return nil, err
 	}
-
+	//validate charge with that name or value is not already there
+	err = validateCharge(db, input.Type, input.Value)
+	if err != nil {
+		return nil, err
+	}
 	// Update charge name and value
 	_, err = db.Exec(`
 		UPDATE charges

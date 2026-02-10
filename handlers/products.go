@@ -275,7 +275,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	fileTypes := []string{"gallery", "thumbnail", "video"}
 	// Check and upload files for each type
 	for _, fileType := range fileTypes {
-		results, err := handleFileUploads(r, productID, fileType, isPrimary)
+		results, err := handleFileUploads(models.DB, r, productID, fileType, isPrimary)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
@@ -396,7 +396,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch existing media to delete later
+	// Fetch existing media to keep URLs that aren't being updated
 	existingMedia, err := models.GetProductImages(models.DB, productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -414,6 +414,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var uploadedResults []map[string]string
+	mediaToDelete := make(map[string]bool) // Track which media IDs to delete
 
 	// Handle optional video link
 	if videoLink != "" {
@@ -432,28 +433,64 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		// Mark existing video links for deletion
+		for _, media := range existingMedia {
+			if media.Type == "video" {
+				mediaToDelete[media.ImageID] = true
+			}
+		}
 	}
 
 	fileTypes := []string{"gallery", "thumbnail", "video"}
 	// Check and upload files for each type
 	for _, fileType := range fileTypes {
-		results, err := handleFileUploads(r, productID, fileType, isPrimary)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: "Failed to upload " + fileType + " for product ID " + productID,
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
+		// Check if actual files were uploaded
+		if r.MultipartForm != nil && len(r.MultipartForm.File[fileType]) > 0 {
+			results, err := handleFileUploads(models.DB, r, productID, fileType, isPrimary)
+			if err != nil {
+				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+					CollectiveInfo: utils.CollectiveInfo{
+						Module:      "Products",
+						Description: "Failed to upload " + fileType + " for product ID " + productID,
+						Code:        http.StatusInternalServerError,
+					},
+					Message:   err.Error(),
+					TimeTaken: time.Since(start),
+					Function:  utils.GetCurrentFuncName(),
+					Request:   r,
+					RawBody:   requestSummary,
+				})
+				return
+			}
+			uploadedResults = append(uploadedResults, results...)
+			// Mark existing media of this type for deletion since new files uploaded
+			for _, media := range existingMedia {
+				if media.Type == fileType {
+					mediaToDelete[media.ImageID] = true
+				}
+			}
+		} else if len(r.Form[fileType]) > 0 {
+			// URL strings were passed as form values (not files) - keep existing media
+			log.Printf("URL values passed for %s, keeping existing media", fileType)
+			for _, media := range existingMedia {
+				if media.Type == fileType {
+					uploadedResults = append(uploadedResults, map[string]string{
+						"type": fileType,
+						"url":  media.URL,
+					})
+				}
+			}
+		} else {
+			// No files and no form values - keep existing media for this type
+			for _, media := range existingMedia {
+				if media.Type == fileType {
+					uploadedResults = append(uploadedResults, map[string]string{
+						"type": fileType,
+						"url":  media.URL,
+					})
+				}
+			}
 		}
-		uploadedResults = append(uploadedResults, results...)
 	}
 
 	// Ensure at least one file or link was processed
@@ -474,23 +511,25 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clearProductCache()
-	// Delete old media
+	// Delete only the media marked for deletion
 	for _, media := range existingMedia {
-		err := models.DeleteProductImage(models.DB, media.ImageID)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: "Failed to delete existing media for product ID " + productID,
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
+		if mediaToDelete[media.ImageID] {
+			err := models.DeleteProductImage(models.DB, media.ImageID)
+			if err != nil {
+				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+					CollectiveInfo: utils.CollectiveInfo{
+						Module:      "Products",
+						Description: "Failed to delete existing media for product ID " + productID,
+						Code:        http.StatusInternalServerError,
+					},
+					Message:   err.Error(),
+					TimeTaken: time.Since(start),
+					Function:  utils.GetCurrentFuncName(),
+					Request:   r,
+					RawBody:   requestSummary,
+				})
+				return
+			}
 		}
 	}
 
@@ -513,7 +552,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 // handleFileUploads processes file uploads for a specific file type (gallery, thumbnail, video).
 // It uploads files to Google Cloud Storage and inserts records into the database.
 // Returns a list of uploaded file metadata or an error if any upload fails.
-func handleFileUploads(r *http.Request, productID, fileType string, isPrimary bool) ([]map[string]string, error) {
+func handleFileUploads(db models.DBExecutor, r *http.Request, productID, fileType string, isPrimary bool) ([]map[string]string, error) {
 	// Extract files for the specified type from multipart form
 	formFiles := r.MultipartForm.File[fileType]
 	if len(formFiles) == 0 {
@@ -532,7 +571,7 @@ func handleFileUploads(r *http.Request, productID, fileType string, isPrimary bo
 			return nil, fmt.Errorf("failed to upload %s: %w", fileType, err)
 		}
 		// Insert product image record into database
-		if err := models.InsertProductImage(models.DB, productID, url, fileType, isPrimary); err != nil {
+		if err := models.InsertProductImage(db, productID, url, fileType, isPrimary); err != nil {
 			return nil, fmt.Errorf("failed to insert %s into DB: %w", fileType, err)
 		}
 
@@ -1675,7 +1714,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//handle products specifications
-	err := handleProductSpecs(*req, state)
+	err := handleProductSpecs(models.DB, *req, state)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1691,7 +1730,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//handle products variants
-	err = handleProductsVariants(*req, state)
+	err = handleProductsVariants(models.DB, *req, state)
 	log.Printf("handleProductsVariants ***** %s", err)
 
 	if err != nil {
@@ -1709,7 +1748,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//handle product warranty
-	err = handleProductsWarranty(*req)
+	err = handleProductsWarranty(models.DB, *req)
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1809,7 +1848,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//handle products specifications
-	err := handleProductSpecs(*req, state)
+	err := handleProductSpecs(models.DB, *req, state)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1825,7 +1864,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//handle products variants
-	err = handleProductsVariants(*req, state)
+	err = handleProductsVariants(models.DB, *req, state)
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1842,7 +1881,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//handle product warranty
-	err = handleProductsWarranty(*req)
+	err = handleProductsWarranty(models.DB, *req)
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1907,7 +1946,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func handleProductSpecs(req dtos.ProductSpecification, state string) error {
+func handleProductSpecs(db models.DBExecutor, req dtos.ProductSpecification, state string) error {
 	data := dtos.ProductSpecs{
 		ProductID:    req.ProductID,
 		Weight:       req.Weight,
@@ -1919,19 +1958,19 @@ func handleProductSpecs(req dtos.ProductSpecification, state string) error {
 	specs := []string{}
 	var err error
 	if state == "update" {
-		specs, err = models.HoldProductSpecs(models.DB, req.ProductID)
+		specs, err = models.HoldProductSpecs(db, req.ProductID)
 		if err != nil {
 			return err
 		}
 	}
-	err = models.InsertProductSpecs(models.DB, data)
+	err = models.InsertProductSpecs(db, data)
 	if err != nil {
 		return err
 	}
 	//if updating remove held specs
 	if state == "update" {
 		for _, specID := range specs {
-			err := models.RemoveHeldProductSpecs(models.DB, specID)
+			err := models.RemoveHeldProductSpecs(db, specID)
 			if err != nil {
 				return err
 			}
@@ -1940,7 +1979,7 @@ func handleProductSpecs(req dtos.ProductSpecification, state string) error {
 
 	return nil
 }
-func handleProductsVariants(req dtos.ProductSpecification, state string) error {
+func handleProductsVariants(db models.DBExecutor, req dtos.ProductSpecification, state string) error {
 	data := dtos.ProductVariantRequest{
 		ProductID: req.ProductID,
 	}
@@ -1958,7 +1997,7 @@ func handleProductsVariants(req dtos.ProductSpecification, state string) error {
 	var variantIDsExisting []string
 	var err error
 	if state == "update" {
-		variantIDsExisting, err = models.HoldProductVariants(models.DB, req.ProductID)
+		variantIDsExisting, err = models.HoldProductVariants(db, req.ProductID)
 		if err != nil {
 			return err
 		}
@@ -1969,7 +2008,7 @@ func handleProductsVariants(req dtos.ProductSpecification, state string) error {
 			if id == "" {
 				continue
 			}
-			if err := addProductVariantWithHandling(id, variantType, data, noVariantMsg); err != nil {
+			if err := addProductVariantWithHandling(db, id, variantType, data, noVariantMsg); err != nil {
 				return err
 			}
 		}
@@ -1977,7 +2016,7 @@ func handleProductsVariants(req dtos.ProductSpecification, state string) error {
 	// If updating, remove held variants
 	if state == "update" {
 		for _, variantID := range variantIDsExisting {
-			err := models.RemoveHeldProductVariants(models.DB, variantID)
+			err := models.RemoveHeldProductVariants(db, variantID)
 			if err != nil {
 				return err
 			}
@@ -1993,8 +2032,8 @@ func toSlice(value string) []string {
 	return []string{value}
 }
 
-func addProductVariantWithHandling(variantID, variantType string, data dtos.ProductVariantRequest, notFoundMsg string) error {
-	err := models.AddProductVariant(models.DB, variantID, data)
+func addProductVariantWithHandling(db models.DBExecutor, variantID, variantType string, data dtos.ProductVariantRequest, notFoundMsg string) error {
+	err := models.AddProductVariant(db, variantID, data)
 	if err == nil {
 		return nil
 	}
@@ -2006,7 +2045,7 @@ func addProductVariantWithHandling(variantID, variantType string, data dtos.Prod
 
 // handleProductsWarranty creates or updates warranty information for a product.
 // It takes product specification data and creates a warranty record in the database.
-func handleProductsWarranty(req dtos.ProductSpecification) error {
+func handleProductsWarranty(db models.DBExecutor, req dtos.ProductSpecification) error {
 	// Build warranty data transfer object from product specification
 	data := dtos.AddProductWarrantiesRequest{
 		ProductID:         req.ProductID,        // Product identifier
@@ -2017,7 +2056,7 @@ func handleProductsWarranty(req dtos.ProductSpecification) error {
 	}
 
 	// Insert warranty record into database
-	err := models.AddProductWarranties(models.DB, data)
+	err := models.AddProductWarranties(db, data)
 	return err
 }
 

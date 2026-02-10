@@ -38,16 +38,40 @@ import (
 //   - string: Generated variant ID
 //   - error: Database error or nil on success
 func CreateVariant(db DBExecutor, req dtos.VariantRequest) (string, error) {
+	//validate name of that variant type is not already there
+	err := validateVariantName(db, req.VariantType, req.Name)
+	if err != nil {
+		return "", err
+	}
 	// Generate unique variant ID
 	id, _ := shortid.Generate()
 
 	// Insert variant record
-	_, err := db.Exec(`
+	_, err = db.Exec(`
         INSERT INTO variants (variant_id, variant_type, name, hex_code)
         VALUES (?, ?, ?, ?)`,
 		id, req.VariantType, req.Name, req.HexCode,
 	)
 	return id, err
+}
+
+// helper function to validate if a variant name already exists for a given variant type
+// parameters:
+//   - variantType: string - The type of the variant (e.g., "color", "size")
+//   - name: string - The name of the variant to validate
+//
+// returns:
+//   - error: "variant name already exists for this variant type", database error, or nil if valid
+func validateVariantName(db DBExecutor, variantType, name string) error {
+
+	exists, err := RecordExists(db, "variants", "LOWER(variant_type) = LOWER(?) AND LOWER(name) = LOWER(?)", strings.ToLower(variantType), strings.ToLower(name))
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("variant with this name already exists")
+	}
+	return nil
 }
 
 // GetVariant retrieves a specific variant by ID.
@@ -161,6 +185,11 @@ func variantexists(db DBExecutor, id string) error {
 func UpdateVariantByID(db DBExecutor, id string, req dtos.VariantRequest) error {
 	// Validate variant exists
 	err := variantexists(db, id)
+	if err != nil {
+		return err
+	}
+	//validate name of that variant type is not already there
+	err = validateVariantName(db, req.VariantType, req.Name)
 	if err != nil {
 		return err
 	}
