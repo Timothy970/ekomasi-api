@@ -14,6 +14,7 @@ import (
 	"adenzo_backend/dtos"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/teris-io/shortid"
 )
@@ -31,13 +32,33 @@ import (
 // Returns:
 //   - error: Database error or nil on success
 func CreateWarrantType(db DBExecutor, wt dtos.CreateWarrantyTypeRequest) error {
+	//validate warranty type with the same name is not already there
+	err := isWarrantyTypeNameUnique(db, wt.Name)
+	if err != nil {
+		return err
+	}
 	// Generate unique warranty type ID
 	warrantyID, _ := shortid.Generate()
 
 	// Insert warranty type record
 	query := `INSERT INTO warranty_types (warranty_type_id, name, description) VALUES (?, ?, ?)`
-	_, err := db.Exec(query, warrantyID, wt.Name, wt.Description)
+	_, err = db.Exec(query, warrantyID, wt.Name, wt.Description)
 	return err
+}
+
+// helper function to validate that a warranty type with the same name does not already exist
+// parameters - name: the warranty type name to validate
+// returns - error if a warranty type with the same name already exists, nil otherwise
+func isWarrantyTypeNameUnique(db DBExecutor, name string) error {
+	// Check if warranty type with the same name already exists
+	exists, err := RecordExists(db, "warranty_types", "LOWER(name) = LOWER(?)", strings.ToLower(name))
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("warranty type name already exists")
+	}
+	return nil
 }
 
 // GetAllWarrantTypes retrieves all warranty types in the system.
@@ -111,10 +132,14 @@ func UpdateWarrantType(db DBExecutor, warrantyID string, wt dtos.WarrantyType) e
 	if err := isWarrantyTypeThere(db, warrantyID); err != nil {
 		return err
 	}
-
+	// Validate warranty type name uniqueness (if name is being updated)
+	err := isWarrantyTypeNameUnique(db, wt.Name)
+	if err != nil {
+		return err
+	}
 	// Update warranty type information
 	query := `UPDATE warranty_types SET name = ?, description = ? WHERE warranty_type_id = ?`
-	_, err := db.Exec(query, wt.Name, wt.Description, warrantyID)
+	_, err = db.Exec(query, wt.Name, wt.Description, warrantyID)
 	return err
 }
 

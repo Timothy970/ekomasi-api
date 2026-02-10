@@ -572,7 +572,7 @@ func GetAllPromoCodes(db DBExecutor, page, size int) ([]dtos.PromoCodeResponse, 
 
 	// Query all promo codes (no LIMIT/OFFSET applied)
 	rows, err := db.Query(`
-		SELECT promo_code_id, code, description, discount_type, discount_value, expires_at, is_active, minimum_order_value, maximum_use, times_used FROM promocodes`)
+		SELECT promo_code_id, code, description, discount_type, discount_value, expires_at, is_active, minimum_order_value, maximum_use, times_used FROM promocodes ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, nil, err
 	}

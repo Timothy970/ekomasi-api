@@ -577,7 +577,7 @@ func CreatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
 		return
 	}
-	err := models.CreatePromotionType(*req)
+	err := models.CreatePromotionType(models.DB, *req)
 	if err != nil {
 		log.Printf("promotion types error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -586,7 +586,7 @@ func CreatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 				Description: "Failed to create promotion type",
 				Code:        http.StatusInternalServerError,
 			},
-			Message:   "Failed to create promotion type",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -640,7 +640,7 @@ func UpdatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	typeID := mux.Vars(r)["id"]
-	err := models.UpdatePromotionType(typeID, *req)
+	err := models.UpdatePromotionType(models.DB, typeID, *req)
 	if err != nil {
 		log.Printf("promotion types error::%s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -649,7 +649,7 @@ func UpdatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 				Description: "Failed to update promotion type",
 				Code:        http.StatusInternalServerError,
 			},
-			Message:   "Failed to update promotion type",
+			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,

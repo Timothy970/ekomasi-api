@@ -9,6 +9,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/gorilla/mux"
 )
 
 // BulkUploadProductsHandler handles the bulk upload of products via CSV file.
@@ -377,6 +379,26 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
+
+	// Start transaction for atomic operations
+	tx, err := models.DB.Begin()
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to start transaction: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	defer tx.Rollback() // Rollback if not committed
+
 	// req, ok := DecodeRequestBody[dtos.PublishBulkProduct](r, w, requestSummary, start)
 	// if !ok {
 	// 	return
@@ -386,8 +408,8 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	// }
 	productID := r.FormValue("product_id")
 	videoLink := r.FormValue("video_link")
-	productDetails := r.Form["product_details"]
-	bulkProduct, err := models.GetBulkProductByID(models.DB, productID)
+	productDetails := r.Form["details"]
+	bulkProduct, err := models.GetBulkProductByID(tx, productID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -418,7 +440,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		BuyingPrice:   &bulkProduct.BuyingPrice,
 		Details:       productDetails,
 	}
-	product, err := models.AddNewProduct(models.DB, createRequest, authuser.ID)
+	product, err := models.AddNewProduct(tx, createRequest, authuser.ID)
 	if err != nil {
 		log.Printf("Error for adding new product %s", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -437,23 +459,23 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	//handle product specifications
 	specificationsRequest := dtos.ProductSpecification{
 		ProductID:        product.ID,
-		Age:              models.GetAgeVariantIDs(models.DB, *bulkProduct.AgeRange), //should be IDS
-		Brand:            models.GetBrandID(models.DB, *bulkProduct.Brand),          //should be ID
+		Age:              models.GetAgeVariantIDs(tx, *bulkProduct.AgeRange), //should be IDS
+		Brand:            models.GetBrandID(tx, *bulkProduct.Brand),          //should be ID
 		CategoryID:       bulkProduct.CategoryID,
-		Color:            models.GetColorIDs(models.DB, *bulkProduct.Colors), //should be IDS
+		Color:            models.GetColorIDs(tx, *bulkProduct.Colors), //should be IDS
 		Dimensions:       *bulkProduct.Dimensions,
 		ExpiryDate:       bulkProduct.ExpiryDate,
 		ManufacturerDate: bulkProduct.ManufacturingDate,
 		Manufacturer:     *bulkProduct.Manufacturer,
-		Material:         models.GetMaterialIDs(models.DB, *bulkProduct.Material), //should be IDs
-		Size:             models.GetSizeIDs(models.DB, *bulkProduct.Sizes),        //should be IDs
+		Material:         models.GetMaterialIDs(tx, *bulkProduct.Material), //should be IDs
+		Size:             models.GetSizeIDs(tx, *bulkProduct.Sizes),        //should be IDs
 		WarrantyPeriod:   *bulkProduct.WarrantyPeriod,
 		Weight:           *bulkProduct.Weight,
 		WeightLimit:      *bulkProduct.WeightLimit,
-		WarrantyType:     models.GetDefaultWarrantyType(models.DB),
+		WarrantyType:     models.GetDefaultWarrantyType(tx),
 	}
 	state := "add"
-	err = handleProductSpecs(specificationsRequest, state)
+	err = handleProductSpecs(tx, specificationsRequest, state)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -469,7 +491,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	//handle products variants
-	err = handleProductsVariants(specificationsRequest, state)
+	err = handleProductsVariants(tx, specificationsRequest, state)
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -486,8 +508,8 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	//handle product warranty
-	specificationsRequest.WarrantyType = models.GetManufacturingWarrantyID(models.DB)
-	err = handleProductsWarranty(specificationsRequest)
+	specificationsRequest.WarrantyType = models.GetManufacturingWarrantyID(tx)
+	err = handleProductsWarranty(tx, specificationsRequest)
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -506,7 +528,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	//handle product images
 	//first video link if any
 	if videoLink != "" {
-		if err := models.InsertProductImage(models.DB, product.ID, videoLink, "video", false); err != nil {
+		if err := models.InsertProductImage(tx, product.ID, videoLink, "video", false); err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
@@ -527,7 +549,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	fileTypes := []string{"gallery", "thumbnail", "video"}
 	// Check and upload files for each type
 	for _, fileType := range fileTypes {
-		results, err := handleFileUploads(r, product.ID, fileType, isPrimary)
+		results, err := handleFileUploads(tx, r, product.ID, fileType, isPrimary)
 		if err != nil {
 			log.Printf("Error::::%s adding image to product:::::%s", err.Error(), product.ID)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -547,10 +569,41 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		uploadedResults = append(uploadedResults, results...)
 	}
 	//delete bulk product after publishing
-	err = models.DeleteBulkProductByID(models.DB, bulkProduct.ProductID)
+	err = models.DeleteBulkProductByID(tx, bulkProduct.ProductID)
 	if err != nil {
 		log.Printf("Error deleting bulk product ID %s: %s", bulkProduct.ProductID, err.Error())
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to delete bulk product: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
 	}
+
+	// Commit transaction - all operations succeeded
+	if err := tx.Commit(); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to commit transaction: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
 	// Invalidate cache
 	_ = utils.DeleteCacheByPrefix("products_page_")
 	_ = utils.DeleteCacheByPrefix("pagination_page_")
@@ -569,4 +622,65 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
+}
+
+// DeleteBulkUploadProductsHandler handles the deletion of bulk uploaded products via the bulk product ID.
+// This endpoint is restricted to authenticated users.
+//
+// @Summary      Delete bulk uploaded products
+// @Description  Delete multiple products using a bulk product ID
+// @Tags         Products
+// @Produce      json
+// @Param        bulk_product_id  query  string  true  "Bulk Product ID"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  dtos.ErrorResponse
+// @Failure      401   {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/products/bulk-upload/{bulk_product_id} [delete]
+func DeleteBulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges (required for media uploads)
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	if !ok {
+		// Authorization failed, RequireAdmin already sent error response
+		return
+	}
+	// Get bulk product ID from URL path
+	bulkProductID := mux.Vars(r)["product_id"]
+	err := models.DeleteBulkProductByID(models.DB, bulkProductID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Error deleting bulk product: " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Products",
+			Description: "Product deleted successfully",
+			Code:        http.StatusOK,
+		},
+		Payload: map[string]any{
+			"message": "Product deleted successfully",
+			"count":   nil,
+		},
+		Message:   "Product deleted successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+
 }

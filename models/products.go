@@ -765,6 +765,9 @@ func AddNewProduct(db DBExecutor, input dtos.CreateProduct, userID string) (*dto
 		CategoryID:    input.CategoryID,
 		StockQuantity: input.StockQuantity,
 		SearchVector:  input.SearchVector,
+		Tag:           input.Tag,
+		Details:       input.Details,
+		SellWhenOOS:   input.SellWhenOOS,
 	}, nil
 }
 

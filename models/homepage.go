@@ -897,23 +897,49 @@ func isPromotionTypeThere(promotionTypeID string) error {
 
 // Returns:
 //   - error: Database error if insertion fails
-func CreatePromotionType(req dtos.PromotionType) error {
-	_, err := DB.Exec(`
+func CreatePromotionType(db DBExecutor, req dtos.PromotionType) error {
+	//validate promotion type with the same name does not exist
+	err := isPromotionTypeNameUnique(req.Name)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`
 		INSERT INTO promotion_types(name, description, value)
 		VALUES (?, ?, ?)
 	`, req.Name, req.Description, req.Value)
 	return err
 }
 
+// helper function to check if a promotion type name is unique
+// parameters:
+//   - name: The promotion type name to check for uniqueness
+//
+// returns:
+//   - error: "promotion type name already exists" if name is not unique, or database error
+func isPromotionTypeNameUnique(name string) error {
+	exists, err := RecordExists(DB, "promotion_types", "LOWER(name) = LOWER(?)", strings.ToLower(name))
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("promotion type name already exists")
+	}
+	return nil
+}
+
 // UpdatePromotionType updates an existing promotion type.
 //
 // This function updates the name, description, and value of a promotion type.
-func UpdatePromotionType(typeID string, req dtos.PromotionType) error {
+func UpdatePromotionType(db DBExecutor, typeID string, req dtos.PromotionType) error {
 	err := isPromotionTypeThere(typeID)
 	if err != nil {
 		return err
 	}
-	_, err = DB.Exec(`
+	err = isPromotionTypeNameUnique(req.Name)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`
 		UPDATE promotion_types
 		SET name = ?, description = ?, value = ?
 		WHERE id = ?
