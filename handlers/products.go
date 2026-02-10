@@ -1764,26 +1764,8 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	//add tax to a product
-	err = attachProductTax(*req)
-
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Products",
-				Description: "Failed to add product tax: " + err.Error(),
-				Code:        http.StatusNotFound,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
 	// add discount to a product
 	err = attachProductDiscount(*req, state)
-	log.Printf("attachProductDiscount ***** %s", err)
 
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1888,23 +1870,6 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update product warranty: " + err.Error(),
-				Code:        http.StatusNotFound,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
-	//add tax to a product
-	err = attachProductTax(*req)
-
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Products",
-				Description: "Failed to update product tax: " + err.Error(),
 				Code:        http.StatusNotFound,
 			},
 			Message:   err.Error(),
@@ -2057,19 +2022,6 @@ func handleProductsWarranty(db models.DBExecutor, req dtos.ProductSpecification)
 
 	// Insert warranty record into database
 	err := models.AddProductWarranties(db, data)
-	return err
-}
-
-// attachProductTax associates a tax charge with a product.
-// It creates the product-tax relationship in the database.
-func attachProductTax(req dtos.ProductSpecification) error {
-	// Build charge attachment data
-	data := dtos.AddChargeToProductRequest{
-		ProductID: req.ProductID, // Product to attach tax to
-		ChargeID:  req.Tax,       // Tax/charge identifier
-	}
-	// Create product-charge association in database
-	err := models.AddChargeToProduct(models.DB, data)
 	return err
 }
 

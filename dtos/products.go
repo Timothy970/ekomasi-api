@@ -241,7 +241,6 @@ type ProductSpecification struct {
 	Manufacturer     string   `json:"manufacturer"`
 	Material         []string `json:"material" validate:"required,min=1"`  //material variant ids
 	Size             []string `json:"size"`                                //size variant ids
-	Tax              string   `json:"tax" validate:"required"`             //charge id
 	WarrantyType     string   `json:"warranty_type"`                       //warranty type id
 	WarrantyPeriod   int      `json:"warranty_period" validate:"required"` //in months
 	Weight           int      `json:"weight" validate:"required"`
