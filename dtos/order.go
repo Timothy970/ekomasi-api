@@ -79,7 +79,7 @@ type OrderProduct struct {
 	Description   string           `json:"description"`
 	SKU           string           `json:"sku"`
 	Price         float64          `json:"price"`
-	CategoryID    string           `json:"category_id"`
+	CategoryID    *string          `json:"category_id"`
 	StockQuantity int              `json:"stock_quantity"`
 	SearchVector  string           `json:"search_vector"`
 	CreatedAt     time.Time        `json:"created_at"`

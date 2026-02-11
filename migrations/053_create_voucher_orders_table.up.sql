@@ -7,5 +7,5 @@ CREATE TABLE IF NOT EXISTS voucher_orders (
     created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_voucher_order FOREIGN KEY (voucher_id) REFERENCES vouchers(voucher_id)
+    CONSTRAINT fk_voucher_order FOREIGN KEY (voucher_id) REFERENCES vouchers(voucher_id) ON DELETE CASCADE
 );
