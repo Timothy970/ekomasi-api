@@ -67,48 +67,177 @@ func normalBalanceExpr(tableAlias string) string {
 //   - err: error - Database error or nil on success
 //
 // Each BsRow contains: AccountID, AccountCode, AccountName, AccountType, Balance
-func BalanceSheet(asOf time.Time) (assets, liabilities, equity []dtos.BsRow, err error) {
-	// Build query with normal balance expression
-	// Sums all journal entries up to and including asOf date
-	q := fmt.Sprintf(`
-		SELECT 
-			ca.account_id,
-			ca.account_code,
-			ca.account_name,
-			ca.account_type,
-			COALESCE(SUM(%s), 0) AS balance
-		FROM chart_of_accounts ca
-		LEFT JOIN journal_entries je 
-			ON je.account_id = ca.account_id
-			AND je.entry_date <= ?
-		GROUP BY ca.account_id, ca.account_code, ca.account_name, ca.account_type
-		ORDER BY ca.account_code
-	`, normalBalanceExpr("je"))
+func BalanceSheet(asOf time.Time, compareWith *time.Time) (sections []dtos.BalanceSheetSection, err error) {
+	// Helper to fetch balances for a specific date
+	fetchBalances := func(date time.Time) (map[string]float64, error) {
+		q := fmt.Sprintf(`
+			SELECT 
+				ca.account_id,
+				COALESCE(SUM(%s), 0) AS balance
+			FROM chart_of_accounts ca
+			LEFT JOIN journal_entry_lines jel 
+				ON jel.account_id = ca.account_id
+			LEFT JOIN journal_entries je
+				ON je.entry_id = jel.entry_id
+				AND je.entry_date <= ?
+			GROUP BY ca.account_id
+		`, normalBalanceExpr("jel"))
 
-	rows, err := DB.Query(q, asOf)
+		rows, err := DB.Query(q, date)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		balances := make(map[string]float64)
+		for rows.Next() {
+			var accountID string
+			var balance float64
+			if err := rows.Scan(&accountID, &balance); err != nil {
+				return nil, err
+			}
+			balances[accountID] = balance
+		}
+		return balances, nil
+	}
+
+	// Fetch current balances
+	currentBalances, err := fetchBalances(asOf)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
+	}
+
+	// Fetch comparison balances if date provided
+	var compareBalances map[string]float64
+	if compareWith != nil {
+		compareBalances, err = fetchBalances(*compareWith)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Fetch all accounts with details
+	qAccounts := `
+		SELECT 
+			account_id, account_code, account_name, account_type, category
+		FROM chart_of_accounts
+		ORDER BY account_code
+	`
+	rows, err := DB.Query(qAccounts)
+	if err != nil {
+		return nil, err
 	}
 	defer rows.Close()
 
-	// Scan and categorize accounts by type
-	var a, l, e []dtos.BsRow
+	// Organize data structure
+	// Struct structure: Section -> Category -> Account
+	type accountData struct {
+		ID       string
+		Code     string
+		Name     string
+		Type     string
+		Category string
+	}
+
+	// Map to hold sections
+	sectionMap := make(map[string]map[string][]accountData)
+	sectionOrder := []string{"Asset", "Liability", "Equity"} // Defined order
+
 	for rows.Next() {
-		var row dtos.BsRow
-		if err := rows.Scan(&row.AccountID, &row.AccountCode, &row.AccountName, &row.AccountType, &row.Balance); err != nil {
-			return nil, nil, nil, err
+		var a accountData
+		if err := rows.Scan(&a.ID, &a.Code, &a.Name, &a.Type, &a.Category); err != nil {
+			return nil, err
 		}
-		// Separate into asset, liability, or equity arrays
-		switch row.AccountType {
-		case "Asset":
-			a = append(a, row)
-		case "Liability":
-			l = append(l, row)
-		case "Equity":
-			e = append(e, row)
+
+		// Initialize maps if nil
+		if sectionMap[a.Type] == nil {
+			sectionMap[a.Type] = make(map[string][]accountData)
+		}
+		sectionMap[a.Type][a.Category] = append(sectionMap[a.Type][a.Category], a)
+	}
+
+	// Build final result
+	for _, secType := range sectionOrder {
+		if categories, ok := sectionMap[secType]; ok {
+			section := dtos.BalanceSheetSection{
+				SectionName: secType + "s", // Pluralize for display (Assets, Liabilities)
+			}
+			if secType == "Equity" {
+				section.SectionName = "Equity"
+			}
+
+			var secTotal, secPrevTotal float64
+
+			// Process categories
+			for catName, accounts := range categories {
+				category := dtos.BalanceSheetCategory{
+					Category: catName,
+				}
+				var catTotal, catPrevTotal float64
+
+				for _, acc := range accounts {
+					bal := currentBalances[acc.ID]
+					bsAccount := dtos.BalanceSheetAccount{
+						AccountID:   acc.ID,
+						AccountCode: acc.Code,
+						AccountName: acc.Name,
+						Balance:     bal,
+					}
+
+					catTotal += bal
+
+					// Handle comparison
+					if compareWith != nil {
+						prevBal := compareBalances[acc.ID]
+						bsAccount.PreviousBalance = &prevBal
+
+						diff := bal - prevBal
+						bsAccount.Change = &diff
+
+						if prevBal != 0 {
+							pct := (diff / prevBal) * 100
+							bsAccount.ChangePercent = &pct
+						}
+
+						catPrevTotal += prevBal
+					}
+
+					category.Accounts = append(category.Accounts, bsAccount)
+				}
+
+				category.Total = catTotal
+				secTotal += catTotal
+
+				if compareWith != nil {
+					category.PreviousTotal = &catPrevTotal
+					diff := catTotal - catPrevTotal
+					category.Change = &diff
+					if catPrevTotal != 0 {
+						pct := (diff / catPrevTotal) * 100
+						category.ChangePercent = &pct
+					}
+					secPrevTotal += catPrevTotal
+				}
+
+				section.Categories = append(section.Categories, category)
+			}
+
+			section.Total = secTotal
+			if compareWith != nil {
+				section.PreviousTotal = &secPrevTotal
+				diff := secTotal - secPrevTotal
+				section.Change = &diff
+				if secPrevTotal != 0 {
+					pct := (diff / secPrevTotal) * 100
+					section.ChangePercent = &pct
+				}
+			}
+
+			sections = append(sections, section)
 		}
 	}
-	return a, l, e, nil
+
+	return sections, nil
 }
 
 // ===== Income Statement =====
@@ -464,7 +593,8 @@ func Ledger(accountID string, from, to time.Time, page, size int) (acct dtos.Acc
 //
 //	Header: Account ID, Code, Name, Type, Balance
 //	Data: One row per account with formatted balance (2 decimal places)
-func ExportAccountsToCSV(w io.Writer, accountType, codePrefix string) error {
+//	Data: One row per account with formatted balance (2 decimal places)
+func ExportAccountsToCSV(w io.Writer, accountType, codePrefix, q string) error {
 	// Build dynamic query with optional filters
 	query := `
 		SELECT account_id, account_code, account_name, account_type, balance
@@ -483,6 +613,13 @@ func ExportAccountsToCSV(w io.Writer, accountType, codePrefix string) error {
 	if codePrefix != "" {
 		query += " AND account_code LIKE ?"
 		args = append(args, codePrefix+"%")
+	}
+
+	// Add q filter if provided
+	if q != "" {
+		query += " AND (account_name LIKE ? OR account_code LIKE ? OR account_type LIKE ?)"
+		searchTerm := "%" + q + "%"
+		args = append(args, searchTerm, searchTerm, searchTerm)
 	}
 
 	// Sort by account code for logical ordering
@@ -520,6 +657,67 @@ func ExportAccountsToCSV(w io.Writer, accountType, codePrefix string) error {
 	return rows.Err()
 }
 
+// ExportBalanceSheetToCSV exports the balance sheet to a CSV file.
+func ExportBalanceSheetToCSV(w io.Writer, asOf time.Time, compareWith *time.Time) error {
+	sections, err := BalanceSheet(asOf, compareWith)
+	if err != nil {
+		return err
+	}
+
+	csvWriter := csv.NewWriter(w)
+	defer csvWriter.Flush()
+
+	// Header: Section, Category, Account Code, Account Name, Balance
+	header := []string{"Section", "Category", "Account Code", "Account Name", "Balance"}
+	if compareWith != nil {
+		header = append(header, "Previous Balance", "Change", "% Change")
+	}
+	if err := csvWriter.Write(header); err != nil {
+		return err
+	}
+
+	for _, section := range sections {
+		for _, category := range section.Categories {
+			for _, acc := range category.Accounts {
+				record := []string{
+					section.SectionName,
+					category.Category,
+					acc.AccountCode,
+					acc.AccountName,
+					fmt.Sprintf("%.2f", acc.Balance),
+				}
+
+				if compareWith != nil {
+					prev := 0.0
+					if acc.PreviousBalance != nil {
+						prev = *acc.PreviousBalance
+					}
+					change := 0.0
+					if acc.Change != nil {
+						change = *acc.Change
+					}
+					pct := 0.0
+					if acc.ChangePercent != nil {
+						pct = *acc.ChangePercent
+					}
+
+					record = append(record,
+						fmt.Sprintf("%.2f", prev),
+						fmt.Sprintf("%.2f", change),
+						fmt.Sprintf("%.2f%%", pct),
+					)
+				}
+
+				if err := csvWriter.Write(record); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // ExportJournalEntriesToCSV exports journal entries to CSV format with optional filtering.
 //
 // This function generates a CSV export of journal entries with optional filters for
@@ -533,6 +731,8 @@ func ExportAccountsToCSV(w io.Writer, accountType, codePrefix string) error {
 //     Empty string = no end date filter
 //   - accountID: string - Optional filter for specific account ID
 //     Empty string = all accounts
+//   - q: string - Optional search query for description or reference
+//     Empty string = no search filter
 //
 // Returns:
 //   - error: Database error or nil on success
@@ -542,7 +742,7 @@ func ExportAccountsToCSV(w io.Writer, accountType, codePrefix string) error {
 //	Header: Entry ID, Order ID, Payment ID, PO ID, Account ID, Debit, Credit, Entry Date, Description
 //	Data: One row per journal entry with formatted amounts (2 decimal places)
 //	      Sorted by entry_date DESC (newest first)
-func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID string) error {
+func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID, q string) error {
 	// Build dynamic query with optional filters
 	query := `
 		SELECT entry_id, order_id, payment_id, po_id, account_id, debit, credit, entry_date, description
@@ -567,6 +767,13 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID string
 	if accountID != "" {
 		query += " AND account_id = ?"
 		args = append(args, accountID)
+	}
+
+	// Add q filter if provided
+	if q != "" {
+		query += " AND (description LIKE ? OR reference LIKE ?)"
+		searchTerm := "%" + q + "%"
+		args = append(args, searchTerm, searchTerm)
 	}
 
 	// Sort by date descending (newest first)

@@ -8,7 +8,9 @@ import (
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
 	"fmt"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -61,9 +63,100 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Accounts") {
 		return
 	}
+	//check that account type is valid
+	if !IsValidAccountType(req.AccountType) {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Invalid account type provided",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Account type must be one of: asset, liability, equity, revenue, expense",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	//check if statement type is valid and if it matches the account type
+	err := IsValidStatementType(req.StatementType, req.AccountType)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Invalid statement type provided " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	var accountCode string
+	codeRange, err := utils.GetAccountCodeRange(req.AccountType)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to get account code range for account type " + req.AccountType,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	// Auto-generate account code if not provided
+	if req.AccountCode == nil || *req.AccountCode == "" {
+		accountCode, err = models.GetNextAccountCode(models.DB, req.AccountType, codeRange)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Accounts",
+					Description: "Failed to generate account code for account type " + req.AccountType,
+					Code:        http.StatusInternalServerError,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+
+	} else {
+		accountCode = *req.AccountCode
+
+		// Validate that the provided code is within the valid range for this account type
+		err = utils.ValidateAccountCode(accountCode, req.AccountType)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Accounts",
+					Description: "Invalid account code provided: " + err.Error(),
+					Code:        http.StatusBadRequest,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+
+	}
 
 	// Attempt to create the account in the database
-	_, err := models.CreateAccount(models.DB, *req)
+	_, err = models.CreateAccount(models.DB, *req, accountCode)
 	if err != nil {
 		// Return error response if account creation fails
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -99,6 +192,214 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+// GetNextAccountCode retrieves the next available account code for a given account type.
+// This endpoint helps the UI display the next available code before creating an account.
+// Each account type has a dedicated range (e.g., Assets: 1000-1999, Liabilities: 2000-2999).
+//
+// @Summary Get next available account code by account type
+// @Description Returns the next available account code for a specific account type with range information
+// @Tags Accounts
+// @Produce json
+// @Param account_type query string true "Account Type (asset, liability, equity, revenue, expense)"
+// @Success 200 {object} map[string]interface{} "Next available code retrieved successfully"
+// @Failure 400 {object} map[string]interface{} "Invalid account type"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/accounts/next-code [get]
+// @Security BearerAuth
+func GetNextAccountCode(w http.ResponseWriter, r *http.Request) {
+	// Track request execution time
+	start := time.Now()
+
+	// Extract request summary for logging
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Ensure user has required permissions
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", ""); !ok {
+		return
+	}
+
+	// Get account type from query parameter
+	accountType := r.URL.Query().Get("account_type")
+	if accountType == "" {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Account type is required",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "account_type query parameter is required",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Validate account type and get code range
+	codeRange, err := utils.GetAccountCodeRange(accountType)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Invalid account type",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Get next available code from database
+	nextCode, err := models.GetNextAccountCode(models.DB, accountType, codeRange)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to get next account code",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Build response
+	response := dtos.NextAccountCodeResponse{
+		AccountType: accountType,
+		NextCode:    nextCode,
+		MinCode:     codeRange.Min,
+		MaxCode:     codeRange.Max,
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Accounts",
+			Description: "Next account code retrieved successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   response,
+		Message:   "Next account code retrieved successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+// helper function to validate account type
+// param accountType is the type of account being validated
+// returns true if the account type is valid, false otherwise
+func IsValidAccountType(accountType string) bool {
+	validTypes := []string{"asset", "liability", "equity", "revenue", "expense"}
+	for _, v := range validTypes {
+		log.Printf("checking this account type %s", strings.ToLower(accountType))
+		if strings.ToLower(accountType) == v {
+			return true
+		}
+	}
+	return false
+}
+
+// helper function to validate statement type and its compatibility with account type
+// param statementType is the type of financial statement the account belongs to
+// returns an error if the statement type is invalid or incompatible with account type
+func IsValidStatementType(statementType string, accountType string) error {
+	//first check if statement type is valid
+	validTypes := []string{"balance sheet", "income statement", "cash flow statement"}
+	statementTypeLower := strings.ToLower(statementType)
+	accountTypeLower := strings.ToLower(accountType)
+
+	isValidType := false
+	for _, v := range validTypes {
+		if statementTypeLower == v {
+			isValidType = true
+			break
+		}
+	}
+
+	if !isValidType {
+		return fmt.Errorf("Statement type must be one of: balance sheet, income statement, cash flow statement")
+	}
+
+	//then check compatibility with account type
+	// Assets, Liabilities, Equity → Balance Sheet
+	// Revenue, Expenses → Income Statement
+	if (accountTypeLower == "asset" || accountTypeLower == "liability" || accountTypeLower == "equity") && statementTypeLower != "balance sheet" {
+		return fmt.Errorf("Account type '%s' must belong to Balance Sheet statement", accountType)
+	}
+
+	if (accountTypeLower == "revenue" || accountTypeLower == "expense") && statementTypeLower != "income statement" {
+		return fmt.Errorf("Account type '%s' must belong to Income Statement", accountType)
+	}
+
+	return nil
+}
+
+// GetAccountStats retrieves statistics about the chart of accounts.
+// This endpoint provides an overview of account counts and balances.
+//
+// @Summary Get chart of accounts statistics
+// @Description Returns total active/archived accounts and grouped stats by account type
+// @Tags Accounts
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Statistics retrieved successfully"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /api/accounts/stats [get]
+// @Security BearerAuth
+func GetAccountStats(w http.ResponseWriter, r *http.Request) {
+	// Track request execution time
+	start := time.Now()
+
+	// Extract request summary for logging
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Ensure user has required permissions
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", ""); !ok {
+		return
+	}
+
+	// Fetch statistics from model
+	stats, err := models.GetAccountStats(models.DB)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to fetch account statistics",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Accounts",
+			Description: "Account statistics fetched successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   stats,
+		Message:   "Account statistics fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
 // ListAccounts retrieves a paginated list of all chart of accounts.
 // This endpoint requires admin privileges and implements caching for performance.
 // Results are cached based on page number and page size parameters.
@@ -128,48 +429,24 @@ func ListAccounts(w http.ResponseWriter, r *http.Request) {
 
 	// Parse pagination parameters from query string
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-
-	// Generate cache keys for both accounts data and pagination metadata
-	cacheKeyAccounts := fmt.Sprintf("accounts_%d_size_%d", page, size)
-	cacheKeyPagination := fmt.Sprintf("accounts_pagination_%d_size_%d", page, size)
-
-	// Initialize variables for accounts data and cached versions
-	var accounts []dtos.ChartOfAccount
-	var cachedAccounts []dtos.ChartOfAccount
-	var meta dtos.PaginationMeta
-	var cachedPagination dtos.PaginationMeta
-
-	// Attempt to retrieve cached data
-	_ = utils.GetCache(cacheKeyAccounts, &cachedAccounts)
-	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
-
-	// If cache miss, fetch from database
-	if cachedAccounts == nil {
-		var err error
-		// Fetch accounts from database with pagination
-		accounts, meta, err = models.ListAccounts(models.DB, page, size)
-		if err != nil {
-			// Return error response if database query fails
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Accounts",
-					Description: "Failed to list accounts",
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
-		}
-		// Cache the fetched data for future requests
-		_ = utils.SetCache(cacheKeyAccounts, cachedAccounts)
-		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
-	} else {
-		// Use cached data if available
-		accounts = cachedAccounts
-		meta = cachedPagination
+	accountType := r.URL.Query().Get("account_type")
+	q := r.URL.Query().Get("q")
+	// Fetch accounts from database with pagination
+	accounts, meta, err := models.ListAccounts(models.DB, page, size, accountType, q)
+	if err != nil {
+		// Return error response if database query fails
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to list accounts",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -287,6 +564,39 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	// Extract account ID from URL path parameters
 	accountId := mux.Vars(r)["account_id"]
 
+	//check that account type is valid
+	if !IsValidAccountType(req.AccountType) {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Invalid account type provided",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Account type must be one of: asset, liability, equity, revenue, expense",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	//check if statement type is valid and if it matches the account type
+	err := IsValidStatementType(req.StatementType, req.AccountType)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Invalid statement type provided " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
 	// Attempt to update the account in the database
 	if err := models.UpdateAccount(models.DB, accountId, *req); err != nil {
 		// Return error response if update fails
@@ -497,48 +807,24 @@ func ListEntries(w http.ResponseWriter, r *http.Request) {
 
 	// Parse pagination parameters from query string
 	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	q := r.URL.Query().Get("q")
 
-	// Generate cache keys for both entries data and pagination metadata
-	cacheKeyEntries := fmt.Sprintf("entries_%d_size_%d", page, size)
-	cacheKeyPagination := fmt.Sprintf("entries_pagination_%d_size_%d", page, size)
-
-	// Initialize variables for entries data and cached versions
-	var entries []dtos.JournalEntry
-	var cachedEntries []dtos.JournalEntry
-	var meta dtos.PaginationMeta
-	var cachedPagination dtos.PaginationMeta
-
-	// Attempt to retrieve cached data
-	_ = utils.GetCache(cacheKeyEntries, &cachedEntries)
-	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
-
-	// If cache miss, fetch from database
-	if cachedEntries == nil {
-		var err error
-		// Fetch journal entries from database with pagination
-		entries, meta, err = models.ListEntries(models.DB, page, size)
-		if err != nil {
-			// Return error response if database query fails
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Accounts",
-					Description: "Failed to list journal entries",
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary})
-			return
-		}
-		// Cache the fetched data for future requests
-		_ = utils.SetCache(cacheKeyEntries, cachedEntries)
-		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
-	} else {
-		// Use cached data if available
-		entries = cachedEntries
-		meta = cachedPagination
+	// Fetch journal entries from database with pagination
+	entries, meta, err := models.ListEntries(models.DB, page, size, q)
+	if err != nil {
+		// Return error response if database query fails
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Accounts",
+				Description: "Failed to list journal entries",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
 	}
 
 	// Return success response with entries and pagination metadata

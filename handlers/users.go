@@ -1431,3 +1431,67 @@ func DeactivateMyAccount(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// DeleteUser deletes the currently authenticated user's account.
+//
+// @Summary      Delete User
+// @Description  Delete the account of the currently authenticated user.
+// @Tags         Users
+// @Produce      json
+// @Success      200  {object}  map[string]interface{} "User details fetched successfully"
+// @Failure      401  {object}  map[string]string      "Unauthorized"
+// @Failure      500  {object}  map[string]string      "Internal server error"
+// @Router       /api/user/me [delete]
+func DeleteUser(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Get request summary for logging
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Get authenticated user from context
+	authUser, ok := middleware.UserFromContext(r.Context())
+	if !ok {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "User not authenticated",
+				Code:        http.StatusUnauthorized,
+			},
+			Message:   "User not authenticated",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Fetch user details from database
+	err := models.DeleteUserByID(models.DB, authUser.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to delete user with ID " + authUser.ID,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Respond with user details
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "User with ID " + authUser.ID + " deleted successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "User deleted successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}

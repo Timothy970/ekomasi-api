@@ -1385,7 +1385,7 @@ func parseFeatureJSONFields(r *http.Request, w http.ResponseWriter, start time.T
 // @Failure      400                     {object}  dtos.ErrorResponse
 // @Failure      500                     {object}  dtos.ErrorResponse
 // @Security     BearerAuth
-// @Router       /api/products/features/{feature_id} [put]
+// @Router       /api/products/features/{feature_id} [patch]
 func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)
@@ -1809,7 +1809,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 // @Failure      400             {object}  dtos.ErrorResponse
 // @Failure      500             {object}  dtos.ErrorResponse
 // @Security     BearerAuth
-// @Router       /api/products/specifications [put]
+// @Router       /api/products/specifications [patch]
 func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 	state := "update"
 	start := time.Now()

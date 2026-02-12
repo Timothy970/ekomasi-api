@@ -33,6 +33,8 @@ import (
 // This utility function attempts multiple common datetime formats:
 //   - "2006-01-02 15:04:05" (datetime with seconds)
 //   - "2006-01-02" (date only)
+//   - "2006-01-02T15:04:05Z07:00" (RFC3339)
+//   - "2006-01-02T15:04:05Z" (RFC3339 without timezone)
 //
 // Parameters:
 //   - str: string - The datetime string to parse
@@ -44,6 +46,8 @@ func StringToTime(str string) time.Time {
 	formats := []string{
 		"2006-01-02 15:04:05",
 		"2006-01-02",
+		time.RFC3339,
+		"2006-01-02T15:04:05Z",
 	}
 
 	// Try each format until one succeeds

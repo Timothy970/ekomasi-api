@@ -15,6 +15,7 @@ func SetupReportsRoutes(api *mux.Router) {
 
 	// Financial reports
 	api.Handle("/reports/balance-sheet", middleware.AuthenticateToken(http.HandlerFunc(handlers.BalanceSheet))).Methods("GET")
+	api.Handle("/reports/balance-sheet/csv", middleware.AuthenticateToken(http.HandlerFunc(handlers.ExportBalanceSheetCSVHandler))).Methods("GET")
 	api.Handle("/reports/income-statement", middleware.AuthenticateToken(http.HandlerFunc(handlers.IncomeStatement))).Methods("GET")
 	api.Handle("/reports/cash-flow", middleware.AuthenticateToken(http.HandlerFunc(handlers.CashFlow))).Methods("POST")
 	api.Handle("/reports/ledger/{account_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.Ledger))).Methods("GET")
