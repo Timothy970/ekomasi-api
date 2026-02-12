@@ -3,6 +3,7 @@ package handlers
 import (
 	"adenzo_backend/dtos"
 	"adenzo_backend/models"
+	"adenzo_backend/notification"
 	"adenzo_backend/utils"
 	"fmt"
 	"log"
@@ -154,6 +155,8 @@ func RiderAssignOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//send notification to rider about new order assignment
+	handleSendOrderAssignmentNotification(*req)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
@@ -166,6 +169,47 @@ func RiderAssignOrder(w http.ResponseWriter, r *http.Request) {
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
+}
+
+// helper function to send order assignment notification to rider
+func handleSendOrderAssignmentNotification(req dtos.AssignOrderToRiderRequest) {
+	user, err := models.GetUserByUserID(models.DB, req.RiderID)
+	if err != nil {
+		log.Printf("Error fetching rider details for notification: %v", err)
+		return
+	}
+	riderName := user.FirstName + " " + user.LastName
+	if riderName == " " {
+		if user.Email != "" {
+			riderName = user.Email
+		} else {
+			riderName = user.Phone
+		}
+
+	}
+	order, err := models.GetOrderByID(models.DB, req.OrderID)
+	if err != nil {
+		log.Printf("Error fetching order details for notification: %v", err)
+		return
+	}
+	customerName := order.GuestPersonalDetails.FirstName + order.GuestPersonalDetails.LastName
+	if customerName == "" {
+		if order.GuestPersonalDetails.Email != "" {
+			customerName = order.GuestPersonalDetails.Email
+		} else {
+			customerName = order.GuestPersonalDetails.Phone
+		}
+	}
+	deliveryAddress := order.GuestDeliveryAddress.Country + " , " + order.GuestDeliveryAddress.City + " , " + order.GuestDeliveryAddress.Street + " , " + order.GuestDeliveryAddress.Street
+	if deliveryAddress == " ,  ,  , " {
+		deliveryAddress = *order.DeliveryAddress
+	}
+	createdAtStr := order.CreatedAt.Format("2006-01-02 15:04:05")
+	htmlContent := utils.GenerateOrderAssignmentEmailContent(req.OrderID, riderName, customerName, deliveryAddress, createdAtStr)
+	subject := "New Order Assignment: Order #%d" + req.OrderID
+	if user.Email != "" {
+		notification.SendEmail(user.Email, subject, htmlContent)
+	}
 }
 
 // Handler function for a rider to update order status

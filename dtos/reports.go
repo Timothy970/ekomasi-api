@@ -12,30 +12,46 @@ type AsOf struct {
 }
 
 type BalanceSheetAccount struct {
-	AccountID   string  `json:"account_id"`
-	AccountCode string  `json:"account_code"`
-	AccountName string  `json:"account_name"`
-	Balance     float64 `json:"balance"`
+	AccountID       string   `json:"account_id"`
+	AccountCode     string   `json:"account_code"`
+	AccountName     string   `json:"account_name"`
+	Balance         float64  `json:"balance"`
+	PreviousBalance *float64 `json:"previous_balance,omitempty"`
+	Change          *float64 `json:"change,omitempty"`
+	ChangePercent   *float64 `json:"change_percent,omitempty"`
+}
+
+type BalanceSheetCategory struct {
+	Category        string                `json:"category"`
+	Accounts        []BalanceSheetAccount `json:"accounts"`
+	Total           float64               `json:"total"`
+	PreviousTotal   *float64              `json:"previous_total,omitempty"`
+	Change          *float64              `json:"change,omitempty"`
+	ChangePercent   *float64              `json:"change_percent,omitempty"`
 }
 
 type BalanceSheetSection struct {
-	Accounts []BalanceSheetAccount `json:"accounts"`
-	Total    float64               `json:"total"`
+	SectionName   string                 `json:"section_name"` // "Assets", "Liabilities", "Equity"
+	Categories    []BalanceSheetCategory `json:"categories"`
+	Total         float64                `json:"total"`
+	PreviousTotal *float64               `json:"previous_total,omitempty"`
+	Change        *float64               `json:"change,omitempty"`
+	ChangePercent *float64               `json:"change_percent,omitempty"`
 }
 
 type BalanceSheetResponse struct {
-	AsOf        time.Time           `json:"as_of"`
-	Assets      BalanceSheetSection `json:"assets"`
-	Liabilities BalanceSheetSection `json:"liabilities"`
-	Equity      BalanceSheetSection `json:"equity"`
-	// Convenience check: assets - (liabilities + equity)
-	BalanceCheck float64 `json:"balance_check"`
+	AsOf         time.Time             `json:"as_of"`
+	CompareWith  *time.Time            `json:"compare_with,omitempty"`
+	Sections     []BalanceSheetSection `json:"sections"`
+	BalanceCheck float64               `json:"balance_check"`
 }
+
 type BsRow struct {
 	AccountID   string
 	AccountCode string
 	AccountName string
 	AccountType string
+	Category    string
 	Balance     float64
 }
 type IsRow struct {

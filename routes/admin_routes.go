@@ -184,6 +184,7 @@ func SetupAdminRoutes(api *mux.Router) {
 	accounts := admin.PathPrefix("/accounts").Subrouter()
 	entries := admin.PathPrefix("/entries").Subrouter()
 	accounts.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateAccount))).Methods("POST")
+	accounts.Handle("/stats", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAccountStats))).Methods("GET")
 	accounts.Handle("/{account_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateAccount))).Methods("PATCH")
 	accounts.Handle("/{account_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteAccount))).Methods("DELETE")
 	entries.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateEntry))).Methods("POST")

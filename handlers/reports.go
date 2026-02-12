@@ -49,27 +49,59 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
+
 	// Extract 'as_of' date parameter from query string
 	asOfStr := r.URL.Query().Get("as_of")
-	// Parse date string into time.Time object
-	asOf, err := time.Parse(date, asOfStr)
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Reports",
-				Description: "Invalid as of date for balance sheet report",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   "Invalid as of date",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
+	var asOf time.Time
+	var err error
+
+	if asOfStr == "" {
+		asOf = time.Now()
+		asOfStr = asOf.Format(date)
+	} else {
+		// Parse date string into time.Time object
+		asOf, err = time.Parse(date, asOfStr)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Reports",
+					Description: "Invalid as of date for balance sheet report",
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Invalid as of date",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
 	}
 
-	// Fetch balance sheet data from database (assets, liabilities, equity)
-	assets, liabs, equity, err := models.BalanceSheet(asOf)
+	// Extract 'compare_with' date parameter
+	compareWithStr := r.URL.Query().Get("compare_with")
+	var compareWith *time.Time
+
+	if compareWithStr != "" {
+		t, err := time.Parse(date, compareWithStr)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Reports",
+					Description: "Invalid comparison date for balance sheet report",
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Invalid comparison date",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		compareWith = &t
+	}
+
+	// Fetch balance sheet data from database
+	sections, err := models.BalanceSheet(asOf, compareWith)
 	if err != nil {
 		// Database query failed, return error response
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -86,35 +118,28 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Helper function to convert database rows to balance sheet sections
-	toSection := func(rows []dtos.BsRow) dtos.BalanceSheetSection {
-		out := dtos.BalanceSheetSection{}
-		var total float64
-		// Iterate through all accounts in this section
-		for _, r := range rows {
-			// Add account details to the section
-			out.Accounts = append(out.Accounts, dtos.BalanceSheetAccount{
-				AccountID:   r.AccountID,
-				AccountCode: r.AccountCode,
-				AccountName: r.AccountName,
-				Balance:     r.Balance,
-			})
-			// Accumulate total balance for this section
-			total += r.Balance
-		}
-		out.Total = total
-		return out
-	}
-
 	// Build complete balance sheet response structure
 	resp := dtos.BalanceSheetResponse{
-		AsOf:        asOf,              // Report date
-		Assets:      toSection(assets), // All asset accounts
-		Liabilities: toSection(liabs),  // All liability accounts
-		Equity:      toSection(equity), // All equity accounts
+		AsOf:        asOf,
+		CompareWith: compareWith,
+		Sections:    sections,
 	}
-	// Calculate balance check to verify accounting equation (should be 0)
-	resp.BalanceCheck = resp.Assets.Total - (resp.Liabilities.Total + resp.Equity.Total)
+
+	// Calculate balance check
+	var totalAssets, totalLiabilities, totalEquity float64
+	for _, sec := range sections {
+		switch sec.SectionName {
+		case "Assets":
+			totalAssets = sec.Total
+		case "Liabilities":
+			totalLiabilities = sec.Total
+		case "Equity":
+			totalEquity = sec.Total
+		}
+	}
+
+	resp.BalanceCheck = totalAssets - (totalLiabilities + totalEquity)
+
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
@@ -587,17 +612,109 @@ func ExportAccountsCSVHandler(w http.ResponseWriter, r *http.Request) {
 	// Extract optional filter parameters from query string
 	accountType := r.URL.Query().Get("account_type")
 	codePrefix := r.URL.Query().Get("code_prefix")
+	q := r.URL.Query().Get("q")
 
 	// Set response headers for CSV file download
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", "attachment;filename=chart_of_accounts.csv")
 
 	// Generate and stream CSV data directly to response writer
-	if err := models.ExportAccountsToCSV(w, accountType, codePrefix); err != nil {
+	if err := models.ExportAccountsToCSV(w, accountType, codePrefix, q); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to export chart of accounts to CSV",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+	}
+}
+
+// ExportBalanceSheetCSVHandler exports the balance sheet to a CSV file.
+//
+// @Summary      Export balance sheet to CSV
+// @Description  Download a CSV file containing the balance sheet report
+// @Tags         Reports
+// @Produce      text/csv
+// @Param        as_of         query  string  false  "Report date (YYYY-MM-DD)"
+// @Param        compare_with  query  string  false  "Comparison date (YYYY-MM-DD)"
+// @Success      200           "CSV file download"
+// @Failure      500           {object}  dtos.ErrorResponse  "Internal server error"
+// @Security     BearerAuth
+// @Router       /reports/export/balance-sheet [get]
+func ExportBalanceSheetCSVHandler(w http.ResponseWriter, r *http.Request) {
+	// Start performance tracking for this request
+	start := time.Now()
+	// Get request summary for logging
+	requestSummary := utils.GetRequestSummary(r)
+	// Verify user has admin privileges
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
+	if !ok {
+		return
+	}
+
+	// Extract 'as_of' date parameter
+	asOfStr := r.URL.Query().Get("as_of")
+	var asOf time.Time
+	var err error
+
+	if asOfStr == "" {
+		asOf = time.Now()
+	} else {
+		asOf, err = time.Parse(date, asOfStr)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Reports",
+					Description: "Invalid as of date for balance sheet export",
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Invalid as of date",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+	}
+
+	// Extract 'compare_with' date parameter
+	compareWithStr := r.URL.Query().Get("compare_with")
+	var compareWith *time.Time
+
+	if compareWithStr != "" {
+		t, err := time.Parse(date, compareWithStr)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Reports",
+					Description: "Invalid comparison date for balance sheet export",
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Invalid comparison date",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+		compareWith = &t
+	}
+
+	// Set response headers for CSV file download
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment;filename=balance_sheet.csv")
+
+	// Generate and stream CSV data directly to response writer
+	if err := models.ExportBalanceSheetToCSV(w, asOf, compareWith); err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Reports",
+				Description: "Failed to export balance sheet to CSV",
 				Code:        http.StatusInternalServerError,
 			},
 			Message:   err.Error(),
@@ -637,13 +754,14 @@ func ExportJournalEntriesCSVHandler(w http.ResponseWriter, r *http.Request) {
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
 	accountID := r.URL.Query().Get("account_id")
+	q := r.URL.Query().Get("q")
 
 	// Set response headers for CSV file download
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", "attachment;filename=journal_entries.csv")
 
 	// Generate and stream CSV data directly to response writer
-	if err := models.ExportJournalEntriesToCSV(w, startDate, endDate, accountID); err != nil {
+	if err := models.ExportJournalEntriesToCSV(w, startDate, endDate, accountID, q); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",

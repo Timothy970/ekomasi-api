@@ -99,6 +99,29 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	//update the order  status to returned
+	returnStatus := "RETURNED"
+	deliveryStatus := "RETURNED"
+	updateRequest := dtos.UpdateOrderStatusRequest{
+		Status:         &returnStatus,
+		DeliveryStatus: &deliveryStatus,
+	}
+	err = models.UpdateOrderStatus(models.DB, req.OrderID, updateRequest)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to update order status " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
 	// Return success response - return request created and awaiting admin approval
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{

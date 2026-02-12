@@ -79,10 +79,13 @@ func SetupMiscRoutes(api *mux.Router) {
 
 	// Accounts
 	api.Handle("/accounts", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListAccounts))).Methods("GET")
+	api.Handle("/accounts/csv", middleware.AuthenticateToken(http.HandlerFunc(handlers.ExportAccountsCSVHandler))).Methods("GET")
+	api.Handle("/accounts/next-code", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetNextAccountCode))).Methods("GET")
 	api.HandleFunc("/accounts/{account_id}", handlers.GetAccount).Methods("GET")
 
 	// Entries
 	api.Handle("/entries", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListEntries))).Methods("GET")
+	api.Handle("/entries/csv", middleware.AuthenticateToken(http.HandlerFunc(handlers.ExportJournalEntriesCSVHandler))).Methods("GET")
 	api.HandleFunc("/entries/{entry_id}", handlers.GetEntry).Methods("GET")
 
 	// Blogs
