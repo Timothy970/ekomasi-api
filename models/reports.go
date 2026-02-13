@@ -75,11 +75,11 @@ func BalanceSheet(asOf time.Time, compareWith *time.Time) (sections []dtos.Balan
 				ca.account_id,
 				COALESCE(SUM(%s), 0) AS balance
 			FROM chart_of_accounts ca
-			LEFT JOIN journal_entry_lines jel 
-				ON jel.account_id = ca.account_id
 			LEFT JOIN journal_entries je
-				ON je.entry_id = jel.entry_id
-				AND je.entry_date <= ?
+				ON je.entry_date <= ?
+			LEFT JOIN journal_entry_lines jel 
+				ON jel.entry_id = je.entry_id
+				AND jel.account_id = ca.account_id
 			GROUP BY ca.account_id
 		`, normalBalanceExpr("jel"))
 
@@ -157,13 +157,17 @@ func BalanceSheet(asOf time.Time, compareWith *time.Time) (sections []dtos.Balan
 	}
 
 	// Build final result
+	// Map section types to proper display names
+	sectionNames := map[string]string{
+		"Asset":     "Assets",
+		"Liability": "Liabilities",
+		"Equity":    "Equity",
+	}
+
 	for _, secType := range sectionOrder {
 		if categories, ok := sectionMap[secType]; ok {
 			section := dtos.BalanceSheetSection{
-				SectionName: secType + "s", // Pluralize for display (Assets, Liabilities)
-			}
-			if secType == "Equity" {
-				section.SectionName = "Equity"
+				SectionName: sectionNames[secType],
 			}
 
 			var secTotal, secPrevTotal float64

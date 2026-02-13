@@ -177,6 +177,7 @@ type Product struct {
 	Discount         *float64          `json:"discount"`
 	DiscountType     *string           `json:"discount_type"`
 	Tax              *ProductTax       `json:"tax"`
+	LowStockAlert    int               `json:"low_stock_quantity_warning"`
 	//for bundles, it will contain the products in the bundle
 	BundleProducts []Product `json:"products,omitempty"`
 }
