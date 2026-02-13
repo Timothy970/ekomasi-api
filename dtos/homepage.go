@@ -149,35 +149,37 @@ type Category struct {
 }
 
 type Product struct {
-	ID               string            `json:"product_id"`
-	Name             string            `json:"name"`
-	Description      string            `json:"description"`
-	SKU              string            `json:"sku"`
-	Tag              *string           `json:"tag"`
-	Price            float64           `json:"price"`
-	CategoryID       string            `json:"category_id"`
-	CategoryName     string            `json:"category_name"`
-	StockQuantity    int               `json:"stock_quantity"`
-	MaxStockQuantity int               `json:"max_stock_quantity"`
-	SearchVector     string            `json:"search_vector"`
-	IsInTodaysDeals  bool              `json:"in_today_deal"`
-	CreatedBy        string            `json:"created_by"`
-	CreatedAt        time.Time         `json:"created_at"`
-	LastUpdated      time.Time         `json:"last_updated"`
-	Images           []Image           `json:"urls,omitempty"`
-	ProductVariants  []ProductVariants `json:"product_variants"`
-	Warranty         *ProductWarranty  `json:"warranty"`
-	InWishlist       *bool             `json:"liked_by_user,omitempty"`
-	Details          []string          `json:"details,omitempty"`
-	Features         []ProductFeature  `json:"features,omitempty"`
-	Weight           *float64          `json:"weight"`
-	WeightLimit      *float64          `json:"weight_limit"`
-	Dimensions       *string           `json:"dimensions"`
-	Manufacturer     *string           `json:"manufacturer"`
-	Discount         *float64          `json:"discount"`
-	DiscountType     *string           `json:"discount_type"`
-	Tax              *ProductTax       `json:"tax"`
-	LowStockAlert    int               `json:"low_stock_quantity_warning"`
+	ID                 string            `json:"product_id"`
+	Name               string            `json:"name"`
+	Description        string            `json:"description"`
+	SKU                string            `json:"sku"`
+	Tag                *string           `json:"tag"`
+	Price              float64           `json:"price"`
+	CategoryID         string            `json:"category_id"`
+	CategoryName       string            `json:"category_name"`
+	StockQuantity      int               `json:"stock_quantity"`
+	MaxStockQuantity   int               `json:"max_stock_quantity"`
+	SearchVector       string            `json:"search_vector"`
+	IsInTodaysDeals    bool              `json:"in_today_deal"`
+	CreatedBy          string            `json:"created_by"`
+	CreatedAt          time.Time         `json:"created_at"`
+	LastUpdated        time.Time         `json:"last_updated"`
+	Images             []Image           `json:"urls,omitempty"`
+	ProductVariants    []ProductVariants `json:"product_variants"`
+	Warranty           *ProductWarranty  `json:"warranty"`
+	InWishlist         *bool             `json:"liked_by_user,omitempty"`
+	Details            []string          `json:"details,omitempty"`
+	Features           []ProductFeature  `json:"features,omitempty"`
+	Weight             *float64          `json:"weight"`
+	WeightLimit        *float64          `json:"weight_limit"`
+	Dimensions         *string           `json:"dimensions"`
+	Manufacturer       *string           `json:"manufacturer"`
+	Discount           *float64          `json:"discount"`
+	DiscountType       *string           `json:"discount_type"`
+	Tax                *ProductTax       `json:"tax"`
+	LowStockAlert      int               `json:"low_stock_quantity_warning"`
+	SellWhenOutOfStock bool              `json:"sell_when_out_of_stock"`
+	ShowStockQuantity  bool              `json:"show_stock_quantity"`
 	//for bundles, it will contain the products in the bundle
 	BundleProducts []Product `json:"products,omitempty"`
 }
