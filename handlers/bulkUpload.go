@@ -545,11 +545,10 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	var uploadedResults []map[string]string
-	isPrimary := true
 	fileTypes := []string{"gallery", "thumbnail", "video"}
 	// Check and upload files for each type
 	for _, fileType := range fileTypes {
-		results, err := handleFileUploads(tx, r, product.ID, fileType, isPrimary)
+		results, err := handleFileUploads(tx, r, product.ID, fileType)
 		if err != nil {
 			log.Printf("Error::::%s adding image to product:::::%s", err.Error(), product.ID)
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{

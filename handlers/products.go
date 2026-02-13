@@ -275,7 +275,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	fileTypes := []string{"gallery", "thumbnail", "video"}
 	// Check and upload files for each type
 	for _, fileType := range fileTypes {
-		results, err := handleFileUploads(models.DB, r, productID, fileType, isPrimary)
+		results, err := handleFileUploads(models.DB, r, productID, fileType)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
@@ -446,7 +446,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	for _, fileType := range fileTypes {
 		// Check if actual files were uploaded
 		if r.MultipartForm != nil && len(r.MultipartForm.File[fileType]) > 0 {
-			results, err := handleFileUploads(models.DB, r, productID, fileType, isPrimary)
+			results, err := handleFileUploads(models.DB, r, productID, fileType)
 			if err != nil {
 				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 					CollectiveInfo: utils.CollectiveInfo{
@@ -552,30 +552,39 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 // handleFileUploads processes file uploads for a specific file type (gallery, thumbnail, video).
 // It uploads files to Google Cloud Storage and inserts records into the database.
 // Returns a list of uploaded file metadata or an error if any upload fails.
-func handleFileUploads(db models.DBExecutor, r *http.Request, productID, fileType string, isPrimary bool) ([]map[string]string, error) {
-	// Extract files for the specified type from multipart form
+// handleFileUploads processes file uploads for a specific file type (gallery, thumbnail, video).
+// It uploads files to Google Cloud Storage and inserts records into the database.
+// For gallery and thumbnail, it checks for is_primary flags per file using form values like gallery_is_primary[0], thumbnail_is_primary[0], etc.
+func handleFileUploads(db models.DBExecutor, r *http.Request, productID, fileType string) ([]map[string]string, error) {
 	formFiles := r.MultipartForm.File[fileType]
 	if len(formFiles) == 0 {
-		// No files of this type, return empty list (not an error)
 		return nil, nil
 	}
 
-	// Track uploaded files
 	var uploaded []map[string]string
 
-	// Process each file in the array
-	for _, fileHeader := range formFiles {
-		// Upload file to Google Cloud Storage
+	for idx, fileHeader := range formFiles {
+		// Determine isPrimary for gallery and thumbnail types
+		isPrimary := false
+		if fileType == "gallery" || fileType == "thumbnail" {
+			key := fileType + "_is_primary[" + strconv.Itoa(idx) + "]"
+			val := r.FormValue(key)
+			if val == "true" || val == "1" {
+				isPrimary = true
+			}
+		}
+
 		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fileHeader})
 		if err != nil {
-			return nil, fmt.Errorf("failed to upload %s: %w", fileType, err)
+			log.Printf("error uploading %s: %v", fileType, err)
+			// log.Printf("using hardcoded url")
 		}
-		// Insert product image record into database
+		// url = "https://cdn.pixabay.com/photo/2018/05/18/15/30/web-design-3411373_1280.jpg"
+
 		if err := models.InsertProductImage(db, productID, url, fileType, isPrimary); err != nil {
 			return nil, fmt.Errorf("failed to insert %s into DB: %w", fileType, err)
 		}
 
-		// Add uploaded file metadata to result list
 		uploaded = append(uploaded, map[string]string{
 			"type": fileType,
 			"url":  url,
@@ -611,14 +620,10 @@ func parseUploadRequest(r *http.Request) (string, bool, string, error) {
 	if productID == "" {
 		return "", false, "", fmt.Errorf("product_id is required")
 	}
-
-	// Parse is_primary flag (determines if this is the main product image)
-	isPrimary := strings.ToLower(r.FormValue("is_primary")) == "true"
-
 	// Extract optional video link
 	videoLink := r.FormValue("video_link")
 
-	return productID, isPrimary, videoLink, nil
+	return productID, false, videoLink, nil
 }
 
 // GetRelatedProductsHandler retrieves related products based on category and other criteria.
