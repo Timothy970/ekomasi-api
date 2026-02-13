@@ -428,7 +428,7 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 	query := `
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag, p.details, dp.discount, dp.discount_type, ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit, p.product_type
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag, p.details, dp.discount, dp.discount_type, ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit, p.product_type, p.low_stock_quantity_warning
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
 		LEFT JOIN deal_products dp ON p.product_id = dp.product_id
@@ -448,7 +448,7 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 	err = db.QueryRow(query, productID).Scan(
 		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &categotyID,
 		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
-		&categoryName, &p.Tag, &detailsData, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit, &productType,
+		&categoryName, &p.Tag, &detailsData, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit, &productType, &p.LowStockAlert,
 	)
 	if err != nil {
 		return nil, err
