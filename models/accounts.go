@@ -108,6 +108,12 @@ var CreateAccount = func(db DBExecutor, req dtos.CreateAccountRequest, accountCo
 	if err != nil {
 		return "", err
 	}
+	//check if account name and description already exist
+	err = isChartAccountNameAndDescriptionThere(db, req.AccountName, *req.Description)
+	if err != nil {
+		return "", err
+	}
+
 	// Generate unique account ID
 	id, _ := shortid.Generate()
 
@@ -118,6 +124,27 @@ var CreateAccount = func(db DBExecutor, req dtos.CreateAccountRequest, accountCo
 		id, accountCode, req.AccountName, req.AccountType, req.StatementType, req.Description, req.Status, req.Category,
 	)
 	return id, err
+}
+
+// helper function to check if account name and description already exist in chart of accounts
+// parameters: account name and description
+// returns: error if account name and description already exist, nil if they don't
+func isChartAccountNameAndDescriptionThere(db DBExecutor, name, description string) error {
+	exists, err := RecordExists(db, "chart_of_accounts", "account_name = ?", name)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("account name already exists")
+	}
+	exists, err = RecordExists(db, "chart_of_accounts", "description = ?", description)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("account description already exists")
+	}
+	return nil
 }
 
 // ListAccounts retrieves a paginated list of accounts from the chart of accounts.

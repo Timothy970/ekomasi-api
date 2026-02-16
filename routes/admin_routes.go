@@ -261,4 +261,9 @@ func SetupAdminRoutes(api *mux.Router) {
 
 	// Admin assign order to rider
 	admin.Handle("/orders/assign-rider", middleware.AuthenticateToken(http.HandlerFunc(handlers.RiderAssignOrder))).Methods("POST")
+
+	// Admin Swagger IP management
+	admin.Handle("/swagger-ips", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddAllowedIPHandler))).Methods("POST")
+	admin.Handle("/swagger-ips", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListAllowedIPsHandler))).Methods("GET")
+	admin.Handle("/swagger-ips/{ip}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteAllowedIPHandler))).Methods("DELETE")
 }

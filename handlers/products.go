@@ -1964,10 +1964,9 @@ func handleProductsVariants(db models.DBExecutor, req dtos.ProductSpecification,
 		"size":     req.Size,
 	}
 	// If updating, first hold existing variants
-	var variantIDsExisting []string
 	var err error
 	if state == "update" {
-		variantIDsExisting, err = models.HoldProductVariants(db, req.ProductID)
+		err = models.HoldProductVariants(db, req.ProductID)
 		if err != nil {
 			return err
 		}
@@ -1983,15 +1982,7 @@ func handleProductsVariants(db models.DBExecutor, req dtos.ProductSpecification,
 			}
 		}
 	}
-	// If updating, remove held variants
-	if state == "update" {
-		for _, variantID := range variantIDsExisting {
-			err := models.RemoveHeldProductVariants(db, variantID)
-			if err != nil {
-				return err
-			}
-		}
-	}
+
 	return nil
 }
 
@@ -2008,7 +1999,8 @@ func addProductVariantWithHandling(db models.DBExecutor, variantID, variantType 
 		return nil
 	}
 	if err.Error() == notFoundMsg {
-		return fmt.Errorf("%s variant with variant_id %s not found", variantType, variantID)
+		log.Printf("%s variant with variant_id %s not found", variantType, variantID)
+		return nil
 	}
 	return err
 }
