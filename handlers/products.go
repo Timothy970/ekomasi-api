@@ -1964,10 +1964,9 @@ func handleProductsVariants(db models.DBExecutor, req dtos.ProductSpecification,
 		"size":     req.Size,
 	}
 	// If updating, first hold existing variants
-	var variantIDsExisting []string
 	var err error
 	if state == "update" {
-		variantIDsExisting, err = models.HoldProductVariants(db, req.ProductID)
+		err = models.HoldProductVariants(db, req.ProductID)
 		if err != nil {
 			return err
 		}
