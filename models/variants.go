@@ -238,6 +238,8 @@ func DeleteVariantByID(db DBExecutor, id string) error {
 //
 // Returns:
 //   - error: "variant not found", "product not found", database error, or nil on success
+//
+// adding boolean for checking association between product and variant and to be true by default
 func AddProductVariant(db DBExecutor, variantID string, req dtos.ProductVariantRequest) error {
 	// Generate unique product-variant ID
 	pvID, _ := shortid.Generate()
@@ -290,14 +292,14 @@ func AddProductVariant(db DBExecutor, variantID string, req dtos.ProductVariantR
 // Returns:
 //   - []string: Array of variant IDs
 //   - error: Database error or nil on success
-func HoldProductVariants(db DBExecutor, productID string) ([]string, error) {
+func HoldProductVariants(db DBExecutor, productID string) error {
 	// Fetch all variant IDs for the product
 	rows, err := db.Query(`
 		SELECT variant_id FROM product_variants
 		WHERE product_id = ?`, productID,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer rows.Close()
 
@@ -307,11 +309,17 @@ func HoldProductVariants(db DBExecutor, productID string) ([]string, error) {
 		var variantID string
 		err := rows.Scan(&variantID)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		variantIDs = append(variantIDs, variantID)
 	}
-	return variantIDs, nil
+	for _, variantID := range variantIDs {
+		err := RemoveHeldProductVariants(db, variantID)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RemoveHeldProductVariants removes all product-variant associations for a variant.
