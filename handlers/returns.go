@@ -153,7 +153,7 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      400        {object}  dtos.ErrorResponse        "Invalid request or update failed"
 // @Failure      401        {object}  dtos.ErrorResponse        "User not authorized (admin required)"
 // @Security     BearerAuth
-// @Router       /api/returns/{return_id}/status [put]
+// @Router       /api/returns/{return_id}/status [patch]
 func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 	// Start performance tracking for this request
 	start := time.Now()

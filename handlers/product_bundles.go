@@ -343,7 +343,7 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
 // @Failure 404 {object} map[string]interface{} "Bundle not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
-// @Router /api/admin/bundles/{bundle_id} [put]
+// @Router /api/admin/bundles/{bundle_id} [patch]
 // @Security BearerAuth
 func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	// Track request execution time

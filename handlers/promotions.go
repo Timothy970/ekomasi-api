@@ -119,7 +119,7 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      404                   {object}  dtos.ErrorResponse      "Promo code not found"
 // @Failure      500                   {object}  dtos.ErrorResponse      "Internal server error"
 // @Security     BearerAuth
-// @Router       /admin/promotions/promo-codes/{promo_id} [put]
+// @Router       /admin/promotions/promo-codes/{promo_id} [patch]
 func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	// Start performance tracking for this request
 	start := time.Now()
