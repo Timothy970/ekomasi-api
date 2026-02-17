@@ -32,6 +32,7 @@ func SetupProductRoutes(api *mux.Router) {
 	// Product bundles
 	product.Handle("/add-products/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductsToBundleHandler))).Methods("POST")
 	api.HandleFunc("/products/bundles", handlers.GetBundleProductsHandler).Methods("GET")
+	api.HandleFunc("/products/bundles/{bundle_id}", handlers.GetBundleByIDProductsHandler).Methods("GET")
 
 	// Product reviews
 	products.HandleFunc("/{product_id}/reviews", handlers.GetProductReviews).Methods("GET")

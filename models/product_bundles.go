@@ -68,7 +68,7 @@ func GetBundleProducts(db DBExecutor, limit, page int) ([]dtos.GetBundleRequest,
 	query := `
 		SELECT 
 			product_id, name, description, sku, tag, price, stock_quantity,
-			created_at, last_updated_at
+			created_at, last_updated_at, sell_when_out_of_stock, buying_price
 		FROM products
 		WHERE product_type = 'bundle'
 		ORDER BY created_at DESC
@@ -90,7 +90,7 @@ func GetBundleProducts(db DBExecutor, limit, page int) ([]dtos.GetBundleRequest,
 		// Scan bundle base fields
 		if err := rows.Scan(
 			&bundle.ID, &bundle.Name, &bundle.Description, &bundle.SKU, &bundle.Tag,
-			&bundle.Price, &bundle.StockQuantity, &bundle.CreatedAt, &bundle.LastUpdated,
+			&bundle.Price, &bundle.StockQuantity, &bundle.CreatedAt, &bundle.LastUpdated, &bundle.KeepSelling, &bundle.BuyingPrice,
 		); err != nil {
 			return nil, nil, err
 		}
@@ -123,14 +123,14 @@ func GetBundleProducts(db DBExecutor, limit, page int) ([]dtos.GetBundleRequest,
 //   - bundleID: string - The bundle product ID to retrieve
 //
 // Returns:
-//   - []dtos.GetBundleRequest: Array with single bundle (or empty if not found)
+//   - *dtos.GetBundleRequest: Pointer to the bundle (or nil if not found)
 //   - error: Database error or nil on success
-func GetBundleByIDProducts(db DBExecutor, bundleID string) ([]dtos.GetBundleRequest, error) {
+func GetBundleByIDProducts(db DBExecutor, bundleID string) (*dtos.GetBundleRequest, error) {
 	// Fetch specific bundle by ID
 	query := `
 		SELECT 
 			product_id, name, description, sku, tag, price, stock_quantity,
-			created_at, last_updated_at
+			created_at, last_updated_at, sell_when_out_of_stock, buying_price
 		FROM products
 		WHERE product_type = 'bundle' AND product_id = ?
 		ORDER BY created_at DESC
@@ -143,15 +143,13 @@ func GetBundleByIDProducts(db DBExecutor, bundleID string) ([]dtos.GetBundleRequ
 	defer rows.Close()
 
 	// Scan bundle rows and populate associated data
-	var bundles []dtos.GetBundleRequest
+	var bundle dtos.GetBundleRequest
 
 	for rows.Next() {
-		var bundle dtos.GetBundleRequest
-
 		// Scan bundle base fields
 		if err := rows.Scan(
 			&bundle.ID, &bundle.Name, &bundle.Description, &bundle.SKU, &bundle.Tag,
-			&bundle.Price, &bundle.StockQuantity, &bundle.CreatedAt, &bundle.LastUpdated,
+			&bundle.Price, &bundle.StockQuantity, &bundle.CreatedAt, &bundle.LastUpdated, &bundle.KeepSelling, &bundle.BuyingPrice,
 		); err != nil {
 			return nil, err
 		}
@@ -169,11 +167,9 @@ func GetBundleByIDProducts(db DBExecutor, bundleID string) ([]dtos.GetBundleRequ
 			return nil, err
 		}
 		bundle.Images = images
-
-		bundles = append(bundles, bundle)
 	}
 
-	return bundles, nil
+	return &bundle, nil
 }
 
 // getProductsForBundle retrieves all products associated with a bundle.
