@@ -418,7 +418,7 @@ func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartIt
 // @Failure      400      {object}  dtos.ErrorResponse
 // @Failure      500      {object}  dtos.ErrorResponse
 // @Security     BearerAuth
-// @Router       /api/cart/update/{cart_id} [put]
+// @Router       /api/cart/update/{cart_id} [patch]
 func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Get request summary for logging

@@ -145,7 +145,7 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      400        {object}  dtos.ErrorResponse
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
-// @Router       /api/admin/deals/{deal_id} [put]
+// @Router       /api/admin/deals/{deal_id} [patch]
 func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)

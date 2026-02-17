@@ -250,7 +250,7 @@ func GetRolesHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      400            {object}  dtos.ErrorResponse   "Validation error or role not found"
 // @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
 // @Security     BearerAuth
-// @Router       /api/roles/{role_id} [put]
+// @Router       /api/roles/{role_id} [patch]
 func UpdateRoleHandler(w http.ResponseWriter, r *http.Request) {
 	// Start performance tracking
 	start := time.Now()
@@ -838,7 +838,7 @@ func RemoveAvailablePermission(w http.ResponseWriter, r *http.Request) {
 // @Failure      400            {object}  dtos.ErrorResponse                "Permission not found or validation error"
 // @Failure      401            {object}  dtos.ErrorResponse                "Admin authorization required"
 // @Security     BearerAuth
-// @Router       /api/permissions/available [put]
+// @Router       /api/permissions/available [patch]
 func UpdateAvailablePermission(w http.ResponseWriter, r *http.Request) {
 	// Start performance tracking
 	start := time.Now()

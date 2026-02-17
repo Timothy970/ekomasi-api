@@ -87,7 +87,7 @@ func AddChargeHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      400        {object}  dtos.ErrorResponse
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
-// @Router       /api/admin/charges/{charge_id} [put]
+// @Router       /api/admin/charges/{charge_id} [patch]
 func UpdateChargeHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)

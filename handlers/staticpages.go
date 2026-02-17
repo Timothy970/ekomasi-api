@@ -274,7 +274,7 @@ func DeleteStaticPage(w http.ResponseWriter, r *http.Request) {
 // @Failure      401             {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Failure      404             {object}  dtos.ErrorResponse      "Page not found or update failed"
 // @Security     BearerAuth
-// @Router       /api/admin/static-pages/{static_page_id} [put]
+// @Router       /api/admin/static-pages/{static_page_id} [patch]
 func UpdateStaticPage(w http.ResponseWriter, r *http.Request) {
 	// Start performance tracking for this request
 	start := time.Now()

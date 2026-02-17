@@ -349,7 +349,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      400         {object}  dtos.ErrorResponse
 // @Failure      500         {object}  dtos.ErrorResponse
 // @Security     BearerAuth
-// @Router       /api/product/image [put]
+// @Router       /api/product/image [patch]
 func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Get request summary for logging
@@ -1499,7 +1499,7 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      400                     {object}  dtos.ErrorResponse
 // @Failure      500                     {object}  dtos.ErrorResponse
 // @Security     BearerAuth
-// @Router       /api/products/{product_id}/features [put]
+// @Router       /api/products/{product_id}/features [patch]
 func UpdateAllProductFeaturesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(r)

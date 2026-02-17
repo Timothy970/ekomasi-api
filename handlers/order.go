@@ -226,7 +226,7 @@ func ViewOrderAdminHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      400    {object}  dtos.ErrorResponse
 // @Failure      500    {object}  dtos.ErrorResponse
 // @Security     BearerAuth
-// @Router       /admin/orders/{id}/status [put]
+// @Router       /admin/orders/{id}/status [patch]
 func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Get request summary for logging
@@ -922,7 +922,7 @@ func GetOrderCountsByStatus(w http.ResponseWriter, r *http.Request) {
 // @Success      200        {object}  dtos.GenericResponse
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
-// @Router       /api/orders/{order_id}/hold [put]
+// @Router       /api/orders/{order_id}/hold [patch]
 func HoldOrderHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Get request summary for logging
@@ -974,7 +974,7 @@ func HoldOrderHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200        {object}  map[string]interface{}
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
-// @Router       /api/orders/{order_id}/release [put]
+// @Router       /api/orders/{order_id}/release [patch]
 func ReleaseOrderHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Get request summary for logging
