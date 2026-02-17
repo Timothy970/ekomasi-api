@@ -75,6 +75,8 @@ type GetBundleRequest struct {
 	Details          []string          `json:"details,omitempty"`
 	Features         []ProductFeature  `json:"features,omitempty"`
 	Products         []Product         `json:"products"`
+	KeepSelling      *bool             `json:"keep_selling_when_out_of_stock"`
+	BuyingPrice      *float64          `json:"buying_price,omitempty"`
 }
 
 type Bundle struct {
