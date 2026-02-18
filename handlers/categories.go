@@ -157,7 +157,8 @@ func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	categoryName := r.URL.Query().Get("q")
-	categories, pagination, err := models.GetAdminCategories(models.DB, page, limit, categoryName)
+	categoryType := r.URL.Query().Get("type")
+	categories, pagination, err := models.GetAdminCategories(models.DB, page, limit, categoryName, categoryType)
 	if err != nil {
 		log.Printf("Failed to get categories: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -195,7 +196,7 @@ func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 // @Description  Retrieve a hierarchical list of categories and their subcategories
 // @Tags         Categories
 // @Produce      json
-// @Success      200  {object}  []dtos.CategoryWithSubcategories
+// @Success      200  {object}  map[string]interface{}
 // @Failure      400  {object}  dtos.ErrorResponse
 // @Router       /api/categories/tree [get]
 func GetCategoriesWithSubCategoriesHandler(w http.ResponseWriter, r *http.Request) {

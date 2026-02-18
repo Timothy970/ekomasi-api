@@ -30,7 +30,7 @@ import (
 // @Produce      json
 // @Param        Authorization   header    string                 true   "Bearer token"
 // @Param        notification    body      dtos.Notification      true   "Notification details"
-// @Success      201             {object}  dtos.SuccessResponse   "Notification created and sent"
+// @Success      201             {object}  map[string]interface{}   "Notification created and sent"
 // @Failure      400             {object}  dtos.ErrorResponse     "Invalid request or channel"
 // @Failure      401             {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Failure      404             {object}  dtos.ErrorResponse     "User not found"
@@ -210,7 +210,7 @@ func sendNotification(req dtos.Notification) error {
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        page           query     int                    false  "Page number (default: 1)"
 // @Param        size           query     int                    false  "Page size (default: 10)"
-// @Success      200            {object}  dtos.SuccessResponse   "Notifications with pagination"
+// @Success      200            {object}  map[string]interface{}   "Notifications with pagination"
 // @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Failure      500            {object}  dtos.ErrorResponse     "Failed to retrieve notifications"
 // @Security     BearerAuth
@@ -295,7 +295,7 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 // @Param        Authorization      header    string                      true   "Bearer token"
 // @Param        notification_id    path      string                      true   "Notification ID"
 // @Param        notification       body      dtos.UpdateNotification     true   "Updated status"
-// @Success      200                {object}  dtos.SuccessResponse        "Notification updated"
+// @Success      200                {object}  map[string]interface{}        "Notification updated"
 // @Failure      400                {object}  dtos.ErrorResponse          "Invalid request"
 // @Failure      401                {object}  dtos.ErrorResponse          "Admin authorization required"
 // @Failure      404                {object}  dtos.ErrorResponse          "Notification not found"
@@ -369,7 +369,7 @@ func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization      header    string                 true  "Bearer token"
 // @Param        notification_id    path      string                 true  "Notification ID"
-// @Success      200                {object}  dtos.SuccessResponse   "Notification deleted"
+// @Success      200                {object}  map[string]interface{}   "Notification deleted"
 // @Failure      401                {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Failure      404                {object}  dtos.ErrorResponse     "Notification not found"
 // @Security     BearerAuth
@@ -432,7 +432,7 @@ func DeleteNotificationHandler(w http.ResponseWriter, r *http.Request) {
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        page           query     int                    false  "Page number"
 // @Param        limit          query     int                    false  "Page size"
-// @Success      200            {object}  dtos.SuccessResponse   "Logs with pagination"
+// @Success      200            {object}  map[string]interface{}   "Logs with pagination"
 // @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Failure      500            {object}  dtos.ErrorResponse     "Failed to retrieve logs"
 // @Security     BearerAuth

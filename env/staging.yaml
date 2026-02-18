@@ -60,7 +60,7 @@ migration_type: custom
 migration_command: ["/app/app", "-migrate=true"]
 migration_image_suffix: cli
 
-gcs_buckets:
+gcs_buckets_public:
   - images
 
 allowed_networks:

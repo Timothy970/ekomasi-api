@@ -40,7 +40,7 @@ var noUser = "User is not validated"
 // @Produce      json
 // @Param        Authorization  header    string                    true   "Bearer token"
 // @Param        wishlist       body      dtos.CreateWishlistItem   true   "Wishlist item to add"
-// @Success      200            {object}  dtos.SuccessResponse      "Product added to wishlist"
+// @Success      200            {object}  map[string]interface{}      "Product added to wishlist"
 // @Failure      400            {object}  dtos.ErrorResponse        "Invalid request"
 // @Failure      401            {object}  dtos.ErrorResponse        "User not authenticated"
 // @Security     BearerAuth
@@ -153,7 +153,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        product_id     path      string                 true   "Product ID to remove"
-// @Success      200            {object}  dtos.SuccessResponse   "Product removed from wishlist"
+// @Success      200            {object}  map[string]interface{}   "Product removed from wishlist"
 // @Failure      401            {object}  dtos.ErrorResponse     "User not authenticated"
 // @Failure      404            {object}  dtos.ErrorResponse     "Product not in wishlist"
 // @Security     BearerAuth
@@ -260,7 +260,7 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        page           query     int                    false  "Page number (default: 1)"
 // @Param        size           query     int                    false  "Page size (default: 10)"
-// @Success      200            {object}  dtos.SuccessResponse   "Wishlists with pagination"
+// @Success      200            {object}  map[string]interface{}   "Wishlists with pagination"
 // @Failure      401            {object}  dtos.ErrorResponse     "User not authenticated"
 // @Failure      404            {object}  dtos.ErrorResponse     "No wishlists found"
 // @Security     BearerAuth
@@ -357,7 +357,7 @@ func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        wishlist       body      dtos.CreateWishlist    true   "Wishlist name and details"
-// @Success      201            {object}  dtos.SuccessResponse   "Wishlist created successfully"
+// @Success      201            {object}  map[string]interface{}   "Wishlist created successfully"
 // @Failure      400            {object}  dtos.ErrorResponse     "Invalid request"
 // @Failure      401            {object}  dtos.ErrorResponse     "User not authenticated"
 // @Security     BearerAuth
@@ -434,7 +434,7 @@ func CreateWishList(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization  header    string                        true   "Bearer token"
 // @Param        share          body      dtos.ShareWishlistPayload     true   "Recipient email and message"
-// @Success      200            {object}  dtos.SuccessResponse          "Wishlist shared successfully"
+// @Success      200            {object}  map[string]interface{}          "Wishlist shared successfully"
 // @Failure      400            {object}  dtos.ErrorResponse            "Invalid request"
 // @Failure      403            {object}  dtos.ErrorResponse            "Wishlist is private"
 // @Failure      404            {object}  dtos.ErrorResponse            "Wishlist not found or empty"
@@ -573,7 +573,7 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 // @Tags         Wishlist
 // @Produce      json
 // @Param        wishlist_id  path      string                 true  "Base64-encoded wishlist ID"
-// @Success      200          {object}  dtos.SuccessResponse   "Shared wishlist details"
+// @Success      200          {object}  map[string]interface{}   "Shared wishlist details"
 // @Failure      400          {object}  dtos.ErrorResponse     "Invalid wishlist link"
 // @Failure      403          {object}  dtos.ErrorResponse     "Wishlist is private"
 // @Failure      404          {object}  dtos.ErrorResponse     "Wishlist not found"
@@ -680,7 +680,7 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization  header    string                 true  "Bearer token"
 // @Param        wishlist_id    path      string                 true  "Wishlist ID to delete"
-// @Success      200            {object}  dtos.SuccessResponse   "Wishlist deleted successfully"
+// @Success      200            {object}  map[string]interface{}   "Wishlist deleted successfully"
 // @Failure      401            {object}  dtos.ErrorResponse     "User not authenticated"
 // @Failure      404            {object}  dtos.ErrorResponse     "Wishlist not found"
 // @Security     BearerAuth
@@ -751,7 +751,7 @@ func DeleteWishList(w http.ResponseWriter, r *http.Request) {
 // @Tags         Wishlist
 // @Produce      json
 // @Param        Authorization  header    string                 true  "Bearer token"
-// @Success      200            {object}  dtos.SuccessResponse   "User's wishlist with products"
+// @Success      200            {object}  map[string]interface{}   "User's wishlist with products"
 // @Failure      401            {object}  dtos.ErrorResponse     "User not authenticated"
 // @Failure      500            {object}  dtos.ErrorResponse     "Failed to retrieve wishlist"
 // @Security     BearerAuth

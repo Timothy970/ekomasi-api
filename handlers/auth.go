@@ -238,7 +238,7 @@ func CheckUserExistsByEmailOrPhone(w http.ResponseWriter, r *http.Request, req d
 // @Accept       json
 // @Produce      json
 // @Param        body  body      dtos.VerifyOTP  true  "OTP verification details"
-// @Success      200   {object}  dtos.LoginResponse
+// @Success      200   {object}  map[string]interface{} "Verification successful with auth tokens"
 // @Failure      400   {object}  dtos.ErrorResponse
 // @Failure      404   {object}  dtos.ErrorResponse
 // @Failure      500   {object}  dtos.ErrorResponse
@@ -758,8 +758,8 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 // @Tags         Auth
 // @Accept       json
 // @Produce      json
-// @Param        body  body      dtos.RefreshTokenRequest  true  "Refresh token"
-// @Success      200   {object}  dtos.LoginResponse
+// @Param        body  body  dtos.LoginRequest  true  "Refresh token"
+// @Success      200   {object}  map[string]interface{} "Verification successful with auth tokens"
 // @Failure      400   {object}  dtos.ErrorResponse
 // @Failure      401   {object}  dtos.ErrorResponse
 // @Failure      500   {object}  dtos.ErrorResponse

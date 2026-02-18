@@ -44,7 +44,7 @@ var session = "whatsapp_session"
 // @Accept       json
 // @Produce      json
 // @Param        login  body      dtos.WhatsappLogin       true  "Phone number for WhatsApp login"
-// @Success      200    {object}  dtos.SuccessResponse     "Verification message sent successfully"
+// @Success      200    {object}  map[string]interface{}     "Verification message sent successfully"
 // @Failure      400    {object}  dtos.ErrorResponse       "Invalid request or phone number"
 // @Failure      429    {object}  dtos.ErrorResponse       "Too many login attempts"
 // @Failure      500    {object}  dtos.ErrorResponse       "Internal server error"
@@ -168,7 +168,7 @@ func WhatsAppLoginHandler(w http.ResponseWriter, r *http.Request) {
 // @Tags         Authentication
 // @Produce      json
 // @Param        token  query     string                   true  "Verification token from WhatsApp message"
-// @Success      200    {object}  dtos.SuccessResponse     "Verification successful with auth token"
+// @Success      200    {object}  map[string]interface{}     "Verification successful with auth token"
 // @Failure      400    {object}  dtos.ErrorResponse       "Missing verification token"
 // @Failure      401    {object}  dtos.ErrorResponse       "Invalid or expired token"
 // @Failure      500    {object}  dtos.ErrorResponse       "Token generation failed"
@@ -325,7 +325,7 @@ func GetUserIDFromVerificationToken(token string) (string, error) {
 // @Accept       json
 // @Produce      json
 // @Param        webhook  body      dtos.WhatsAppWebhook     true  "WhatsApp webhook payload"
-// @Success      200      {object}  dtos.SuccessResponse     "Webhook processed successfully"
+// @Success      200      {object}  map[string]interface{}     "Webhook processed successfully"
 // @Failure      400      {object}  dtos.ErrorResponse       "Invalid webhook payload"
 // @Router       /api/auth/whatsapp/webhook [post]
 func WhatsAppWebhookHandler(w http.ResponseWriter, r *http.Request) {

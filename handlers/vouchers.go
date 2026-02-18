@@ -38,7 +38,7 @@ var (
 // @Param        image   formData  file     true  "Design image"
 // @Param        name    formData  string   true  "Design name"
 // @Param        status  formData  string   true  "Design status (active/inactive)"
-// @Success      201     {object}  dtos.SuccessResponse "Design created successfully"
+// @Success      201     {object}  map[string]interface{} "Design created successfully"
 // @Failure      400     {object}  dtos.ErrorResponse   "Invalid request or upload failed"
 // @Security     BearerAuth
 // @Router       /api/admin/vouchers/design [post]
@@ -412,7 +412,7 @@ func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
 // @Tags         Vouchers
 // @Produce      json
 // @Param        voucher_id  path      string                  true  "Voucher ID"
-// @Success      200         {object}  dtos.SuccessResponse    "Voucher deleted successfully"
+// @Success      200         {object}  map[string]interface{}    "Voucher deleted successfully"
 // @Failure      401         {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Failure      500         {object}  dtos.ErrorResponse      "Delete operation failed"
 // @Security     BearerAuth
@@ -477,7 +477,7 @@ func DeleteVoucherHandler(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        voucher_id  path      string                   true  "Voucher ID"
 // @Param        voucher     body      dtos.VoucherDataUpdate   true  "Updated voucher details"
-// @Success      200         {object}  dtos.SuccessResponse     "Voucher updated successfully"
+// @Success      200         {object}  map[string]interface{}     "Voucher updated successfully"
 // @Failure      400         {object}  dtos.ErrorResponse       "Invalid request or update failed"
 // @Failure      401         {object}  dtos.ErrorResponse       "Admin authorization required"
 // @Security     BearerAuth
@@ -1031,7 +1031,7 @@ func voucherPaymentProcessor(db models.DBExecutor, paymentMethod string, voucher
 // @Accept       json
 // @Produce      json
 // @Param        voucher  body      dtos.RedeemVoucherRequest  true  "Voucher redemption details"
-// @Success      200      {object}  dtos.SuccessResponse       "Voucher redeemed successfully"
+// @Success      200      {object}  map[string]interface{}       "Voucher redeemed successfully"
 // @Failure      400      {object}  dtos.ErrorResponse         "Invalid code or redemption failed"
 // @Failure      401      {object}  dtos.ErrorResponse         "User authentication required"
 // @Security     BearerAuth
@@ -1282,7 +1282,7 @@ func GetAllVoucherDesigns(w http.ResponseWriter, r *http.Request) {
 
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 	status := r.URL.Query().Get("status")
-	q := r.URL.Query().Get("q")
+	q := r.URL.Query().Get("name")
 
 	designs, pagination, err := models.GetAllVoucherDesigns(models.DB, page, limit, q, status)
 	if err != nil {
@@ -1358,7 +1358,7 @@ func ListVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	q := r.URL.Query().Get("q")
+	q := r.URL.Query().Get("name")
 
 	purchases, pagination, err := models.ListVoucherPurchases(models.DB, page, limit, q)
 	if err != nil {

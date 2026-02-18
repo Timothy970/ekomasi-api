@@ -35,7 +35,7 @@ var (
 // @Produce      json
 // @Param        start_date  query     string                     false  "Start date (YYYY-MM-DD)"
 // @Param        end_date    query     string                     false  "End date (YYYY-MM-DD)"
-// @Success      200         {object}  dtos.SalesTrendsSummary    "Sales trends summary"
+// @Success      200         {object}  map[string]interface{}    "Sales trends summary"
 // @Failure      404         {object}  dtos.ErrorResponse         "Failed to generate report"
 // @Router       /api/reports/sales/trends/summary [get]
 func GetSalesTrendsSummary(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +98,7 @@ func GetSalesTrendsSummary(w http.ResponseWriter, r *http.Request) {
 // @Param        start_date  query     string                     false  "Start date (YYYY-MM-DD)"
 // @Param        end_date    query     string                     false  "End date (YYYY-MM-DD)"
 // @Param        period      query     string                     false  "Time granularity (daily, weekly, monthly) default: daily"
-// @Success      200         {object}  []dtos.SalesTrendPoint     "Sales trends over time"
+// @Success      200         {object}  map[string]interface{}    "Sales trends over time"
 // @Failure      500         {object}  dtos.ErrorResponse         "Failed to generate report"
 // @Router       /api/reports/sales/trends/overtime [get]
 func GetSalesTrendsOverTime(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +161,7 @@ func GetSalesTrendsOverTime(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        start_date  query     string                              false  "Start date (YYYY-MM-DD)"
 // @Param        end_date    query     string                              false  "End date (YYYY-MM-DD)"
-// @Success      200         {object}  dtos.CustomerSegmentationResponse   "Customer segmentation data"
+// @Success      200         {object}  map[string]interface{}             "Customer segmentation data"
 // @Failure      404         {object}  dtos.ErrorResponse                  "Failed to generate report"
 // @Router       /api/reports/sales/customer-segmentation [get]
 func GetCustomerSegmentation(w http.ResponseWriter, r *http.Request) {
@@ -221,7 +221,7 @@ func GetCustomerSegmentation(w http.ResponseWriter, r *http.Request) {
 // @Description  Retrieve high-level sales performance summary with key metrics
 // @Tags         Sales
 // @Produce      json
-// @Success      200  {object}  dtos.SalesOverview     "Sales overview data"
+// @Success      200  {object}  map[string]interface{}     "Sales overview data"
 // @Failure      404  {object}  dtos.ErrorResponse     "Failed to retrieve overview"
 // @Router       /api/reports/sales/overview [get]
 func GetSalesOverview(w http.ResponseWriter, r *http.Request) {
@@ -272,7 +272,7 @@ func GetSalesOverview(w http.ResponseWriter, r *http.Request) {
 // @Param        start_date  query     string                        false  "Start date (YYYY-MM-DD)"
 // @Param        end_date    query     string                        false  "End date (YYYY-MM-DD)"
 // @Param        export      query     string                        false  "Export format (csv, xlsx, pdf)"
-// @Success      200         {object}  dtos.SalesByRegionResponse    "Sales by region data"
+// @Success      200         {object}  map[string]interface{}        "Sales by region data"
 // @Failure      404         {object}  dtos.ErrorResponse            "Failed to generate report"
 // @Router       /api/reports/sales/by-region [get]
 func GetSalesByRegion(w http.ResponseWriter, r *http.Request) {
@@ -448,8 +448,8 @@ func exportPDF(w http.ResponseWriter, data []dtos.RegionSales) {
 // @Tags         Sales
 // @Produce      json
 // @Param        year  query     int                          true   "Year (YYYY format)"
-// @Success      200   {object}  []dtos.MonthlySalesOrders    "Monthly sales and orders data"
-// @Failure      400   {object}  dtos.ErrorResponse           "Invalid year parameter"
+// @Success      200   {object}  map[string]interface{}        "Monthly sales and orders data"
+// @Failure      400   {object}  map[string]interface{}         "Invalid year parameter"
 // @Failure      404   {object}  dtos.ErrorResponse           "Failed to generate report"
 // @Router       /api/reports/sales/monthly-comparison [get]
 func GetSalesVsOrdersPerMonth(w http.ResponseWriter, r *http.Request) {
@@ -520,7 +520,7 @@ func GetSalesVsOrdersPerMonth(w http.ResponseWriter, r *http.Request) {
 // @Tags         Sales
 // @Produce      json
 // @Param        filter  query     string                       false  "Time filter (week, month, quarter, year) default: week"
-// @Success      200     {object}  dtos.RevenueVsExpenses       "Revenue and expenses data"
+// @Success      200     {object}  map[string]interface{}       "Revenue and expenses data"
 // @Failure      404     {object}  dtos.ErrorResponse           "Failed to generate report"
 // @Router       /api/reports/sales/revenue-vs-expenses [get]
 func GetRevenueVsExpenses(w http.ResponseWriter, r *http.Request) {
@@ -579,7 +579,7 @@ func GetRevenueVsExpenses(w http.ResponseWriter, r *http.Request) {
 // @Description  Retrieve comprehensive overview of revenue, customer count, and order metrics
 // @Tags         Sales
 // @Produce      json
-// @Success      200  {object}  dtos.BusinessOverview     "Business overview data"
+// @Success      200  {object}  map[string]interface{}     "Business overview data"
 // @Failure      404  {object}  dtos.ErrorResponse        "Failed to generate overview"
 // @Router       /api/reports/sales/business-overview [get]
 func GetRevenueCustomersOrdersOverview(w http.ResponseWriter, r *http.Request) {

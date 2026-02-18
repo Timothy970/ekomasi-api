@@ -103,7 +103,7 @@ func GetShippingCostHandler(w http.ResponseWriter, r *http.Request) {
 // @Accept       json
 // @Produce      json
 // @Param        location  body      dtos.ShippingCostResponse  true  "Location and rate details"
-// @Success      200       {object}  dtos.SuccessResponse       "Location added successfully"
+// @Success      200       {object}  map[string]interface{}       "Location added successfully"
 // @Failure      400       {object}  dtos.ErrorResponse         "Invalid request or duplicate location"
 // @Failure      401       {object}  dtos.ErrorResponse         "Admin authorization required"
 // @Security     BearerAuth
@@ -175,7 +175,7 @@ func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
 // @Accept       json
 // @Produce      json
 // @Param        feedback  body      dtos.DeliveryFeedback   true  "Delivery feedback details"
-// @Success      200       {object}  dtos.SuccessResponse    "Feedback submitted successfully"
+// @Success      200       {object}  map[string]interface{}    "Feedback submitted successfully"
 // @Failure      400       {object}  dtos.ErrorResponse      "Invalid feedback data"
 // @Router       /api/deliveries/feedback [post]
 func SubmitFeedbackHandler(w http.ResponseWriter, r *http.Request) {
@@ -554,7 +554,7 @@ func GetLocation(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        location_id  path      int                   true  "Location ID"
 // @Param        location     body      dtos.UpdateLocation   true  "Updated location details"
-// @Success      200          {object}  dtos.SuccessResponse  "Location updated successfully"
+// @Success      200          {object}  map[string]interface{}  "Location updated successfully"
 // @Failure      400          {object}  dtos.ErrorResponse    "Update failed"
 // @Failure      401          {object}  dtos.ErrorResponse    "Admin authorization required"
 // @Security     BearerAuth
@@ -626,7 +626,7 @@ func UpdateLocation(w http.ResponseWriter, r *http.Request) {
 // @Tags         Admin
 // @Produce      json
 // @Param        location_id  path      int                   true  "Location ID"
-// @Success      200          {object}  dtos.SuccessResponse  "Location deleted successfully"
+// @Success      200          {object}  map[string]interface{}  "Location deleted successfully"
 // @Failure      400          {object}  dtos.ErrorResponse    "Deletion failed"
 // @Failure      401          {object}  dtos.ErrorResponse    "Admin authorization required"
 // @Security     BearerAuth
@@ -687,7 +687,7 @@ func DeleteLocation(w http.ResponseWriter, r *http.Request) {
 // @Tags         Delivery Feedback
 // @Produce      json
 // @Param        feedback_id  path      string                true  "Feedback ID"
-// @Success      200          {object}  dtos.SuccessResponse  "Feedback deleted successfully"
+// @Success      200          {object}  map[string]interface{}  "Feedback deleted successfully"
 // @Failure      400          {object}  dtos.ErrorResponse    "Deletion failed"
 // @Router       /api/deliveries/feedback/{feedback_id} [delete]
 func DeleteFeedbackHandler(w http.ResponseWriter, r *http.Request) {
