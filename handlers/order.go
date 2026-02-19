@@ -830,22 +830,53 @@ func formatCustomerDetails(order dtos.AdminOrder) (name, email, phone string) {
 		name = order.User.FirstName + " " + order.User.LastName
 		email = order.User.Email
 		phone = order.User.Phone
+	} else if !isGuestPersonalDetailsEmpty(order.GuestPersonalDetails) {
+		// Name: Prefer FirstName + LastName, else Email, else Phone
+		if order.GuestPersonalDetails.FirstName != nil && order.GuestPersonalDetails.LastName != nil {
+			name = *order.GuestPersonalDetails.FirstName + " " + *order.GuestPersonalDetails.LastName
+		} else if order.GuestPersonalDetails.Email != nil {
+			name = *order.GuestPersonalDetails.Email
+		} else if order.GuestPersonalDetails.Phone != nil {
+			name = *order.GuestPersonalDetails.Phone
+		} else {
+			name = ""
+		}
+		if order.GuestPersonalDetails.Email != nil {
+			email = *order.GuestPersonalDetails.Email
+		} else {
+			email = ""
+		}
+		if order.GuestPersonalDetails.Phone != nil {
+			phone = *order.GuestPersonalDetails.Phone
+		} else {
+			phone = ""
+		}
 	} else {
-		name = order.GuestPersonalDetails.FirstName + " " + order.GuestPersonalDetails.LastName
-		email = order.GuestPersonalDetails.Email
-		phone = order.GuestPersonalDetails.Phone
+		name = ""
+		email = ""
+		phone = ""
 	}
 	return
+}
+
+func isGuestPersonalDetailsEmpty(details dtos.GuestPersonalDetails) bool {
+	return details.FirstName == nil && details.LastName == nil && details.Email == nil && details.Phone == nil
 }
 
 func formatDeliveryAddress(order dtos.AdminOrder) string {
 	if order.DeliveryAddress != nil {
 		return *order.DeliveryAddress
 	}
+	safeStr := func(s *string) string {
+		if s == nil {
+			return ""
+		}
+		return *s
+	}
 	return fmt.Sprintf("Apartment %s, Street %s, City %s, State %s, Postal Code %s, Country %s",
-		order.GuestDeliveryAddress.Apartment, order.GuestDeliveryAddress.Street,
-		order.GuestDeliveryAddress.City, order.GuestDeliveryAddress.State,
-		order.GuestDeliveryAddress.PostalCode, order.GuestDeliveryAddress.Country)
+		safeStr(order.GuestDeliveryAddress.Apartment), safeStr(order.GuestDeliveryAddress.Street),
+		safeStr(order.GuestDeliveryAddress.City), safeStr(order.GuestDeliveryAddress.State),
+		safeStr(order.GuestDeliveryAddress.PostalCode), safeStr(order.GuestDeliveryAddress.Country))
 }
 
 func formatOrderItems(items []dtos.OrderProduct) string {
@@ -1059,6 +1090,24 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, module) {
 		return
+	}
+	//validate the phone number in the guest personal details if the phone number is provided
+	if req.GuestPersonalDetails != nil && req.GuestPersonalDetails.Phone != nil {
+		if !utils.IsValidKenyanPhone(*req.GuestPersonalDetails.Phone) {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      module,
+					Description: "Invalid phone number format in guest personal details",
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Invalid phone number format",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
 	}
 
 	order, err := buildOrderRequest(req, w, r, requestSummary, start, module)

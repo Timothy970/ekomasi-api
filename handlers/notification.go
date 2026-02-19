@@ -613,9 +613,25 @@ func getCustomerDetails(order *dtos.Order) (email string, name string, err error
 	}
 
 	if (order.GuestPersonalDetails != dtos.GuestPersonalDetails{}) {
-		// Guest user - use guest checkout details
-		email = order.GuestPersonalDetails.Email
-		name = fmt.Sprintf("%s %s", order.GuestPersonalDetails.FirstName, order.GuestPersonalDetails.LastName)
+		var email, name string
+		// Guest user - use guest checkout details with nil checks
+		if order.GuestPersonalDetails.Email != nil {
+			email = *order.GuestPersonalDetails.Email
+		} else {
+			email = ""
+		}
+		var firstName, lastName string
+		if order.GuestPersonalDetails.FirstName != nil {
+			firstName = *order.GuestPersonalDetails.FirstName
+		} else {
+			firstName = ""
+		}
+		if order.GuestPersonalDetails.LastName != nil {
+			lastName = *order.GuestPersonalDetails.LastName
+		} else {
+			lastName = ""
+		}
+		name = fmt.Sprintf("%s %s", firstName, lastName)
 		return email, name, nil
 	}
 

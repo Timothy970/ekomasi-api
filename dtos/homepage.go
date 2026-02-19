@@ -48,16 +48,16 @@ type Header struct {
 	Socials    []SocialMedia `json:"socials"`
 }
 type Footer struct {
-	CopyrightText  string
-	CompanyAddress string
-	ContactEmail   string
-	PhoneNumber    string
+	CopyrightText  *string
+	CompanyAddress *string
+	ContactEmail   *string
+	PhoneNumber    *string
 }
 
 type SocialLink struct {
-	Platform  string
-	URL       string
-	IconClass string
+	Platform  *string
+	URL       *string
+	IconClass *string
 }
 type SocialLinkRequest struct {
 	Platform     string `json:"platform" validate:"required"`
@@ -67,8 +67,8 @@ type SocialLinkRequest struct {
 }
 
 type MenuLink struct {
-	Title string `json:"title"`
-	HREF  string `json:"href"`
+	Title *string `json:"title"`
+	HREF  *string `json:"href"`
 }
 
 type Banner struct {

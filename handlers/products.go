@@ -1957,11 +1957,12 @@ func handleProductsVariants(db models.DBExecutor, req dtos.ProductSpecification,
 
 	// Map each variant type to its IDs
 	variantGroups := map[string][]string{
-		"age":      req.Age,
-		"brand":    toSlice(req.Brand), // handle single value as slice
-		"material": req.Material,
-		"color":    req.Color,
-		"size":     req.Size,
+		"age":          req.Age,
+		"brand":        toSlice(req.Brand), // handle single value as slice
+		"material":     req.Material,
+		"color":        req.Color,
+		"size":         req.Size,
+		"manufacturer": toSlice(req.Manufacturer), // handle single value as slice
 	}
 	// If updating, first hold existing variants
 	var err error

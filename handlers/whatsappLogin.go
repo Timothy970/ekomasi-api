@@ -69,9 +69,13 @@ func WhatsAppLoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user has been rate-limited due to too many failed attempts
-	if jailed, _ := isUserJailed(req.Phone); jailed {
+	isAllowed, retryAfter, err := utils.CheckRateLimit(r.Context(), "login:"+req.Phone, 5, 15*time.Minute)
+	if err != nil {
+		log.Printf("Rate limit error: %v", err)
+	}
+	if !isAllowed {
 		// User is temporarily blocked, send 429 Too Many Requests response
-		respondTooManyAttempts(w, start, r, requestSummary)
+		respondTooManyAttempts(w, start, r, requestSummary, retryAfter)
 		return
 	}
 

@@ -1,7 +1,6 @@
 package dtos
 
 import (
-	"encoding/json"
 	"time"
 )
 
@@ -50,19 +49,19 @@ type AdminOrder struct {
 	Rider                *Rider               `json:"rider"`
 }
 type GuestPersonalDetails struct {
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"`
-	Phone     string `json:"phone"`
+	FirstName *string `json:"first_name"`
+	LastName  *string `json:"last_name"`
+	Email     *string `json:"email" validate:"email"`
+	Phone     *string `json:"phone"`
 }
 
 type GuestDeliveryAddress struct {
-	Apartment  string `json:"apartment"`
-	Street     string `json:"street"`
-	City       string `json:"city"`
-	State      string `json:"state"`
-	PostalCode string `json:"postal_code"`
-	Country    string `json:"country"`
+	Apartment  *string `json:"apartment"`
+	Street     *string `json:"street"`
+	City       *string `json:"city"`
+	State      *string `json:"state"`
+	PostalCode *string `json:"postal_code"`
+	Country    *string `json:"country"`
 }
 
 type Rider struct {
@@ -190,23 +189,23 @@ type OrderItemRequest struct {
 }
 
 type OrderRequest struct {
-	UserID               *string            `json:"user_id"`
-	IsGuestOrder         *bool              `json:"is_guest_order"`
-	GuestPersonalDetails *json.RawMessage   `json:"guest_personal_details,omitempty"`
-	GuestDeliveryAddress *json.RawMessage   `json:"guest_delivery_address,omitempty"`
-	CourierDetails       *string            `json:"courier_details,omitempty"`
-	OrderItems           []OrderItemRequest `json:"order_items" validate:"required,dive"`
-	DeliveryCharge       float64            `json:"delivery_charge" validate:"required"`
-	DeliveryAddress      string             `json:"delivery_address" validate:"required"`
+	UserID               *string               `json:"user_id"`
+	IsGuestOrder         *bool                 `json:"is_guest_order"`
+	GuestPersonalDetails *GuestPersonalDetails `json:"guest_personal_details,omitempty"`
+	GuestDeliveryAddress *GuestDeliveryAddress `json:"guest_delivery_address,omitempty"`
+	CourierDetails       *string               `json:"courier_details,omitempty"`
+	OrderItems           []OrderItemRequest    `json:"order_items" validate:"required,dive"`
+	DeliveryCharge       float64               `json:"delivery_charge" validate:"required"`
+	DeliveryAddress      string                `json:"delivery_address" validate:"required"`
 }
 type CreateOrderPayload struct {
-	IsGuestOrder         *bool              `json:"is_guest_order"`
-	GuestPersonalDetails *json.RawMessage   `json:"guest_personal_details,omitempty"`
-	GuestDeliveryAddress *json.RawMessage   `json:"guest_delivery_address,omitempty"`
-	OrderItems           []OrderItemPayload `json:"order_items" validate:"required,dive"`
-	DeliveryAddressID    *int64             `json:"location_id,omitempty"`
-	PromoCode            *string            `json:"promo_code,omitempty"`
-	StoreID              *string            `json:"store_id,omitempty"`
+	IsGuestOrder         *bool                 `json:"is_guest_order"`
+	GuestPersonalDetails *GuestPersonalDetails `json:"guest_personal_details,omitempty"`
+	GuestDeliveryAddress *GuestDeliveryAddress `json:"guest_delivery_address,omitempty"`
+	OrderItems           []OrderItemPayload    `json:"order_items" validate:"required,dive"`
+	DeliveryAddressID    *int64                `json:"location_id,omitempty"`
+	PromoCode            *string               `json:"promo_code,omitempty"`
+	StoreID              *string               `json:"store_id,omitempty"`
 }
 type OrderItemPayload struct {
 	ProductID string `json:"product_id" validate:"required"`

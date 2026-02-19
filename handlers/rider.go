@@ -192,15 +192,30 @@ func handleSendOrderAssignmentNotification(req dtos.AssignOrderToRiderRequest) {
 		log.Printf("Error fetching order details for notification: %v", err)
 		return
 	}
-	customerName := order.GuestPersonalDetails.FirstName + order.GuestPersonalDetails.LastName
-	if customerName == "" {
-		if order.GuestPersonalDetails.Email != "" {
-			customerName = order.GuestPersonalDetails.Email
-		} else {
-			customerName = order.GuestPersonalDetails.Phone
+	var customerName string
+	if order.GuestPersonalDetails.FirstName != nil && order.GuestPersonalDetails.LastName != nil {
+		customerName = *order.GuestPersonalDetails.FirstName + " " + *order.GuestPersonalDetails.LastName
+	}
+	if customerName == "" || customerName == " " {
+		if order.GuestPersonalDetails.Email != nil {
+			customerName = *order.GuestPersonalDetails.Email
+		} else if order.GuestPersonalDetails.Phone != nil {
+			customerName = *order.GuestPersonalDetails.Phone
 		}
 	}
-	deliveryAddress := order.GuestDeliveryAddress.Country + " , " + order.GuestDeliveryAddress.City + " , " + order.GuestDeliveryAddress.Street + " , " + order.GuestDeliveryAddress.Street
+	country := ""
+	if order.GuestDeliveryAddress.Country != nil {
+		country = *order.GuestDeliveryAddress.Country
+	}
+	city := ""
+	if order.GuestDeliveryAddress.City != nil {
+		city = *order.GuestDeliveryAddress.City
+	}
+	street := ""
+	if order.GuestDeliveryAddress.Street != nil {
+		street = *order.GuestDeliveryAddress.Street
+	}
+	deliveryAddress := country + " , " + city + " , " + street + " , " + street
 	if deliveryAddress == " ,  ,  , " {
 		deliveryAddress = *order.DeliveryAddress
 	}

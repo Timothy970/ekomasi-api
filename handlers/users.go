@@ -1,13 +1,18 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"strconv"
+	"time"
+
 	"adenzo_backend/dtos"
 	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
-	"net/http"
-	"strconv"
-	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -297,8 +302,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate mandatory fields: Email or Phone number must be present if provided (though this logic seems to imply at least one must be present if updating?)
-	// Actually, this check implies that if both are empty, it's an error.
+	// Validate mandatory fields: Email or Phone number must be present if provided
 	if input.Email == "" && input.Phonenumber == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -331,33 +335,136 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
-	// Update user in database
-	user, err := models.FindByIdAndUpdate(models.DB, *input, authuser.ID)
+	// Rate limiting for OTP resend
+	identifier := authuser.ID
+	isAllowed, retryAfter, err := utils.CheckRateLimit(r.Context(), "resend_otp:"+identifier, 3, 5*time.Minute)
+	if err != nil {
+		log.Printf("Rate limit error: %v", err)
+	}
+	if !isAllowed {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "OTP resend requested too soon for user with ID " + authuser.ID,
+				Code:        http.StatusTooManyRequests,
+			},
+			Message:   fmt.Sprintf("Please wait %d seconds before requesting a new OTP", retryAfter),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	currentUser, err := models.GetUserByUserID(models.DB, authuser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
-				Description: "Failed to update user with ID " + authuser.ID,
-				Code:        http.StatusNotFound,
+				Description: "Failed to fetch current user details",
+				Code:        http.StatusInternalServerError,
 			},
-			Message:   err.Error(),
+			Message:   "Error retrieving user",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
-			RawBody:   requestSummary})
+			RawBody:   requestSummary,
+		})
 		return
 	}
 
-	// Respond with updated user details
+	emailChanged := input.Email != "" && input.Email != currentUser.Email
+	phoneChanged := input.Phonenumber != "" && input.Phonenumber != currentUser.Phone
+
+	// Validate uniqueness against other users first
+	if emailChanged {
+		if exists, _ := models.EmailExistsForOtherUser(models.DB, authuser.ID, input.Email); exists {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Users",
+					Description: "Email already exists for another user",
+					Code:        http.StatusConflict,
+				},
+				Message:   "Email already exists",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+	}
+	if phoneChanged {
+		if exists, _ := models.PhoneExistsForOtherUser(models.DB, authuser.ID, input.Phonenumber); exists {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Users",
+					Description: "Phone number already exists for another user",
+					Code:        http.StatusConflict,
+				},
+				Message:   "Phone number already exists",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+	}
+
+	// Generate OTP
+	// otp, err := utils.GenerateOTP()
+	// if err != nil {
+	// 	log.Printf("Failed to generate OTP for user update: %v", err)
+	// 	return
+	// }
+	//since we  are testing using a hardcoded OTP, we can skip the generation step and directly use the hardcoded value
+	otp := "2025"
+	// Store OTP in Redis
+	if err := StoreOTPInRedis(authuser.ID, otp, 10*time.Minute); err != nil {
+		log.Printf("Failed to store OTP in Redis for user update: %v", err)
+		return
+	}
+
+	// Store the pending update data in Redis
+	tempKey := "pending_user_update:" + authuser.ID
+	tempData, _ := json.Marshal(input)
+	if err := Redis.Set(context.Background(), tempKey, tempData, 10*time.Minute).Err(); err != nil {
+		log.Printf("Failed to store pending user update in Redis: %v", err)
+		http.Error(w, "Failed to initiate user update", http.StatusInternalServerError)
+		return
+	}
+
+	// Prepare a login request for dispatchOTP
+	dispatchReq := dtos.LoginRequest{}
+	if emailChanged {
+		dispatchReq.Email = input.Email
+	}
+	if phoneChanged {
+		dispatchReq.Phone = input.Phonenumber
+	}
+
+	// Create a temporary User object for dispatchOTP (using the NEW values)
+	dispatchUser := &dtos.User{
+		Email: input.Email,
+		Phone: input.Phonenumber,
+	}
+	if dispatchUser.Email == "" {
+		dispatchUser.Email = currentUser.Email
+	}
+	if dispatchUser.Phone == "" {
+		dispatchUser.Phone = currentUser.Phone
+	}
+
+	// Dispatch OTP to the NEW contact info
+	//commenting out the actual dispatch for now since we are using a hardcoded OTP for testing. In production, this should be enabled to send real OTPs.
+	// dispatchOTP(dispatchUser, otp, dispatchReq)
+
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
-			Description: userWithID + authuser.ID + " details updated successfully",
-			Code:        http.StatusOK,
+			Description: "Verification required for sensitive field update",
+			Code:        http.StatusAccepted,
 		},
-		Payload:   user,
-		Message:   "User details updated successfully",
+		Message:   "Verification required. Please enter the OTP sent to your new email/phone to finalize the update.",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -1490,6 +1597,145 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 		},
 		Payload:   nil,
 		Message:   "User deleted successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// VerifyUserUpdateHandler finalizes the user profile update after OTP verification.
+//
+// @Summary      Verify user update
+// @Description  Verify the OTP sent to the new email/phone to finalize the profile update.
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        otp  body      map[string]string  true  "OTP verification"
+// @Success      200  {object}  map[string]interface{} "Profile updated successfully"
+// @Failure      400  {object}  map[string]string      "Invalid request payload"
+// @Failure      401  {object}  map[string]string      "Unauthorized or invalid OTP"
+// @Failure      404  {object}  map[string]string      "Pending update not found"
+// @Failure      500  {object}  map[string]string      "Internal server error"
+// @Router       /api/user/me/verify-update [patch]
+func VerifyUserUpdateHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Get authenticated user from context
+	authuser, ok := middleware.UserFromContext(r.Context())
+	if !ok {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "User not authenticated",
+				Code:        http.StatusUnauthorized,
+			},
+			Message:   "User not authenticated",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Decode request body
+	req, ok := DecodeRequestBody[dtos.VerifyUserUpdate](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	// Rate limiting for OTP verification
+	identifier := authuser.ID
+	isAllowed, retryAfter, err := utils.CheckRateLimit(r.Context(), "verify_user_update:"+identifier, 3, 5*time.Minute)
+	if err != nil {
+		log.Printf("Rate limit error: %v", err)
+	}
+	if !isAllowed {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "OTP verification requested too soon for user with ID " + authuser.ID,
+				Code:        http.StatusTooManyRequests,
+			},
+			Message:   fmt.Sprintf("Please wait %d seconds before verifying OTP again", retryAfter),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	// Verify OTP atomically (checks and deletes in one step to prevent race conditions)
+	isValid, err := AtomicVerifyOTP(authuser.ID, req.OTP)
+	if err != nil || !isValid {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Invalid or expired OTP for user update",
+				Code:        http.StatusUnauthorized,
+			},
+			Message:   "Invalid or expired OTP",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Retrieve pending update from Redis
+	tempKey := "pending_user_update:" + authuser.ID
+	val, err := Redis.Get(r.Context(), tempKey).Result()
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Pending update not found or expired",
+				Code:        http.StatusNotFound,
+			},
+			Message:   "Pending update session expired. Please try updating your profile again.",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	var input dtos.RegisterRequest
+	if err := json.Unmarshal([]byte(val), &input); err != nil {
+		log.Printf("Failed to unmarshal pending user update: %v", err)
+		return
+	}
+
+	// Apply update in database
+	user, err := models.FindByIdAndUpdate(models.DB, input, authuser.ID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to apply profile update after verification",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	// Cleanup Redis (OTP already invalidated by AtomicVerifyOTP)
+	Redis.Del(r.Context(), tempKey)
+
+	//clear rate limit for OTP verification
+	utils.ClearRateLimit(r.Context(), "verify_user_update:"+identifier)
+	// Respond with success
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Profile successfully updated after OTP verification",
+			Code:        http.StatusOK,
+		},
+		Payload:   user,
+		Message:   "Profile details updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,

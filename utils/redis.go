@@ -104,6 +104,58 @@ var DeleteCacheByPrefix = func(prefix string) error {
 	return nil
 }
 
+// CheckRateLimit checks if the given key has exceeded the limit within the window.
+// It returns (isAllowed, retryAfterSeconds, error).
+func CheckRateLimit(ctx context.Context, key string, limit int, window time.Duration) (bool, int, error) {
+	if RedisClient == nil {
+		return true, 0, nil // Bypass if Redis not available
+	}
+
+	redisKey := "rate_limit:" + key
+
+	// Lua script to increment and set expiry atomically if new
+	luaScript := `
+		       local current
+		       current = redis.call("INCR", KEYS[1])
+		       if tonumber(current) == 1 then
+			   redis.call("PEXPIRE", KEYS[1], ARGV[1])
+		       end
+		       return current
+	       `
+
+	// Convert window to milliseconds
+	windowMs := int(window / time.Millisecond)
+	result, err := RedisClient.Eval(ctx, luaScript, []string{redisKey}, windowMs).Result()
+	if err != nil {
+		return true, 0, err // Fail open on Redis error
+	}
+
+	count, ok := result.(int64)
+	if !ok {
+		// Try to convert if returned as another type
+		switch v := result.(type) {
+		case int:
+			count = int64(v)
+		case string:
+			count, _ = strconv.ParseInt(v, 10, 64)
+		}
+	}
+
+	if int(count) > limit {
+		ttl, _ := RedisClient.TTL(ctx, redisKey).Result()
+		return false, int(ttl.Seconds()), nil
+	}
+
+	return true, 0, nil
+}
+
+func ClearRateLimit(ctx context.Context, key string) error {
+	if RedisClient == nil {
+		return nil // Nothing to clear if Redis not available
+	}
+	return RedisClient.Del(ctx, "rate_limit:"+key).Err()
+}
+
 // // Store data
 // if err := redisutils.SetCache("user:1", user, 10*time.Minute); err != nil {
 // 	fmt.Println("Error storing:", err)

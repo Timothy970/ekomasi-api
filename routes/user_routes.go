@@ -16,6 +16,7 @@ func SetupUserRoutes(api *mux.Router) {
 	// User profile
 	user.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserDetails))).Methods("GET")
 	user.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateUser))).Methods("PATCH")
+	user.Handle("/me/verify-update", middleware.AuthenticateToken(http.HandlerFunc(handlers.VerifyUserUpdateHandler))).Methods("PATCH")
 	user.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteUser))).Methods("DELETE")
 
 	// User addresses

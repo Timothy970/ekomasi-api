@@ -143,6 +143,30 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		"otp":       otp,
 	})
 
+	// Rate limiting for registration
+	identifier := req.Email
+	if identifier == "" {
+		identifier = req.Phonenumber
+	}
+	isAllowed, retryAfter, err := utils.CheckRateLimit(r.Context(), "signup:"+identifier, 3, 1*time.Hour)
+	if err != nil {
+		log.Printf("Rate limit error: %v", err)
+	}
+	if !isAllowed {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "Too many registration attempts for " + identifier,
+				Code:        http.StatusTooManyRequests,
+			},
+			Message:   fmt.Sprintf("Too many registration attempts. Please try again in %d seconds.", retryAfter),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
 	if err := Redis.Set(context.Background(), tempKey, tempData, 10*time.Minute).Err(); err != nil {
 		log.Printf("Failed to store temporary registration: %v", err)
 		return
@@ -270,9 +294,20 @@ func VerifySignupOTPHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
+	// Check for rate limiting/jail
+	identifierRequest := dtos.LoginRequest{
+		Email: req.Email,
+		Phone: req.Phone}
+	identifier := getIdentifier(&identifierRequest)
+	isAllowed, retryAfter, err := utils.CheckRateLimit(r.Context(), "verify_otp:"+identifier, 5, 30*time.Minute)
+	if err != nil {
+		log.Printf("Rate limit error: %v", err)
+	}
+	if !isAllowed {
+		respondTooManyAttempts(w, start, r, requestSummary, retryAfter)
+		return
+	}
 	var user *dtos.User
-	var err error
 
 	// Try fetching existing user
 	user, err = fetchUser(req.Email, req.Phone)
@@ -337,8 +372,12 @@ func verifySignIn(user *dtos.User, req dtos.VerifyOTP, w http.ResponseWriter, r 
 	}
 	// update last login for user
 	models.UpdateLastLogin(models.DB, user.ID)
-	//invalidate otp after successful login
-	InvalidateOTP(user.ID)
+	// OTP already invalidated by AtomicVerifyOTP via validateOtp
+	// Clear rate limit attempts after successful verification
+	identifier := user.Email
+	if identifier == "" {
+		identifier = user.Phone
+	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module: "Auth", Description: "Login verified", Code: http.StatusOK,
@@ -360,8 +399,9 @@ func VerifySignUp(w http.ResponseWriter, r *http.Request, req *dtos.VerifyOTP, s
 	ctx := context.Background()
 	//check if redis key for the email or phone exists for  a pending signup
 	tempKey := getVerificationRedisKey(req.Email, req.Phone)
-	val, err := Redis.Get(ctx, tempKey).Result()
-	if err != nil {
+	// Atomic get and delete to prevent race conditions during signup
+	val, err := AtomicGetAndDelete(ctx, tempKey)
+	if err != nil || val == "" {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module: "Auth", Description: "Pending signup not found or expired", Code: http.StatusNotFound,
@@ -437,8 +477,11 @@ func VerifySignUp(w http.ResponseWriter, r *http.Request, req *dtos.VerifyOTP, s
 		return
 	}
 
-	// Remove pending record from Redis
-	Redis.Del(ctx, tempKey)
+	// Clear rate limit attempts after successful verification
+	identifier := req.Email
+	if identifier == "" {
+		identifier = req.Phone
+	}
 
 	token, refreshToken, err := issueTokens(user)
 	if err != nil {
@@ -492,13 +535,12 @@ func issueTokens(user *dtos.User) (string, string, error) {
 }
 
 func validateOtp(userID string, req dtos.VerifyOTP) error {
-	storedOTP, err := GetOTP(userID)
+	isValid, err := AtomicVerifyOTP(userID, req.OTP)
 	if err != nil {
-		log.Printf("Error retrieving OTP: %s", err)
-		return fmt.Errorf("invalid or expired OTP")
+		return fmt.Errorf("OTP verification failed: %w", err)
 	}
-	if storedOTP != req.OTP {
-		return errors.New("incorrect OTP")
+	if !isValid {
+		return errors.New("invalid or expired OTP")
 	}
 	return nil
 }
@@ -543,8 +585,12 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check for rate limiting/jail
 	identifier := getIdentifier(req)
-	if jailed, _ := isUserJailed(identifier); jailed {
-		respondTooManyAttempts(w, start, r, requestSummary)
+	isAllowed, retryAfter, err := utils.CheckRateLimit(r.Context(), "login:"+identifier, maxLoginAttempts, jailDuration)
+	if err != nil {
+		log.Printf("Rate limit error: %v", err)
+	}
+	if !isAllowed {
+		respondTooManyAttempts(w, start, r, requestSummary, retryAfter)
 		return
 	}
 
@@ -651,8 +697,12 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check for rate limiting/jail
 	identifier := getIdentifier(req)
-	if jailed, _ := isUserJailed(identifier); jailed {
-		respondTooManyAttempts(w, start, r, requestSummary)
+	isAllowed, retryAfter, err := utils.CheckRateLimit(r.Context(), "login:"+identifier, maxLoginAttempts, jailDuration)
+	if err != nil {
+		log.Printf("Rate limit error: %v", err)
+	}
+	if !isAllowed {
+		respondTooManyAttempts(w, start, r, requestSummary, retryAfter)
 		return
 	}
 
@@ -783,8 +833,12 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check for rate limiting/jail
 	identifier := getIdentifier(req)
-	if jailed, _ := isUserJailed(identifier); jailed {
-		respondTooManyAttempts(w, start, r, requestSummary)
+	isAllowed, retryAfter, err := utils.CheckRateLimit(r.Context(), "login:"+identifier, maxLoginAttempts, jailDuration)
+	if err != nil {
+		log.Printf("Rate limit error: %v", err)
+	}
+	if !isAllowed {
+		respondTooManyAttempts(w, start, r, requestSummary, retryAfter)
 		return
 	}
 
@@ -982,29 +1036,20 @@ func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := context.Background()
-	activityKey := fmt.Sprintf("otp_resend_activity:%s", user.ID)
-
-	// Check if resend was requested recently
-	if exists, _ := Redis.Exists(ctx, activityKey).Result(); exists > 0 {
-		ttl, err := Redis.TTL(ctx, activityKey).Result()
-		if err != nil {
-			log.Printf("Failed to fetch TTL for user %s: %v", user.ID, err)
-			ttl = 0
-		}
-
-		remainingSeconds := int(ttl.Seconds())
-		if remainingSeconds < 0 {
-			remainingSeconds = 0
-		}
-
+	// Rate limiting for OTP resend
+	identifier := user.ID
+	isAllowed, retryAfter, err := utils.CheckRateLimit(r.Context(), "resend_otp:"+identifier, 3, 5*time.Minute)
+	if err != nil {
+		log.Printf("Rate limit error: %v", err)
+	}
+	if !isAllowed {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
 				Description: "OTP resend requested too soon for user with ID " + user.ID,
 				Code:        http.StatusTooManyRequests,
 			},
-			Message:   fmt.Sprintf("Please wait %d seconds before requesting a new OTP", remainingSeconds),
+			Message:   fmt.Sprintf("Please wait %d seconds before requesting a new OTP", retryAfter),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   r,
@@ -1038,9 +1083,6 @@ func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 	if user.Phone != "" {
 		notification.SendSmsMessages(user.Phone, fmt.Sprintf(message, otp))
 	}
-
-	// Save resend activity limit (60 seconds)
-	Redis.Set(ctx, activityKey, time.Now().Unix(), 60*time.Second)
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -1105,6 +1147,37 @@ func InvalidateOTP(userID string) error {
 	ctx := context.Background()
 	key := fmt.Sprintf("otp:%s", userID)
 	return Redis.Del(ctx, key).Err()
+}
+
+// AtomicVerifyOTP retrieves and deletes an OTP in a single atomic operation to prevent race conditions.
+func AtomicVerifyOTP(userID string, providedOTP string) (bool, error) {
+	ctx := context.Background()
+	key := fmt.Sprintf("otp:%s", userID)
+
+	// Lua script to get the value and delete the key only if it matches the provided OTP
+	script := `
+		local val = redis.call('GET', KEYS[1])
+		if val and val == ARGV[1] then
+			redis.call('DEL', KEYS[1])
+			return val
+		end
+		return val
+	`
+	val, err := Redis.Eval(ctx, script, []string{key}, providedOTP).Result()
+	if err != nil {
+		return false, fmt.Errorf("failed to atomically verify OTP: %w", err)
+	}
+
+	if val == nil {
+		return false, nil // OTP not found or already consumed
+	}
+
+	storedOTP, ok := val.(string)
+	if !ok {
+		return false, fmt.Errorf("unexpected OTP value type in Redis")
+	}
+
+	return storedOTP == providedOTP, nil
 }
 
 // DecodeTokenHandler decodes and returns JWT claims without validation
@@ -1216,11 +1289,7 @@ func fetchUser(email, phone string) (*dtos.User, error) {
 
 // Error handling helpers
 func handleFailedLogin(w http.ResponseWriter, identifier string, start time.Time, r *http.Request, raw string) {
-	_ = incrementFailedLogin(identifier)
-	attempts, _ := getFailedAttempts(identifier)
-	if attempts >= maxLoginAttempts {
-		_ = jailUser(identifier)
-	}
+	// Logic moved to CheckRateLimit in handlers
 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Auth",
@@ -1268,14 +1337,14 @@ func respondBadRequest(w http.ResponseWriter, msg string, start time.Time, r *ht
 	})
 }
 
-func respondTooManyAttempts(w http.ResponseWriter, start time.Time, r *http.Request, raw string) {
+func respondTooManyAttempts(w http.ResponseWriter, start time.Time, r *http.Request, raw string, retryAfter int) {
 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Auth",
 			Description: "Too many failed login attempts",
 			Code:        http.StatusTooManyRequests,
 		},
-		Message:   "Too many failed attempts. Try again later.",
+		Message:   fmt.Sprintf("Too many failed attempts. Try again in %d seconds.", retryAfter),
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -1322,4 +1391,34 @@ var (
 func InitServices(utilsSvc UtilsService, modelsSvc ModelsService) {
 	utilsService = utilsSvc
 	modelsService = modelsSvc
+}
+
+// AtomicGetAndDelete retrieves a value and deletes the key in a single atomic operation.
+func AtomicGetAndDelete(ctx context.Context, key string) (string, error) {
+	script := `
+		local val = redis.call('GET', KEYS[1])
+		if val then
+			redis.call('DEL', KEYS[1])
+		end
+		return val
+	`
+
+	val, err := Redis.Eval(ctx, script, []string{key}).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return "", nil
+		}
+		return "", err
+	}
+
+	if val == nil {
+		return "", nil
+	}
+
+	res, ok := val.(string)
+	if !ok {
+		return "", fmt.Errorf("unexpected value type from Redis")
+	}
+
+	return res, nil
 }
