@@ -24,7 +24,7 @@ import (
 // @Accept       json
 // @Produce      json
 // @Param        transfer  body      dtos.StockTransferDTO    true  "Stock transfer details"
-// @Success      201       {object}  dtos.SuccessResponse     "Transfer created successfully"
+// @Success      201       {object}  map[string]interface{}     "Transfer created successfully"
 // @Failure      400       {object}  dtos.ErrorResponse       "Invalid request or validation failed"
 // @Failure      401       {object}  dtos.ErrorResponse       "Admin authorization required"
 // @Security     BearerAuth
@@ -170,7 +170,7 @@ func ListStockTransfers(w http.ResponseWriter, r *http.Request) {
 // @Tags         Stock Transfers
 // @Produce      json
 // @Param        transfer_id  path      string                  true  "Transfer ID"
-// @Success      200          {object}  dtos.StockTransfer      "Transfer details"
+// @Success      200          {object}  map[string]interface{}      "Transfer details"
 // @Failure      404          {object}  dtos.ErrorResponse      "Transfer not found"
 // @Router       /api/stock_transfers/{transfer_id} [get]
 func GetStockTransfer(w http.ResponseWriter, r *http.Request) {
@@ -226,7 +226,7 @@ func GetStockTransfer(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        transfer_id  path      string                       true  "Transfer ID"
 // @Param        update       body      dtos.StockTransferUpdateDTO  true  "Updated quantity"
-// @Success      200          {object}  dtos.SuccessResponse         "Transfer updated successfully"
+// @Success      200          {object}  map[string]interface{}         "Transfer updated successfully"
 // @Failure      400          {object}  dtos.ErrorResponse           "Invalid request or update failed"
 // @Failure      401          {object}  dtos.ErrorResponse           "Admin authorization required"
 // @Security     BearerAuth

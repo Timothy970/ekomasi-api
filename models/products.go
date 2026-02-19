@@ -428,11 +428,12 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 	query := `
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag, p.details, dp.discount, dp.discount_type, ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit, p.product_type, p.low_stock_quantity_warning, p.sell_when_out_of_stock, p.show_stock_quantity
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag, p.details, dp.discount, dp.discount_type, ps.weight, ps.dimensions, v.name, ps.weight_limit, p.product_type, p.low_stock_quantity_warning, p.sell_when_out_of_stock, p.show_stock_quantity
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
 		LEFT JOIN deal_products dp ON p.product_id = dp.product_id
 		LEFT JOIN product_specifications ps ON p.product_id = ps.product_id
+		LEFT JOIN variants v ON ps.manufacturer = v.variant_id
 		WHERE p.product_id = ?
 	`
 
@@ -499,11 +500,16 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 	p.ProductVariants = variants
 
 	// Fetch tax information
-	tax, err := fetchProductTax(db, p.ID)
+	// tax, err := fetchProductTax(db, p.ID)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// p.Tax = &tax
+	discount, err := fetchProductDiscount(db, p.ID)
 	if err != nil {
 		return nil, err
 	}
-	p.Tax = &tax
+	p.DiscountType2 = &discount
 
 	// Fetch bundle products if this is a bundle
 	if productType.Valid && productType.String == "bundle" {
@@ -515,6 +521,29 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 	}
 
 	return &p, nil
+}
+
+func fetchProductDiscount(db DBExecutor, productID string) (dtos.DiscountType, error) {
+	query := `
+		SELECT 
+			pt.id, 
+			pt.name, 
+			pt.description, 
+			pt.value
+		FROM promotion_types pt
+		JOIN product_discounts pd 
+			ON pt.id = pd.promotion_type_id
+		WHERE pd.product_id = ?
+	`
+	var discount dtos.DiscountType
+	err := db.QueryRow(query, productID).Scan(&discount.ID, &discount.Name, &discount.Description, &discount.Value)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return dtos.DiscountType{}, nil // No discount is not an error, return empty struct
+		}
+		return dtos.DiscountType{}, err
+	}
+	return discount, nil
 }
 
 // getBundleProducts fetches all products that are part of a bundle.

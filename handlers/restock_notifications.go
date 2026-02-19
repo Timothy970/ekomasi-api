@@ -26,7 +26,7 @@ import (
 // @Accept       json
 // @Produce      json
 // @Param        request  body      dtos.RestockNotificationRequest  true  "Restock notification request"
-// @Success      200      {object}  dtos.SuccessResponse             "Notification request created successfully"
+// @Success      200      {object}  map[string]interface{}             "Notification request created successfully"
 // @Failure      400      {object}  dtos.ErrorResponse               "Invalid request data"
 // @Failure      409      {object}  dtos.ErrorResponse               "Notification already exists"
 // @Security     BearerAuth
@@ -145,7 +145,7 @@ func ListUserRestockNotifications(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        user_id          path      string                 true  "User ID"
 // @Param        notification_id  path      string                 true  "Notification ID"
-// @Success      200              {object}  dtos.SuccessResponse   "Notification cancelled successfully"
+// @Success      200              {object}  map[string]interface{}   "Notification cancelled successfully"
 // @Failure      400              {object}  dtos.ErrorResponse     "Invalid parameters or notification not found"
 // @Security     BearerAuth
 // @Router       /api/restock-notifications/{user_id}/{notification_id} [delete]
@@ -204,7 +204,7 @@ func CancelRestockNotification(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        product_id  path      string                 true   "Product ID"
 // @Param        variant_id  query     string                 false  "Optional variant ID for specific variant"
-// @Success      200         {object}  dtos.SuccessResponse   "Notifications triggered with count"
+// @Success      200         {object}  map[string]interface{}   "Notifications triggered with count"
 // @Failure      400         {object}  dtos.ErrorResponse     "Invalid product ID or database error"
 // @Security     BearerAuth
 // @Router       /api/restock-notifications/trigger [post]

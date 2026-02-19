@@ -308,7 +308,7 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 // @Param        product_id  path      string              true  "Product ID"
 // @Param        review_id   path      string              true  "Review ID"
 // @Param        update      body      dtos.UpdateReview   true  "Review update details"
-// @Success      200         {object}  dtos.SuccessResponse  "Review updated successfully"
+// @Success      200         {object}  map[string]interface{}  "Review updated successfully"
 // @Failure      400         {object}  dtos.ErrorResponse    "Invalid request or update failed"
 // @Failure      401         {object}  dtos.ErrorResponse    "User not authorized (admin required)"
 // @Security     BearerAuth
@@ -391,7 +391,7 @@ func UpdateReview(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        product_id  path      string                true  "Product ID"
 // @Param        review_id   path      string                true  "Review ID"
-// @Success      200         {object}  dtos.SuccessResponse  "Review deleted successfully"
+// @Success      200         {object}  map[string]interface{}  "Review deleted successfully"
 // @Failure      400         {object}  dtos.ErrorResponse    "Review not found or deletion failed"
 // @Failure      401         {object}  dtos.ErrorResponse    "User not authorized (admin required)"
 // @Failure      404         {object}  dtos.ErrorResponse    "Product not found"

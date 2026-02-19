@@ -522,16 +522,31 @@ func CategoryExists(db DBExecutor, id string) error {
 //
 // Ordering:
 //   - Results ordered by updated_at DESC (most recently updated first)
-func GetAdminCategories(db DBExecutor, page, limit int, categoryName string) ([]dtos.AdminCategoryData, *dtos.PaginationMeta, error) {
+func GetAdminCategories(db DBExecutor, page, limit int, categoryName, categoryType string) ([]dtos.AdminCategoryData, *dtos.PaginationMeta, error) {
 	// Step 1: Get total count for pagination
 	var total int
 	args := []any{}
 	countQuery := "SELECT COUNT(*) FROM categories"
+	whereClauses := []string{}
+
 	// Add search filter if category name provided
 	if categoryName != "" {
-		countQuery += " WHERE name LIKE ?"
+		whereClauses = append(whereClauses, "name LIKE ?")
 		args = append(args, "%"+categoryName+"%")
 	}
+
+	if categoryType != "" {
+		if strings.ToLower(categoryType) == "parent" {
+			whereClauses = append(whereClauses, "parent_category_id IS NULL")
+		} else if strings.ToLower(categoryType) == "subcategory" {
+			whereClauses = append(whereClauses, "parent_category_id IS NOT NULL")
+		}
+	}
+
+	if len(whereClauses) > 0 {
+		countQuery += " WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
 	err := db.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
 		return nil, nil, err
@@ -549,36 +564,44 @@ func GetAdminCategories(db DBExecutor, page, limit int, categoryName string) ([]
 		CASE 
 			WHEN c.parent_category_id IS NULL 
 				THEN (
-					-- For parent: count products in all subcategories
 					SELECT COUNT(*) 
 					FROM products p 
 					JOIN categories sc ON sc.category_id = p.category_id
 					WHERE sc.parent_category_id = c.category_id
 				)
 			ELSE (
-				-- For subcategory: count direct products
 				SELECT COUNT(*) 
 				FROM products p 
 				WHERE p.category_id = c.category_id
 			)
 		END AS items,
-		-- Count subcategories for this category
 		(SELECT COUNT(*) FROM categories sc WHERE sc.parent_category_id = c.category_id) AS subcategories,
 		c.description
 	FROM categories c`
 
+	mainWhereClauses := []string{}
 	queryArgs := []any{}
-	// Add search filter to main query if provided
+
 	if categoryName != "" {
-		mainQuery += " WHERE c.name LIKE ?"
+		mainWhereClauses = append(mainWhereClauses, "c.name LIKE ?")
 		queryArgs = append(queryArgs, "%"+categoryName+"%")
 	}
 
-	// Add ordering and pagination
+	if categoryType != "" {
+		if strings.ToLower(categoryType) == "parent" {
+			mainWhereClauses = append(mainWhereClauses, "c.parent_category_id IS NULL")
+		} else if strings.ToLower(categoryType) == "subcategory" {
+			mainWhereClauses = append(mainWhereClauses, "c.parent_category_id IS NOT NULL")
+		}
+	}
+
+	if len(mainWhereClauses) > 0 {
+		mainQuery += " WHERE " + strings.Join(mainWhereClauses, " AND ")
+	}
+
 	mainQuery += " ORDER BY c.updated_at DESC LIMIT ? OFFSET ?"
 	queryArgs = append(queryArgs, limit, offset)
 
-	// Execute main query
 	rows, err := db.Query(mainQuery, queryArgs...)
 	if err != nil {
 		return nil, nil, err
@@ -586,7 +609,6 @@ func GetAdminCategories(db DBExecutor, page, limit int, categoryName string) ([]
 	defer rows.Close()
 
 	var categories []dtos.AdminCategoryData
-	// Collect category data with statistics
 	for rows.Next() {
 		var cat dtos.AdminCategoryData
 		if err := rows.Scan(&cat.ID, &cat.Name, &cat.Type, &cat.Items, &cat.Subcategories, &cat.Description); err != nil {
@@ -595,12 +617,11 @@ func GetAdminCategories(db DBExecutor, page, limit int, categoryName string) ([]
 		categories = append(categories, cat)
 	}
 
-	// Step 3: Build pagination metadata
 	pagination := &dtos.PaginationMeta{
 		Page:       page,
 		Size:       limit,
 		TotalItems: total,
-		TotalPages: (total + limit - 1) / limit, // Ceiling division
+		TotalPages: (total + limit - 1) / limit,
 		HasPrev:    page > 1,
 		HasNext:    offset+limit < total,
 	}

@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS `products` (
    `created_by_id` char(36) DEFAULT NULL,
    `buying_price` decimal(10,2) DEFAULT '0.0',
    `product_type` varchar(50) DEFAULT 'single',
+   `details` json DEFAULT NULL,
    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
    `last_updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
    PRIMARY KEY (`product_id`),

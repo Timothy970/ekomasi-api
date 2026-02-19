@@ -91,7 +91,7 @@ func GetAllTransactionHandler(w http.ResponseWriter, r *http.Request) {
 // @Tags         Transactions
 // @Produce      json
 // @Param        transaction_id  path      string                 true  "Transaction ID"
-// @Success      200             {object}  dtos.Transaction       "Transaction details"
+// @Success      200             {object}  map[string]interface{}       "Transaction details"
 // @Failure      400             {object}  dtos.ErrorResponse     "Failed to fetch transaction"
 // @Failure      401             {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Security     BearerAuth
@@ -154,7 +154,7 @@ func GetTransactionByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        transaction_id  path      string                         true  "Transaction ID"
 // @Param        status          body      dtos.UpdateTransactionStatus   true  "New transaction status"
-// @Success      200             {object}  dtos.SuccessResponse           "Transaction status updated successfully"
+// @Success      200             {object}  map[string]interface{}           "Transaction status updated successfully"
 // @Failure      400             {object}  dtos.ErrorResponse             "Invalid request or update failed"
 // @Failure      401             {object}  dtos.ErrorResponse             "Admin authorization required"
 // @Security     BearerAuth

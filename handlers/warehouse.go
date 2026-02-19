@@ -28,7 +28,7 @@ var warehouseWithID = "Warehouse with ID "
 // @Accept       json
 // @Produce      json
 // @Param        warehouse  body      dtos.CreateWarehouseRequest  true  "Warehouse creation details"
-// @Success      200        {object}  dtos.SuccessResponse         "Warehouse created successfully"
+// @Success      200        {object}  map[string]interface{}         "Warehouse created successfully"
 // @Failure      400        {object}  dtos.ErrorResponse           "Invalid request or creation failed"
 // @Failure      401        {object}  dtos.ErrorResponse           "Admin authorization required"
 // @Security     BearerAuth
@@ -245,7 +245,7 @@ func GetWarehouse(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        warehouse_id  path      string                        true  "Warehouse ID"
 // @Param        warehouse     body      dtos.UpdateWarehouseRequest   true  "Updated warehouse details"
-// @Success      200           {object}  dtos.SuccessResponse          "Warehouse updated successfully"
+// @Success      200           {object}  map[string]interface{}          "Warehouse updated successfully"
 // @Failure      400           {object}  dtos.ErrorResponse            "Invalid request or update failed"
 // @Failure      401           {object}  dtos.ErrorResponse            "Admin authorization required"
 // @Failure      404           {object}  dtos.ErrorResponse            "Warehouse not found"
@@ -316,7 +316,7 @@ func UpdateWarehouse(w http.ResponseWriter, r *http.Request) {
 // @Tags         Warehouses
 // @Produce      json
 // @Param        warehouse_id  path      string                  true  "Warehouse ID"
-// @Success      200           {object}  dtos.SuccessResponse    "Warehouse deleted successfully"
+// @Success      200           {object}  map[string]interface{}    "Warehouse deleted successfully"
 // @Failure      401           {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Failure      404           {object}  dtos.ErrorResponse      "Warehouse not found"
 // @Security     BearerAuth

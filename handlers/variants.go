@@ -29,7 +29,7 @@ var variantWithID = "Variant with ID "
 // @Accept       json
 // @Produce      json
 // @Param        variant  body      dtos.VariantRequest     true  "Variant details"
-// @Success      200      {object}  dtos.SuccessResponse    "Variant created successfully"
+// @Success      200      {object}  map[string]interface{}    "Variant created successfully"
 // @Failure      400      {object}  dtos.ErrorResponse      "Invalid request or creation failed"
 // @Failure      401      {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
@@ -295,7 +295,7 @@ func ListVariants(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        variant_id  path      string                  true  "Variant ID"
 // @Param        variant     body      dtos.VariantRequest     true  "Updated variant details"
-// @Success      200         {object}  dtos.SuccessResponse    "Variant updated successfully"
+// @Success      200         {object}  map[string]interface{}    "Variant updated successfully"
 // @Failure      400         {object}  dtos.ErrorResponse      "Invalid request or update failed"
 // @Failure      401         {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
@@ -366,7 +366,7 @@ func UpdateVariant(w http.ResponseWriter, r *http.Request) {
 // @Tags         Variants
 // @Produce      json
 // @Param        variant_id  path      string                  true  "Variant ID"
-// @Success      200         {object}  dtos.SuccessResponse    "Variant deleted successfully"
+// @Success      200         {object}  map[string]interface{}    "Variant deleted successfully"
 // @Failure      400         {object}  dtos.ErrorResponse      "Delete failed"
 // @Failure      401         {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
@@ -427,7 +427,7 @@ func DeleteVariant(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        variant_id  path      string                       true  "Variant ID"
 // @Param        product     body      dtos.ProductVariantRequest   true  "Product variant association details"
-// @Success      200         {object}  dtos.SuccessResponse         "Product added to variant successfully"
+// @Success      200         {object}  map[string]interface{}         "Product added to variant successfully"
 // @Failure      400         {object}  dtos.ErrorResponse           "Invalid request or association failed"
 // @Failure      401         {object}  dtos.ErrorResponse           "Admin authorization required"
 // @Security     BearerAuth
@@ -500,7 +500,7 @@ func AddProductVariant(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        variant_id  path      string                  true  "Variant ID"
 // @Param        product_id  path      string                  true  "Product ID"
-// @Success      200         {object}  dtos.SuccessResponse    "Product removed from variant successfully"
+// @Success      200         {object}  map[string]interface{}    "Product removed from variant successfully"
 // @Failure      400         {object}  dtos.ErrorResponse      "Remove operation failed"
 // @Failure      401         {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
@@ -559,7 +559,7 @@ func RemoveProductVariant(w http.ResponseWriter, r *http.Request) {
 // @Tags         Variants
 // @Produce      json
 // @Param        product_id  path      string                    true  "Product ID"
-// @Success      200         {object}  []dtos.ProductVariant     "Product variant options"
+// @Success      200         {object}  map[string]interface{}    "Product variant options"
 // @Failure      400         {object}  dtos.ErrorResponse        "Failed to list variants"
 // @Router       /api/products/{product_id}/variants [get]
 func ListProductVariants(w http.ResponseWriter, r *http.Request) {

@@ -711,7 +711,7 @@ func GetRevenueCustomersOrdersOverview() (RevenueCustomersOrdersOverview, error)
 	// ----- CUSTOMERS METRICS -----
 	// Total registered customers (all time)
 	var totalCustomers int
-	err = DB.QueryRow(`SELECT COUNT(DISTINCT user_id) FROM users`).Scan(&totalCustomers)
+	err = DB.QueryRow(`SELECT COUNT(DISTINCT user_id) FROM users WHERE status = 'active' AND role = 'customer'`).Scan(&totalCustomers)
 	if err != nil {
 		return RevenueCustomersOrdersOverview{}, err
 	}
@@ -724,6 +724,8 @@ func GetRevenueCustomersOrdersOverview() (RevenueCustomersOrdersOverview, error)
 		FROM users
 		WHERE MONTH(created_at) = MONTH(CURRENT_DATE())
 		  AND YEAR(created_at) = YEAR(CURRENT_DATE())
+		  AND status = 'active'
+		  AND role = 'customer'
 	`).Scan(&monthlyNewCustomers)
 	if err != nil {
 		return RevenueCustomersOrdersOverview{}, err
@@ -737,6 +739,8 @@ func GetRevenueCustomersOrdersOverview() (RevenueCustomersOrdersOverview, error)
 		FROM users
 		WHERE MONTH(created_at) = MONTH(CURRENT_DATE() - INTERVAL 1 MONTH)
 		  AND YEAR(created_at) = YEAR(CURRENT_DATE() - INTERVAL 1 MONTH)
+		  AND status = 'active'
+		  AND role = 'customer'
 	`).Scan(&prevMonthlyNewCustomers)
 	if err != nil {
 		return RevenueCustomersOrdersOverview{}, err

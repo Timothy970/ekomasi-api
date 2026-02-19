@@ -28,7 +28,7 @@ var supplierWithID = "Supplier with ID "
 // @Accept       json
 // @Produce      json
 // @Param        supplier  body      dtos.Supplier           true  "Supplier details"
-// @Success      200       {object}  dtos.SuccessResponse    "Supplier created successfully"
+// @Success      200       {object}  map[string]interface{}    "Supplier created successfully"
 // @Failure      400       {object}  dtos.ErrorResponse      "Invalid request or validation failed"
 // @Failure      401       {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
@@ -243,7 +243,7 @@ func GetSupplierByID(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        supplier_id  path      string                  true  "Supplier ID"
 // @Param        supplier     body      dtos.Supplier           true  "Updated supplier details"
-// @Success      200          {object}  dtos.SuccessResponse    "Supplier updated successfully"
+// @Success      200          {object}  map[string]interface{}    "Supplier updated successfully"
 // @Failure      400          {object}  dtos.ErrorResponse      "Invalid request or validation failed"
 // @Failure      401          {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Failure      404          {object}  dtos.ErrorResponse      "Supplier not found"
@@ -328,7 +328,7 @@ func UpdateSupplier(w http.ResponseWriter, r *http.Request) {
 // @Tags         Suppliers
 // @Produce      json
 // @Param        supplier_id  path      string                  true  "Supplier ID"
-// @Success      200          {object}  dtos.SuccessResponse    "Supplier deleted successfully"
+// @Success      200          {object}  map[string]interface{}    "Supplier deleted successfully"
 // @Failure      401          {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Failure      404          {object}  dtos.ErrorResponse      "Supplier not found"
 // @Security     BearerAuth

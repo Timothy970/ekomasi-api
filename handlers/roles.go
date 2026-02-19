@@ -35,7 +35,7 @@ var (
 // @Produce      json
 // @Param        Authorization  header    string               true  "Bearer token"
 // @Param        role           body      dtos.RoleRequest     true  "Role details with permissions"
-// @Success      201            {object}  dtos.SuccessResponse "Role created"
+// @Success      201            {object}  map[string]interface{} "Role created"
 // @Failure      400            {object}  dtos.ErrorResponse   "Invalid permission ID or validation error"
 // @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
 // @Security     BearerAuth
@@ -145,7 +145,7 @@ func isValidPermissionKeys(permissionKeys []string, supportedPermissions []dtos.
 // @Param        name           query     string                 false  "Filter by role name"
 // @Param        start_date     query     string                 false  "Filter from date (YYYY-MM-DD)"
 // @Param        end_date       query     string                 false  "Filter to date (YYYY-MM-DD)"
-// @Success      200            {object}  dtos.SuccessResponse   "Roles list"
+// @Success      200            {object}  map[string]interface{}   "Roles list"
 // @Failure      400            {object}  dtos.ErrorResponse     "Invalid date format"
 // @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Security     BearerAuth
@@ -246,7 +246,7 @@ func GetRolesHandler(w http.ResponseWriter, r *http.Request) {
 // @Param        Authorization  header    string               true  "Bearer token"
 // @Param        role_id        path      string               true  "Role ID"
 // @Param        role           body      dtos.RoleRequest     true  "Updated role details"
-// @Success      200            {object}  dtos.SuccessResponse "Role updated"
+// @Success      200            {object}  map[string]interface{} "Role updated"
 // @Failure      400            {object}  dtos.ErrorResponse   "Validation error or role not found"
 // @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
 // @Security     BearerAuth
@@ -326,7 +326,7 @@ func UpdateRoleHandler(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization  header    string                 true  "Bearer token"
 // @Param        role_id        path      string                 true  "Role ID"
-// @Success      200            {object}  dtos.SuccessResponse   "Role deleted"
+// @Success      200            {object}  map[string]interface{}   "Role deleted"
 // @Failure      400            {object}  dtos.ErrorResponse     "Role not found or in use"
 // @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Security     BearerAuth
@@ -386,7 +386,7 @@ func DeleteRoleHandler(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        category       query     string                 false  "Filter by category"
-// @Success      200            {object}  dtos.SuccessResponse   "Permissions list"
+// @Success      200            {object}  map[string]interface{}   "Permissions list"
 // @Failure      400            {object}  dtos.ErrorResponse     "Database error"
 // @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Security     BearerAuth
@@ -450,8 +450,8 @@ func GetPermissionsHandler(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization  header    string               true  "Bearer token"
 // @Param        role_id        path      string               true  "Role ID"
-// @Param        permissions    body      dtos.PermissionIDs   true  "Permission IDs to add"
-// @Success      200            {object}  dtos.SuccessResponse "Permissions added"
+// @Param        permissions    body      map[string][]string  true  "Permission IDs to add"
+// @Success      200            {object}  map[string]interface{} "Permissions added"
 // @Failure      400            {object}  dtos.ErrorResponse   "Invalid permission ID or role not found"
 // @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
 // @Security     BearerAuth
@@ -541,8 +541,8 @@ func AddPermissionsToRoleHandler(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization  header    string               true  "Bearer token"
 // @Param        role_id        path      string               true  "Role ID"
-// @Param        permissions    body      dtos.PermissionIDs   true  "Permission IDs to remove"
-// @Success      200            {object}  dtos.SuccessResponse "Permissions removed"
+// @Param        permissions    body      map[string][]string  true  "Permission IDs to remove"
+// @Success      200            {object}  map[string]interface{} "Permissions removed"
 // @Failure      400            {object}  dtos.ErrorResponse   "Invalid permission ID or role not found"
 // @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
 // @Security     BearerAuth
@@ -630,7 +630,7 @@ func RemovePermissionsFromRoleHandler(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        category       query     string                 false  "Filter by category"
-// @Success      200            {object}  dtos.SuccessResponse   "Available permissions"
+// @Success      200            {object}  map[string]interface{}   "Available permissions"
 // @Failure      400            {object}  dtos.ErrorResponse     "Database error"
 // @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Security     BearerAuth
@@ -708,7 +708,7 @@ func GetAvailablePermissions(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization  header    string                      true  "Bearer token"
 // @Param        permission     body      dtos.AvailablePermission    true  "Permission details"
-// @Success      200            {object}  dtos.SuccessResponse        "Permission added"
+// @Success      200            {object}  map[string]interface{}        "Permission added"
 // @Failure      400            {object}  dtos.ErrorResponse          "Validation error or duplicate key"
 // @Failure      401            {object}  dtos.ErrorResponse          "Admin authorization required"
 // @Security     BearerAuth
@@ -771,7 +771,7 @@ func AddAvailablePermission(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization  header    string                      true  "Bearer token"
 // @Param        permission     body      dtos.AvailablePermission    true  "Permission category and key"
-// @Success      200            {object}  dtos.SuccessResponse        "Permission removed"
+// @Success      200            {object}  map[string]interface{}        "Permission removed"
 // @Failure      400            {object}  dtos.ErrorResponse          "Permission not found"
 // @Failure      401            {object}  dtos.ErrorResponse          "Admin authorization required"
 // @Security     BearerAuth
@@ -834,7 +834,7 @@ func RemoveAvailablePermission(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        Authorization  header    string                            true  "Bearer token"
 // @Param        permission     body      dtos.UpdateAvailablePermission    true  "Permission update details"
-// @Success      200            {object}  dtos.SuccessResponse              "Permission updated"
+// @Success      200            {object}  map[string]interface{}              "Permission updated"
 // @Failure      400            {object}  dtos.ErrorResponse                "Permission not found or validation error"
 // @Failure      401            {object}  dtos.ErrorResponse                "Admin authorization required"
 // @Security     BearerAuth
