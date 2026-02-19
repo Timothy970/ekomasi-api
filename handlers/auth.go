@@ -181,9 +181,6 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// 	notification.SendSmsMessages(req.Phonenumber, fmt.Sprintf(message, otp))
 	// }
 
-	//clear rate limit attempts on successful registration initiation
-	utils.ClearRateLimit(r.Context(), "signup:"+identifier)
-
 	// Respond with success message
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -381,7 +378,6 @@ func verifySignIn(user *dtos.User, req dtos.VerifyOTP, w http.ResponseWriter, r 
 	if identifier == "" {
 		identifier = user.Phone
 	}
-	utils.ClearRateLimit(r.Context(), "verify_otp:"+identifier)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module: "Auth", Description: "Login verified", Code: http.StatusOK,
@@ -486,7 +482,6 @@ func VerifySignUp(w http.ResponseWriter, r *http.Request, req *dtos.VerifyOTP, s
 	if identifier == "" {
 		identifier = req.Phone
 	}
-	utils.ClearRateLimit(r.Context(), "verify_otp:"+identifier)
 
 	token, refreshToken, err := issueTokens(user)
 	if err != nil {
@@ -653,9 +648,6 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	clearLoginAttempts(identifier)
 	// dispatchOTP(user, otp, *req)
 
-	//clear failed login attempts on successful login
-	utils.ClearRateLimit(r.Context(), "login:"+identifier)
-
 	// Respond with success
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -786,8 +778,6 @@ func AdminLoginHandler(w http.ResponseWriter, r *http.Request) {
 	clearLoginAttempts(identifier)
 	// dispatchOTP(user, otp, *req)
 
-	//clear failed login attempts on successful login
-	utils.ClearRateLimit(r.Context(), "login:"+identifier)
 	// Respond with success
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -900,8 +890,7 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	refreshToken, _ := generateToken(user, "refresh_token", 12*time.Hour)
 	// Update last login timestamp
 	models.UpdateLastLogin(models.DB, user.ID)
-	// Clear rate limit attempts after successful token refresh
-	utils.ClearRateLimit(r.Context(), "login:"+identifier)
+
 	// Return success response
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -1095,9 +1084,6 @@ func ResendOptHandler(w http.ResponseWriter, r *http.Request) {
 		notification.SendSmsMessages(user.Phone, fmt.Sprintf(message, otp))
 	}
 
-	//clear rate limit attempts on successful resend
-	utils.ClearRateLimit(r.Context(), "resend_otp:"+identifier)
-
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Auth",
@@ -1168,16 +1154,16 @@ func AtomicVerifyOTP(userID string, providedOTP string) (bool, error) {
 	ctx := context.Background()
 	key := fmt.Sprintf("otp:%s", userID)
 
-	// Lua script to get the value and delete the key if it exists
+	// Lua script to get the value and delete the key only if it matches the provided OTP
 	script := `
 		local val = redis.call('GET', KEYS[1])
-		if val then
+		if val and val == ARGV[1] then
 			redis.call('DEL', KEYS[1])
+			return val
 		end
 		return val
 	`
-
-	val, err := Redis.Eval(ctx, script, []string{key}).Result()
+	val, err := Redis.Eval(ctx, script, []string{key}, providedOTP).Result()
 	if err != nil {
 		return false, fmt.Errorf("failed to atomically verify OTP: %w", err)
 	}

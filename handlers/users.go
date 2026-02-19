@@ -335,7 +335,27 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
+	// Rate limiting for OTP resend
+	identifier := authuser.ID
+	isAllowed, retryAfter, err := utils.CheckRateLimit(r.Context(), "resend_otp:"+identifier, 3, 5*time.Minute)
+	if err != nil {
+		log.Printf("Rate limit error: %v", err)
+	}
+	if !isAllowed {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "OTP resend requested too soon for user with ID " + authuser.ID,
+				Code:        http.StatusTooManyRequests,
+			},
+			Message:   fmt.Sprintf("Please wait %d seconds before requesting a new OTP", retryAfter),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
 	currentUser, err := models.GetUserByUserID(models.DB, authuser.ID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -409,6 +429,7 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	tempData, _ := json.Marshal(input)
 	if err := Redis.Set(context.Background(), tempKey, tempData, 10*time.Minute).Err(); err != nil {
 		log.Printf("Failed to store pending user update in Redis: %v", err)
+		http.Error(w, "Failed to initiate user update", http.StatusInternalServerError)
 		return
 	}
 

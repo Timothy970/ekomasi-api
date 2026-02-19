@@ -111,18 +111,38 @@ func CheckRateLimit(ctx context.Context, key string, limit int, window time.Dura
 		return true, 0, nil // Bypass if Redis not available
 	}
 
-	key = "rate_limit:" + key
-	pipe := RedisClient.TxPipeline()
-	incr := pipe.Incr(ctx, key)
-	pipe.Expire(ctx, key, window)
-	_, err := pipe.Exec(ctx)
+	redisKey := "rate_limit:" + key
+
+	// Lua script to increment and set expiry atomically if new
+	luaScript := `
+		       local current
+		       current = redis.call("INCR", KEYS[1])
+		       if tonumber(current) == 1 then
+			   redis.call("PEXPIRE", KEYS[1], ARGV[1])
+		       end
+		       return current
+	       `
+
+	// Convert window to milliseconds
+	windowMs := int(window / time.Millisecond)
+	result, err := RedisClient.Eval(ctx, luaScript, []string{redisKey}, windowMs).Result()
 	if err != nil {
 		return true, 0, err // Fail open on Redis error
 	}
 
-	count := int(incr.Val())
-	if count > limit {
-		ttl, _ := RedisClient.TTL(ctx, key).Result()
+	count, ok := result.(int64)
+	if !ok {
+		// Try to convert if returned as another type
+		switch v := result.(type) {
+		case int:
+			count = int64(v)
+		case string:
+			count, _ = strconv.ParseInt(v, 10, 64)
+		}
+	}
+
+	if int(count) > limit {
+		ttl, _ := RedisClient.TTL(ctx, redisKey).Result()
 		return false, int(ttl.Seconds()), nil
 	}
 

@@ -62,11 +62,13 @@ func HomePageData(w http.ResponseWriter, r *http.Request) {
 			"social_links": func() []map[string]string {
 				var links []map[string]string
 				for _, link := range socials {
-					links = append(links, map[string]string{
-						"platform":   *link.Platform,
-						"url":        *link.URL,
-						"icon_class": *link.IconClass,
-					})
+					if link.Platform != nil && link.URL != nil && link.IconClass != nil {
+						links = append(links, map[string]string{
+							"platform":   *link.Platform,
+							"url":        *link.URL,
+							"icon_class": *link.IconClass,
+						})
+					}
 				}
 				return links
 			}(),

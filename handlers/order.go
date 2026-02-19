@@ -830,22 +830,53 @@ func formatCustomerDetails(order dtos.AdminOrder) (name, email, phone string) {
 		name = order.User.FirstName + " " + order.User.LastName
 		email = order.User.Email
 		phone = order.User.Phone
+	} else if !isGuestPersonalDetailsEmpty(order.GuestPersonalDetails) {
+		// Name: Prefer FirstName + LastName, else Email, else Phone
+		if order.GuestPersonalDetails.FirstName != nil && order.GuestPersonalDetails.LastName != nil {
+			name = *order.GuestPersonalDetails.FirstName + " " + *order.GuestPersonalDetails.LastName
+		} else if order.GuestPersonalDetails.Email != nil {
+			name = *order.GuestPersonalDetails.Email
+		} else if order.GuestPersonalDetails.Phone != nil {
+			name = *order.GuestPersonalDetails.Phone
+		} else {
+			name = ""
+		}
+		if order.GuestPersonalDetails.Email != nil {
+			email = *order.GuestPersonalDetails.Email
+		} else {
+			email = ""
+		}
+		if order.GuestPersonalDetails.Phone != nil {
+			phone = *order.GuestPersonalDetails.Phone
+		} else {
+			phone = ""
+		}
 	} else {
-		name = *order.GuestPersonalDetails.FirstName + " " + *order.GuestPersonalDetails.LastName
-		email = *order.GuestPersonalDetails.Email
-		phone = *order.GuestPersonalDetails.Phone
+		name = ""
+		email = ""
+		phone = ""
 	}
 	return
+}
+
+func isGuestPersonalDetailsEmpty(details dtos.GuestPersonalDetails) bool {
+	return details.FirstName == nil && details.LastName == nil && details.Email == nil && details.Phone == nil
 }
 
 func formatDeliveryAddress(order dtos.AdminOrder) string {
 	if order.DeliveryAddress != nil {
 		return *order.DeliveryAddress
 	}
+	safeStr := func(s *string) string {
+		if s == nil {
+			return ""
+		}
+		return *s
+	}
 	return fmt.Sprintf("Apartment %s, Street %s, City %s, State %s, Postal Code %s, Country %s",
-		*order.GuestDeliveryAddress.Apartment, *order.GuestDeliveryAddress.Street,
-		*order.GuestDeliveryAddress.City, *order.GuestDeliveryAddress.State,
-		*order.GuestDeliveryAddress.PostalCode, *order.GuestDeliveryAddress.Country)
+		safeStr(order.GuestDeliveryAddress.Apartment), safeStr(order.GuestDeliveryAddress.Street),
+		safeStr(order.GuestDeliveryAddress.City), safeStr(order.GuestDeliveryAddress.State),
+		safeStr(order.GuestDeliveryAddress.PostalCode), safeStr(order.GuestDeliveryAddress.Country))
 }
 
 func formatOrderItems(items []dtos.OrderProduct) string {
