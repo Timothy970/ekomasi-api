@@ -104,6 +104,38 @@ var DeleteCacheByPrefix = func(prefix string) error {
 	return nil
 }
 
+// CheckRateLimit checks if the given key has exceeded the limit within the window.
+// It returns (isAllowed, retryAfterSeconds, error).
+func CheckRateLimit(ctx context.Context, key string, limit int, window time.Duration) (bool, int, error) {
+	if RedisClient == nil {
+		return true, 0, nil // Bypass if Redis not available
+	}
+
+	key = "rate_limit:" + key
+	pipe := RedisClient.TxPipeline()
+	incr := pipe.Incr(ctx, key)
+	pipe.Expire(ctx, key, window)
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return true, 0, err // Fail open on Redis error
+	}
+
+	count := int(incr.Val())
+	if count > limit {
+		ttl, _ := RedisClient.TTL(ctx, key).Result()
+		return false, int(ttl.Seconds()), nil
+	}
+
+	return true, 0, nil
+}
+
+func ClearRateLimit(ctx context.Context, key string) error {
+	if RedisClient == nil {
+		return nil // Nothing to clear if Redis not available
+	}
+	return RedisClient.Del(ctx, "rate_limit:"+key).Err()
+}
+
 // // Store data
 // if err := redisutils.SetCache("user:1", user, 10*time.Minute); err != nil {
 // 	fmt.Println("Error storing:", err)

@@ -245,19 +245,19 @@ type ProductSpecification struct {
 	Size             []string `json:"size"`                                //size variant ids
 	WarrantyType     string   `json:"warranty_type"`                       //warranty type id
 	WarrantyPeriod   int      `json:"warranty_period" validate:"required"` //in months
-	Weight           int      `json:"weight" validate:"required"`
-	WeightLimit      int      `json:"weight_limit" validate:"required"`
+	Weight           float64  `json:"weight" validate:"required"`
+	WeightLimit      float64  `json:"weight_limit" validate:"required"`
 }
 type ExpensiveCheapProduct struct {
 	CheapestProduct  Product `json:"cheapest_product"`
 	ExpensiveProduct Product `json:"expensive_product"`
 }
 type ProductSpecs struct {
-	ProductID    string `json:"product_id"`
-	Weight       int    `json:"weight"`
-	WeightLimit  int    `json:"weight_limit"`
-	Dimensions   string `json:"dimensions"`
-	Manufacturer string `json:"manufacturer"`
+	ProductID    string  `json:"product_id"`
+	Weight       float64 `json:"weight"`
+	WeightLimit  float64 `json:"weight_limit"`
+	Dimensions   string  `json:"dimensions"`
+	Manufacturer string  `json:"manufacturer"`
 }
 
 type BulkUploadProduct struct {
@@ -275,8 +275,8 @@ type BulkUploadProduct struct {
 	ShowStockQuantity       bool      `json:"show_stock_quantity"`
 	CreatedByID             string    `json:"created_by_id"`
 	BuyingPrice             float64   `json:"buying_price"`
-	Weight                  *int      `json:"weight"`
-	WeightLimit             *int      `json:"weight_limit"`
+	Weight                  *float64  `json:"weight"`
+	WeightLimit             *float64  `json:"weight_limit"`
 	Dimensions              *string   `json:"dimensions"`
 	AgeRange                *[]string `json:"age_range"`
 	Brand                   *string   `json:"brand"`

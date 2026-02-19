@@ -33,38 +33,39 @@ func HomePageData(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
-	footer, err := models.GetFooterData(models.DB)
-	if err != nil || len(footer) == 0 {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Home",
-				Description: "Failed to get footer data",
-				Code:        http.StatusNotFound,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
-
+	footer, _ := models.GetFooterData(models.DB)
 	socials, _ := models.GetSocialsData(models.DB)
 	menu, _ := models.GetMenuData(models.DB)
 
+	var copyrightText, companyAddress, contactEmail, phoneNumber string
+	if footer != nil && len(footer) > 0 {
+		if footer[0].CopyrightText != nil {
+			copyrightText = *footer[0].CopyrightText
+		}
+		if footer[0].CompanyAddress != nil {
+			companyAddress = *footer[0].CompanyAddress
+		}
+		if footer[0].ContactEmail != nil {
+			contactEmail = *footer[0].ContactEmail
+		}
+		if footer[0].PhoneNumber != nil {
+			phoneNumber = *footer[0].PhoneNumber
+		}
+	}
+
 	response := map[string]interface{}{
 		"data": map[string]interface{}{
-			"copyright_text":  footer[0].CopyrightText,
-			"company_address": footer[0].CompanyAddress,
-			"contact_email":   footer[0].ContactEmail,
-			"phone_number":    footer[0].PhoneNumber,
+			"copyright_text":  copyrightText,
+			"company_address": companyAddress,
+			"contact_email":   contactEmail,
+			"phone_number":    phoneNumber,
 			"social_links": func() []map[string]string {
 				var links []map[string]string
 				for _, link := range socials {
 					links = append(links, map[string]string{
-						"platform":   link.Platform,
-						"url":        link.URL,
-						"icon_class": link.IconClass,
+						"platform":   *link.Platform,
+						"url":        *link.URL,
+						"icon_class": *link.IconClass,
 					})
 				}
 				return links

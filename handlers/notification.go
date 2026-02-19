@@ -614,8 +614,8 @@ func getCustomerDetails(order *dtos.Order) (email string, name string, err error
 
 	if (order.GuestPersonalDetails != dtos.GuestPersonalDetails{}) {
 		// Guest user - use guest checkout details
-		email = order.GuestPersonalDetails.Email
-		name = fmt.Sprintf("%s %s", order.GuestPersonalDetails.FirstName, order.GuestPersonalDetails.LastName)
+		email = *order.GuestPersonalDetails.Email
+		name = fmt.Sprintf("%s %s", *order.GuestPersonalDetails.FirstName, *order.GuestPersonalDetails.LastName)
 		return email, name, nil
 	}
 

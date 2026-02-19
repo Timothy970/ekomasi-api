@@ -53,6 +53,10 @@ type ResendOTP struct {
 	Phone string `json:"phone_number"`
 }
 
+type VerifyUserUpdate struct {
+	OTP string `json:"otp" validate:"required"`
+}
+
 // CustomClaims can be extended as needed
 type CustomClaims struct {
 	UserID      string   `json:"id"`

@@ -204,8 +204,8 @@ func ParseProductsCSV(file multipart.File) ([]dtos.BulkUploadProduct, error) {
 		sellOut, _ := strconv.ParseBool(record[8])           // sell_when_out_of_stock
 		showStock, _ := strconv.ParseBool(record[9])         // show_stock_quantity
 		buyingPrice, _ := strconv.ParseFloat(record[10], 64) // buying_price
-		weight, _ := strconv.Atoi(record[11])                // weight
-		weightLimit, _ := strconv.Atoi(record[12])           // weight_limit
+		weight, _ := strconv.ParseFloat(record[11], 64)      // weight
+		weightLimit, _ := strconv.ParseFloat(record[12], 64) // weight_limit
 		warrantyType, _ := strconv.Atoi(record[20])          // warranty_period
 
 		// Construct product struct from parsed values

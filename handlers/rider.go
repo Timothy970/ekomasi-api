@@ -192,15 +192,15 @@ func handleSendOrderAssignmentNotification(req dtos.AssignOrderToRiderRequest) {
 		log.Printf("Error fetching order details for notification: %v", err)
 		return
 	}
-	customerName := order.GuestPersonalDetails.FirstName + order.GuestPersonalDetails.LastName
-	if customerName == "" {
-		if order.GuestPersonalDetails.Email != "" {
-			customerName = order.GuestPersonalDetails.Email
+	customerName := *order.GuestPersonalDetails.FirstName + " " + *order.GuestPersonalDetails.LastName
+	if customerName == " " {
+		if order.GuestPersonalDetails.Email != nil {
+			customerName = *order.GuestPersonalDetails.Email
 		} else {
-			customerName = order.GuestPersonalDetails.Phone
+			customerName = *order.GuestPersonalDetails.Phone
 		}
 	}
-	deliveryAddress := order.GuestDeliveryAddress.Country + " , " + order.GuestDeliveryAddress.City + " , " + order.GuestDeliveryAddress.Street + " , " + order.GuestDeliveryAddress.Street
+	deliveryAddress := *order.GuestDeliveryAddress.Country + " , " + *order.GuestDeliveryAddress.City + " , " + *order.GuestDeliveryAddress.Street + " , " + *order.GuestDeliveryAddress.Street
 	if deliveryAddress == " ,  ,  , " {
 		deliveryAddress = *order.DeliveryAddress
 	}

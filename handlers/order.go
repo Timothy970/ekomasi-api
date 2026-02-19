@@ -831,9 +831,9 @@ func formatCustomerDetails(order dtos.AdminOrder) (name, email, phone string) {
 		email = order.User.Email
 		phone = order.User.Phone
 	} else {
-		name = order.GuestPersonalDetails.FirstName + " " + order.GuestPersonalDetails.LastName
-		email = order.GuestPersonalDetails.Email
-		phone = order.GuestPersonalDetails.Phone
+		name = *order.GuestPersonalDetails.FirstName + " " + *order.GuestPersonalDetails.LastName
+		email = *order.GuestPersonalDetails.Email
+		phone = *order.GuestPersonalDetails.Phone
 	}
 	return
 }
@@ -843,9 +843,9 @@ func formatDeliveryAddress(order dtos.AdminOrder) string {
 		return *order.DeliveryAddress
 	}
 	return fmt.Sprintf("Apartment %s, Street %s, City %s, State %s, Postal Code %s, Country %s",
-		order.GuestDeliveryAddress.Apartment, order.GuestDeliveryAddress.Street,
-		order.GuestDeliveryAddress.City, order.GuestDeliveryAddress.State,
-		order.GuestDeliveryAddress.PostalCode, order.GuestDeliveryAddress.Country)
+		*order.GuestDeliveryAddress.Apartment, *order.GuestDeliveryAddress.Street,
+		*order.GuestDeliveryAddress.City, *order.GuestDeliveryAddress.State,
+		*order.GuestDeliveryAddress.PostalCode, *order.GuestDeliveryAddress.Country)
 }
 
 func formatOrderItems(items []dtos.OrderProduct) string {
@@ -1059,6 +1059,24 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, module) {
 		return
+	}
+	//validate the phone number in the guest personal details if the phone number is provided
+	if req.GuestPersonalDetails != nil && req.GuestPersonalDetails.Phone != nil {
+		if !utils.IsValidKenyanPhone(*req.GuestPersonalDetails.Phone) {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      module,
+					Description: "Invalid phone number format in guest personal details",
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Invalid phone number format",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
 	}
 
 	order, err := buildOrderRequest(req, w, r, requestSummary, start, module)

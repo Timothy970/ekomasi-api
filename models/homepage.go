@@ -69,6 +69,9 @@ func GetFooterData(db DBExecutor) ([]dtos.Footer, error) {
 		}
 		result = append(result, f)
 	}
+	if len(result) == 0 {
+		return nil, nil
+	}
 	return result, nil
 }
 
