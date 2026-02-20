@@ -560,6 +560,8 @@ func GetAdminCategories(db DBExecutor, page, limit int, categoryName, categoryTy
 	SELECT 
 		c.category_id,
 		c.name,
+		c.parent_category_id,
+		c.image,
 		IF(c.parent_category_id IS NULL, 'Parent', 'Subcategory') AS type,
 		CASE 
 			WHEN c.parent_category_id IS NULL 
@@ -611,7 +613,7 @@ func GetAdminCategories(db DBExecutor, page, limit int, categoryName, categoryTy
 	var categories []dtos.AdminCategoryData
 	for rows.Next() {
 		var cat dtos.AdminCategoryData
-		if err := rows.Scan(&cat.ID, &cat.Name, &cat.Type, &cat.Items, &cat.Subcategories, &cat.Description); err != nil {
+		if err := rows.Scan(&cat.ID, &cat.Name, &cat.ParentID, &cat.Image, &cat.Type, &cat.Items, &cat.Subcategories, &cat.Description); err != nil {
 			return nil, nil, err
 		}
 		categories = append(categories, cat)
