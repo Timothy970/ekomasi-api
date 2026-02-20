@@ -41,12 +41,14 @@ type ProductData struct {
 }
 
 type AdminCategoryData struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	Type          string `json:"type"`
-	Items         int    `json:"items"`
-	Subcategories int    `json:"subcategories"`
-	Description   string `json:"description"`
+	ID            string  `json:"id"`
+	ParentID      *string `json:"parent_id,omitempty"`
+	Image         *string `json:"image_url,omitempty"`
+	Name          string  `json:"name"`
+	Type          string  `json:"type"`
+	Items         int     `json:"items"`
+	Subcategories int     `json:"subcategories"`
+	Description   string  `json:"description"`
 }
 
 type CategoryWithSubCategories struct {
