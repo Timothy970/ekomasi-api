@@ -92,7 +92,6 @@ type SingleInventory struct {
 	InspectionNotes  *string    `json:"inspection_notes"`
 	ConditionID      *string    `json:"condition_id"`
 	HandlingNotes    *string    `json:"handling_notes"`
-	PurchaseOrderID  *string    `json:"purchase_order_id"`
 }
 
 type InventoryTurnoverRequest struct {
@@ -132,11 +131,9 @@ type StockEntryRequest struct {
 	MinimumStockLevel int         `json:"minimum_stock_level" validate:"gte=0"`
 	StoreQuantity     []StoreInfo `json:"store_quantity" validate:"required,dive"`
 	SupplierID        *string     `json:"supplier_id"`
-	// PurchaseOrderID   string      `json:"purchase_order_id" validate:"required"`
-	BuyingPrice   float64 `json:"buying_price" validate:"required,gte=0"`
-	ConditionID   string  `json:"condition_id" validate:"required"`
-	HandlingNotes string  `json:"handling_notes"`
-	SellingPrice  float64 `json:"selling_price" validate:"required,gte=0"`
+	BuyingPrice       float64     `json:"buying_price" validate:"required,gte=0"`
+	HandlingNotes     string      `json:"handling_notes"`
+	SellingPrice      float64     `json:"selling_price" validate:"required,gte=0"`
 }
 
 type StoreInfo struct {
@@ -162,7 +159,6 @@ type Inspection struct {
 
 type InventoryCondition struct {
 	BatchID       string `json:"batch_id"`
-	ConditionID   string `json:"condition_id"`
 	HandlingNotes string `json:"handling_notes"`
 }
 
