@@ -1106,6 +1106,7 @@ type productRow struct {
 	createdAt, updatedAt                                                    sql.NullTime
 	weightLimit, weight, discount                                           sql.NullFloat64
 	discountType, dimensions, manufacturer                                  sql.NullString
+	isFeatured                                                              sql.NullBool
 }
 
 func enrichProduct(db DBExecutor, product *dtos.Product) error {
@@ -2002,11 +2003,16 @@ func buildSearchQuery(params dtos.SearchParams) (string, []interface{}) {
 		SELECT DISTINCT
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at,
-			c.name as category_name, p.tag, dp.discount, dp.discount_type, ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit
+			c.name as category_name, p.tag, dp.discount, dp.discount_type, ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit,
+			CASE 
+			WHEN fp.product_id IS NOT NULL THEN TRUE
+			ELSE FALSE
+		END AS is_featured
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
 		LEFT JOIN deal_products dp ON p.product_id = dp.product_id
 		LEFT JOIN product_specifications ps ON p.product_id = ps.product_id
+		LEFT JOIN featured_products fp ON p.product_id = fp.product_id
 		WHERE p.product_type = 'single'
 	`
 	var args []interface{}
@@ -2242,6 +2248,7 @@ func scanProduct(db DBExecutor, rows *sql.Rows, isAdmin bool) (dtos.Product, err
 // 	createdAt, updatedAt                                                    sql.NullTime
 // 	discount, weight, weightLimit                                           sql.NullFloat64
 // 	discountType, dimensions, manufacturer                                  sql.NullString
+// 	isFeatured                                                              sql.NullBool
 // }
 
 // scanProductRow scans the SQL row into a null-safe struct
@@ -2252,7 +2259,7 @@ func scanProductRow(rows *sql.Rows) (*productRow, error) {
 		&r.productID, &r.name, &r.desc, &r.sku, &r.price, &r.categoryID,
 		&r.stockQuantity, &r.searchVector, &r.createdAt, &r.updatedAt,
 		&r.categoryName, &r.tag, &r.discount, &r.discountType,
-		&r.weight, &r.dimensions, &r.manufacturer, &r.weightLimit,
+		&r.weight, &r.dimensions, &r.manufacturer, &r.weightLimit, &r.isFeatured,
 	); err != nil {
 		return nil, err
 	}
@@ -2305,6 +2312,9 @@ func buildProduct(r *productRow) dtos.Product {
 	}
 	if r.updatedAt.Valid {
 		product.LastUpdated = r.updatedAt.Time
+	}
+	if r.isFeatured.Valid {
+		product.IsProductFeatured = r.isFeatured.Bool
 	}
 
 	return product

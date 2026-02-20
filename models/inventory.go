@@ -833,20 +833,14 @@ func StoreHandlingNotes(db DBExecutor, req dtos.InventoryCondition) error {
 		return err
 	}
 
-	// Validate condition exists
-	err = isConditionThere(db, req.ConditionID)
-	if err != nil {
-		return err
-	}
-
 	// Generate unique handling note ID
 	notesID, _ := shortid.Generate()
 
 	// Insert handling notes record
 	_, err = db.Exec(`
-		INSERT INTO inventory_handling_notes (handling_note_id, batch_id, handling_notes, condition_id)
-		VALUES (?, ?, ?, ?)`,
-		notesID, req.BatchID, req.HandlingNotes, req.ConditionID)
+		INSERT INTO inventory_handling_notes (handling_note_id, batch_id, handling_notes)
+		VALUES (?, ?, ?)`,
+		notesID, req.BatchID, req.HandlingNotes)
 	return err
 }
 
@@ -929,7 +923,7 @@ func StoreInventoryTracking(db DBExecutor, req dtos.InventoryTracking) (string, 
 //   - error: Database error if update fails
 func UpdateProductTotalQuantity(db DBExecutor, productID string, quantityToAdd int) error {
 	// Increment product's total stock quantity
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
 		UPDATE products
 		SET stock_quantity = stock_quantity + ?
 		WHERE product_id = ?`,

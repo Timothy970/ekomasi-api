@@ -677,9 +677,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		MinimumStockLevel: parseInt(r.FormValue("minimum_stock_level")),
 		StoreQuantity:     ParseStoreInfoArray(r.FormValue("store_quantity")),
 		SupplierID:        supplierID,
-		// PurchaseOrderID:   r.FormValue("purchase_order_id"),
 		BuyingPrice:   parseFloat(r.FormValue("buying_price")),
-		ConditionID:   r.FormValue("condition_id"),
 		HandlingNotes: r.FormValue("handling_notes"),
 		SellingPrice:  parseFloat(r.FormValue("selling_price")),
 	}
@@ -1006,7 +1004,6 @@ func handleInspection(db models.DBExecutor, req *dtos.StockEntryRequest, batchID
 func handleStoreConditonsAndNotes(db models.DBExecutor, req *dtos.StockEntryRequest, batchID string) error {
 	conditionData := dtos.InventoryCondition{
 		BatchID:       batchID,
-		ConditionID:   req.ConditionID,
 		HandlingNotes: req.HandlingNotes,
 	}
 	// Update inventory quantity

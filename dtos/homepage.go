@@ -181,8 +181,9 @@ type Product struct {
 	SellWhenOutOfStock bool              `json:"sell_when_out_of_stock"`
 	ShowStockQuantity  bool              `json:"show_stock_quantity"`
 	//for bundles, it will contain the products in the bundle
-	BundleProducts []Product     `json:"products,omitempty"`
-	DiscountType2  *DiscountType `json:"discount_type"`
+	BundleProducts    []Product     `json:"products,omitempty"`
+	DiscountType2     *DiscountType `json:"discount_type"`
+	IsProductFeatured bool          `json:"is_featured"`
 }
 
 type DiscountType struct {
