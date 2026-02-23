@@ -31,6 +31,28 @@ type STKCallbackRequest struct {
 	} `json:"Body"`
 }
 
+type TransactionStatusSafaricomResponse struct {
+	Result struct {
+		ConversationID           string `json:"ConversationID"`
+		OriginatorConversationID string `json:"OriginatorConversationID"`
+		ReferenceData            struct {
+			ReferenceItem struct {
+				Key string `json:"Key"`
+			} `json:"ReferenceItem"`
+		} `json:"ReferenceData"`
+		ResultCode       int    `json:"ResultCode"`
+		ResultDesc       string `json:"ResultDesc"`
+		ResultParameters struct {
+			ResultParameter []struct {
+				Key   string      `json:"Key"`
+				Value interface{} `json:"Value,omitempty"`
+			} `json:"ResultParameter"`
+		} `json:"ResultParameters"`
+		ResultType    int    `json:"ResultType"`
+		TransactionID string `json:"TransactionID"`
+	} `json:"Result"`
+}
+
 type VoucherRequest struct {
 	VoucherCode string `json:"voucher_code"`
 	Amount      int    `json:"amount"`
@@ -247,4 +269,27 @@ type PaymentOptionUpdate struct {
 
 type MpesaTransactionStatus struct {
 	TransactionID string `json:"transaction_id" validate:"required"`
+}
+
+type MpesaTransactionRufundResponse struct {
+	Result struct {
+		ResultType               int    `json:"ResultType"`
+		ResultCode               int    `json:"ResultCode"`
+		ResultDesc               string `json:"ResultDesc"`
+		OriginatorConversationID string `json:"OriginatorConversationID"`
+		ConversationID           string `json:"ConversationID"`
+		TransactionID            string `json:"TransactionID"`
+		ResultParameters         struct {
+			ResultParameter []struct {
+				Key   string      `json:"Key"`
+				Value interface{} `json:"Value"`
+			} `json:"ResultParameter"`
+		} `json:"ResultParameters"`
+		ReferenceData struct {
+			ReferenceItem struct {
+				Key   string `json:"Key"`
+				Value string `json:"Value"`
+			} `json:"ReferenceItem"`
+		} `json:"ReferenceData"`
+	} `json:"Result"`
 }

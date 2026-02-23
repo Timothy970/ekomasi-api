@@ -190,7 +190,7 @@ func sendNotification(req dtos.Notification) error {
 		notification.SendEmail(user.Email, "Notification", req.Content)
 	case "push":
 		// Send real-time push notification via WebSocket
-		utils.SendToUser(req.RecipientID, "", "", map[string]interface{}{
+		utils.SendToUser(req.RecipientID, map[string]interface{}{
 			"event":   "Notification",
 			"message": "Your payment was successful!",
 		})

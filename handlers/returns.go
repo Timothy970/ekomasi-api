@@ -9,7 +9,9 @@ import (
 	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -195,6 +197,40 @@ func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if strings.ToLower(req.Status) == "approved" {
+		if req.PhoneNumber == nil || *req.PhoneNumber == "" {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Orders",
+					Description: "Phone number is required for approved returns",
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Phone number is required for approved returns",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+		//handle retrun approval - update inventory and process refund if needed
+		err := handleReturnRefunding(models.DB, returnID, req.PhoneNumber)
+		if err != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Orders",
+					Description: "Failed to handle return refunding " + err.Error(),
+					Code:        http.StatusInternalServerError,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+	}
 	// Return success response - status updated (customer may be notified)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -209,6 +245,53 @@ func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary,
 	})
+}
+
+// helper function to handle b2c refunding after items retuning have been approved
+func handleReturnRefunding(db models.DBExecutor, returnID string, phoneNumber *string) error {
+	//fetch return details to get order and customer info
+	ret, err := models.GetOrderItemsForReturn(db, returnID)
+	if err != nil {
+		return err
+	}
+	client, err := NewMpesaClient()
+	if err != nil {
+		return err
+	}
+	order, err := models.GetOrderByID(db, ret.OrderID)
+	if err != nil {
+		return err
+	}
+
+	// Filter order.Items to include only products in ret.Products
+	returnedProductIDs := make(map[string]bool)
+	for _, product := range ret.Products {
+		returnedProductIDs[product.ID] = true
+	}
+
+	var filteredItems []dtos.OrderProduct
+	for _, item := range order.Items {
+		if returnedProductIDs[item.ID] {
+			filteredItems = append(filteredItems, item)
+		}
+	}
+	order.Items = filteredItems
+
+	result, err := client.HandleMoneyReturn(ret.TotalRefund, *phoneNumber)
+	if err != nil {
+		return err
+	}
+	if result.ResultCode != "0" {
+		return fmt.Errorf("mpesa refund failed")
+	}
+
+	//mark the order as refunded and restock items
+	err = models.HandleMpesaMoneyReturnRefunds(*order)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetReturnByIDHandler retrieves detailed information about a specific return request.

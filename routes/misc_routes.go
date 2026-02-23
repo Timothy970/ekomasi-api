@@ -131,6 +131,7 @@ func SetupMiscRoutes(api *mux.Router) {
 	api.Handle("/transactions/{transaction_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetTransactionByIDHandler))).Methods("GET")
 	api.Handle("/transactions/{transaction_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateTransactionStatusHandler))).Methods("PATCH")
 	api.Handle("/transactions/mpesa/status", middleware.AuthenticateToken(http.HandlerFunc(handlers.HandleMpesaTransactionStatus))).Methods("POST")
+	api.HandleFunc("/transactions/status/callback", handlers.HandleTransactionStatusCallback).Methods("POST")
 
 	// Charges
 	charges := api.PathPrefix("/admin/charges").Subrouter()

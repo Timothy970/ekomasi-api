@@ -499,9 +499,9 @@ func UpdatePromoCode(db DBExecutor, id string, input dtos.PromoCodeRequest) (*dt
 	// Update promo code attributes (code itself is not updated)
 	_, err = db.Exec(`
 		UPDATE promocodes
-		SET description = ?, discount_type = ?, discount_value = ?, expires_at = ?, is_active = ?, minimum_order_value = ?, maximum_use = ?
+		SET code = ?, description = ?, discount_type = ?, discount_value = ?, expires_at = ?, is_active = ?, minimum_order_value = ?, maximum_use = ?
 		WHERE promo_code_id = ?`,
-		input.Description, input.DiscountType, input.DiscountValue, input.ExpiresAt, input.IsActive, input.MinimumOrderValue, input.MaximumUse, id,
+		input.Discount_Code, input.Description, input.DiscountType, input.DiscountValue, input.ExpiresAt, input.IsActive, input.MinimumOrderValue, input.MaximumUse, id,
 	)
 	if err != nil {
 		return nil, err

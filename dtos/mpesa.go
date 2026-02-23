@@ -33,12 +33,9 @@ type ResultParameter struct {
 }
 
 type TransactionStatusResponse struct {
-	Status                   string `json:"status"`
-	TransactionID            string `json:"transaction_id,omitempty"`
-	Message                  string `json:"message,omitempty"`
-	MpesaReference           string `json:"mpesa_reference"`
-	ConversationID           string `json:"conversation_id"`
-	OriginatorConversationID string `json:"originator_conversation_id"`
+	Status        string `json:"status"`
+	TransactionID string `json:"transaction_id,omitempty"`
+	Message       string `json:"message,omitempty"`
 }
 
 type MpesaTransactionStatusRequest struct {

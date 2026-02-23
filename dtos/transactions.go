@@ -2,7 +2,7 @@ package dtos
 
 type TransactionsList struct {
 	TransactionID        string  `json:"transaction_id"`
-	OrderID              string  `json:"order_id"`
+	OrderID              *string `json:"order_id"`
 	MpesaReference       *string `json:"mpesa_reference"`
 	TransactionReference string  `json:"transaction_reference"`
 	PhoneNumber          *string `json:"phone_number"`

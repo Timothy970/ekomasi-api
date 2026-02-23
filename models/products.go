@@ -775,10 +775,11 @@ func AddNewProduct(db DBExecutor, input dtos.CreateProduct, userID string) (*dto
 	}
 
 	// Insert product record
+	//The price is set to 0 by default and will be updated later when
 	_, err = db.Exec(`
 		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, created_by_id, buying_price, details)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		productID, input.Name, input.Description, input.SKU, input.Price, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, sellWhenOOs, showStock, userID, input.BuyingPrice, detailsJSON,
+		productID, input.Name, input.Description, input.SKU, 0, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, sellWhenOOs, showStock, userID, input.BuyingPrice, detailsJSON,
 	)
 	if err != nil {
 		return nil, err

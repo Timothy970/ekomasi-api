@@ -885,7 +885,7 @@ func GetPendingOrderNotifications() ([]string, error) {
 //  2. Check promo_codes table -> return "promo_code"
 //  3. Check vouchers table -> return "voucher"
 //  4. Default: return "promo_code" (if not found or error)
-func GetDiscountCodeType(code string) string {
+func GetDiscountCodeType(db DBExecutor, code string) string {
 	var discountType string
 	// Check which table contains this code using CASE statement
 	query := `
@@ -896,7 +896,7 @@ func GetDiscountCodeType(code string) string {
 			ELSE 'promo_code'
 		END
 	`
-	err := DB.QueryRow(query, code, code, code).Scan(&discountType)
+	err := db.QueryRow(query, code, code, code).Scan(&discountType)
 	// Default to promo_code if query fails
 	if err != nil {
 		return "promo_code"
