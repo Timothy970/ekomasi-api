@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"adenzo_backend/dtos"
@@ -317,6 +318,14 @@ func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
 	subtotal := 0.0
 	total := 0.0
 	for _, item := range items {
+		discountValue, discountType, err := models.GetProductDiscount(models.DB, item.Product.ID)
+		if err != nil {
+			log.Printf("Error fetching product discount: %v", err)
+			return dtos.ViewCartResponse{}, errors.New("failed to fetch product discount")
+		}
+		if discountType != "" && discountValue > 0 {
+			item.Product.Price = calculateNewPriceWithDiscount(item.Product.Price, discountValue, discountType)
+		}
 		//product price including VAT
 		priceIncVAT := float64(item.Quantity) * item.Product.Price
 		//product price excluding VAT
@@ -340,6 +349,7 @@ func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
 			}
 		}
 	}
+
 	//get estimated tax
 	estimatedTaxValue := total - subtotal
 	// Round up values to the next whole number
@@ -357,13 +367,25 @@ func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
 	return res, nil
 }
 
+// helper function to calculate discount based on different promotion types
+func calculateNewPriceWithDiscount(price, discountValue float64, discountType string) float64 {
+	switch strings.ToLower(discountType) {
+	case "percentage":
+		return price * (1 - discountValue/100)
+	case "fixed":
+		return price - discountValue
+	default:
+		return price
+	}
+}
+
 func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartItem) (float64, error) {
-	switch promo.Type {
-	case "Percentage":
+	switch strings.ToLower(promo.Type) {
+	case "percentage":
 		// Apply a percentage discount to total item price
 		return (promo.Value / 100) * float64(item.Quantity) * item.Product.Price, nil
 
-	case "Fixed":
+	case "fixed":
 		// Apply a fixed amount discount (flat rate)
 		// Split proportionally if needed; here we apply it fully if item subtotal > discount
 		subtotal := float64(item.Quantity) * item.Product.Price
@@ -372,7 +394,7 @@ func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartIt
 		}
 		return subtotal, nil
 
-	case "BOGO":
+	case "bogo":
 		// Buy One Get One Free
 		// For every two items, one is free
 		if item.Quantity > 1 {
@@ -382,12 +404,12 @@ func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartIt
 			return 0, nil
 		}
 
-	case "FreeShipping":
+	case "freeshipping":
 		// Delivery fee is waived - will be handled at order creation
 		// Return 0 as this doesn't affect product price directly
 		return 0, nil
 
-	case "Tiered":
+	case "tiered":
 		// Example tiered logic based on quantity
 		if item.Quantity >= 10 {
 			return 0.20 * float64(item.Quantity) * item.Product.Price, nil // 20% off

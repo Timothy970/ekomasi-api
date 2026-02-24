@@ -505,11 +505,6 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 	// 	return nil, err
 	// }
 	// p.Tax = &tax
-	discount, err := fetchProductDiscount(db, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	p.DiscountType2 = &discount
 
 	// Fetch bundle products if this is a bundle
 	if productType.Valid && productType.String == "bundle" {

@@ -81,12 +81,17 @@ func CreateDeal(db DBExecutor, deal dtos.CreateDeal) (string, error) {
 func GetAllDeals(db DBExecutor, page, size int) ([]dtos.Deal, *dtos.PaginationMeta, error) {
 	// Get total count for pagination calculation
 	var countTotal int
-	err := db.QueryRow(`SELECT COUNT(*) FROM deals`).Scan(&countTotal)
+	err := db.QueryRow(`SELECT COUNT(*) FROM deals WHERE is_active = TRUE AND end_date >= NOW()`).Scan(&countTotal)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// Query deals with pagination
 	rows, err := db.Query(`
 	SELECT deal_id, name, start_date, end_date, is_active, image
 	FROM deals d
+	WHERE d.is_active = TRUE
+	AND d.end_date >= NOW()
 	LIMIT ? OFFSET ?
 	`, size, (page-1)*size)
 	if err != nil {
@@ -562,4 +567,21 @@ func GetProductsByDealIDWithPagination(db DBExecutor, dealID string, page, limit
 	}
 
 	return products, pagination, nil
+}
+
+// Helper function to fetch product discount for a specific product in a deal
+func GetProductDiscount(db DBExecutor, productID string) (float64, string, error) {
+	var discount float64
+	var discountType string
+	err := db.QueryRow(`
+		SELECT dp.discount, dp.discount_type
+		FROM deal_products dp
+		INNER JOIN deals d ON dp.deal_id = d.deal_id
+		WHERE dp.product_id = ? AND d.end_date > NOW()
+		LIMIT 1
+	`, productID).Scan(&discount, &discountType)
+	if err != nil {
+		return 0, "", err
+	}
+	return discount, discountType, nil
 }

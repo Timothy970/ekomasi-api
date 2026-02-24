@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -36,8 +37,16 @@ func checkStockAvailability(db models.DBExecutor, productID string, quantity int
 func processOrderItems(db models.DBExecutor, items []dtos.OrderItemRequest) (totalAmount, totalDiscount float64, freeShipping bool, err error) {
 	for _, item := range items {
 		itemTotal := float64(item.Quantity) * item.UnitPrice
+		discountValue, discountType, err := models.GetProductDiscount(db, item.ProductID)
+		if err != nil {
+			log.Printf("Error fetching product discount: %v", err)
+			return 0, 0, false, errors.New("failed to fetch product discount")
+		}
+		if discountType != "" && discountValue > 0 {
+			itemTotal = calculateNewPriceWithDiscount(itemTotal, discountValue, discountType)
+		}
 		totalAmount += itemTotal
-		err := checkStockAvailability(db, item.ProductID, item.Quantity)
+		err = checkStockAvailability(db, item.ProductID, item.Quantity)
 		if err != nil {
 			return 0, 0, false, err
 		}
