@@ -862,7 +862,7 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 	var totalCount int
 	now := time.Now()
 
-	// Build date filter based on time range
+	// Build date filter
 	dateFilter := ""
 	switch timeRange {
 	case "daily":
@@ -875,52 +875,50 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 		dateFilter = "YEAR(o.created_at) = ?"
 	}
 
-	// Calculate pagination offset
 	offset := (page - 1) * size
 
-	// Count total distinct products matching filter
-	countQuery := `
-		SELECT COUNT(DISTINCT oi.product_id)
-		FROM order_items oi
-		JOIN orders o ON oi.order_id = o.order_id
-	`
+	// Base WHERE clause (only completed orders)
+	whereClause := "WHERE o.status = 'completed'"
 	if dateFilter != "" {
-		countQuery += " WHERE " + dateFilter
+		whereClause += " AND " + dateFilter
 	}
 
-	// Execute count with date filter arguments
+	countQuery := `
+		SELECT COUNT(*) FROM (
+			SELECT oi.product_id
+			FROM order_items oi
+			JOIN orders o ON oi.order_id = o.order_id
+			` + whereClause + `
+			GROUP BY oi.product_id
+		) AS grouped_products
+	`
+
 	err := DB.QueryRow(countQuery, getDateFilterArgs(timeRange, now)...).Scan(&totalCount)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Build main query with product details and aggregations
 	query := `
 		SELECT 
 			p.product_id,
-			p.name AS product_name, 
+			p.name AS product_name,
 			SUM(oi.quantity) AS total_quantity,
-			MIN(pi.url) AS product_image,   -- returns one image
+			pi.url AS product_image,
 			SUM(oi.quantity * oi.unit_price) AS total_revenue
 		FROM order_items oi
-		JOIN products p ON oi.product_id = p.product_id
 		JOIN orders o ON oi.order_id = o.order_id
-		LEFT JOIN product_images pi ON pi.product_id = p.product_id
-	`
-
-	// Add date filter if specified
-	if dateFilter != "" {
-		query += " WHERE " + dateFilter
-	}
-
-	// Group by product and sort by quantity (top sellers first)
-	query += `
-		GROUP BY p.product_id, p.name
+		JOIN products p ON oi.product_id = p.product_id
+		LEFT JOIN (
+			SELECT product_id, MIN(url) AS url
+			FROM product_images
+			GROUP BY product_id
+		) pi ON pi.product_id = p.product_id
+		` + whereClause + `
+		GROUP BY p.product_id, p.name, pi.url
 		ORDER BY total_quantity DESC
 		LIMIT ? OFFSET ?
 	`
 
-	// Build complete argument list: date args + pagination args
 	args := append(getDateFilterArgs(timeRange, now), size, offset)
 
 	rows, err := DB.Query(query, args...)
@@ -929,11 +927,11 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 	}
 	defer rows.Close()
 
-	// Scan results
 	var results []dtos.TopProduct
 	for rows.Next() {
 		var tp dtos.TopProduct
 		var image sql.NullString
+
 		if err := rows.Scan(
 			&tp.ProductID,
 			&tp.ProductName,
@@ -943,14 +941,14 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 		); err != nil {
 			return nil, nil, err
 		}
-		// Set image URL if available
+
 		if image.Valid {
 			tp.ProductImage = image.String
 		}
+
 		results = append(results, tp)
 	}
 
-	// Build pagination metadata
 	meta := &dtos.PaginationMeta{
 		TotalItems: totalCount,
 		Page:       page,
