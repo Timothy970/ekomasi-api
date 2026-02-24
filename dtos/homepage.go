@@ -175,15 +175,14 @@ type Product struct {
 	Dimensions         *string           `json:"dimensions"`
 	Manufacturer       *string           `json:"manufacturer"`
 	Discount           *float64          `json:"discount"`
-	DiscountType       *string           `json:"discount_type1"`
+	DiscountType       *string           `json:"discount_type"`
 	Tax                *ProductTax       `json:"tax"`
 	LowStockAlert      int               `json:"low_stock_quantity_warning"`
 	SellWhenOutOfStock bool              `json:"sell_when_out_of_stock"`
 	ShowStockQuantity  bool              `json:"show_stock_quantity"`
 	//for bundles, it will contain the products in the bundle
-	BundleProducts    []Product     `json:"products,omitempty"`
-	DiscountType2     *DiscountType `json:"discount_type"`
-	IsProductFeatured bool          `json:"is_featured"`
+	BundleProducts    []Product `json:"products,omitempty"`
+	IsProductFeatured bool      `json:"is_featured"`
 }
 
 type DiscountType struct {
