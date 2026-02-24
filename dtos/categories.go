@@ -4,8 +4,16 @@ type CreateCategory struct {
 	Name        string  `json:"name" validate:"required"`
 	Description string  `json:"description" validate:"required"`
 	ParentID    *string `json:"parent_id"`
-	Image       string  `json:"image_url" validate:"required"`
+	Image       string  `json:"image_url"`
 }
+
+type UpdateCategoryPayload struct {
+	Name        string  `json:"name" validate:"required"`
+	Description string  `json:"description" validate:"required"`
+	ParentID    *string `json:"parent_id"`
+	Image       *string `json:"image_url"`
+}
+
 type UpdateCategory struct {
 	Name        string `json:"name" validate:"required"`
 	Description string `json:"description" validate:"required"`
@@ -49,6 +57,7 @@ type AdminCategoryData struct {
 	Items         int     `json:"items"`
 	Subcategories int     `json:"subcategories"`
 	Description   string  `json:"description"`
+	ParentName    *string `json:"parent_name,omitempty"`
 }
 
 type CategoryWithSubCategories struct {

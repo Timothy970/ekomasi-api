@@ -429,7 +429,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		Name:          bulkProduct.Name,
 		Description:   bulkProduct.Description,
 		SKU:           bulkProduct.SKU,
-		Price:         bulkProduct.Price,
+		Price:         &bulkProduct.Price,
 		CategoryID:    bulkProduct.CategoryID,
 		StockQuantity: bulkProduct.StockQuantity,
 		SearchVector:  bulkProduct.Name,

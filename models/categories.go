@@ -295,7 +295,7 @@ func AddNewCategory(db DBExecutor, input dtos.CreateCategory) (*dtos.Category, e
 // Dynamic Update:
 //   - Only non-empty fields in input are included in UPDATE query
 //   - Fields: Name, ParentID, Description, Image
-func UpdateCategory(db DBExecutor, id string, input dtos.CreateCategory) (*dtos.Category, error) {
+func UpdateCategory(db DBExecutor, id string, input dtos.UpdateCategoryPayload) (*dtos.Category, error) {
 	// Step 1: Validate category exists
 	if err := CategoryExists(db, id); err != nil {
 		return nil, err
@@ -337,9 +337,9 @@ func UpdateCategory(db DBExecutor, id string, input dtos.CreateCategory) (*dtos.
 		args = append(args, input.Description)
 	}
 	// Add Image field if provided
-	if input.Image != "" {
+	if input.Image != nil {
 		setClauses = append(setClauses, "image = ?")
-		args = append(args, input.Image)
+		args = append(args, *input.Image)
 	}
 
 	// Validate at least one field is being updated
@@ -364,7 +364,6 @@ func UpdateCategory(db DBExecutor, id string, input dtos.CreateCategory) (*dtos.
 		Name:             input.Name,
 		ParentCategoryID: input.ParentID,
 		Description:      input.Description,
-		Image:            input.Image,
 	}, nil
 }
 
@@ -557,29 +556,30 @@ func GetAdminCategories(db DBExecutor, page, limit int, categoryName, categoryTy
 
 	// Step 2: Build main query with category statistics
 	mainQuery := `
-	SELECT 
-		c.category_id,
-		c.name,
-		c.parent_category_id,
-		c.image,
-		IF(c.parent_category_id IS NULL, 'Parent', 'Subcategory') AS type,
-		CASE 
-			WHEN c.parent_category_id IS NULL 
-				THEN (
-					SELECT COUNT(*) 
-					FROM products p 
-					JOIN categories sc ON sc.category_id = p.category_id
-					WHERE sc.parent_category_id = c.category_id
-				)
-			ELSE (
-				SELECT COUNT(*) 
-				FROM products p 
-				WHERE p.category_id = c.category_id
-			)
-		END AS items,
-		(SELECT COUNT(*) FROM categories sc WHERE sc.parent_category_id = c.category_id) AS subcategories,
-		c.description
-	FROM categories c`
+	       SELECT 
+		       c.category_id,
+		       c.name,
+		       c.parent_category_id,
+		       c.image,
+		       IF(c.parent_category_id IS NULL, 'Parent', 'Subcategory') AS type,
+		       CASE 
+			       WHEN c.parent_category_id IS NULL 
+				       THEN (
+					       SELECT COUNT(*) 
+					       FROM products p 
+					       JOIN categories sc ON sc.category_id = p.category_id
+					       WHERE sc.parent_category_id = c.category_id
+				       )
+			       ELSE (
+				       SELECT COUNT(*) 
+				       FROM products p 
+				       WHERE p.category_id = c.category_id
+			       )
+		       END AS items,
+		       (SELECT COUNT(*) FROM categories sc WHERE sc.parent_category_id = c.category_id) AS subcategories,
+		       c.description,
+		       CASE WHEN c.parent_category_id IS NOT NULL THEN (SELECT name FROM categories pc WHERE pc.category_id = c.parent_category_id) ELSE NULL END AS parent_name
+	       FROM categories c`
 
 	mainWhereClauses := []string{}
 	queryArgs := []any{}
@@ -613,8 +613,12 @@ func GetAdminCategories(db DBExecutor, page, limit int, categoryName, categoryTy
 	var categories []dtos.AdminCategoryData
 	for rows.Next() {
 		var cat dtos.AdminCategoryData
-		if err := rows.Scan(&cat.ID, &cat.Name, &cat.ParentID, &cat.Image, &cat.Type, &cat.Items, &cat.Subcategories, &cat.Description); err != nil {
+		var parentName sql.NullString
+		if err := rows.Scan(&cat.ID, &cat.Name, &cat.ParentID, &cat.Image, &cat.Type, &cat.Items, &cat.Subcategories, &cat.Description, &parentName); err != nil {
 			return nil, nil, err
+		}
+		if parentName.Valid {
+			cat.ParentName = &parentName.String
 		}
 		categories = append(categories, cat)
 	}

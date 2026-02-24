@@ -182,8 +182,8 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build DTO (image is optional)
-	req := dtos.CreateCategory{
-		Image:       imageURL,
+	req := dtos.UpdateCategoryPayload{
+		Image:       &imageURL,
 		Name:        r.FormValue("name"),
 		Description: r.FormValue("description"),
 		ParentID:    utils.StringPtr(r.FormValue("parent_id")),

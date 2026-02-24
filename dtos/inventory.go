@@ -125,14 +125,14 @@ type StockEntryRequest struct {
 	ManufacturingDate string      `json:"manufacturing_date" validate:"required"`
 	InspectionDate    string      `json:"inspection_date" validate:"required"`
 	InspectorID       string      `json:"inspector_id" validate:"required"`
-	InspectionNotes   string      `json:"inspection_notes"`
+	InspectionNotes   *string     `json:"inspection_notes"`
 	InspectionImage   *[]string   `json:"inspection_images"`
 	QuantityReceived  int         `json:"quantity_received" validate:"gte=1"`
 	MinimumStockLevel int         `json:"minimum_stock_level" validate:"gte=0"`
 	StoreQuantity     []StoreInfo `json:"store_quantity" validate:"required,dive"`
 	SupplierID        *string     `json:"supplier_id"`
 	BuyingPrice       float64     `json:"buying_price" validate:"required,gte=0"`
-	HandlingNotes     string      `json:"handling_notes"`
+	HandlingNotes     *string     `json:"handling_notes"`
 	SellingPrice      float64     `json:"selling_price" validate:"required,gte=0"`
 }
 
@@ -153,13 +153,13 @@ type Inspection struct {
 	BatchID         string   `json:"batch_id"`
 	InspectionDate  string   `json:"inspection_date"`
 	InspectorID     string   `json:"inspector_id"`
-	InspectionNotes string   `json:"inspection_notes"`
+	InspectionNotes *string  `json:"inspection_notes"`
 	Images          []string `json:"images,omitempty"`
 }
 
 type InventoryCondition struct {
-	BatchID       string `json:"batch_id"`
-	HandlingNotes string `json:"handling_notes"`
+	BatchID       string  `json:"batch_id"`
+	HandlingNotes *string `json:"handling_notes"`
 }
 
 type InventoryTracking struct {

@@ -21,7 +21,8 @@ type ReturnResponse struct {
 	CreatedAt   string    `json:"created_at"`
 }
 type ReturnStatusUpdate struct {
-	Status string `json:"status" validate:"required,oneof=Pending Approved Rejected"`
+	Status      string  `json:"status" validate:"required,oneof=Pending Approved Rejected"`
+	PhoneNumber *string `json:"phone_number,omitempty"` // Optional, required if status is Approved
 }
 
 type ReturnListResponse struct {

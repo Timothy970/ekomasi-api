@@ -7,7 +7,7 @@ type CreateProduct struct {
 	Name          string   `json:"name" validate:"required"`
 	Description   string   `json:"description" validate:"required"`
 	SKU           string   `json:"sku" validate:"required"`
-	Price         float64  `json:"price" validate:"required,gt=0"`
+	Price         *float64 `json:"price" validate:"required,gt=0"`
 	CategoryID    string   `json:"category_id" validate:"required"`
 	StockQuantity int      `json:"stock_quantity" validate:"gte=0"`
 	SearchVector  string   `json:"search_vector" validate:"required"`

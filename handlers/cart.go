@@ -653,7 +653,7 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Determine discount type if not provided
-	req.DiscountType = models.GetDiscountCodeType(req.Code)
+	req.DiscountType = models.GetDiscountCodeType(models.DB, req.Code)
 	if req.RequestType == "" {
 		req.RequestType = "check"
 	}
@@ -785,6 +785,7 @@ func applyVoucher(cart dtos.ViewCartResponse, code string, requestType string) (
 }
 
 func applyPromoCode(cart dtos.ViewCartResponse, code string, requestType string) (dtos.ViewCartResponse, error) {
+	log.Print("request type: ", requestType)
 	promoData, err := models.ValidatePromoCode(models.DB, code, cart.TotalAmount)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
@@ -816,21 +817,21 @@ func applyPromoCode(cart dtos.ViewCartResponse, code string, requestType string)
 	}
 	return cart, nil
 }
-func applyPromoCodeToOrder(totalAmount, totalDiscount float64, code string, promoCodeType string) (float64, float64, error) {
+func applyPromoCodeToOrder(db models.DBExecutor, totalAmount, totalDiscount float64, code string, promoCodeType string) (float64, float64, error) {
 	switch promoCodeType {
 	case "promo_code":
-		return applyPromoCodeDiscount(totalAmount, totalDiscount, code)
+		return applyPromoCodeDiscount(db, totalAmount, totalDiscount, code)
 	case "coupon":
-		return applyCouponDiscount(totalAmount, totalDiscount, code)
+		return applyCouponDiscount(db, totalAmount, totalDiscount, code)
 	case "voucher":
-		return applyVoucherDiscount(totalAmount, totalDiscount, code)
+		return applyVoucherDiscount(db, totalAmount, totalDiscount, code)
 	default:
 		return totalAmount, totalDiscount, fmt.Errorf("invalid discount type for order")
 	}
 }
 
-func applyPromoCodeDiscount(totalAmount, totalDiscount float64, code string) (float64, float64, error) {
-	promoData, err := models.ValidatePromoCode(models.DB, code, totalAmount)
+func applyPromoCodeDiscount(db models.DBExecutor, totalAmount, totalDiscount float64, code string) (float64, float64, error) {
+	promoData, err := models.ValidatePromoCode(db, code, totalAmount)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -841,7 +842,7 @@ func applyPromoCodeDiscount(totalAmount, totalDiscount float64, code string) (fl
 	}
 
 	totalDiscount += discount
-	if err := models.IncrementPromoCodeUsage(models.DB, code); err != nil {
+	if err := models.IncrementPromoCodeUsage(db, code); err != nil {
 		return 0, 0, err
 	}
 
@@ -865,8 +866,8 @@ func calculatePromoDiscount(promoData dtos.PromoCodeData, totalAmount float64) f
 	return discount
 }
 
-func applyCouponDiscount(totalAmount, totalDiscount float64, code string) (float64, float64, error) {
-	discount, err := models.ValidateCoupon(models.DB, code)
+func applyCouponDiscount(db models.DBExecutor, totalAmount, totalDiscount float64, code string) (float64, float64, error) {
+	discount, err := models.ValidateCoupon(db, code)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -878,8 +879,8 @@ func applyCouponDiscount(totalAmount, totalDiscount float64, code string) (float
 	return totalAmount, totalDiscount, nil
 }
 
-func applyVoucherDiscount(totalAmount, totalDiscount float64, code string) (float64, float64, error) {
-	voucherBalance, err := models.ValidateVoucher(models.DB, code)
+func applyVoucherDiscount(db models.DBExecutor, totalAmount, totalDiscount float64, code string) (float64, float64, error) {
+	voucherBalance, err := models.ValidateVoucher(db, code)
 	if err != nil {
 		return 0, 0, err
 	}

@@ -205,7 +205,7 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create transaction log entry for audit trail
 	logEntry := &dtos.TransactionsList{
-		OrderID:              order.OrderID,
+		OrderID:              &order.OrderID,
 		TransactionReference: adenzoMpesaPrefix + order.OrderID,
 		Amount:               order.TotalAmount,
 		Status:               "COMPLETED",
@@ -448,7 +448,7 @@ func processCashPayment(db models.DBExecutor, order *dtos.Order) error {
 
 	// Create transaction log entry for audit purposes
 	logEntry := &dtos.TransactionsList{
-		OrderID:              order.OrderID,
+		OrderID:              &order.OrderID,
 		TransactionReference: adenzoMpesaPrefix + order.OrderID,
 		Amount:               order.TotalAmount,
 		Status:               "COMPLETED",
@@ -500,7 +500,7 @@ func processVoucherPayment(db models.DBExecutor, order *dtos.Order, voucherCode 
 
 	// Create transaction log entry for audit trail
 	logEntry := &dtos.TransactionsList{
-		OrderID:              order.OrderID,
+		OrderID:              &order.OrderID,
 		TransactionReference: adenzoMpesaPrefix + order.OrderID,
 		Amount:               order.TotalAmount,
 		Status:               "COMPLETED",
@@ -805,7 +805,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create transaction log entry for audit trail
 	logEntry := &dtos.TransactionsList{
-		OrderID:              order.OrderID,
+		OrderID:              &order.OrderID,
 		TransactionReference: adenzoMpesaPrefix + order.OrderID,
 		Amount:               order.TotalAmount,
 		Status:               "COMPLETED",

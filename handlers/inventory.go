@@ -663,6 +663,8 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 	if supplierIDValue := r.FormValue("supplier_id"); supplierIDValue != "" {
 		supplierID = &supplierIDValue
 	}
+	inspectionNotes := r.FormValue("inspection_notes")
+	handlingNotes := r.FormValue("handling_notes")
 	req := &dtos.StockEntryRequest{
 		ProductID:         r.FormValue("product_id"),
 		BatchImages:       &batchImageUrls,
@@ -672,14 +674,14 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		InspectionDate:    r.FormValue("inspection_date"),
 		InspectionImage:   &inspectionImageUrls,
 		InspectorID:       r.FormValue("inspector_id"),
-		InspectionNotes:   r.FormValue("inspection_notes"),
+		InspectionNotes:   &inspectionNotes,
 		QuantityReceived:  parseInt(r.FormValue("quantity_received")),
 		MinimumStockLevel: parseInt(r.FormValue("minimum_stock_level")),
 		StoreQuantity:     ParseStoreInfoArray(r.FormValue("store_quantity")),
 		SupplierID:        supplierID,
-		BuyingPrice:   parseFloat(r.FormValue("buying_price")),
-		HandlingNotes: r.FormValue("handling_notes"),
-		SellingPrice:  parseFloat(r.FormValue("selling_price")),
+		BuyingPrice:       parseFloat(r.FormValue("buying_price")),
+		HandlingNotes:     &handlingNotes,
+		SellingPrice:      parseFloat(r.FormValue("selling_price")),
 	}
 	//Validate the request
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Inventory") {

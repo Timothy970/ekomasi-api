@@ -6,11 +6,8 @@ import (
 	"adenzo_backend/utils"
 	"bytes"
 	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
@@ -54,7 +51,9 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("order found %v", order)
-	computedAmount := int(order.TotalAmount) - int(order.TotalDiscount)
+	// computedAmount := int(order.TotalAmount) - int(order.TotalDiscount)
+	//for testing we can set the computed amount to 1 to avoid issues with zero amount payments in M-Pesa sandbox
+	computedAmount := 1
 	if computedAmount < 0 {
 		log.Printf("negative MPESA payment amount computed for order %s: total=%v, discount=%v, computedAmount=%d; clamping to 0",
 			order.OrderID, order.TotalAmount, order.TotalDiscount, computedAmount)
@@ -120,7 +119,6 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Failed to store transaction log: %v", err)
 	}
-	environment := os.Getenv("ENVIRONMENT")
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -135,24 +133,18 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary,
 	})
-	if environment == "development" {
-		// In development, always simulate the M-Pesa callback instead of calling the real API.
-		go sendCallbackToDevEnv(req.OrderID)
-	} else if req.Amount == 0 {
+	if req.Amount == 0 {
 		//if the amount is zero, we can skip calling M-Pesa and directly mark the order as paid and send the callback
 		err := models.MarkOrderAsPaid(models.DB, req.OrderID)
 		if err != nil {
 			log.Printf("Failed to mark order as paid: %v", err)
 		}
-		// For zero-amount orders we never call M-Pesa, even in production.
-		// We reuse the simulated callback helper to complete the order flow.
-		go sendCallbackToDevEnv(req.OrderID)
 	}
 }
 
 func storeTransactionLog(db models.DBExecutor, req dtos.MpesaRequest) error {
 	logEntry := &dtos.TransactionsList{
-		OrderID:              req.OrderID,
+		OrderID:              &req.OrderID,
 		TransactionReference: req.Reference,
 		PhoneNumber:          &req.Phone,
 		Amount:               float64(req.Amount),
@@ -176,47 +168,36 @@ func RegisterMpesaRoutesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type MpesaClient struct {
-	ConsumerKey       string
-	ConsumerSecret    string
-	ShortCode         string
-	Passkey           string
-	CallbackURL       string
-	BalanceURL        string
-	AccessToken       string
-	MpesaURL          string
-	InitiatorName     string
-	InitiatorPassword string
-	// CertificatePath    string
-	// SecurityCredential string
-	ReturnURL  string
-	HeadOffice string
+	ConsumerKey        string
+	ConsumerSecret     string
+	ShortCode          string
+	Passkey            string
+	CallbackURL        string
+	BalanceURL         string
+	AccessToken        string
+	MpesaURL           string
+	InitiatorName      string
+	InitiatorPassword  string
+	SecurityCredential string
+	ReturnURL          string
+	StatusURL          string
 }
 
 func NewMpesaClient() (*MpesaClient, error) {
-	// CertificatePath := os.Getenv("MPESA_CERTIFICATE_PATH")
 	InitiatorPassword := os.Getenv("MPESA_INITIATOR_PASSWORD")
-	// pubKey, err := loadPublicKey(CertificatePath)
-	// if err != nil {
-	// 	log.Fatal("Failed to load public key:", err)
-	// }
-
-	// securityCredential, err := generateSecurityCredential(pubKey, InitiatorPassword)
-	// if err != nil {
-	// 	log.Fatal("Failed to generate SecurityCredential:", err)
-	// }
 	client := &MpesaClient{
-		ConsumerKey:       os.Getenv("MPESA_CONSUMER_KEY"),
-		ConsumerSecret:    os.Getenv("MPESA_CONSUMER_SECRET"),
-		ShortCode:         os.Getenv("MPESA_SHORTCODE"),
-		Passkey:           os.Getenv("MPESA_PASSKEY"),
-		CallbackURL:       os.Getenv("MPESA_CALLBACK_URL"),
-		BalanceURL:        os.Getenv("MPESA_BALANCE_URL"),
-		MpesaURL:          os.Getenv("MPESA_SEND_URL"),
-		InitiatorName:     os.Getenv("MPESA_INITIATOR_NAME"),
-		InitiatorPassword: InitiatorPassword,
-		// SecurityCredential: securityCredential,
-		ReturnURL:  os.Getenv("MPESA_RETURN_URL"),
-		HeadOffice: os.Getenv("MPESA_HEAD_OFFICE"),
+		ConsumerKey:        os.Getenv("MPESA_CONSUMER_KEY"),
+		ConsumerSecret:     os.Getenv("MPESA_CONSUMER_SECRET"),
+		ShortCode:          os.Getenv("MPESA_SHORTCODE"),
+		Passkey:            os.Getenv("MPESA_PASSKEY"),
+		CallbackURL:        os.Getenv("MPESA_CALLBACK_URL"),
+		BalanceURL:         os.Getenv("MPESA_BALANCE_URL"),
+		MpesaURL:           os.Getenv("MPESA_SEND_URL"),
+		InitiatorName:      os.Getenv("MPESA_INITIATOR_NAME"),
+		InitiatorPassword:  InitiatorPassword,
+		SecurityCredential: os.Getenv("MPESA_SECURITY_CREDENTIALS"),
+		ReturnURL:          os.Getenv("MPESA_RETURN_URL"),
+		StatusURL:          os.Getenv("MPESA_STATUS_URL"),
 	}
 	log.Printf("Mpesa Client Config: %+v", client)
 	err := client.generateToken()
@@ -261,10 +242,10 @@ func (m *MpesaClient) generateToken() error {
 
 func (m *MpesaClient) LipaNaMpesaOnline(paymentRequest dtos.MpesaRequest) (map[string]interface{}, error) {
 	timestamp := time.Now().Format("20060102150405")
-	password := base64.StdEncoding.EncodeToString([]byte(m.HeadOffice + m.Passkey + timestamp))
+	password := base64.StdEncoding.EncodeToString([]byte(m.ShortCode + m.Passkey + timestamp))
 
 	payload := map[string]interface{}{
-		"BusinessShortCode": m.HeadOffice,
+		"BusinessShortCode": m.ShortCode,
 		"Password":          password,
 		"Timestamp":         timestamp,
 		"TransactionType":   "CustomerBuyGoodsOnline",
@@ -310,7 +291,7 @@ func (m *MpesaClient) RegisterURLs() error {
 	url := fmt.Sprintf("%smpesa/c2b/v1/registerurl", m.MpesaURL)
 
 	payload := map[string]string{
-		"ShortCode":       m.HeadOffice,
+		"ShortCode":       m.ShortCode,
 		"ResponseType":    "Completed",
 		"ConfirmationURL": m.CallbackURL,
 		"ValidationURL":   m.CallbackURL,
@@ -360,68 +341,6 @@ func HandleMpesaCallback(w http.ResponseWriter, r *http.Request) {
 
 	handleFailedPayment(w, callback)
 
-}
-
-// function to send callback to development environment
-func sendCallbackToDevEnv(orderID string) {
-	//delay for 20 seconds to simulate real payment delay
-	time.Sleep(20 * time.Second)
-	// using order_id i can get the checkout_request_id
-
-	//hardcoded callback response
-	resultCode := 0
-	resultDesc := "The service request is processed successfully."
-	merchantRequestID := "12345-" + orderID
-	checkoutRequestID, err := models.GetCheckoutRequestIDByOrderID(models.DB, orderID)
-	if err != nil {
-		resultCode = 1
-		resultDesc = "The service request cancelled by user"
-	}
-
-	mpesaReceiptNumber := "ABC123XYZ-" + orderID
-	transactionDate := time.Now().Format("20060102150405")
-	phoneNumber := 254700000000
-
-	req := dtos.STKCallbackRequest{}
-
-	req.Body.StkCallback.MerchantRequestID = merchantRequestID
-	req.Body.StkCallback.CheckoutRequestID = checkoutRequestID
-	req.Body.StkCallback.ResultCode = resultCode
-	req.Body.StkCallback.ResultDesc = resultDesc
-
-	// Build items
-	req.Body.StkCallback.CallbackMetadata.Item = []struct {
-		Name  string      `json:"Name"`
-		Value interface{} `json:"Value"`
-	}{
-		{
-			Name:  "Amount",
-			Value: 1,
-		},
-		{
-			Name:  "MpesaReceiptNumber",
-			Value: mpesaReceiptNumber,
-		},
-		{
-			Name:  "Balance",
-			Value: nil,
-		},
-		{
-			Name: "TransactionDate",
-			// Must convert to int because callback uses numeric timestamp
-			Value: toInt(transactionDate),
-		},
-		{
-			Name:  "PhoneNumber",
-			Value: phoneNumber,
-		},
-	}
-	logCallbackInfo(req.Body.StkCallback.CheckoutRequestID, req.Body.StkCallback.ResultDesc)
-	if resultCode == 0 {
-		handleSuccessfulPayment(nil, req)
-	} else {
-		handleFailedPayment(nil, req)
-	}
 }
 
 func toInt(s string) int64 {
@@ -546,13 +465,13 @@ func processOrderUpdate(orderType, deliveryID, orderID, status string) {
 		if err != nil {
 			log.Printf("error updating voucher order: %v", err)
 		}
-		utils.SendToUser("", orderID, "voucher_order", buildPaymentSuccessPayload(orderID, nil, status))
+		utils.SendToUser(fmt.Sprintf("%s:voucher_order", orderID), buildPaymentSuccessPayload(orderID, nil, status))
 	default:
 		err = models.UpdateDeliveryOrderTables(models.DB, deliveryID, orderID, status)
 		if err != nil {
 			log.Printf("error updating delivery order: %v", err)
 		}
-		utils.SendToUser("", orderID, deliveryID, buildPaymentSuccessPayload(orderID, deliveryID, status))
+		utils.SendToUser(fmt.Sprintf("%s:%s", orderID, deliveryID), buildPaymentSuccessPayload(orderID, deliveryID, status))
 	}
 }
 
@@ -615,45 +534,17 @@ func HandleMpesaVoucherPayment(db models.DBExecutor, orderID, phoneNumber string
 	return nil
 }
 
-func loadPublicKey(certPath string) (*rsa.PublicKey, error) {
-	certBytes, err := os.ReadFile(certPath)
-	if err != nil {
-		return nil, err
-	}
-	block, _ := pem.Decode(certBytes)
-	if block == nil {
-		return nil, fmt.Errorf("failed to parse PEM block")
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-	pubKey, ok := cert.PublicKey.(*rsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("not RSA public key")
-	}
-	return pubKey, nil
-}
-
-func generateSecurityCredential(pubKey *rsa.PublicKey, initiatorPassword string) (string, error) {
-	encrypted, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey, []byte(initiatorPassword))
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(encrypted), nil
-}
-
 func (m *MpesaClient) FetchPayBillBalance() (map[string]any, error) {
 
 	payload := map[string]interface{}{
-		"Initiator": m.InitiatorName,
-		// "SecurityCredential": m.SecurityCredential,
-		"CommandID":       "AccountBalance",
-		"PartyA":          m.ShortCode,
-		"IdentifierType":  "4",
-		"Remarks":         "balance",
-		"QueueTimeOutURL": m.BalanceURL,
-		"ResultURL":       m.BalanceURL,
+		"Initiator":          m.InitiatorName,
+		"SecurityCredential": m.SecurityCredential,
+		"CommandID":          "AccountBalance",
+		"PartyA":             m.ShortCode,
+		"IdentifierType":     "4",
+		"Remarks":            "balance",
+		"QueueTimeOutURL":    m.BalanceURL,
+		"ResultURL":          m.BalanceURL,
 	}
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
@@ -757,8 +648,35 @@ func HandleMpesaReturnCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to read body", http.StatusBadRequest)
 		return
 	}
-	log.Printf("balance callback body:::::%v", string(bodyBytes))
-
+	var callback dtos.MpesaTransactionRufundResponse
+	if err := json.Unmarshal(bodyBytes, &callback); err != nil {
+		http.Error(w, "failed to parse callback", http.StatusBadRequest)
+		return
+	}
+	phoneNumber := ""
+	for _, param := range callback.Result.ResultParameters.ResultParameter {
+		if param.Key == "ReceiverPartyPublicName" {
+			phoneNumber = param.Value.(string)
+			break
+		}
+	}
+	if callback.Result.ResultCode == 0 {
+		transaction := dtos.TransactionsList{
+			OrderID:              nil,
+			TransactionReference: "REFUND-" + "OriginalTransactionID-" + callback.Result.OriginatorConversationID + "-" + "ConversationID-" + callback.Result.ConversationID,
+			MpesaReference:       &callback.Result.TransactionID,
+			PhoneNumber:          &phoneNumber,
+			Amount:               0,
+			Status:               "SUCCESS",
+			PaymentMethod:        "MPESA",
+		}
+		log.Printf("Refund with transaction details %v successful", transaction)
+		err := models.InsertTransaction(models.DB, &transaction)
+		if err != nil {
+			log.Printf("Failed to insert transaction log for MPESA money return: %v", err)
+		}
+		//INSERT INTO TRASACTION LOG WITH STATUS REFUNDED
+	}
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Accepted"}`))
 }
@@ -864,15 +782,15 @@ func (m *MpesaClient) HandleMoneyReturn(amount float64, phoneNumber string) (Mpe
 	payload := map[string]interface{}{
 		"OriginatorConversationID": randString(24),
 		"InitiatorName":            m.InitiatorName,
-		// "SecurityCredential":       m.SecurityCredential,
-		"CommandID":       "BusinessPayment",
-		"Amount":          amount,
-		"PartyA":          m.ShortCode,
-		"PartyB":          phoneNumber,
-		"Remarks":         "Payment Return for order to phone number " + phoneNumber,
-		"QueueTimeOutURL": m.ReturnURL,
-		"ResultURL":       m.ReturnURL,
-		"Occasion":        "",
+		"SecurityCredential":       m.SecurityCredential,
+		"CommandID":                "BusinessPayment",
+		"Amount":                   amount,
+		"PartyA":                   m.ShortCode,
+		"PartyB":                   phoneNumber,
+		"Remarks":                  "Payment Return for order to phone number " + phoneNumber,
+		"QueueTimeOutURL":          m.ReturnURL,
+		"ResultURL":                m.ReturnURL,
+		"Occasion":                 "",
 	}
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
@@ -928,11 +846,6 @@ func HandleMpesaTransactionStatus(w http.ResponseWriter, r *http.Request) {
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
 		return
 	}
-	// Save a "pending" mark in Redis (expires in 2 minutes)
-	pending := map[string]interface{}{
-		"status": "pending",
-	}
-	utils.SetCache("mpesa_status:"+req.TransactionID, pending, 2*time.Minute)
 	client, err := NewMpesaClient()
 	if err != nil {
 		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -941,14 +854,7 @@ func HandleMpesaTransactionStatus(w http.ResponseWriter, r *http.Request) {
 				Description: "Failed to initialize MPESA client",
 				Code:        http.StatusOK,
 			},
-			Payload: dtos.TransactionStatusResponse{
-				Status:                   "Failed",
-				TransactionID:            req.TransactionID,
-				Message:                  "Failed to get transaction status!",
-				MpesaReference:           "",
-				ConversationID:           "",
-				OriginatorConversationID: "",
-			},
+			Payload:   nil,
 			Message:   fmt.Sprintf("Failed to initialize MPESA client %s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -966,14 +872,7 @@ func HandleMpesaTransactionStatus(w http.ResponseWriter, r *http.Request) {
 				Description: "Failed to initiate MPESA payment",
 				Code:        http.StatusOK,
 			},
-			Payload: dtos.TransactionStatusResponse{
-				Status:                   "Failed",
-				TransactionID:            req.TransactionID,
-				Message:                  "Failed to get transaction status!",
-				MpesaReference:           "",
-				ConversationID:           "",
-				OriginatorConversationID: "",
-			},
+			Payload:   nil,
 			Message:   "Failed to get transaction status!",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -990,14 +889,7 @@ func HandleMpesaTransactionStatus(w http.ResponseWriter, r *http.Request) {
 				Description: "MPESA transaction status fetch failed",
 				Code:        http.StatusOK,
 			},
-			Payload: dtos.TransactionStatusResponse{
-				Status:                   "Failed",
-				TransactionID:            req.TransactionID,
-				Message:                  "MPESA transaction status fetch failed",
-				MpesaReference:           "",
-				ConversationID:           response.ConversationID,
-				OriginatorConversationID: response.OriginatorConversationID,
-			},
+			Payload:   nil,
 			Message:   "Failed to get transaction status!",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
@@ -1006,73 +898,15 @@ func HandleMpesaTransactionStatus(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// Wait for callback (poll Redis)
-	var callback dtos.MpesaResultResponse
-	maxWait := 30 * time.Second
-	interval := 1 * time.Second
-	deadline := time.Now().Add(maxWait)
-
-	for time.Now().Before(deadline) {
-		statusObj := struct {
-			Status string                   `json:"status"`
-			Data   dtos.MpesaResultResponse `json:"data"`
-		}{}
-
-		err := utils.GetCache("mpesa_status:"+req.TransactionID, &statusObj)
-		if err == nil && statusObj.Status == "done" {
-			// Got callback!
-			callback = statusObj.Data
-			break
-		}
-
-		time.Sleep(interval)
-	}
-
-	if callback.Result.ResultCode != 0 {
-		log.Printf("MPESA transaction status fetch failed: %s", callback.Result.ResultDesc)
-		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Payments",
-				Description: "MPESA transaction status fetch failed",
-				Code:        http.StatusOK,
-			},
-			Payload: dtos.TransactionStatusResponse{
-				Status:                   "Failed",
-				TransactionID:            req.TransactionID,
-				Message:                  "MPESA transaction status fetch failed",
-				MpesaReference:           "",
-				ConversationID:           response.ConversationID,
-				OriginatorConversationID: response.OriginatorConversationID,
-			},
-			Message:   "Failed to get transaction status!",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary,
-		})
-		return
-	}
-	// Delete from Redis after serving
-	utils.DeleteCache("mpesa_status:" + req.TransactionID)
-
-	log.Printf("MPESA transaction status response: %+v", response)
-	mpesaReference := GetResultParameterValue(callback.Result.ResultParameters.ResultParameter, "ReceiptNo")
 
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
-			Description: "MPESA transaction status fetched successfully",
+			Description: "MPESA transaction status waiting for callback",
 			Code:        http.StatusOK,
 		},
-		Payload: dtos.TransactionStatusResponse{
-			Status:                   "Failed",
-			TransactionID:            req.TransactionID,
-			Message:                  "MPESA transaction status fetch failed",
-			MpesaReference:           mpesaReference,
-			ConversationID:           callback.Result.ConversationID,
-			OriginatorConversationID: callback.Result.OriginatorConversationID,
-		},
-		Message:   "Transaction status fetched successfully",
+		Payload:   nil,
+		Message:   "Transaction status waiting for callback!",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
@@ -1091,26 +925,17 @@ func GetResultParameterValue(params []dtos.ResultParameter, key string) string {
 }
 
 func (m *MpesaClient) CheckMpesaTransactionStatus(req dtos.MpesaTransactionStatus) (*dtos.MpesaTransactionStatusRequest, error) {
-	pubKey, err := loadPublicKey(os.Getenv("MPESA_CERTIFICATE_PATH"))
-	if err != nil {
-		log.Printf("Error loading public key %s", err.Error())
-		return nil, err
-	}
-	securityCredential, err := generateSecurityCredential(pubKey, m.InitiatorPassword)
-	if err != nil {
-		log.Printf("Error generating security credential %s", err.Error())
-		return nil, err
-	}
+
 	payload := map[string]interface{}{
 		"Initiator":          "Adenzo",
-		"SecurityCredential": securityCredential,
+		"SecurityCredential": m.SecurityCredential,
 		"CommandID":          "TransactionStatusQuery",
 		"TransactionID":      req.TransactionID,
 		"PartyA":             m.ShortCode,
 		"IdentifierType":     4,
 		"Remarks":            "Checking Transaction Status",
-		"QueueTimeOutURL":    m.ReturnURL,
-		"ResultURL":          m.ReturnURL,
+		"QueueTimeOutURL":    m.StatusURL,
+		"ResultURL":          m.StatusURL,
 		"Occassion":          "Payment Status",
 	}
 
@@ -1176,4 +1001,47 @@ func MpesaCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	utils.SetCache("mpesa_status:"+trxID, finalObj, 2*time.Minute)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Transaction status callback received"}`))
+}
+
+// handler for mpesa transaction status callback// Handler for the MPesa callback
+func HandleTransactionStatusCallback(w http.ResponseWriter, r *http.Request) {
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+
+	var callback dtos.TransactionStatusSafaricomResponse
+	if err := json.Unmarshal(bodyBytes, &callback); err != nil {
+		http.Error(w, "failed to parse callback", http.StatusBadRequest)
+		return
+	}
+	message := map[string]interface{}{}
+	if callback.Result.ResultCode == 0 {
+		message["status"] = "success"
+		message["message"] = "Transaction status fetched successfully"
+		for _, param := range callback.Result.ResultParameters.ResultParameter {
+
+			switch param.Key {
+
+			case "ReceiptNo":
+				if receipt, ok := param.Value.(string); ok {
+					message["transaction_id"] = receipt
+				}
+
+			case "Amount":
+				if amountStr, ok := param.Value.(string); ok {
+					message["amount"] = amountStr
+				}
+
+			case "TransactionStatus":
+				if status, ok := param.Value.(string); ok {
+					message["transaction_status"] = status
+				}
+			}
+		}
+		log.Printf("message to deliver %v", message)
+		key := message["transaction_id"].(string)
+		utils.SendToUser(key, message)
+	}
 }

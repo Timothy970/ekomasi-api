@@ -53,6 +53,8 @@ func CreateOrder(db DBExecutor, req dtos.OrderRequest, totalAmount, totalDiscoun
 	if req.IsGuestOrder != nil {
 		isGuest = *req.IsGuestOrder
 	}
+	guestPersonalDetailsJSON, _ := json.Marshal(req.GuestPersonalDetails)
+	guestDeliveryAddressJSON, _ := json.Marshal(req.GuestDeliveryAddress)
 
 	// Insert order with status defaulted to 'pending'
 	_, err := db.Exec(`
@@ -61,7 +63,7 @@ func CreateOrder(db DBExecutor, req dtos.OrderRequest, totalAmount, totalDiscoun
 		total_amount, total_discount, delivery_id, guest_personal_details, guest_delivery_address
 	) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)
 `, orderID, req.UserID, isGuest, totalAmount, totalDiscount, deliveryID,
-		req.GuestPersonalDetails, req.GuestDeliveryAddress)
+		guestPersonalDetailsJSON, guestDeliveryAddressJSON)
 
 	if err != nil {
 		return "", "", err

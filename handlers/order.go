@@ -21,8 +21,8 @@ var (
 	orderWithID    = "Order with ID "
 )
 
-func checkStockAvailability(productID string, quantity int) error {
-	product, err := models.GetProductByID(models.DB, productID)
+func checkStockAvailability(db models.DBExecutor, productID string, quantity int) error {
+	product, err := models.GetProductByID(db, productID)
 	if err != nil {
 		return err
 	}
@@ -33,15 +33,15 @@ func checkStockAvailability(productID string, quantity int) error {
 	return nil
 }
 
-func processOrderItems(items []dtos.OrderItemRequest) (totalAmount, totalDiscount float64, freeShipping bool, err error) {
+func processOrderItems(db models.DBExecutor, items []dtos.OrderItemRequest) (totalAmount, totalDiscount float64, freeShipping bool, err error) {
 	for _, item := range items {
 		itemTotal := float64(item.Quantity) * item.UnitPrice
 		totalAmount += itemTotal
-		err := checkStockAvailability(item.ProductID, item.Quantity)
+		err := checkStockAvailability(db, item.ProductID, item.Quantity)
 		if err != nil {
 			return 0, 0, false, err
 		}
-		promo, err := models.GetProductPromotionData(models.DB, item.ProductID)
+		promo, err := models.GetProductPromotionData(db, item.ProductID)
 		if err != nil {
 			return 0, 0, false, err
 		}
@@ -1109,20 +1109,36 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
-	order, err := buildOrderRequest(req, w, r, requestSummary, start, module)
+	tx, err := models.DB.Begin()
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to start transaction: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+	defer tx.Rollback() // Rollback if not committed
+	db := tx
+	order, err := buildOrderRequest(req, w, r, requestSummary, start, module, db)
 	if err != nil {
 		return
 	}
 
-	finalAmount, totalDiscount, err := calculateOrderTotals(order, req.PromoCode, module)
+	finalAmount, totalDiscount, err := calculateOrderTotals(order, req.PromoCode, module, db)
 	if err != nil {
 		log.Printf("[%s] Error calculating totals: %v", module, err)
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
 		return
 	}
 
-	tx, err := models.DB.Begin()
 	if err != nil {
 		log.Printf("[%s] Error starting transaction: %v", module, err)
 		respondInternalServerError(w, r, requestSummary, start, err.Error())
@@ -1162,8 +1178,8 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func buildOrderRequest(req *dtos.CreateOrderPayload, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time, module string) (*dtos.OrderRequest, error) {
-	orderItems, err := getOrderItems(req.OrderItems)
+func buildOrderRequest(req *dtos.CreateOrderPayload, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time, module string, db models.DBExecutor) (*dtos.OrderRequest, error) {
+	orderItems, err := getOrderItems(db, req.OrderItems)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1185,7 +1201,7 @@ func buildOrderRequest(req *dtos.CreateOrderPayload, w http.ResponseWriter, r *h
 		return nil, err
 	}
 
-	deliveryCharge, err := fetchDeliveryCharge(req.DeliveryAddressID, w, r, requestSummary, start, module)
+	deliveryCharge, err := fetchDeliveryCharge(req.DeliveryAddressID, w, r, requestSummary, start, module, db)
 	if err != nil {
 		return nil, err
 	}
@@ -1211,11 +1227,11 @@ func determineUserID(req *dtos.CreateOrderPayload, w http.ResponseWriter, r *htt
 	return &authUser.ID, nil
 }
 
-func fetchDeliveryCharge(addressID *int64, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time, module string) (float64, error) {
+func fetchDeliveryCharge(addressID *int64, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time, module string, db models.DBExecutor) (float64, error) {
 	if addressID == nil || *addressID == 0 {
 		return 0, nil
 	}
-	charge, err := getOrderDeliveryCharge(int(*addressID))
+	charge, err := getOrderDeliveryCharge(db, int(*addressID))
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -1234,8 +1250,8 @@ func fetchDeliveryCharge(addressID *int64, w http.ResponseWriter, r *http.Reques
 	return charge, nil
 }
 
-func calculateOrderTotals(order *dtos.OrderRequest, promoCode *string, module string) (float64, float64, error) {
-	totalAmount, totalDiscount, freeShipping, err := processOrderItems(order.OrderItems)
+func calculateOrderTotals(order *dtos.OrderRequest, promoCode *string, module string, db models.DBExecutor) (float64, float64, error) {
+	totalAmount, totalDiscount, freeShipping, err := processOrderItems(db, order.OrderItems)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -1246,8 +1262,8 @@ func calculateOrderTotals(order *dtos.OrderRequest, promoCode *string, module st
 	totalAmount += order.DeliveryCharge
 
 	if promoCode != nil && *promoCode != "" {
-		promoCodeType := models.GetDiscountCodeType(*promoCode)
-		totalAmount, totalDiscount, err = applyPromoCodeToOrder(totalAmount, totalDiscount, *promoCode, promoCodeType)
+		promoCodeType := models.GetDiscountCodeType(db, *promoCode)
+		totalAmount, totalDiscount, err = applyPromoCodeToOrder(db, totalAmount, totalDiscount, *promoCode, promoCodeType)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -1284,22 +1300,22 @@ func createOrderAndDelivery(db models.DBExecutor, order *dtos.OrderRequest, stor
 	return orderID, deliveryID, nil
 }
 
-func getOrderDeliveryCharge(locationID int) (float64, error) {
+func getOrderDeliveryCharge(db models.DBExecutor, locationID int) (float64, error) {
 	//assume for at store pickup location id is 111111
 	if locationID == 111111 {
 		return 0, nil
 	}
-	location, err := models.GetLocationByID(models.DB, locationID)
+	location, err := models.GetLocationByID(db, locationID)
 	if err != nil {
 		return 0, err
 	}
 	return location.Charge, nil
 }
 
-func getOrderItems(items []dtos.OrderItemPayload) ([]dtos.OrderItemRequest, error) {
+func getOrderItems(db models.DBExecutor, items []dtos.OrderItemPayload) ([]dtos.OrderItemRequest, error) {
 	var orderItems []dtos.OrderItemRequest
 	for _, item := range items {
-		product, err := models.GetProductByID(models.DB, item.ProductID)
+		product, err := models.GetProductByID(db, item.ProductID)
 		if err != nil {
 			return nil, err
 		}

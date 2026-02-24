@@ -688,3 +688,61 @@ func GetOwnerReturnByID(db DBExecutor, returnID, ownerID string) (dtos.ReturnRes
 	ret.Products = products
 	return ret, nil
 }
+
+func GetOrderItemsForReturn(db DBExecutor, returnID string) (*dtos.ReturnResponse, error) {
+	var ret dtos.ReturnResponse
+
+	// Query return details with owner verification
+	query := `
+		SELECT r.return_id, r.reason, r.status, r.created_at, r.order_id
+		FROM returns r
+		WHERE r.return_id = ?
+	`
+	row := db.QueryRow(query, returnID)
+	err := row.Scan(&ret.ReturnID, &ret.Reason, &ret.Status, &ret.CreatedAt, &ret.OrderID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get product IDs and quantities associated with the return
+	productIDsQuery := `
+		SELECT rp.product_id, rp.quantity
+		FROM return_products rp
+		WHERE rp.return_id = ?
+	`
+	rows, err := db.Query(productIDsQuery, returnID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var productID string
+	var quantity int
+	var products []dtos.Product
+
+	// Fetch each product and calculate refund
+	for rows.Next() {
+		var product *dtos.Product
+		err := rows.Scan(&productID, &quantity)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get product details
+		product, err = GetProductByID(db, productID)
+		product.StockQuantity = quantity // Set to return quantity (not actual stock)
+		if err != nil {
+			return nil, err
+		}
+
+		// Calculate refund for this product based on original order price
+		refund, err := GetProductRefundAmount(db, productID, quantity, ret.OrderID)
+		if err != nil {
+			return nil, err
+		}
+		ret.TotalRefund += refund // Accumulate total refund
+		products = append(products, *product)
+	}
+	ret.Products = products
+	return &ret, nil
+}
