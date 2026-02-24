@@ -2,6 +2,7 @@ package models
 
 import (
 	"adenzo_backend/dtos"
+	"database/sql"
 	"fmt"
 	"log"
 	"strings"
@@ -303,9 +304,13 @@ func GetSizeIDs(db DBExecutor, sizes []string) []string {
 func GetDefaultWarrantyType(db DBExecutor) string {
 	var warrantyTypeID string
 	err := db.QueryRow(`
-		SELECT warranty_type_id FROM warranty_types WHERE LOWER(name) = LOWER('Manufacturing Warranty') LIMIT 1
+		SELECT warranty_type_id FROM warranty_types LIMIT 1
 	`).Scan(&warrantyTypeID)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			log.Println("No warranty types found in the database.")
+			return "Please create a warranty type before adding bulk products."
+		}
 		log.Println("Error fetching Default Warranty Type ID:", err)
 		return ""
 	}
