@@ -51,6 +51,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("order found %v", order)
+
 	// computedAmount := int(order.TotalAmount) - int(order.TotalDiscount)
 	//for testing we can set the computed amount to 1 to avoid issues with zero amount payments in M-Pesa sandbox
 	computedAmount := 1
@@ -199,7 +200,6 @@ func NewMpesaClient() (*MpesaClient, error) {
 		ReturnURL:          os.Getenv("MPESA_RETURN_URL"),
 		StatusURL:          os.Getenv("MPESA_STATUS_URL"),
 	}
-	log.Printf("Mpesa Client Config: %+v", client)
 	err := client.generateToken()
 	return client, err
 }
@@ -243,12 +243,12 @@ func (m *MpesaClient) generateToken() error {
 func (m *MpesaClient) LipaNaMpesaOnline(paymentRequest dtos.MpesaRequest) (map[string]interface{}, error) {
 	timestamp := time.Now().Format("20060102150405")
 	password := base64.StdEncoding.EncodeToString([]byte(m.ShortCode + m.Passkey + timestamp))
-
+	log.Printf("Payment request::::%v", paymentRequest)
 	payload := map[string]interface{}{
 		"BusinessShortCode": m.ShortCode,
 		"Password":          password,
 		"Timestamp":         timestamp,
-		"TransactionType":   "CustomerBuyGoodsOnline",
+		"TransactionType":   "CustomerPayBillOnline",
 		"Amount":            paymentRequest.Amount,
 		"PartyA":            paymentRequest.Phone,
 		"PartyB":            m.ShortCode,
@@ -927,7 +927,7 @@ func GetResultParameterValue(params []dtos.ResultParameter, key string) string {
 func (m *MpesaClient) CheckMpesaTransactionStatus(req dtos.MpesaTransactionStatus) (*dtos.MpesaTransactionStatusRequest, error) {
 
 	payload := map[string]interface{}{
-		"Initiator":          "Adenzo",
+		"Initiator":          m.InitiatorName,
 		"SecurityCredential": m.SecurityCredential,
 		"CommandID":          "TransactionStatusQuery",
 		"TransactionID":      req.TransactionID,

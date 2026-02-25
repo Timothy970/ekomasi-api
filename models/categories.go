@@ -337,7 +337,7 @@ func UpdateCategory(db DBExecutor, id string, input dtos.UpdateCategoryPayload) 
 		args = append(args, input.Description)
 	}
 	// Add Image field if provided
-	if input.Image != nil {
+	if input.Image != nil && *input.Image != "" {
 		setClauses = append(setClauses, "image = ?")
 		args = append(args, *input.Image)
 	}

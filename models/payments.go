@@ -160,7 +160,7 @@ func nullToString(ns sql.NullString) string {
 //   - Any other status -> orderStatus = "FAILED"
 func UpdateDeliveryOrderTables(db DBExecutor, deliveryID, orderId string, status string) error {
 	// Determine order status based on payment result
-	orderStatus := "PAID"
+	orderStatus := "PROCESSING"
 	if status != "COMPLETED" {
 		orderStatus = "FAILED"
 	}

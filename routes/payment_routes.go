@@ -14,7 +14,7 @@ func SetupPaymentRoutes(api *mux.Router) {
 	payment.HandleFunc("/callback", handlers.HandleMpesaCallback).Methods("POST")
 	payment.HandleFunc("/balance", handlers.HandleMpesaBalance).Methods("GET")
 	payment.HandleFunc("/return", handlers.HandleMpesaMoneyReturn).Methods("GET")
-	payment.HandleFunc("/return/callback", handlers.HandleMpesaReturnCallback).Methods("GET")
+	payment.HandleFunc("/return/callback", handlers.HandleMpesaReturnCallback).Methods("POST")
 	payment.HandleFunc("/balance/callback", handlers.HandleMpesaBalanceCallback).Methods("POST")
 	payment.HandleFunc("/pay", handlers.HandleMpesaPayment).Methods("POST")
 	payment.HandleFunc("/mpesa/register-url", handlers.RegisterMpesaRoutesHandler).Methods("POST")
