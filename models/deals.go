@@ -581,6 +581,9 @@ func GetProductDiscount(db DBExecutor, productID string) (float64, string, error
 		LIMIT 1
 	`, productID).Scan(&discount, &discountType)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, "", nil // No discount for this product
+		}
 		return 0, "", err
 	}
 	return discount, discountType, nil

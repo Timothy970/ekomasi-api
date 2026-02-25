@@ -179,6 +179,24 @@ func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
+	if strings.ToLower(req.Status) == "approved" {
+		if req.PhoneNumber == nil || *req.PhoneNumber == "" {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Orders",
+					Description: "Phone number is required for approved returns",
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Phone number is required for approved returns",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary,
+			})
+			return
+		}
+
+	}
 	// Update return status in database (may trigger inventory/refund actions)
 	err := models.UpdateReturnStatus(models.DB, returnID, *req)
 	if err != nil {
@@ -197,39 +215,22 @@ func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if strings.ToLower(req.Status) == "approved" {
-		if req.PhoneNumber == nil || *req.PhoneNumber == "" {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Orders",
-					Description: "Phone number is required for approved returns",
-					Code:        http.StatusBadRequest,
-				},
-				Message:   "Phone number is required for approved returns",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
-		//handle retrun approval - update inventory and process refund if needed
-		err := handleReturnRefunding(models.DB, returnID, req.PhoneNumber)
-		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Orders",
-					Description: "Failed to handle return refunding " + err.Error(),
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
+	//handle retrun approval - update inventory and process refund if needed
+	err = handleReturnRefunding(models.DB, returnID, req.PhoneNumber)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Orders",
+				Description: "Failed to handle return refunding " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
 	}
 	// Return success response - status updated (customer may be notified)
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
