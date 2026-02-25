@@ -97,8 +97,13 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 	requestSummary := utils.GetRequestSummary(r)
 
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	admin := r.URL.Query().Get("isAdmin")
+	isAdmin := false
+	if admin != "" {
+		isAdmin = true
+	}
 
-	deals, meta, err := models.GetAllDeals(models.DB, page, limit)
+	deals, meta, err := models.GetAllDeals(models.DB, page, limit, isAdmin)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
