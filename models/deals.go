@@ -78,22 +78,37 @@ func CreateDeal(db DBExecutor, deal dtos.CreateDeal) (string, error) {
 // Deal Link Format:
 //   - {BASE_URL}/products/deals/{deal_id}
 //   - Used for promotional campaigns and marketing
-func GetAllDeals(db DBExecutor, page, size int) ([]dtos.Deal, *dtos.PaginationMeta, error) {
-	// Get total count for pagination calculation
-	var countTotal int
-	err := db.QueryRow(`SELECT COUNT(*) FROM deals WHERE is_active = TRUE AND end_date >= NOW()`).Scan(&countTotal)
+func GetAllDeals(db DBExecutor, page, size int, isAdmin bool) ([]dtos.Deal, *dtos.PaginationMeta, error) {
+	var (
+		countTotal  int
+		whereClause string
+		args        []interface{}
+	)
+
+	// Apply filters only if NOT admin
+	if !isAdmin {
+		whereClause = "WHERE is_active = TRUE AND end_date >= NOW()"
+	}
+
+	// Count query
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM deals %s", whereClause)
+
+	err := db.QueryRow(countQuery).Scan(&countTotal)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Query deals with pagination
-	rows, err := db.Query(`
-	SELECT deal_id, name, start_date, end_date, is_active, image
-	FROM deals d
-	WHERE d.is_active = TRUE
-	AND d.end_date >= NOW()
-	LIMIT ? OFFSET ?
-	`, size, (page-1)*size)
+	// Data query
+	dataQuery := fmt.Sprintf(`
+		SELECT deal_id, name, start_date, end_date, is_active, image
+		FROM deals
+		%s
+		LIMIT ? OFFSET ?
+	`, whereClause)
+
+	args = append(args, size, (page-1)*size)
+
+	rows, err := db.Query(dataQuery, args...)
 	if err != nil {
 		return nil, nil, err
 	}
