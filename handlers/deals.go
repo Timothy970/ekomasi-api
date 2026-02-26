@@ -204,10 +204,14 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 	isActive := models.StringToBool(r.FormValue("is_active"))
 	req := &dtos.Deal{
 		Name:      r.FormValue("name"),
-		Image:     &url, // empty string if no image
 		StartDate: models.StringToTime(r.FormValue("start_date")),
 		EndDate:   models.StringToTime(r.FormValue("end_date")),
 		IsActive:  &isActive,
+	}
+
+	// Only set image if it was uploaded
+	if url != "" {
+		req.Image = &url
 	}
 
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
