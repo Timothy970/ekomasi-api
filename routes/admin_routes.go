@@ -54,6 +54,7 @@ func SetupAdminRoutes(api *mux.Router) {
 
 	// Admin banners
 	admin.Handle("/banners", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddBannerInfo))).Methods("POST")
+	admin.Handle("/banners", middleware.AuthenticateToken(http.HandlerFunc(handlers.AdminGetSliderData))).Methods("GET")
 	admin.Handle("/banners/{banner_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateBannerInfo))).Methods("PATCH")
 	admin.Handle("/banners/{banner_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBannerInfo))).Methods("DELETE")
 

@@ -151,15 +151,52 @@ func GetSliderData(w http.ResponseWriter, r *http.Request) {
 	var data []map[string]interface{}
 	for _, b := range banners {
 		data = append(data, map[string]interface{}{
-			"id":            b.ID,
-			"image_url":     b.ImageURL,
-			"text":          b.Text,
-			"heading":       b.Heading,
-			"button_text":   b.ButtonText,
-			"button_url":    b.ButtonURL,
-			"display_order": b.DisplayOrder,
-			"is_active":     b.IsActive,
-			"type":          b.Type,
+			"id":          b.ID,
+			"image_url":   b.ImageURL,
+			"text":        b.Text,
+			"heading":     b.Heading,
+			"button_text": b.ButtonText,
+			"button_url":  b.ButtonURL,
+		})
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Homepage",
+			Description: "Homepage sliders fetched successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   data,
+		Message:   "Success",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// GetSliderData returns homepage banner sliders for admin.
+//
+// @Summary      Slider Data
+// @Description  Get banner/slider data for homepage.
+// @Tags         Home
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/home/sliders [get]
+func AdminGetSliderData(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	banners, _ := models.AdminGetBannersData(models.DB, "banner")
+	var data []map[string]interface{}
+	for _, b := range banners {
+		data = append(data, map[string]interface{}{
+			"id":          b.ID,
+			"image_url":   b.ImageURL,
+			"text":        b.Text,
+			"heading":     b.Heading,
+			"button_text": b.ButtonText,
+			"button_url":  b.ButtonURL,
+			"is_active":   b.IsActive,
+			"type":        b.Type,
 		})
 	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
@@ -344,14 +381,13 @@ func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 	displayOrder, _ := strconv.Atoi(r.FormValue("display_order"))
 	isActive := r.FormValue("is_active") == "true"
 	req := dtos.BannerInfo{
-		Image:        header,
+		Image:        &url,
 		Text:         utils.StringPtr(r.FormValue("text")),
 		Heading:      utils.StringPtr(r.FormValue("heading")),
 		ButtonText:   utils.StringPtr(r.FormValue("button_text")),
 		ButtonURL:    utils.StringPtr(r.FormValue("button_url")),
 		DisplayOrder: utils.IntPtr(displayOrder),
 		IsActive:     utils.BoolPtr(isActive),
-		Type:         utils.StringPtr(r.FormValue("type")),
 	}
 
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Homepage") {
@@ -414,12 +450,69 @@ func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bannerID := mux.Vars(r)["banner_id"]
-	//decode request body
-	req, ok := DecodeRequestBody[dtos.UpdateBannerInfo](r, w, requestSummary, start)
-	if !ok {
+	// Parse the multipart form
+	err := r.ParseMultipartForm(20 << 20) // 20 MB
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Homepage",
+				Description: "Failed to parse form: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
 		return
 	}
-	if err := models.UpdateBannerDetails(models.DB, *req, bannerID); err != nil {
+
+	// Try to get the image (optional)
+	file, header, err := r.FormFile("banner_image")
+
+	var imageURL *string
+
+	if err == nil {
+		defer file.Close()
+
+		// Upload only if file exists
+		url, uploadErr := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+		if uploadErr != nil {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Homepage",
+					Description: "Failed to upload file: " + uploadErr.Error(),
+					Code:        http.StatusInternalServerError,
+				},
+				Message:   uploadErr.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+			})
+			return
+		}
+
+		imageURL = &url
+	}
+
+	// Build the request DTO
+	displayOrder, _ := strconv.Atoi(r.FormValue("display_order"))
+	isActive := r.FormValue("is_active") == "true"
+	//decode request body
+	req := dtos.BannerInfo{
+		Image:        imageURL,
+		Text:         utils.StringPtr(r.FormValue("text")),
+		Heading:      utils.StringPtr(r.FormValue("heading")),
+		ButtonText:   utils.StringPtr(r.FormValue("button_text")),
+		ButtonURL:    utils.StringPtr(r.FormValue("button_url")),
+		DisplayOrder: utils.IntPtr(displayOrder),
+		IsActive:     utils.BoolPtr(isActive),
+	}
+
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Homepage") {
+		return
+	}
+	if err := models.UpdateBannerDetails(models.DB, req, bannerID); err != nil {
 		log.Printf("Error updating banner: %v", err)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
