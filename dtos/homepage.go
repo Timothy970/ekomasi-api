@@ -1,7 +1,6 @@
 package dtos
 
 import (
-	"mime/multipart"
 	"time"
 )
 
@@ -83,14 +82,13 @@ type Banner struct {
 	Type         string
 }
 type BannerInfo struct {
-	Image        *multipart.FileHeader `form:"banner_image"`
-	Text         *string               `form:"text,omitempty"`
-	Heading      *string               `form:"heading,omitempty"`
-	ButtonText   *string               `form:"button_text,omitempty"`
-	ButtonURL    *string               `form:"button_url,omitempty"`
-	DisplayOrder *int                  `form:"display_order,omitempty"`
-	IsActive     *bool                 `form:"is_active,omitempty"`
-	Type         *string               `form:"type" validate:"required, oneof=banner homebanner"`
+	Image        *string `form:"banner_image"`
+	Text         *string `form:"text,omitempty"`
+	Heading      *string `form:"heading,omitempty"`
+	ButtonText   *string `form:"button_text,omitempty"`
+	ButtonURL    *string `form:"button_url,omitempty"`
+	DisplayOrder *int    `form:"display_order,omitempty"`
+	IsActive     *bool   `form:"is_active,omitempty"`
 }
 type UpdateBannerInfo struct {
 	ID           int    `json:"image_id"`

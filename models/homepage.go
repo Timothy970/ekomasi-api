@@ -167,7 +167,29 @@ func GetBannersData(db DBExecutor, value string) ([]dtos.Banner, error) {
 	// Query active banners of specific type, ordered by display preference
 	rows, err := db.Query(`
 		SELECT id, image_url, text, heading, button_text, button_url, display_order, is_active, type
-		FROM banners WHERE is_active = true AND type = ? ORDER BY display_order ASC`, value)
+		FROM banners WHERE is_active = true AND type = ?`, value)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var banners []dtos.Banner
+	// Collect banner data
+	for rows.Next() {
+		var b dtos.Banner
+		err := rows.Scan(&b.ID, &b.ImageURL, &b.Text, &b.Heading, &b.ButtonText, &b.ButtonURL, &b.DisplayOrder, &b.IsActive, &b.Type)
+		if err != nil {
+			return nil, err
+		}
+		banners = append(banners, b)
+	}
+	return banners, nil
+}
+func AdminGetBannersData(db DBExecutor, value string) ([]dtos.Banner, error) {
+	// Query active banners of specific type, ordered by display preference
+	rows, err := db.Query(`
+		SELECT id, image_url, text, heading, button_text, button_url, display_order, is_active, type
+		FROM banners WHERE type = ? `, value)
 	if err != nil {
 		return nil, err
 	}
@@ -756,7 +778,7 @@ func fetchProductFeatures(db DBExecutor, productID string) ([]dtos.ProductFeatur
 //   - error: Database error if insertion fails
 func InsertBannerDetails(db DBExecutor, url string, req dtos.BannerInfo) error {
 	query := `INSERT INTO banners (image_url, text, heading, button_text, button_url, display_order, is_active, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := db.Exec(query, url, req.Text, req.Heading, req.ButtonText, req.ButtonURL, req.DisplayOrder, req.IsActive, req.Type)
+	_, err := db.Exec(query, url, req.Text, req.Heading, req.ButtonText, req.ButtonURL, req.DisplayOrder, req.IsActive, "banner")
 	return err
 }
 
@@ -779,7 +801,7 @@ func InsertBannerDetails(db DBExecutor, url string, req dtos.BannerInfo) error {
 //   - error: "banner not found" if banner doesn't exist,
 //     "request cannot be empty" if no fields provided,
 //     or database error
-func UpdateBannerDetails(db DBExecutor, req dtos.UpdateBannerInfo, bannerID string) error {
+func UpdateBannerDetails(db DBExecutor, req dtos.BannerInfo, bannerID string) error {
 	// Validate banner exists
 	exists, err := RecordExists(db, "banners", whereID, bannerID)
 	if err != nil {
@@ -795,34 +817,38 @@ func UpdateBannerDetails(db DBExecutor, req dtos.UpdateBannerInfo, bannerID stri
 	updates := []string{}
 
 	// Add Text field if provided
-	if req.Text != "" {
+	if req.Text != nil && *req.Text != "" {
 		updates = append(updates, "text = ?")
-		args = append(args, req.Text)
+		args = append(args, *req.Text)
 	}
 	// Add Heading field if provided
-	if req.Heading != "" {
+	if req.Heading != nil && *req.Heading != "" {
 		updates = append(updates, "heading = ?")
-		args = append(args, req.Heading)
+		args = append(args, *req.Heading)
 	}
 	// Add ButtonText field if provided
-	if req.ButtonText != "" {
+	if req.ButtonText != nil && *req.ButtonText != "" {
 		updates = append(updates, "button_text = ?")
-		args = append(args, req.ButtonText)
+		args = append(args, *req.ButtonText)
 	}
 	// Add ButtonURL field if provided
-	if req.ButtonURL != "" {
+	if req.ButtonURL != nil && *req.ButtonURL != "" {
 		updates = append(updates, "button_url = ?")
-		args = append(args, req.ButtonURL)
+		args = append(args, *req.ButtonURL)
 	}
 	// Add DisplayOrder field if non-zero
-	if req.DisplayOrder != 0 {
+	if req.DisplayOrder != nil && *req.DisplayOrder != 0 {
 		updates = append(updates, "display_order = ?")
-		args = append(args, req.DisplayOrder)
+		args = append(args, *req.DisplayOrder)
 	}
 	// Add IsActive field if provided
 	if req.IsActive != nil {
 		updates = append(updates, "is_active = ?")
-		args = append(args, req.IsActive)
+		args = append(args, *req.IsActive)
+	}
+	if req.Image != nil && *req.Image != "" {
+		updates = append(updates, "image_url = ?")
+		args = append(args, *req.Image)
 	}
 
 	// Validate at least one field is being updated
@@ -835,7 +861,7 @@ func UpdateBannerDetails(db DBExecutor, req dtos.UpdateBannerInfo, bannerID stri
 	args = append(args, bannerID)
 
 	if _, err := DB.Exec(query, args...); err != nil {
-		return fmt.Errorf("failed to update review: %v", err)
+		return fmt.Errorf("failed to update banner: %v", err)
 	}
 
 	return nil
