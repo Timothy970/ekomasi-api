@@ -559,7 +559,7 @@ func getBundleProducts(db DBExecutor, bundleID string) ([]dtos.Product, error) {
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
 			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, 
 			c.name, p.tag, p.details, dp.discount, dp.discount_type, 
-			ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit
+			ps.weight, ps.dimensions, ps.manufacturer, ps.weight_limit, bp.quantity
 		FROM bundle_products bp
 		INNER JOIN products p ON bp.product_id = p.product_id
 		LEFT JOIN categories c ON p.category_id = c.category_id
@@ -589,7 +589,7 @@ func getBundleProducts(db DBExecutor, bundleID string) ([]dtos.Product, error) {
 			&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &categoryID,
 			&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
 			&categoryName, &p.Tag, &detailsData, &p.Discount, &p.DiscountType,
-			&p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit,
+			&p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit, &p.BundleQuantity,
 		)
 		if err != nil {
 			return nil, err
@@ -646,6 +646,8 @@ func getBundleProducts(db DBExecutor, bundleID string) ([]dtos.Product, error) {
 			return nil, err
 		}
 		p.Tax = &tax
+
+		p.StockQuantity = p.BundleQuantity
 
 		products = append(products, p)
 	}

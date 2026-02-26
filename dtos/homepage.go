@@ -183,6 +183,7 @@ type Product struct {
 	//for bundles, it will contain the products in the bundle
 	BundleProducts    []Product `json:"products,omitempty"`
 	IsProductFeatured bool      `json:"is_featured"`
+	BundleQuantity    int       `json:"bundle_quantity,omitempty"`
 }
 
 type DiscountType struct {
