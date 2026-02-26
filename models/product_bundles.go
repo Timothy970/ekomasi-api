@@ -215,8 +215,7 @@ func getProductsForBundle(db DBExecutor, bundleID string) ([]dtos.Product, error
 			continue
 		}
 
-		// Override stock quantity with bundle-specific quantity
-		product.StockQuantity = quantity
+		product.BundleQuantity = quantity
 		products = append(products, *product)
 	}
 

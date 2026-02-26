@@ -370,42 +370,59 @@ func GetSalesByRegion(start, end time.Time) ([]dtos.RegionSales, error) {
 func GetSalesOverview() (map[string]any, error) {
 	overview := make(map[string]any)
 
-	// Total Sales (all time)
+	// Total Sales (all time) - filtering by paid status
 	var totalSales float64
-	err := DB.QueryRow(`SELECT COALESCE(SUM(oi.unit_price * oi.quantity), 0) FROM order_items oi`).Scan(&totalSales)
+	var totalDiscount float64
+	err := DB.QueryRow(`
+		SELECT 
+			COALESCE(SUM(oi.unit_price * oi.quantity), 0),
+			COALESCE(SUM(o.total_discount), 0)
+		FROM orders o
+		JOIN order_items oi ON o.order_id = oi.order_id
+		WHERE o.payment_status IN ('PAID', 'paid')
+	`).Scan(&totalSales, &totalDiscount)
 	if err != nil {
 		return nil, err
 	}
 	overview["total_sales"] = totalSales
+	overview["total_discount_amount"] = totalDiscount
 
-	// Monthly Sales (current month)
+	// Monthly Sales (current month) - filtering by paid status
 	var monthlySales float64
+	var monthlyDiscount float64
 	err = DB.QueryRow(`
-		SELECT COALESCE(SUM(oi.unit_price * oi.quantity), 0)
+		SELECT 
+			COALESCE(SUM(oi.unit_price * oi.quantity), 0),
+			COALESCE(SUM(o.total_discount), 0)
 		FROM orders o	
 		JOIN order_items oi ON o.order_id = oi.order_id
 		WHERE MONTH(o.created_at) = MONTH(CURRENT_DATE())
 		  AND YEAR(o.created_at) = YEAR(CURRENT_DATE())
-	`).Scan(&monthlySales)
+		  AND o.payment_status IN ('PAID', 'paid')
+	`).Scan(&monthlySales, &monthlyDiscount)
 	if err != nil {
 		return nil, err
 	}
 	overview["monthly_sales"] = monthlySales
+	overview["monthly_discount_amount"] = monthlyDiscount
 
-	// Today's Sales
+	// Today's Sales and Discount - filtering by paid status
 	var todaysSales float64
+	var todaysDiscount float64
 	err = DB.QueryRow(`
-		SELECT COALESCE(SUM(oi.unit_price * oi.quantity), 0)
-		FROM orders o	
+		SELECT COALESCE(SUM(oi.unit_price * oi.quantity), 0), COALESCE(SUM(o.total_discount), 0)
+		FROM orders o    
 		JOIN order_items oi ON o.order_id = oi.order_id
 		WHERE DATE(o.created_at) = CURRENT_DATE()
-	`).Scan(&todaysSales)
+		  AND o.payment_status IN ('PAID', 'paid')
+	`).Scan(&todaysSales, &todaysDiscount)
 	if err != nil {
 		return nil, err
 	}
 	overview["todays_sales"] = todaysSales
+	overview["todays_discount_amount"] = todaysDiscount
 
-	// Percentage Change from Previous Month
+	// Percentage Change from Previous Month - filtering by paid status
 	var prevMonthlySales float64
 	err = DB.QueryRow(`
 		SELECT COALESCE(SUM(oi.unit_price * oi.quantity), 0)
@@ -413,6 +430,7 @@ func GetSalesOverview() (map[string]any, error) {
 		JOIN order_items oi ON o.order_id = oi.order_id
 		WHERE MONTH(o.created_at) = MONTH(CURRENT_DATE() - INTERVAL 1 MONTH)
 		  AND YEAR(o.created_at) = YEAR(CURRENT_DATE() - INTERVAL 1 MONTH)
+		  AND o.payment_status IN ('PAID', 'paid')
 	`).Scan(&prevMonthlySales)
 	if err != nil {
 		return nil, err

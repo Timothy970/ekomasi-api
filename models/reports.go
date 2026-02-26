@@ -877,8 +877,8 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 
 	offset := (page - 1) * size
 
-	// Base WHERE clause (only completed orders)
-	whereClause := "WHERE o.status = 'completed'"
+	// Base WHERE clause (only completed and paid orders)
+	whereClause := "WHERE o.status IN ('completed', 'COMPLETED') AND o.payment_status IN ('PAID', 'paid')"
 	if dateFilter != "" {
 		whereClause += " AND " + dateFilter
 	}
