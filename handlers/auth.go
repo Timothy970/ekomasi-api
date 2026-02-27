@@ -43,7 +43,7 @@ var subject = "Adenzo, Here is your OTP"
 var verificationRedisKey = "pending_signup:"
 
 // JWT secret key for token signing
-var jwtSecret = []byte("Q7wcj5g0cDNRxoknR5uu")
+var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 
 // RegisterHandler processes new user registration requests.
 // It validates input, checks for existing users, creates the account,

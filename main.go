@@ -239,6 +239,11 @@ func initDBConnection(user, password, host, port, dbName string) (*sql.DB, error
 		return nil, fmt.Errorf("error opening database connection: %v", err)
 	}
 
+	// Set database connection pool limits to prevent stale connections and connection leaks
+	db.SetMaxOpenConns(25)                 // Maximum number of open connections
+	db.SetMaxIdleConns(25)                 // Maximum number of idle connections
+	db.SetConnMaxLifetime(5 * time.Minute) // Maximum amount of time a connection may be reused
+
 	// Test the database connection
 	if err := db.Ping(); err != nil {
 		db.Close()
