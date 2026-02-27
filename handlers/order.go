@@ -1118,11 +1118,23 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	order, err := buildOrderRequest(req, w, r, requestSummary, start, module, models.DB)
+	if err != nil {
+		return
+	}
+
+	finalAmount, totalDiscount, err := calculateOrderTotals(order, req.PromoCode, module, models.DB)
+	if err != nil {
+		log.Printf("[%s] Error calculating totals: %v", module, err)
+		respondInternalServerError(w, r, requestSummary, start, err.Error())
+		return
+	}
+
 	tx, err := models.DB.Begin()
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Products",
+				Module:      module,
 				Description: "Failed to start transaction: " + err.Error(),
 				Code:        http.StatusInternalServerError,
 			},
@@ -1135,25 +1147,6 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback() // Rollback if not committed
-	db := tx
-	order, err := buildOrderRequest(req, w, r, requestSummary, start, module, db)
-	if err != nil {
-		return
-	}
-
-	finalAmount, totalDiscount, err := calculateOrderTotals(order, req.PromoCode, module, db)
-	if err != nil {
-		log.Printf("[%s] Error calculating totals: %v", module, err)
-		respondInternalServerError(w, r, requestSummary, start, err.Error())
-		return
-	}
-
-	if err != nil {
-		log.Printf("[%s] Error starting transaction: %v", module, err)
-		respondInternalServerError(w, r, requestSummary, start, err.Error())
-		return
-	}
-	defer tx.Rollback()
 
 	orderID, deliveryID, err := createOrderAndDelivery(tx, order, req.StoreID, finalAmount, totalDiscount, module)
 	if err != nil {
