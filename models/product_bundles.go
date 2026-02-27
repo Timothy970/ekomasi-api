@@ -336,6 +336,11 @@ func updateBundleMetadata(db DBExecutor, req dtos.Bundle, bundleID string) error
 		args = append(args, *req.CompareAtPrice)
 	}
 
+	if req.StockQuantity != 0 {
+		updates = append(updates, "stock_quantity = ?")
+		args = append(args, req.StockQuantity)
+	}
+
 	// Skip update if no fields provided
 	if len(updates) == 0 {
 		return nil
