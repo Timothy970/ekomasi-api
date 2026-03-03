@@ -1,144 +1,99 @@
 
-# E-Commerce Backend
+# 🚀 Adenzo E-Commerce Backend
 
-Welcome to the Adenzo E-Commerce Backend, an advanced server-side application that provides a robust foundation for building a comprehensive e-commerce platform using go lang. This backend system is designed to facilitate seamless online shopping experiences, from product browsing to checkout and order fulfillment.
+Welcome to the **Adenzo E-Commerce Backend**, a high-performance, scalable server-side application built with **Go (Golang)**. This system provides a robust API foundation for a complete e-commerce ecosystem, featuring sophisticated order management, real-time inventory tracking, and seamless payment integrations.
 
+---
 
-## Project Overview
+## 🏗 System Architecture
 
-Our e-commerce backend is a Go lang application that leverages Go for creating a structured, scalable, and efficient RESTful API. The system is backed by MSQL database, to ensure high performance and flexible data handling for e-commerce operations.
+Adenzo is architected for modularity and performance:
+- **Framework:** `gorilla/mux` for efficient routing.
+- **Database:** MySQL for relational data persistence.
+- **Caching:** Redis for high-speed data access and session management.
+- **Observability:** Integrated with OpenTelemetry (Uptrace) for deep tracing and metrics.
+- **Background Tasks:** Built-in schedulers for automated workflows like low-stock alerts and voucher emails.
 
-## Features
+---
 
-- **User Authentication and Authorization:** Secure sign-up and sign-in processes with role-based access control, allowing for clear distinction between customer and administrator privileges.
-- **Product Management:** A full suite of CRUD operations for products, enabling administrators to add, update, remove, and retrieve products with ease.
-- **Order Processing:** Robust order management system that allows customers to place orders, and admins to process them through a streamlined workflow.
-- **Shopping Cart:** Persistent shopping cart functionality, complete with add-to-cart, update quantities, and remove items features.
-- **Payments Integration:** Integration with payment gateways like MPESA for handling transactions and supporting various payment methods.
-- **Discounts and Coupons:** Dynamic coupon creation and application system to offer discounts and promotions to customers.
-- **Reviews and Ratings:** Users can leave reviews and rate products, fostering community engagement and providing valuable feedback.
-- **Wishlist:** Customers can create and manage wishlists, bookmarking their favorite items for future purchase.
+## ✨ Key Features
 
+- **🔐 Advanced Authentication:** Secure JWT-based auth with RBAC (Customer, Staff, Admin).
+- **📦 Product Excellence:** Complex product management including variants, bundles, and reviews.
+- **🛒 Dynamic Shopping:** Persistent carts, wishlists, and real-time coupon applications.
+- **💳 Multi-Payment Support:** Seamless integration with M-Pesa and other traditional payment methods.
+- **📊 Business Intelligence:** Comprehensive reporting tools for sales, inventory, and customer behavior.
+- **🔔 Live Notifications:** WebSocket support for real-time order updates and stock alerts.
+- **📝 Logistics & Fulfillment:** Built-in shipping, returns, and warehouse management systems.
 
+---
 
-## Prerequisites
+## 🛠 Tech Stack
 
-- go version go1.23.10
+| Component | Technology |
+| :--- | :--- |
+| **Language** | Go v1.23+ |
+| **Routing** | Gorilla Mux |
+| **Database** | MySQL |
+| **Cache** | Redis |
+| **Monitoring** | OpenTelemetry, SLOs |
+| **Documentation** | Swagger / OpenAPI |
 
-## Installation
+---
 
-Clone the repository and install dependencies:
+## 🚀 Getting Started
 
-```bash
-go mod init 'adenzo_backend'
-go mod tidy
-go build
+### Prerequisites
 
-```
+- [Go](https://golang.org/dl/) (v1.23 or higher)
+- [MySQL](https://www.mysql.com/)
+- [Redis](https://redis.io/)
 
-Set up your environment variables in a `.env` file:
+### Installation
 
+1. **Clone the Repository**
+   ```bash
+   git clone https://github.com/Roamtech-Solutions/adenzo-be.git
+   cd adenzo-be
+   ```
 
-## Running the Server
+2. **Setup Environment Variables**
+   Copy `.env.example` to `.env` and configure your database and API keys.
+   ```bash
+   cp .env.example .env
+   ```
 
-```bash
-go run .
-```
-## Running Migrations
-# To run all migrations(up)
-```bash
-go run . -migrate=true
-```
+3. **Install Dependencies**
+   ```bash
+   go mod tidy
+   ```
 
-# To run rollback migrations(down)
-```bash
-go run . -migrate=true -action=down
-```
-# To run a specific migration file
+4. **Initialize Database**
+   ```bash
+   go run . -migrate=true
+   ```
 
-```bash
-go run . -migrate=true -action= -target=
-```
-## API Endpoints
+5. **Start the Engine**
+   ```bash
+   go run .
+   ```
 
-### Authentication
-- POST `/signup`: Register a new user.
-- POST `/signin`: Login for existing users.
+---
 
-### Address Management
-- PATCH `/address`: Update an address for a user.
-- DELETE `/address`: Remove an address for a user.
-- GET `/address`: Retrieve all addresses for a user.
+## 📖 API Documentation
 
-### Brand Management
-- POST `/brand`: Add a new brand (admin).
-- GET `/brand`: List all brands.
-- PUT `/brand/:id`: Update a brand (admin).
-- DELETE `/brand/:id`: Delete a brand (admin).
+Adenzo uses Swagger for interactive API documentation. Once the server is running, navigate to:
+`http://localhost:8000/swagger/`
 
-### Cart Management
-- POST `/cart`: Add a product to the cart.
-- GET `/cart`: Get the user's cart.
-- POST `/cart/apply-coupon`: Apply a coupon to the cart.
-- DELETE `/cart/:id`: Remove a product from the cart.
-- PUT `/cart/:id`: Update product quantity in the cart.
+---
 
-### Category Management
-- POST `/category`: Add a new category (admin).
-- GET `/category`: List all categories.
-- PUT `/category/:id`: Update a category (admin).
-- DELETE `/category/:id`: Delete a category (admin).
+## 🧪 Documentation & Resources
 
-### Coupon Management
-- POST `/coupon`: Create a new coupon (admin/user).
-- GET `/coupon`: List all coupons.
-- PUT `/coupon/:id`: Update a coupon (admin/user).
-- DELETE `/coupon/:id`: Delete a coupon (admin/user).
-- GET `/coupon/:id`: Retrieve a specific coupon.
+- [Technical Deep Dive](file:///c:/Users/Timothy/adenzo-backend/TECHNICAL_DOCUMENTATION.md)
+- [Migrations Guide](file:///c:/Users/Timothy/adenzo-backend/migrations/)
 
-### Order Management
-- POST `/order/:id`: Create a cash order (user).
-- GET `/order`: Get a specific order (user).
-- POST `/order/checkOut/:id`: Create a checkout session (user).
-- GET `/order/all`: List all orders.
+---
 
-### Product Management
-- POST `/product`: Add a new product (admin/user).
-- GET `/product`: List all products.
-- PUT `/product/:id`: Update a product (admin).
-- DELETE `/product/:id`: Delete a product (admin).
-- GET `/product/:id`: Retrieve a specific product.
+## 🤝 Contact
 
-### Review Management
-- POST `/review`: Add a new review (user).
-- GET `/review`: List all reviews.
-- PUT `/review/:id`: Update a review (user).
-- DELETE `/review/:id`: Delete a review (admin/user).
-
-### Subcategory Management
-- POST `/subcategory`: Add a new subcategory (admin/user).
-- GET `/subcategory`: List all subcategories.
-- PUT `/subcategory/:id`: Update a subcategory (admin/user).
-- DELETE `/subcategory/:id`: Delete a subcategory (admin/user).
-
-### User Management
-- POST `/user`: Add a new user.
-- GET `/user`: List all users.
-- PUT `/user/:id`: Update a user.
-- DELETE `/user/:id`: Delete a user.
-- PATCH `/user/:id`: Change a user's password.
-
-### Wishlist Management
-- PATCH `/wishlist`: Add to wishlist (user).
-- DELETE `/wishlist`: Remove from wishlist (user).
-- GET `/wishlist`: Get all items in a user's wishlist.
-
-## run dump
-mysqldump -h {ip} -u root -p --no-create-info adenzo > dump.sql
-mysql -h {ip} -u root -p adenzo_new < dump.sql
-
-
-## ContactInfo
-@timateo
-
-
+Developed by **@Timothy** at Roamtech Solutions.

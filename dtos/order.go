@@ -51,7 +51,7 @@ type AdminOrder struct {
 type GuestPersonalDetails struct {
 	FirstName *string `json:"first_name"`
 	LastName  *string `json:"last_name"`
-	Email     *string `json:"email" validate:"email"`
+	Email     *string `json:"email" validate:"omitempty,email"`
 	Phone     *string `json:"phone"`
 }
 

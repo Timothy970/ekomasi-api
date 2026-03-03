@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS  `blogs` (
    `published_at` timestamp NOT NULL,
    `is_published` tinyint(1) NOT NULL DEFAULT '1',
    `tags` json DEFAULT NULL,
-   `description` json DEFAULT NULL,
+   `description` LONGTEXT DEFAULT NULL,
    `read_time` int(11) DEFAULT NULL,
    PRIMARY KEY (`blog_id`),
    KEY `author_id` (`author_id`),

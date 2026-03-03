@@ -469,12 +469,6 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
-	// Validate all required fields (recipient email, sender name, message)
-	_, ok = utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "")
-	if !ok {
-		// Authorization failed, RequireAdmin already sent error response
-		return
-	}
 	// Fetch user's wishlist with all products
 	wishlists, err := models.GetMyWishlistItems(models.DB, user.ID)
 

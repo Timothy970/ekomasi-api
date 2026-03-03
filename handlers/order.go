@@ -1096,6 +1096,9 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if req.GuestPersonalDetails != nil && req.GuestPersonalDetails.Email != nil && *req.GuestPersonalDetails.Email == "" {
+		req.GuestPersonalDetails.Email = nil
+	}
 
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, module) {
 		return

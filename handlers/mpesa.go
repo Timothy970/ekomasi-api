@@ -50,7 +50,6 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	log.Printf("order found %v", order)
 
 	// computedAmount := int(order.TotalAmount) - int(order.TotalDiscount)
 	//for testing we can set the computed amount to 1 to avoid issues with zero amount payments in M-Pesa sandbox
@@ -264,7 +263,7 @@ func (m *MpesaClient) LipaNaMpesaOnline(paymentRequest dtos.MpesaRequest) (map[s
 	}
 
 	url := fmt.Sprintf("%smpesa/stkpush/v1/processrequest", m.MpesaURL)
-
+	log.Printf("Payment url to use:::%s", url)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, err
@@ -275,12 +274,14 @@ func (m *MpesaClient) LipaNaMpesaOnline(paymentRequest dtos.MpesaRequest) (map[s
 	client := &http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
+		log.Printf("Error making request::: %s", err)
 		return nil, err
 	}
 	defer res.Body.Close()
 
 	var result map[string]interface{}
 	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		log.Printf("Error decoding response::: %s", err)
 		return nil, err
 	}
 
