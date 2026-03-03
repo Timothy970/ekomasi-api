@@ -1719,6 +1719,39 @@ func CreateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 		RawBody:   requestSummary})
 }
 
+func ListSocialLinksHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Read and restore body FIRST
+	requestSummary := utils.GetRequestSummary(r)
+	socialLinks, err := models.ListSocialLinks()
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Homepage",
+				Description: "Failed to list social links: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Homepage",
+			Description: "Social links fetched successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   socialLinks,
+		Message:   "Social links fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
 // UpdateSocialLinkHandler updates an existing social link.
 // This endpoint is restricted to administrators.
 //

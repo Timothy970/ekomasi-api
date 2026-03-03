@@ -106,6 +106,7 @@ func SetupAdminRoutes(api *mux.Router) {
 
 	// Admin socials
 	admin.Handle("/socials", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateSocialLinkHandler))).Methods("POST")
+	admin.Handle("/socials", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListSocialLinksHandler))).Methods("GET")
 	admin.Handle("/socials/{social_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateSocialLinkHandler))).Methods("PATCH")
 	admin.Handle("/socials/{social_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteSocialLinkHandler))).Methods("DELETE")
 

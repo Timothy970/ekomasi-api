@@ -2087,3 +2087,24 @@ func scanFeaturedProductRow(rows *sql.Rows) (dtos.Product, error) {
 	)
 	return p, err
 }
+
+func ListSocialLinks() ([]dtos.SocialLinkRequest, error) {
+	rows, err := DB.Query(`SELECT id, platform, url, icon_class, display_order FROM social_links ORDER BY display_order ASC`)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil // No social links found, return empty slice
+		}
+		return nil, fmt.Errorf("failed to query social links: %w", err)
+	}
+	defer rows.Close()
+
+	var links []dtos.SocialLinkRequest
+	for rows.Next() {
+		var link dtos.SocialLinkRequest
+		if err := rows.Scan(&link.ID, &link.Platform, &link.URL, &link.IconClass, &link.DisplayOrder); err != nil {
+			return nil, fmt.Errorf("failed to scan social link: %w", err)
+		}
+		links = append(links, link)
+	}
+	return links, nil
+}

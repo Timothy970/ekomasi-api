@@ -202,7 +202,8 @@ func ValidatePromoCode(db DBExecutor, voucherCode string, orderValue float64) (d
 		return dtos.PromoCodeData{}, fmt.Errorf("promo code is inactive")
 	}
 	// Check if promo code has remaining uses
-	if promoCode.MaximumUse <= 0 {
+	//Note if if maximum use is 0, this means unlimited uses, so we only check if it's less than 0 which indicates all uses have been consumed
+	if promoCode.MaximumUse < 0 {
 		// All available uses have been consumed
 		return dtos.PromoCodeData{}, fmt.Errorf("promo code has been used up")
 	}

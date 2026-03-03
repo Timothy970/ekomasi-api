@@ -59,6 +59,7 @@ type SocialLink struct {
 	IconClass *string
 }
 type SocialLinkRequest struct {
+	ID           int    `json:"id,omitempty"`
 	Platform     string `json:"platform" validate:"required"`
 	URL          string `json:"url" validate:"required,url"`
 	IconClass    string `json:"icon_class" `
