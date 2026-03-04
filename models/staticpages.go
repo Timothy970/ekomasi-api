@@ -11,7 +11,6 @@ package models
 import (
 	"adenzo_backend/dtos"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"log"
 	"strings"
@@ -47,15 +46,12 @@ func CreateStaticPage(req dtos.StaticPageRequest, userID string) error {
 	// Generate unique page ID
 	staticPageID, _ := shortid.Generate()
 
-	// Marshal sections to JSON for storage
-	data, _ := json.Marshal(req.Sections)
-
 	// Insert new static page
 	query := `
-		INSERT INTO static_pages (static_page_id, title, description, data, path, user_id)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO static_pages (static_page_id, title, content, path, user_id)
+		VALUES (?, ?, ?, ?, ?)
 	`
-	_, err = DB.Exec(query, staticPageID, req.Title, req.Description, data, req.Path, userID)
+	_, err = DB.Exec(query, staticPageID, req.Title, req.Content, req.Path, userID)
 	return err
 }
 
@@ -118,7 +114,7 @@ func GetStaticPages(query string) ([]dtos.StaticPageRequest, error) {
 
 	// Build base query
 	pageQuery := `
-		SELECT static_page_id, title, description, path, data, created_at, updated_at, user_id
+		SELECT static_page_id, title, path, content, created_at, updated_at, user_id
 		FROM static_pages
 	`
 
@@ -171,16 +167,14 @@ func GetStaticPages(query string) ([]dtos.StaticPageRequest, error) {
 //   - error: Scan error, unmarshal error, or nil on success
 func scanStaticPageRow(rows *sql.Rows) (dtos.StaticPageRequest, error) {
 	var sp dtos.StaticPageRequest
-	var data sql.NullString
 	var userID sql.NullString
 
 	// Scan database row
 	if err := rows.Scan(
 		&sp.StaticPageID,
 		&sp.Title,
-		&sp.Description,
 		&sp.Path,
-		&data,
+		&sp.Content,
 		&sp.CreatedAt,
 		&sp.UpdatedAt,
 		&userID,
@@ -192,14 +186,6 @@ func scanStaticPageRow(rows *sql.Rows) (dtos.StaticPageRequest, error) {
 	// Format datetime fields to standard format
 	sp.CreatedAt = FormatDateTimeString(sp.CreatedAt)
 	sp.UpdatedAt = FormatDateTimeString(sp.UpdatedAt)
-
-	// Unmarshal JSON sections data if present
-	if data.Valid && data.String != "" {
-		if err := json.Unmarshal([]byte(data.String), &sp.Sections); err != nil {
-			log.Printf("scanStaticPageRow unmarshal error: %v", err)
-			return sp, err
-		}
-	}
 
 	// Enrich with author display name
 	var err error
@@ -241,23 +227,16 @@ func GetStaticPageByID(staticPageID string) (*dtos.StaticPageRequest, error) {
 
 	var sp dtos.StaticPageRequest
 	var (
-		data   sql.NullString
 		userID sql.NullString
 	)
 
 	// Retrieve page details
 	err = DB.QueryRow(`
-		SELECT static_page_id, title, description, path, data, created_at, updated_at, user_id
+		SELECT static_page_id, title, path, content, created_at, updated_at, user_id
 		FROM static_pages
 		WHERE static_page_id = ?
-	`, staticPageID).Scan(&sp.StaticPageID, &sp.Title, &sp.Description, &sp.Path, &data, &sp.CreatedAt, &sp.UpdatedAt, &userID)
+	`, staticPageID).Scan(&sp.StaticPageID, &sp.Title, &sp.Path, &sp.Content, &sp.CreatedAt, &sp.UpdatedAt, &userID)
 	if err != nil {
-		return nil, err
-	}
-
-	// Unmarshal JSON sections into struct
-	if err := json.Unmarshal([]byte(data.String), &sp.Sections); err != nil {
-		log.Printf("data unmarshal error: %v", err)
 		return nil, err
 	}
 
@@ -303,16 +282,13 @@ func UpdateStaticPage(staticPageID string, req dtos.StaticPageRequest) (*dtos.St
 		return nil, err
 	}
 
-	// Marshal sections to JSON for storage
-	data, _ := json.Marshal(req.Sections)
-
 	// Update page details
 	query := `
 		UPDATE static_pages
-		SET title = ?, description = ?, data = ?, path = ?
+		SET title = ?, content = ?, path = ?
 		WHERE static_page_id = ?
 	`
-	_, err = DB.Exec(query, req.Title, req.Description, data, req.Path, staticPageID)
+	_, err = DB.Exec(query, req.Title, req.Content, req.Path, staticPageID)
 	if err != nil {
 		return nil, err
 	}

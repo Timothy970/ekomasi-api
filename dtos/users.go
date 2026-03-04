@@ -87,3 +87,9 @@ type UserAddress struct {
 	City      string `json:"city"`
 	ZipCode   string `json:"zip_code"`
 }
+
+type Partner struct {
+	PartnerID string `json:"partner_id"`
+	Name      string `json:"name"`
+	Image     string `json:"image"`
+}

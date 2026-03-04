@@ -1104,7 +1104,7 @@ func NewCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//validate the phone number in the guest personal details if the phone number is provided
-	if req.GuestPersonalDetails != nil && req.GuestPersonalDetails.Phone != nil {
+	if req.GuestPersonalDetails != nil && req.GuestPersonalDetails.Phone != nil && *req.GuestPersonalDetails.Phone != "" {
 		if !utils.IsValidKenyanPhone(*req.GuestPersonalDetails.Phone) {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{

@@ -805,3 +805,64 @@ func CreateSubscribers(db DBExecutor, email string) error {
 	}
 	return nil
 }
+
+// Create partner
+// Parameters:
+// - name: string - The name of the partner
+// - image: string - The URL of the partner's image
+// Returns:
+// - error: Database error or nil on success
+func CreatePartner(db DBExecutor, req dtos.Partner) error {
+	// Generate unique partner ID
+	partnerID, _ := shortid.Generate()
+	// Insert new partner record
+	_, err := db.Exec(`
+		INSERT INTO partners (partner_id, name, image)
+		VALUES (?, ?, ?)`,
+		partnerID, req.Name, req.Image,
+	)
+	return err
+}
+
+// GetAllPartners retrieves all partners from the database.
+//
+// This function returns partners ordered by creation date (newest first).
+func GetAllPartners(db DBExecutor) ([]dtos.Partner, error) {
+	rows, err := db.Query(`
+		SELECT partner_id, name, image
+		FROM partners
+		ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var partners []dtos.Partner
+	for rows.Next() {
+		var p dtos.Partner
+		if err := rows.Scan(&p.PartnerID, &p.Name, &p.Image); err != nil {
+			return nil, err
+		}
+		partners = append(partners, p)
+	}
+	return partners, nil
+}
+
+// Delete a partner by ID
+// Parameters:
+// - partnerID: string - The unique ID of the partner to delete
+// Returns:
+// - error: "partner not found", database error, or nil on success
+func DeletePartnerByID(db DBExecutor, partnerID string) error {
+	// Check if partner exists
+	exists, err := RecordExists(db, "partners", "partner_id = ?", partnerID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("partner not found")
+	}
+	// Delete partner record
+	_, err = db.Exec("DELETE FROM partners WHERE partner_id = ?", partnerID)
+	return err
+}

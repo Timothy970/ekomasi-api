@@ -43,7 +43,14 @@ var subject = "Adenzo, Here is your OTP"
 var verificationRedisKey = "pending_signup:"
 
 // JWT secret key for token signing
-var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+// jwtSecret is obtained dynamically from the environment using getJWTSecret().
+// We avoid initializing it at package load time because the .env file may be
+// loaded later (in main.init), resulting in an empty value.
+//
+// getJWTSecret reads the value each time so it reflects whatever is currently
+// set in the environment.
+
+// no global jwtSecret variable defined here
 
 // RegisterHandler processes new user registration requests.
 // It validates input, checks for existing users, creates the account,
@@ -936,7 +943,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse token to get expiration time
 	claims := &dtos.CustomClaims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
-		return []byte(os.Getenv("JWT_SECRET")), nil
+		return getJWTSecret(), nil
 	})
 
 	if err == nil {
@@ -1115,7 +1122,10 @@ func generateToken(user *dtos.User, tokenType string, expiresIn time.Duration) (
 		"permissions":  user.Permissions,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtSecret)
+	// retrieve secret at runtime; this will pick up whatever the environment
+	// currently holds (loaded by godotenv in main.init).
+	secret := getJWTSecret()
+	return token.SignedString(secret)
 }
 
 // StoreOTPInRedis saves OTP in Redis with expiration
@@ -1127,6 +1137,19 @@ func StoreOTPInRedis(userID string, otp string, ttl time.Duration) error {
 		return err
 	}
 	return nil
+}
+
+// getJWTSecret returns the JWT secret currently set in the environment.
+// It is not cached at package load time because the environment might be
+// modified (via godotenv.Load) after the package initialization. Any code
+// needing to sign or verify tokens should call this helper to ensure they
+// get the correct value. If the value is missing, we log a warning.
+func getJWTSecret() []byte {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		log.Println("JWT_SECRET environment variable is not set")
+	}
+	return []byte(secret)
 }
 
 // Get OTP
@@ -1164,7 +1187,7 @@ func AtomicVerifyOTP(userID string, providedOTP string) (bool, error) {
 		return val
 	`
 	val, err := Redis.Eval(ctx, script, []string{key}, providedOTP).Result()
-	if err != nil {
+	if err != nil && err != redis.Nil {
 		return false, fmt.Errorf("failed to atomically verify OTP: %w", err)
 	}
 
