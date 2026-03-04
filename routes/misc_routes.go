@@ -145,4 +145,7 @@ func SetupMiscRoutes(api *mux.Router) {
 	// Static pages
 	api.HandleFunc("/static-pages", handlers.GetStaticPages).Methods("GET")
 	api.HandleFunc("/static-pages/{static_page_id}", handlers.GetStaticPageByID).Methods("GET")
+
+	// Partners
+	api.HandleFunc("/partners", handlers.GetAllPartners).Methods("GET")
 }

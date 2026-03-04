@@ -268,4 +268,8 @@ func SetupAdminRoutes(api *mux.Router) {
 	admin.Handle("/swagger-ips", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddAllowedIPHandler))).Methods("POST")
 	admin.Handle("/swagger-ips", middleware.AuthenticateToken(http.HandlerFunc(handlers.ListAllowedIPsHandler))).Methods("GET")
 	admin.Handle("/swagger-ips/{ip}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteAllowedIPHandler))).Methods("DELETE")
+
+	// Admin partners
+	admin.Handle("/partners", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddPartner))).Methods("POST")
+	admin.Handle("/partners/{partner_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePartner))).Methods("DELETE")
 }

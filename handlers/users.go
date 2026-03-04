@@ -1741,3 +1741,165 @@ func VerifyUserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
+
+// Handler to add a partner
+// Summary: Add a partner
+// Description: Add a new partner to the system. This endpoint is restricted to administrators.
+// Tags: Admin
+// Accept: json
+// Produce: json
+// Param: partner body dtos.Partner true "Partner Details"
+// Success: 201 {object} map[string]interface{} "Partner added successfully"
+// Failure: 400 {object} map[string]string "Invalid request payload"
+// Failure: 401 {object} map[string]string "Unauthorized"
+// Failure: 500 {object} map[string]string "Internal server error"
+// Router: /api/admin/partners [post]
+func AddPartner(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	// Check if the requesting user has admin privileges
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.create")
+	if !ok {
+		return
+	}
+	url, err := utils.ParseAndUploadFile(r, "image", 20)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Categories",
+				Description: "Failed to upload image : " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   uploadImageError,
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	req := dtos.Partner{
+		Name:  r.FormValue("name"),
+		Image: url,
+	}
+	// Create partner in database
+	err = models.CreatePartner(models.DB, req)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to create partner",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+		})
+		return
+	}
+	// Respond with success message
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Partner added successfully",
+			Code:        http.StatusCreated,
+		},
+		Payload:   nil,
+		Message:   "Partner added successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+
+}
+
+// Handler to get all partners
+// Summary: Get all partners
+// Description: Retrieve a list of all partners in the system.
+// Tags: Users
+// Accept: json
+// Produce: json
+// Success: 200 {object} map[string]interface{} "Partners fetched successfully"
+// Failure: 500 {object} map[string]string "Internal server error"
+// Router: /api/partners [get]
+func GetAllPartners(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	partners, err := models.GetAllPartners(models.DB)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to fetch partners",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Partners fetched successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   partners,
+		Message:   "Partners fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
+// Handler to delete a partner
+// Summary: Delete a partner
+// Description: Delete a partner from the system by ID. This endpoint is restricted to administrators.
+// Tags: Admin
+// Accept: json
+// Produce: json
+// Param: partner_id path string true "Partner ID"
+// Success: 200 {object} map[string]interface{} "Partner deleted successfully"
+// Failure: 400 {object} map[string]string "Invalid partner ID"
+// Failure: 401 {object} map[string]string "Unauthorized"
+// Failure: 500 {object} map[string]string "Internal server error"
+// Router: /api/admin/partners/{partner_id} [delete]
+func DeletePartner(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+	// Check if the requesting user has admin privileges
+	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "users.delete")
+	if !ok {
+		return
+	}
+	partnerID := mux.Vars(r)["partner_id"]
+	err := models.DeletePartnerByID(models.DB, partnerID)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to delete partner with ID " + partnerID,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Users",
+			Description: "Partner with ID " + partnerID + " deleted successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   nil,
+		Message:   "Partner deleted successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}

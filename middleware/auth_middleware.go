@@ -57,10 +57,16 @@ func AuthenticateToken(next http.Handler) http.Handler {
 			sendErrorResponse(w, http.StatusForbidden, "Token is invalidated")
 			return
 		}
+		jwtSecret := os.Getenv("JWT_SECRET")
+		if jwtSecret == "" {
+			log.Println("JWT_SECRET environment variable is not set")
+			sendErrorResponse(w, http.StatusInternalServerError, "Server configuration error")
+			return
+		}
 		// Parse and validate JWT signature and expiration
 		token, err := jwt.ParseWithClaims(tokenString, &dtos.CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 			// Return secret key for signature validation
-			return []byte(os.Getenv("JWT_SECRET")), nil
+			return []byte(jwtSecret), nil
 		})
 		if err != nil || !token.Valid {
 			// Token parsing failed or signature invalid or expired
