@@ -840,7 +840,7 @@ func GetAllPartners(db DBExecutor) ([]dtos.Partner, error) {
 	var partners []dtos.Partner
 	for rows.Next() {
 		var p dtos.Partner
-		if err := rows.Scan(&p.PartnerID, &p.Name, &p.Image); err != nil {
+		if err := rows.Scan(&p.PartnerID, &p.Name, &p.ImageURL); err != nil {
 			return nil, err
 		}
 		partners = append(partners, p)
