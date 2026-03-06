@@ -1254,17 +1254,14 @@ func CreateBlog(blog dtos.BlogRequest, authorID string) error {
 		blog.Status = new(string)
 		*blog.Status = "published"
 	}
+	// Published: set published_at to current timestamp
+	now := time.Now().Format("2006-01-02 15:04:05")
+	publishedAt = &now
 
 	// Handle draft vs published status
 	if strings.ToLower(*blog.Status) == "draft" {
 		// Draft: unpublished with no published_at date
 		isPublished = false
-		publishedAt = nil // ← represents NULL in DB
-	} else {
-		// Published: set published_at to current timestamp
-		now := time.Now().Format("2006-01-02 15:04:05")
-		publishedAt = &now
-
 	}
 
 	// Marshal content sections to JSON
