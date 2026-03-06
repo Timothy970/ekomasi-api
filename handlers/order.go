@@ -241,6 +241,11 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 	// Get request summary for logging
 	requestSummary := utils.GetRequestSummary(r)
 
+	//check if user is admin
+	user, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.update")
+	if !ok {
+		return
+	}
 	// Extract order ID from query parameters
 	orderID := r.URL.Query().Get("order_id")
 	if orderID == "" {
@@ -256,6 +261,44 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 			Request:   r,
 			RawBody:   requestSummary})
 		return
+	}
+
+	//check if user role is rider
+	//if rider check if the order is assigned to the rider
+
+	if strings.ToLower(user.Role) != "admin" {
+		//check if the order is assigned to the user as a rider
+		assigned, err := models.IsOrderAssignedToRider(models.DB, orderID, user.ID)
+		if err != nil {
+			log.Printf("%s", err)
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Orders",
+					Description: "Failed to check order assignment for order ID " + orderID + " and user ID " + user.ID,
+					Code:        http.StatusNotFound,
+				},
+				Message:   "Failed to check order assignment",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+
+			return
+		}
+		if !assigned {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Orders",
+					Description: "User with ID " + user.ID + " is not assigned to order ID " + orderID,
+					Code:        http.StatusForbidden,
+				},
+				Message:   "You do not have permission to update this order",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
 	}
 
 	// Decode request body

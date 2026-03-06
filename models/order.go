@@ -1820,3 +1820,17 @@ func UpdateOrderByRider(db DBExecutor, req dtos.UpdateOrderDeliveryStatusRequest
 	_, err = db.Exec(query, req.DeliveryStatus, req.OrderID)
 	return err
 }
+
+
+//helper function to see if order belongs to a rider
+func IsOrderAssignedToRider(db DBExecutor, orderID, riderID string) (bool, error) {
+	var existingRiderID sql.NullString
+	err := db.QueryRow(`SELECT rider_id FROM rider_orders WHERE order_id = ?`, orderID).Scan(&existingRiderID)
+	if err != nil && err != sql.ErrNoRows {
+		return false, err
+	}	
+	if existingRiderID.Valid && existingRiderID.String == riderID {
+		return true, nil
+	}
+	return false, nil
+}

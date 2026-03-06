@@ -477,7 +477,13 @@ func GetWishlistByID(db DBExecutor, wishlistID string) ([]dtos.AllWishlist, erro
 				productRows.Close()
 				return nil, err
 			}
+			p.Images, err = fetchProductImages(db, p.ID)
+			if err != nil {
+				productRows.Close()
+				return nil, err
+			}
 			products = append(products, p)
+
 		}
 		productRows.Close()
 
