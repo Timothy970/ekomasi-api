@@ -266,7 +266,7 @@ func UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
 	//check if user role is rider
 	//if rider check if the order is assigned to the rider
 
-	if strings.ToLower(user.Role) != "admin" {
+	if strings.ToLower(user.Role) == "rider" {
 		//check if the order is assigned to the user as a rider
 		assigned, err := models.IsOrderAssignedToRider(models.DB, orderID, user.ID)
 		if err != nil {

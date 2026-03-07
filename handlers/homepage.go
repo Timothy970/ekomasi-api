@@ -1445,8 +1445,13 @@ func ListBlogsHandler(w http.ResponseWriter, r *http.Request) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(r)
 	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	status := r.URL.Query().Get("status")
-	blogs, pagination, err := models.ListBlogs(page, limit, status)
+	title := r.URL.Query().Get("title")
+	isAdmin := false
+	admin := r.URL.Query().Get("isAdmin")
+	if admin != "" {
+		isAdmin = true
+	}
+	blogs, pagination, err := models.ListBlogs(page, limit, title, isAdmin)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
