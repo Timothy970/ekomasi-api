@@ -1512,18 +1512,18 @@ func DeleteBlog(blogID string) error {
 //   - []dtos.BlogRequest: Array of blogs with deserialized JSON fields
 //   - *dtos.PaginationMeta: Pagination info (total, pages, current page)
 //   - error: Database error or JSON unmarshal error
-func ListBlogs(page, limit int, status string) ([]dtos.BlogRequest, *dtos.PaginationMeta, error) {
+func ListBlogs(page, limit int, title string, isAdmin bool) ([]dtos.BlogRequest, *dtos.PaginationMeta, error) {
 	// Calculate offset for pagination
 	offset := (page - 1) * limit
 
 	// Get total count for pagination metadata
-	totalItems, err := countBlogs(status)
+	totalItems, err := countBlogs(title, isAdmin)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to count blogs: %w", err)
 	}
 
 	// Fetch blog records
-	rows, err := fetchBlogs(status, limit, offset)
+	rows, err := fetchBlogs(title, limit, offset, isAdmin)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to query blogs: %w", err)
 	}
@@ -1550,15 +1550,24 @@ func ListBlogs(page, limit int, status string) ([]dtos.BlogRequest, *dtos.Pagina
 // Returns:
 //   - int: Total number of blogs matching filter
 //   - error: Database error if query fails
-func countBlogs(status string) (int, error) {
-	// Build count query with optional status filter
+func countBlogs(title string, isAdmin bool) (int, error) {
+	// Build count query with optional title filter
 	query := "SELECT COUNT(*) FROM blogs"
 	var args []interface{}
 
-	// Add status filter if provided
-	if status != "" {
-		query += " WHERE status = ?"
-		args = append(args, status)
+	// Add title filter if provided
+	if title != "" {
+		query += " WHERE title LIKE ?"
+		args = append(args, "%"+title+"%")
+	}
+
+	//if not admin, only count published blogs
+	if !isAdmin {
+		if title != "" {
+			query += " AND status = 'published'"
+		} else {
+			query += " WHERE status = 'published'"
+		}
 	}
 
 	// Execute count query
@@ -1581,7 +1590,7 @@ func countBlogs(status string) (int, error) {
 // Returns:
 //   - *sql.Rows: Result set with blog records (caller must close)
 //   - error: Database error if query fails
-func fetchBlogs(status string, limit, offset int) (*sql.Rows, error) {
+func fetchBlogs(title string, limit, offset int, isAdmin bool) (*sql.Rows, error) {
 	// Query all blog fields with JSON columns
 	query := `
 		SELECT blog_id, title, content, author_id, published_at, is_published, 
@@ -1590,10 +1599,19 @@ func fetchBlogs(status string, limit, offset int) (*sql.Rows, error) {
 	`
 	var args []interface{}
 
-	// Add status filter if provided
-	if status != "" {
-		query += " WHERE status = ?"
-		args = append(args, status)
+	// Add title filter if provided
+	if title != "" {
+		query += " WHERE title LIKE ?"
+		args = append(args, "%"+title+"%")
+	}
+
+	//if not admin, only fetch published blogs
+	if !isAdmin {
+		if title != "" {
+			query += " AND status = 'published'"
+		} else {
+			query += " WHERE status = 'published'"
+		}
 	}
 
 	// Add ordering and pagination
