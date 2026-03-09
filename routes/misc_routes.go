@@ -148,4 +148,7 @@ func SetupMiscRoutes(api *mux.Router) {
 
 	// Partners
 	api.HandleFunc("/partners", handlers.GetAllPartners).Methods("GET")
+
+	//validate voucher code
+	api.HandleFunc("/validate-voucher", handlers.ValidateVoucherCodeHandler).Methods("POST")
 }

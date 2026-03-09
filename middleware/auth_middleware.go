@@ -21,7 +21,7 @@ import (
 // bearer is the expected prefix for Authorization header values
 var (
 	bearer                = "Bearer "
-	tokenMissingMsg       = "Token missing"
+	tokenMissingMsg       = "Unauthorized access"
 	invalidTokenMsg       = "Invalid or expired token"
 	invalidTokenClaimsMsg = "Invalid token claims"
 	blacklist             = "blacklist:"
