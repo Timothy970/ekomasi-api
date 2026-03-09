@@ -779,10 +779,75 @@ func applyCoupon(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse
 	return cart, nil
 }
 
+// http handler to just validate the code without applying it, this is for the frontend to check if the code is valid before applying it
+func ValidateVoucherCodeHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	// Get request summary for logging
+	requestSummary := utils.GetRequestSummary(r)
+	// Decode request body
+	req, ok := DecodeRequestBody[dtos.VoucherCode](r, w, requestSummary, start)
+	if !ok {
+		return
+	}
+	// Validate the request payload
+	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Cart") {
+		return
+	}
+	// Validate the voucher code
+	voucherBalance, err := models.ValidateVoucher(models.DB, req.Code)
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: "Failed to validate voucher code: " + err.Error(),
+				Code:        http.StatusBadRequest,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	// voucher balance should always be greater than amount passed from frontend, if not return error
+	if voucherBalance < req.Amount {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Cart",
+				Description: "Voucher balance is less than the amount to be applied",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Voucher balance is less than the amount to be applied",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	// Respond with voucher balance
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Cart",
+			Description: "Voucher code validated successfully",
+			Code:        http.StatusOK,
+		},
+		Payload:   map[string]interface{}{"voucher_balance": voucherBalance},
+		Message:   "Voucher code validated successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary})
+}
+
 func applyVoucher(cart dtos.ViewCartResponse, code string, requestType string) (dtos.ViewCartResponse, error) {
 	voucherBalance, err := models.ValidateVoucher(models.DB, code)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
+	}
+
+	//check if voucher balance is greater than or equal to cart total amount, if yes then apply the voucher balance to the cart total amount and set the cart total amount to 0, if not then apply the voucher balance to the cart total amount and reduce the cart total amount by the voucher balance
+	if voucherBalance < cart.TotalAmount {
+		return dtos.ViewCartResponse{}, errors.New("voucher balance is less than the cart total amount")
 	}
 
 	var discount float64

@@ -62,3 +62,8 @@ type PromotionData struct {
 	Type  string
 	Value float64
 }
+
+type VoucherCode struct {
+	Code   string  `json:"code" validate:"required" `
+	Amount float64 `json:"amount" validate:"required"`
+}

@@ -749,39 +749,49 @@ func ExportBalanceSheetToCSV(w io.Writer, asOf time.Time, compareWith *time.Time
 func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID, q string) error {
 	// Build dynamic query with optional filters
 	query := `
-		SELECT entry_id, order_id, payment_id, po_id, account_id, debit, credit, entry_date, description
-		FROM journal_entries
+		SELECT 
+			je.entry_id, 
+			'' AS order_id, 
+			'' AS payment_id, 
+			'' AS po_id, 
+			jel.account_id, 
+			jel.debit, 
+			jel.credit, 
+			je.entry_date, 
+			je.description
+		FROM journal_entries je
+		JOIN journal_entry_lines jel ON je.entry_id = jel.entry_id
 		WHERE 1=1
 	`
 	var args []interface{}
 
 	// Add start date filter if provided
 	if startDate != "" {
-		query += " AND entry_date >= ?"
+		query += " AND je.entry_date >= ?"
 		args = append(args, startDate)
 	}
 
 	// Add end date filter if provided
 	if endDate != "" {
-		query += " AND entry_date <= ?"
+		query += " AND je.entry_date <= ?"
 		args = append(args, endDate)
 	}
 
 	// Add account filter if provided
 	if accountID != "" {
-		query += " AND account_id = ?"
+		query += " AND jel.account_id = ?"
 		args = append(args, accountID)
 	}
 
 	// Add q filter if provided
 	if q != "" {
-		query += " AND (description LIKE ? OR reference LIKE ?)"
+		query += " AND (je.description LIKE ? OR je.reference LIKE ? OR jel.line_description LIKE ?)"
 		searchTerm := "%" + q + "%"
-		args = append(args, searchTerm, searchTerm)
+		args = append(args, searchTerm, searchTerm, searchTerm)
 	}
 
 	// Sort by date descending (newest first)
-	query += " ORDER BY entry_date DESC"
+	query += " ORDER BY je.entry_date DESC, jel.line_id ASC"
 
 	rows, err := DB.Query(query, args...)
 	if err != nil {
