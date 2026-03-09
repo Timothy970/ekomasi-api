@@ -751,16 +751,17 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID, q str
 	query := `
 		SELECT 
 			je.entry_id, 
-			'' AS order_id, 
-			'' AS payment_id, 
-			'' AS po_id, 
+			je.reference,
 			jel.account_id, 
 			jel.debit, 
 			jel.credit, 
 			je.entry_date, 
-			je.description
+			je.description,
+			ca.account_name,
+			ca.account_type
 		FROM journal_entries je
 		JOIN journal_entry_lines jel ON je.entry_id = jel.entry_id
+		JOIN chart_of_accounts ca ON jel.account_id = ca.account_id
 		WHERE 1=1
 	`
 	var args []interface{}
@@ -805,7 +806,8 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID, q str
 
 	// Write CSV header row
 	if err := csvWriter.Write([]string{
-		"Entry ID", "Order ID", "Payment ID", "PO ID", "Account ID",
+		"Entry ID",
+		"Reference", "Account Name", "Account Type",
 		"Debit", "Credit", "Entry Date", "Description",
 	}); err != nil {
 		return err
@@ -814,21 +816,20 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID, q str
 	// Write data rows
 	for rows.Next() {
 		var (
-			entryID, orderID, paymentID, poID, accID string
-			debit, credit                            float64
-			entryDate                                time.Time
-			description                              sql.NullString
+			entryID, reference, accountName, accountType, accID string
+			debit, credit                                       float64
+			entryDate                                           time.Time
+			description                                         sql.NullString
 		)
-		if err := rows.Scan(&entryID, &orderID, &paymentID, &poID, &accID, &debit, &credit, &entryDate, &description); err != nil {
+		if err := rows.Scan(&entryID, &reference, &accID, &debit, &credit, &entryDate, &description, &accountName, &accountType); err != nil {
 			return err
 		}
 		// Format record with 2 decimal places for amounts, formatted date
 		record := []string{
 			entryID,
-			orderID,
-			paymentID,
-			poID,
-			accID,
+			reference,
+			accountName,
+			accountType,
 			fmt.Sprintf("%.2f", debit),
 			fmt.Sprintf("%.2f", credit),
 			entryDate.Format("2006-01-02 15:04:05"),
