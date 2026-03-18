@@ -107,6 +107,17 @@ func GenerateReceiptPDF(receipt dtos.Order) (gofpdf.Pdf, error) {
 	pdf.AddPage()
 	pdf.SetFont("Arial", "", 12)
 
+	// Keep table widths within printable area to avoid right-side truncation.
+	pageWidth, _ := pdf.GetPageSize()
+	leftMargin, _, rightMargin, _ := pdf.GetMargins()
+	usableWidth := pageWidth - leftMargin - rightMargin
+
+	qtyColWidth := 16.0
+	unitColWidth := 24.0
+	totalColWidth := 24.0
+	itemColWidth := usableWidth - qtyColWidth - unitColWidth - totalColWidth
+	totalsLabelWidth := usableWidth - totalColWidth
+
 	// Header section - Receipt title and order metadata
 	pdf.Cell(0, 10, "=========== RECEIPT ===========")
 	pdf.Ln(12) // Line break with 12mm spacing
@@ -126,11 +137,11 @@ func GenerateReceiptPDF(receipt dtos.Order) (gofpdf.Pdf, error) {
 	pdf.Ln(12)
 
 	// Table Header - Create bordered cells with column headers
-	pdf.SetFont("Arial", "B", 12)                              // Bold font for headers
-	pdf.CellFormat(80, 10, "Item", "1", 0, "L", false, 0, "")  // 80mm wide, left-aligned
-	pdf.CellFormat(20, 10, "Qty", "1", 0, "C", false, 0, "")   // 20mm wide, center-aligned
-	pdf.CellFormat(30, 10, "Unit", "1", 0, "R", false, 0, "")  // 30mm wide, right-aligned
-	pdf.CellFormat(30, 10, "Total", "1", 1, "R", false, 0, "") // 30mm wide, right-aligned, new line
+	pdf.SetFont("Arial", "B", 12)                                         // Bold font for headers
+	pdf.CellFormat(itemColWidth, 10, "Item", "1", 0, "L", false, 0, "")   // left-aligned
+	pdf.CellFormat(qtyColWidth, 10, "Qty", "1", 0, "C", false, 0, "")     // center-aligned
+	pdf.CellFormat(unitColWidth, 10, "Unit", "1", 0, "R", false, 0, "")   // right-aligned
+	pdf.CellFormat(totalColWidth, 10, "Total", "1", 1, "R", false, 0, "") // right-aligned, new line
 
 	// Table Rows - Iterate through order items
 	pdf.SetFont("Arial", "", 12) // Regular font for data rows
@@ -139,30 +150,43 @@ func GenerateReceiptPDF(receipt dtos.Order) (gofpdf.Pdf, error) {
 		total := item.Price * float64(item.StockQuantity)
 
 		// Create bordered cells for each column
-		pdf.CellFormat(80, 10, item.Name, "1", 0, "L", false, 0, "")
-		pdf.CellFormat(20, 10, fmt.Sprintf("%d", item.StockQuantity), "1", 0, "C", false, 0, "")
-		pdf.CellFormat(30, 10, fmt.Sprintf("%.2f", item.Price), "1", 0, "R", false, 0, "")
-		pdf.CellFormat(30, 10, fmt.Sprintf("%.2f", total), "1", 1, "R", false, 0, "") // Last cell includes new line
+		pdf.CellFormat(itemColWidth, 10, item.Name, "1", 0, "L", false, 0, "")
+		pdf.CellFormat(qtyColWidth, 10, fmt.Sprintf("%d", item.StockQuantity), "1", 0, "C", false, 0, "")
+		pdf.CellFormat(unitColWidth, 10, fmt.Sprintf("%.2f", item.Price), "1", 0, "R", false, 0, "")
+		pdf.CellFormat(totalColWidth, 10, fmt.Sprintf("%.2f", total), "1", 1, "R", false, 0, "") // Last cell includes new line
 	}
 
 	// Totals Section - Calculate and display subtotal, discount, and grand total
 	pdf.Ln(5) // Add 5mm spacing before totals
 
-	// Calculate subtotal (grand total + discount = amount before discount)
-	subtotal := receipt.TotalAmount + receipt.TotalDiscount
-	pdf.CellFormat(130, 10, "Subtotal:", "0", 0, "R", false, 0, "")
-	pdf.CellFormat(30, 10, fmt.Sprintf("%.2f", subtotal), "0", 1, "R", false, 0, "")
+	// Calculate subtotal
+	subtotal := receipt.SubTotal
+	pdf.CellFormat(totalsLabelWidth, 10, "Subtotal:", "0", 0, "R", false, 0, "")
+	pdf.CellFormat(totalColWidth, 10, fmt.Sprintf("%.2f", subtotal), "0", 1, "R", false, 0, "")
 
 	// Show discount line only if discount was applied
 	if receipt.TotalDiscount > 0 {
-		pdf.CellFormat(130, 10, "Discount:", "0", 0, "R", false, 0, "")
-		pdf.CellFormat(30, 10, fmt.Sprintf("-%.2f", receipt.TotalDiscount), "0", 1, "R", false, 0, "")
+		pdf.CellFormat(totalsLabelWidth, 10, "Discount:", "0", 0, "R", false, 0, "")
+		pdf.CellFormat(totalColWidth, 10, fmt.Sprintf("-%.2f", receipt.TotalDiscount), "0", 1, "R", false, 0, "")
+	}
+
+	// Show tax line if estimated tax is greater than zero
+	if receipt.EstimatedTax > 0 {
+		pdf.CellFormat(totalsLabelWidth, 10, "Tax:", "0", 0, "R", false, 0, "")
+		pdf.CellFormat(totalColWidth, 10, fmt.Sprintf("%.2f", receipt.EstimatedTax), "0", 1, "R", false, 0, "")
+	}
+
+	// Show delivery charge if applicable
+	deliveryCharge := ptrToFloat(receipt.DeliveryCharge)
+	if deliveryCharge > 0 {
+		pdf.CellFormat(totalsLabelWidth, 10, "Delivery Charge:", "0", 0, "R", false, 0, "")
+		pdf.CellFormat(totalColWidth, 10, fmt.Sprintf("%.2f", deliveryCharge), "0", 1, "R", false, 0, "")
 	}
 
 	// Grand Total - Display final amount with top border ("T") for emphasis
 	pdf.SetFont("Arial", "B", 12) // Bold font for grand total
-	pdf.CellFormat(130, 10, "Grand Total:", "T", 0, "R", false, 0, "")
-	pdf.CellFormat(30, 10, fmt.Sprintf("%.2f", receipt.TotalAmount), "T", 1, "R", false, 0, "")
+	pdf.CellFormat(totalsLabelWidth, 10, "Grand Total:", "T", 0, "R", false, 0, "")
+	pdf.CellFormat(totalColWidth, 10, fmt.Sprintf("%.2f", receipt.TotalAmount), "T", 1, "R", false, 0, "")
 
 	// Footer - Thank you message
 	pdf.Ln(12) // Add 12mm spacing

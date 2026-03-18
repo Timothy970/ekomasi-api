@@ -784,7 +784,7 @@ func ExportJournalEntriesCSVHandler(w http.ResponseWriter, r *http.Request) {
 // @Description  Retrieve a paginated list of best-selling products ranked by sales performance
 // @Tags         Reports
 // @Produce      json
-// @Param        time_range  query  string  false  "Time range (last_7_days, last_30_days, this_month, etc.)"
+// @Param        time_range  query  string  false  "Time range (daily, weekly, monthly, yearly)"
 // @Param        page        query  int     false  "Page number (default: 1)"
 // @Param        size        query  int     false  "Page size (default: 10)"
 // @Success      200         {object}  map[string]interface{}  "Top selling products with pagination"

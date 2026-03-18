@@ -71,29 +71,11 @@ func CreateStockTransfer(db DBExecutor, st dtos.StockTransferDTO) error {
 	// Insert transfer record
 	query := `
 		INSERT INTO stock_transfers 
-		(transfer_id, product_id, variant_id, from_warehouse_id, to_warehouse_id, quantity, transfer_details) 
-		VALUES (?, ?, ?, ?, ?, ?, ?)`
-	_, err = db.Exec(query, transferID, st.ProductID, st.VariantID, st.FromWarehouseID, st.ToWarehouseID, st.Quantity, st.TransferDetails)
+		(transfer_id, product_id, variant_id, from_warehouse_id, to_warehouse_id, quantity, transfer_details, status) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = db.Exec(query, transferID, st.ProductID, st.VariantID, st.FromWarehouseID, st.ToWarehouseID, st.Quantity, st.TransferDetails, "Pending")
 
-	// Deduct quantity from source warehouse inventory
-	_, err = db.Exec(`
-		UPDATE inventory SET quantity = quantity - ? 
-		WHERE product_id = ? AND warehouse_id = ? AND quantity >= ?`,
-		st.Quantity, st.ProductID, st.FromWarehouseID, st.Quantity)
-
-	// Get inventory settings from destination warehouse (if exists)
-	toInventoryQuery := `SELECT low_stock_threshold, supplier FROM inventory WHERE product_id = ? AND warehouse_id = ?`
-	var lowStockThreshold sql.NullInt64
-	var supplier sql.NullString
-	err = db.QueryRow(toInventoryQuery, st.ProductID, st.ToWarehouseID).Scan(&lowStockThreshold, &supplier)
-
-	// Add quantity to destination warehouse (create new inventory record)
-	_, err = db.Exec(`INSERT INTO inventory (product_id, warehouse_id, quantity, low_stock_threshold, supplier) VALUES (?, ?, ?, ?, ?)`, st.ProductID, st.ToWarehouseID, st.Quantity, lowStockThreshold, supplier)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // validateProductAndWarehouse validates product availability in source warehouse.
@@ -214,6 +196,7 @@ func ListStockTransfers(db DBExecutor, page, size int, searchParam string) ([]dt
 			st.quantity,
 			st.transfer_date,
 			st.transfer_details,
+			st.status,
 			p.name AS product_name,
 			fw.name AS from_warehouse_name,
 			tw.name AS to_warehouse_name
@@ -271,6 +254,7 @@ func ListStockTransfers(db DBExecutor, page, size int, searchParam string) ([]dt
 			&st.Quantity,
 			&st.TransferDate,
 			&st.TransferDetails,
+			&st.Status,
 			&st.ProductName,
 			&st.FromWarehouseName,
 			&st.ToWarehouseName,
@@ -329,7 +313,7 @@ func GetStockTransferByID(db DBExecutor, id string) (*dtos.StockTransferDTO, err
 //
 // Returns:
 //   - error: "stock transfer not found", database error, or nil on success
-func UpdateStockTransfer(db DBExecutor, quantity int, id string) error {
+func UpdateStockTransfer(db DBExecutor, req dtos.StockTransferUpdateDTO, id string) error {
 	// Validate transfer exists
 	exists, err := RecordExists(db, "stock_transfers", "transfer_id = ?", id)
 	if err != nil {
@@ -338,12 +322,32 @@ func UpdateStockTransfer(db DBExecutor, quantity int, id string) error {
 	if !exists {
 		return errors.New("stock transfer not found")
 	}
+	// update transer staus
+	query := `UPDATE stock_transfers SET status = ? WHERE transfer_id = ?`
+	_, err = db.Exec(query, req.Status, id)
+	if err != nil {
+		return err
+	}
+	//if status is Recieved, then update inventory
+	if req.Status == "Received" {
+		// Deduct quantity from source warehouse inventory
+		_, err = db.Exec(`
+		UPDATE inventory SET quantity = quantity - ?
+		WHERE product_id = ? AND warehouse_id = ? AND quantity >= ?`,
+			req.Quantity, req.ProductID, req.FromWarehouseID, req.Quantity)
 
-	// Update transfer quantity
-	query := `
-		UPDATE stock_transfers 
-		SET quantity = ?
-		WHERE transfer_id = ?`
-	_, err = db.Exec(query, quantity, id)
-	return err
+		// Get inventory settings from destination warehouse (if exists)
+		toInventoryQuery := `SELECT low_stock_threshold, supplier_id FROM inventory WHERE product_id = ? AND warehouse_id = ?`
+		var lowStockThreshold sql.NullInt64
+		var supplier sql.NullString
+		err = db.QueryRow(toInventoryQuery, req.ProductID, req.ToWarehouseID).Scan(&lowStockThreshold, &supplier)
+
+		// Add quantity to destination warehouse (create new inventory record)
+		inventoryID, _ := shortid.Generate()
+		_, err = db.Exec(`INSERT INTO inventory (inventory_id, product_id, warehouse_id, quantity, low_stock_threshold, supplier_id) VALUES (?, ?, ?, ?, ?, ?)`, inventoryID, req.ProductID, req.ToWarehouseID, req.Quantity, lowStockThreshold, supplier)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
