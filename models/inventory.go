@@ -147,11 +147,12 @@ func ListInventory(db DBExecutor, page, size int, categoryID, stock, storeID, se
 	for rows.Next() {
 		var inv dtos.Inventory
 		var buyingPrice sql.NullFloat64
+		var lowStockThreshold sql.NullInt64
 
 		// Scan row into inventory struct
 		err := rows.Scan(
 			&inv.InventoryID, &inv.StoreID, &inv.ProductID, &inv.VariantID,
-			&inv.Quantity, &inv.LowStockThreshold, &inv.Name, &inv.Description,
+			&inv.Quantity, &lowStockThreshold, &inv.Name, &inv.Description,
 			&inv.SKU, &inv.Tag, &inv.Price, &inv.CategoryID,
 			&inv.CategoryName, &inv.StockQuantity, &inv.SearchVector, &inv.Store, &buyingPrice,
 		)
@@ -162,6 +163,11 @@ func ListInventory(db DBExecutor, page, size int, categoryID, stock, storeID, se
 		// Convert nullable buying price
 		if buyingPrice.Valid {
 			inv.BuyingPrice = &buyingPrice.Float64
+		}
+		// Convert nullable low stock threshold
+		if lowStockThreshold.Valid {
+			threshold := int(lowStockThreshold.Int64)
+			inv.LowStockThreshold = threshold
 		}
 
 		// Enrich with product images
@@ -282,10 +288,11 @@ func GetInventory(db DBExecutor, inventoryID string) (*dtos.SingleInventory, err
 	var inv dtos.SingleInventory
 	var inspectionDate, inspectorID, inspectionImagesJSON, batchImagesJSON sql.NullString
 	var buyingPrice sql.NullFloat64
+	var lowStockThreshold sql.NullInt64
 
 	// Scan all fields including nullable JSON columns
 	if err := row.Scan(
-		&inv.InventoryID, &inv.StoreID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &inv.LowStockThreshold,
+		&inv.InventoryID, &inv.StoreID, &inv.ProductID, &inv.VariantID, &inv.Quantity, &lowStockThreshold,
 		&inv.Name, &inv.Description, &inv.SKU, &inv.Tag, &inv.Price,
 		&inv.CategoryID, &inv.CategoryName, &inv.StockQuantity, &inv.SearchVector, &inv.BatchNumber, &inv.ExpiryDate, &inv.ManufacturingDate, &inv.Warranty, &inv.PlacedOn, &buyingPrice, &inspectionDate, &inspectorID, &inv.InspectionNotes, &inspectionImagesJSON, &batchImagesJSON, &inv.HandlingNotes, &inv.ConditionID, &inv.Store,
 	); err != nil {
@@ -296,7 +303,7 @@ func GetInventory(db DBExecutor, inventoryID string) (*dtos.SingleInventory, err
 	}
 
 	// Process nullable fields and enrich inventory data
-	if err := enrichInventoryData(db, &inv, inspectionDate, inspectorID, inspectionImagesJSON, batchImagesJSON, buyingPrice, inventoryID); err != nil {
+	if err := enrichInventoryData(db, &inv, inspectionDate, inspectorID, inspectionImagesJSON, batchImagesJSON, buyingPrice, lowStockThreshold, inventoryID); err != nil {
 		return nil, err
 	}
 
@@ -304,11 +311,17 @@ func GetInventory(db DBExecutor, inventoryID string) (*dtos.SingleInventory, err
 }
 
 // enrichInventoryData processes nullable fields and enriches inventory with additional data.
-func enrichInventoryData(db DBExecutor, inv *dtos.SingleInventory, inspectionDate, inspectorID, inspectionImagesJSON, batchImagesJSON sql.NullString, buyingPrice sql.NullFloat64, inventoryID string) error {
+func enrichInventoryData(db DBExecutor, inv *dtos.SingleInventory, inspectionDate, inspectorID, inspectionImagesJSON, batchImagesJSON sql.NullString, buyingPrice sql.NullFloat64, lowStockThreshold sql.NullInt64, inventoryID string) error {
 	// Convert nullable inspection date
 	if inspectionDate.Valid {
 		inspDate := StringToTime(inspectionDate.String)
 		inv.InspectionDate = &inspDate
+	}
+
+	// Convert nullable low stock threshold
+	if lowStockThreshold.Valid {
+		threshold := int(lowStockThreshold.Int64)
+		inv.LowStockThreshold = threshold
 	}
 
 	// Fetch inspector user details if present

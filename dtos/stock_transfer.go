@@ -16,7 +16,15 @@ type StockTransferDTO struct {
 	TransferDetails string    `json:"transfer_details,omitempty"`
 }
 type StockTransferUpdateDTO struct {
-	Quantity int `json:"quantity" validate:"required"`
+	TransferID      string    `json:"transfer_id"`
+	ProductID       string    `json:"product_id" validate:"required"`
+	VariantID       *string   `json:"variant_id,omitempty"`
+	FromWarehouseID string    `json:"from_warehouse_id" validate:"required"`
+	ToWarehouseID   string    `json:"to_warehouse_id" validate:"required"`
+	Quantity        int       `json:"quantity" validate:"required"`
+	TransferDate    time.Time `json:"transfer_date"`
+	TransferDetails string    `json:"transfer_details,omitempty"`
+	Status          string    `json:"status" validate:"required"`
 }
 
 type StockTransferListResponse struct {
@@ -47,4 +55,5 @@ type StockTransferResponseDTO struct {
 	Quantity          int       `json:"quantity" validate:"required"`
 	TransferDate      time.Time `json:"transfer_date"`
 	TransferDetails   string    `json:"transfer_details,omitempty"`
+	Status            string    `json:"status"`
 }

@@ -25,6 +25,15 @@ type Deal struct {
 	Image     *string       `json:"image"`
 }
 
+type UpdateDeal struct {
+	Name      string         `json:"name" validate:"required"`
+	StartDate time.Time      `json:"start_date" validate:"required"`
+	EndDate   time.Time      `json:"end_date" validate:"required"`
+	IsActive  *bool          `json:"is_active" validate:"omitempty"`
+	Products  []ProductsDeal `json:"products" validate:"dive"`
+	Image     *string        `json:"image"`
+}
+
 type DealWithProducts struct {
 	Image     *string       `json:"image"`
 	DealID    string        `json:"deal_id"`

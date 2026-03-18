@@ -864,26 +864,28 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID, q str
 //   - error: Database error or nil on success
 //
 // Time Ranges:
-//   - "daily": Products sold today (DATE matches current date)
-//   - "weekly": Products sold this week (YEAR and WEEK match current)
-//   - "monthly": Products sold this month (YEAR and MONTH match current)
-//   - "yearly": Products sold this year (YEAR matches current)
+//   - "daily": Products sold today
+//   - "weekly": Products sold in the last 7 days (including today)
+//   - "monthly": Products sold in the current month
+//   - "yearly": Products sold in the current year
 //   - "": All-time top sellers (no date filter)
 func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct, *dtos.PaginationMeta, error) {
 	var totalCount int
 	now := time.Now()
+	normalizedTimeRange := normalizeTopSellingTimeRange(timeRange)
+	const dateRangeFilter = "o.created_at >= ? AND o.created_at < ?"
 
 	// Build date filter
 	dateFilter := ""
-	switch timeRange {
+	switch normalizedTimeRange {
 	case "daily":
-		dateFilter = "DATE(o.created_at) = DATE(?)"
+		dateFilter = dateRangeFilter
 	case "weekly":
-		dateFilter = "YEAR(o.created_at) = ? AND WEEK(o.created_at, 1) = ?"
+		dateFilter = dateRangeFilter
 	case "monthly":
-		dateFilter = "YEAR(o.created_at) = ? AND MONTH(o.created_at) = ?"
+		dateFilter = dateRangeFilter
 	case "yearly":
-		dateFilter = "YEAR(o.created_at) = ?"
+		dateFilter = dateRangeFilter
 	}
 
 	offset := (page - 1) * size
@@ -904,7 +906,7 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 		) AS grouped_products
 	`
 
-	err := DB.QueryRow(countQuery, getDateFilterArgs(timeRange, now)...).Scan(&totalCount)
+	err := DB.QueryRow(countQuery, getDateFilterArgs(normalizedTimeRange, now)...).Scan(&totalCount)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -930,7 +932,7 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 		LIMIT ? OFFSET ?
 	`
 
-	args := append(getDateFilterArgs(timeRange, now), size, offset)
+	args := append(getDateFilterArgs(normalizedTimeRange, now), size, offset)
 
 	rows, err := DB.Query(query, args...)
 	if err != nil {
@@ -972,6 +974,22 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 	return results, meta, nil
 }
 
+// normalizeTopSellingTimeRange normalizes time_range aliases used by clients.
+func normalizeTopSellingTimeRange(timeRange string) string {
+	switch strings.ToLower(strings.TrimSpace(timeRange)) {
+	case "daily", "day", "today":
+		return "daily"
+	case "weekly", "week", "this_week", "last_7_days", "last7days":
+		return "weekly"
+	case "monthly", "month", "this_month", "montly":
+		return "monthly"
+	case "yearly", "year", "this_year", "annual":
+		return "yearly"
+	default:
+		return ""
+	}
+}
+
 // getDateFilterArgs builds SQL query arguments for date filtering.
 //
 // This is an internal helper function that generates the appropriate query arguments
@@ -983,26 +1001,30 @@ func GetTopSellingProducts(timeRange string, page, size int) ([]dtos.TopProduct,
 //
 // Returns:
 //   - []interface{}: Array of arguments for SQL query:
-//   - "daily": [now] - Full timestamp for DATE() comparison
-//   - "weekly": [year, week] - ISO year and week number
-//   - "monthly": [year, month] - Year and month number (1-12)
-//   - "yearly": [year] - Year number
+//   - "daily": [startOfDay, startOfNextDay]
+//   - "weekly": [startOfDay(6 days ago), startOfNextDay]
+//   - "monthly": [startOfMonth, startOfNextMonth]
+//   - "yearly": [startOfYear, startOfNextYear]
 //   - "": [] - Empty array (no date filter)
 func getDateFilterArgs(timeRange string, now time.Time) []interface{} {
+	loc := now.Location()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	startOfNextDay := startOfDay.AddDate(0, 0, 1)
+
 	switch timeRange {
 	case "daily":
-		// Return full timestamp for DATE() comparison
-		return []interface{}{now}
+		return []interface{}{startOfDay, startOfNextDay}
 	case "weekly":
-		// Return ISO year and week number
-		year, week := now.ISOWeek()
-		return []interface{}{year, week}
+		startOfLast7Days := startOfDay.AddDate(0, 0, -6)
+		return []interface{}{startOfLast7Days, startOfNextDay}
 	case "monthly":
-		// Return year and month number (1-12)
-		return []interface{}{now.Year(), int(now.Month())}
+		startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+		startOfNextMonth := startOfMonth.AddDate(0, 1, 0)
+		return []interface{}{startOfMonth, startOfNextMonth}
 	case "yearly":
-		// Return year number
-		return []interface{}{now.Year()}
+		startOfYear := time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, loc)
+		startOfNextYear := startOfYear.AddDate(1, 0, 0)
+		return []interface{}{startOfYear, startOfNextYear}
 	default:
 		// No date filter - return empty array
 		return []interface{}{}

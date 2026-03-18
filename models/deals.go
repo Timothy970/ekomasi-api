@@ -184,7 +184,7 @@ func isDealThere(db DBExecutor, dealID string) error {
 //
 // Returns:
 //   - error: "deal with ID {id} does not exist" if deal not found, or database error
-func UpdateDeal(db DBExecutor, dealID string, deal dtos.Deal) error {
+func UpdateDeal(db DBExecutor, dealID string, deal dtos.UpdateDeal) error {
 	// Validate deal exists
 	if err := isDealThere(db, dealID); err != nil {
 		return err
@@ -200,7 +200,17 @@ func UpdateDeal(db DBExecutor, dealID string, deal dtos.Deal) error {
 	// Otherwise, update without changing image
 	_, err := db.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ?, is_active = ? WHERE deal_id = ?`,
 		deal.Name, deal.StartDate, deal.EndDate, *deal.IsActive, dealID)
-	return err
+	if err != nil {
+		return err
+	}
+
+	for _, p := range deal.Products {
+		discount := float64(p.Discount)
+		if err := AddProductToDeal(db, dealID, p.ProductID, &p.DiscountType, &discount); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // DeleteDeal removes a deal from the database.
@@ -254,6 +264,19 @@ func AddProductToDeal(db DBExecutor, dealID, productID string, discountType *str
 
 	// Validate product exists
 	if err := IsProductThere(db, productID); err != nil {
+		return err
+	}
+
+	// Update discount and discount_type for this product in all other active or future deals
+	// to ensure it takes the current discount and value everywhere
+	_, err := db.Exec(`
+		UPDATE deal_products 
+		SET discount = ?, discount_type = ?
+		WHERE product_id = ? 
+		  AND deal_id != ? 
+		  AND deal_id IN (SELECT deal_id FROM deals WHERE end_date > NOW())
+	`, discount, discountType, productID, dealID)
+	if err != nil {
 		return err
 	}
 

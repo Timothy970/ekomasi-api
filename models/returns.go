@@ -573,7 +573,7 @@ func GetAllOwnerReturns(db DBExecutor, status, q, ownerID string) ([]dtos.Return
 	}
 
 	// Add owner filter (only returns belonging to this user)
-	where += " AND r.user_id = ?"
+	where += " AND o.user_id = ?"
 	args = append(args, ownerID)
 
 	// Build query with filters
@@ -582,6 +582,7 @@ func GetAllOwnerReturns(db DBExecutor, status, q, ownerID string) ([]dtos.Return
 		FROM returns r
 		LEFT JOIN return_products rp ON r.return_id = rp.return_id
 		LEFT JOIN products p ON rp.product_id = p.product_id
+		LEFT JOIN orders o ON r.order_id = o.order_id
 		` + where + `
 		ORDER BY r.created_at DESC
 	`
@@ -638,7 +639,8 @@ func GetOwnerReturnByID(db DBExecutor, returnID, ownerID string) (dtos.ReturnRes
 	query := `
 		SELECT r.return_id, r.reason, r.status, r.created_at, r.order_id
 		FROM returns r
-		WHERE r.return_id = ? AND r.user_id = ?
+		LEFT JOIN orders o ON r.order_id = o.order_id
+		WHERE r.return_id = ? AND o.user_id = ?
 	`
 	row := db.QueryRow(query, returnID, ownerID)
 	err := row.Scan(&ret.ReturnID, &ret.Reason, &ret.Status, &ret.CreatedAt, &ret.OrderID)

@@ -253,13 +253,11 @@ func GetOrderByUser(db DBExecutor, orderID, userID string) (*dtos.Order, error) 
 		return nil, err
 	}
 
-	// Calculate estimated tax from system settings
+	// Calculate tax and subtotal
+	ord.TotalAmount = totalAmount
 	estimatedTax, _ := GetEstimatedTax(db)
 	ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
-	ord.TotalAmount = totalAmount
-
-	// Calculate subtotal (amount before tax, delivery, discounts)
-	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
+	ord.SubTotal = ord.TotalAmount + ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
 
 	// Parse guest JSON fields if present
 	if guestAddrStr != "" {
@@ -377,10 +375,10 @@ func GetAllOrders(db DBExecutor, status *string) ([]dtos.Order, error) {
 		}
 
 		// Calculate tax and subtotal
+		ord.TotalAmount = totalAmount
 		estimatedTax, _ := GetEstimatedTax(db)
 		ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
-		ord.TotalAmount = totalAmount
-		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
+		ord.SubTotal = ord.TotalAmount + ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
 
 		// // Attach user_id if present
 		// if userID.Valid {
@@ -495,10 +493,10 @@ func ListOrdersByUser(db DBExecutor, userID string, page, limit int) ([]dtos.Ord
 		}
 
 		// Calculate tax and subtotal
+		ord.TotalAmount = totalAmount
 		estimatedTax, _ := GetEstimatedTax(db)
 		ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
-		ord.TotalAmount = totalAmount
-		ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
+		ord.SubTotal = ord.TotalAmount + ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
 
 		// Parse guest JSON fields if present
 		if guestAddrStr != "" {
@@ -626,10 +624,10 @@ func ListGuestOrders(db DBExecutor, orderID, email, phone string) (*dtos.Order, 
 	}
 
 	// Calculate tax and subtotal
+	ord.TotalAmount = totalAmount
 	estimatedTax, _ := GetEstimatedTax(db)
 	ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
-	ord.TotalAmount = totalAmount
-	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
+	ord.SubTotal = ord.TotalAmount + ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
 
 	// Parse guest JSON fields
 	if guestAddrStr != "" {
@@ -839,10 +837,10 @@ func GetOrderByID(db DBExecutor, orderID string) (*dtos.Order, error) {
 	)
 
 	// Calculate tax and subtotal
+	ord.TotalAmount = totalAmount
 	estimatedTax, _ := GetEstimatedTax(DB)
 	ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
-	ord.TotalAmount = totalAmount
-	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
+	ord.SubTotal = ord.TotalAmount + ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1536,7 +1534,7 @@ func scanSingleAdminOrder(db DBExecutor, rows *sql.Rows) (dtos.AdminOrder, error
 func calculateOrderFinancials(db DBExecutor, ord *dtos.AdminOrder) {
 	estimatedTax, _ := GetEstimatedTax(db)
 	ord.EstimatedTax = ord.TotalAmount * estimatedTax / 100
-	ord.SubTotal = ord.TotalAmount - ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
+	ord.SubTotal = ord.TotalAmount + ord.TotalDiscount - ptrToFloat(ord.DeliveryCharge) - ord.EstimatedTax
 }
 
 // parseOrderOptionalFields parses JSON fields and sets nullable fields.

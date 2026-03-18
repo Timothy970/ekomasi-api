@@ -202,11 +202,27 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Continue even if no image was uploaded
 	isActive := models.StringToBool(r.FormValue("is_active"))
-	req := &dtos.Deal{
+	products, err := parseProducts(r.FormValue("deal_products"))
+	if err != nil {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: "Failed to update deal with ID " + dealID,
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+	req := &dtos.UpdateDeal{
 		Name:      r.FormValue("name"),
 		StartDate: models.StringToTime(r.FormValue("start_date")),
 		EndDate:   models.StringToTime(r.FormValue("end_date")),
 		IsActive:  &isActive,
+		Products:  products,
 	}
 
 	// Only set image if it was uploaded

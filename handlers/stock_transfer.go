@@ -257,7 +257,7 @@ func UpdateStockTransfer(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["transfer_id"]
 
 	// Update stock transfer quantity in database and adjust inventory levels
-	if err := models.UpdateStockTransfer(models.DB, req.Quantity, id); err != nil {
+	if err := models.UpdateStockTransfer(models.DB, *req, id); err != nil {
 		// Update failed (insufficient stock, invalid transfer, or database error)
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
