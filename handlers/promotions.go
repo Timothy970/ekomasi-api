@@ -49,7 +49,11 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Parse minimum order value from form data
 	minimumOrderValue := models.StringToFloat64(r.FormValue("minimum_order_value"))
-
+	promoType := r.FormValue("promo_type")
+	if promoType == "" {
+		promoType = "product"
+	}
+	brandID := r.FormValue("brand_id")
 	// Build promo code request object from form data
 	req := &dtos.PromoCodeRequest{
 		Discount_Code:     r.FormValue("discount_code"),                            // Unique promo code
@@ -59,6 +63,8 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 		MinimumOrderValue: &minimumOrderValue,                                      // Min order requirement
 		MaximumUse:        int(models.StringToFloat64(r.FormValue("maximum_use"))), // Usage limit
 		IsActive:          models.StringToBool(r.FormValue("is_active")),           // Active status
+		PromoType:         promoType,                                               // Promo type
+		BrandID:           &brandID,                                                // Brand ID
 	}
 	// Validate all required fields
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
@@ -135,6 +141,11 @@ func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["promo_id"]
 	// Parse minimum order value from form data
 	minimumOrderValue := models.StringToFloat64(r.FormValue("minimum_order_value"))
+	promoType := r.FormValue("promo_type")
+	if promoType == "" {
+		promoType = "product"
+	}
+	brandID := r.FormValue("brand_id")
 	// Build promo code update request object from form data
 	req := &dtos.PromoCodeRequest{
 		Discount_Code:     r.FormValue("discount_code"),                            // Updated promo code
@@ -144,6 +155,8 @@ func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 		MinimumOrderValue: &minimumOrderValue,                                      // Updated min order value
 		MaximumUse:        int(models.StringToFloat64(r.FormValue("maximum_use"))), // Updated usage limit
 		IsActive:          models.StringToBool(r.FormValue("is_active")),           // Updated active status
+		PromoType:         promoType,
+		BrandID:           &brandID,
 	}
 	// Validate all required fields
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {

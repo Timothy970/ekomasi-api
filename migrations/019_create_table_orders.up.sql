@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS  `orders` (
    `delivery_id` char(36) NOT NULL,
    `is_guest_order` tinyint(1) NOT NULL DEFAULT '0',
    `payment_method` varchar(100) DEFAULT 'MPESA',
+   `source` varchar(100) NOT NULL DEFAULT 'Online',
    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
    `last_updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
    PRIMARY KEY (`order_id`),

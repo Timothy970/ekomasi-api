@@ -879,19 +879,30 @@ func applyPromoCode(cart dtos.ViewCartResponse, code string, requestType string)
 	}
 
 	var discount float64
-	switch promoData.DiscountType {
-	case "FIXED":
-		discount = promoData.DiscountValue
-		if discount > cart.TotalAmount {
-			discount = cart.TotalAmount
+
+	promoType := strings.ToLower(*promoData.PromoType)
+
+	if promoType == "brand" && promoData.BrandID != nil && *promoData.BrandID != "" {
+		brandDiscount, err := calculateBrandDiscount(*promoData.BrandID, cart.CartItems, promoData)
+		if err != nil {
+			return dtos.ViewCartResponse{}, err
 		}
-	case "PERCENTAGE":
-		discount = (cart.TotalAmount * promoData.DiscountValue) / 100
-		if discount > cart.TotalAmount {
-			discount = cart.TotalAmount
+		discount = brandDiscount
+	} else {
+		switch promoData.DiscountType {
+		case "FIXED":
+			discount = promoData.DiscountValue
+			if discount > cart.TotalAmount {
+				discount = cart.TotalAmount
+			}
+		case "PERCENTAGE":
+			discount = (cart.TotalAmount * promoData.DiscountValue) / 100
+			if discount > cart.TotalAmount {
+				discount = cart.TotalAmount
+			}
+		default:
+			return dtos.ViewCartResponse{}, fmt.Errorf("unsupported discount type")
 		}
-	default:
-		return dtos.ViewCartResponse{}, fmt.Errorf("unsupported discount type")
 	}
 
 	cart.Discount += discount
@@ -904,10 +915,53 @@ func applyPromoCode(cart dtos.ViewCartResponse, code string, requestType string)
 	}
 	return cart, nil
 }
-func applyPromoCodeToOrder(db models.DBExecutor, totalAmount, totalDiscount float64, code string, promoCodeType string) (float64, float64, error) {
+
+// calculateBrandDiscount calculates discount for products in a specific brand
+func calculateBrandDiscount(brandID string, items []dtos.CartItem, promoData dtos.PromoCodeData) (float64, error) {
+	var totalBrandItemsAmount float64
+
+	// Iterate through cart items and check if the product belongs to the brand
+	for _, item := range items {
+		isBrandProduct, err := models.IsProductInBrand(models.DB, item.Product.ID, brandID)
+		if err != nil {
+			log.Printf("Error checking product brand: %v", err)
+			continue
+		}
+
+		if isBrandProduct {
+			// Calculate the total amount for this specific item in the cart
+			itemTotal := float64(item.Quantity) * item.Product.Price
+			totalBrandItemsAmount += itemTotal
+		}
+	}
+
+	if totalBrandItemsAmount == 0 {
+		return 0, fmt.Errorf("no products from the specified brand in the cart")
+	}
+
+	// Calculate discount based on totalBrandItemsAmount
+	var discount float64
+	switch promoData.DiscountType {
+	case "FIXED":
+		discount = promoData.DiscountValue
+		if discount > totalBrandItemsAmount {
+			discount = totalBrandItemsAmount
+		}
+	case "PERCENTAGE":
+		discount = (totalBrandItemsAmount * promoData.DiscountValue) / 100
+		if discount > totalBrandItemsAmount {
+			discount = totalBrandItemsAmount
+		}
+	default:
+		return 0, fmt.Errorf("unsupported discount type")
+	}
+
+	return discount, nil
+}
+func applyPromoCodeToOrder(db models.DBExecutor, totalAmount, totalDiscount float64, code string, promoCodeType string, order dtos.OrderRequest) (float64, float64, error) {
 	switch promoCodeType {
 	case "promo_code":
-		return applyPromoCodeDiscount(db, totalAmount, totalDiscount, code)
+		return applyPromoCodeDiscount(db, totalAmount, totalDiscount, code, order)
 	case "coupon":
 		return applyCouponDiscount(db, totalAmount, totalDiscount, code)
 	case "voucher":
@@ -917,13 +971,13 @@ func applyPromoCodeToOrder(db models.DBExecutor, totalAmount, totalDiscount floa
 	}
 }
 
-func applyPromoCodeDiscount(db models.DBExecutor, totalAmount, totalDiscount float64, code string) (float64, float64, error) {
+func applyPromoCodeDiscount(db models.DBExecutor, totalAmount, totalDiscount float64, code string, order dtos.OrderRequest) (float64, float64, error) {
 	promoData, err := models.ValidatePromoCode(db, code, totalAmount)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	discount := calculatePromoDiscount(promoData, totalAmount)
+	discount := calculatePromoDiscount(promoData, totalAmount, order)
 	if discount < 0 {
 		return 0, 0, fmt.Errorf("unsupported discount type")
 	}
@@ -936,19 +990,39 @@ func applyPromoCodeDiscount(db models.DBExecutor, totalAmount, totalDiscount flo
 	return totalAmount, totalDiscount, nil
 }
 
-func calculatePromoDiscount(promoData dtos.PromoCodeData, totalAmount float64) float64 {
+func calculatePromoDiscount(promoData dtos.PromoCodeData, totalAmount float64, order dtos.OrderRequest) float64 {
 	var discount float64
-	switch promoData.DiscountType {
-	case "FIXED":
-		discount = promoData.DiscountValue
-	case "PERCENTAGE":
-		discount = (totalAmount * promoData.DiscountValue) / 100
-	default:
-		return -1
-	}
+	promoType := strings.ToLower(*promoData.PromoType)
 
-	if discount > totalAmount {
-		discount = totalAmount
+	if promoType == "brand" && promoData.BrandID != nil && *promoData.BrandID != "" {
+		var items []dtos.CartItem
+		for _, orderItem := range order.OrderItems {
+			items = append(items, dtos.CartItem{
+				Quantity: orderItem.Quantity,
+				Product: dtos.Product{
+					ID:    orderItem.ProductID,
+					Price: orderItem.UnitPrice,
+				},
+			})
+		}
+		brandDiscount, err := calculateBrandDiscount(*promoData.BrandID, items, promoData)
+		if err != nil {
+			return 0
+		}
+		discount = brandDiscount
+	} else {
+		switch promoData.DiscountType {
+		case "FIXED":
+			discount = promoData.DiscountValue
+		case "PERCENTAGE":
+			discount = (totalAmount * promoData.DiscountValue) / 100
+		default:
+			return -1
+		}
+
+		if discount > totalAmount {
+			discount = totalAmount
+		}
 	}
 	return discount
 }

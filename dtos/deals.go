@@ -13,6 +13,8 @@ type CreateDeal struct {
 	StartDate   time.Time `json:"start_date" validate:"required"`
 	EndDate     time.Time `json:"end_date" validate:"required"`
 	Image       string
+	DealType    string
+	BrandID     *string
 }
 type Deal struct {
 	DealID    string        `json:"deal_id"`
@@ -23,6 +25,8 @@ type Deal struct {
 	Link      string        `json:"link"`
 	Products  []DealProduct `json:"products"`
 	Image     *string       `json:"image"`
+	DealType  string        `json:"deal_type"`
+	BrandID   *string       `json:"brand_id"`
 }
 
 type UpdateDeal struct {
@@ -32,6 +36,8 @@ type UpdateDeal struct {
 	IsActive  *bool          `json:"is_active" validate:"omitempty"`
 	Products  []ProductsDeal `json:"products" validate:"dive"`
 	Image     *string        `json:"image"`
+	DealType  string         `json:"deal_type"`
+	BrandID   *string        `json:"brand_id"`
 }
 
 type DealWithProducts struct {
@@ -43,6 +49,8 @@ type DealWithProducts struct {
 	IsActive  bool          `json:"status"`
 	Link      string        `json:"link"`
 	Products  []DealProduct `json:"products"`
+	DealType  string        `json:"deal_type"`
+	BrandID   *string       `json:"brand_id"`
 }
 
 type ProductDeal struct {
@@ -54,7 +62,9 @@ type FlashDealProducts struct {
 	Title    string         `json:"title"`
 	Image    string         `json:"image"`
 	Duration string         `json:"duration"`
-	Products []ProductsDeal `json:"products" validate:"dive"`
+	Products []ProductsDeal `json:"products" validate:"required,dive"`
+	DealType string         `json:"deal_type" validate:"required"`
+	BrandID  *string        `json:"brand_id"`
 }
 type ProductsDeal struct {
 	ProductID    string        `json:"product_id" validate:"required"`

@@ -443,9 +443,9 @@ func AddPromoCode(db DBExecutor, input dtos.PromoCodeRequest) (*dtos.PromoCodeRe
 
 	// Insert promo code
 	_, err = db.Exec(`
-		INSERT INTO promocodes (promo_code_id, code, description, discount_type, discount_value, expires_at, is_active, minimum_order_value, maximum_use)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, code, input.Description, input.DiscountType, input.DiscountValue, expiryTime, input.IsActive, input.MinimumOrderValue, input.MaximumUse,
+		INSERT INTO promocodes (promo_code_id, code, description, discount_type, discount_value, expires_at, is_active, minimum_order_value, maximum_use, promo_type, brand_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, code, input.Description, input.DiscountType, input.DiscountValue, expiryTime, input.IsActive, input.MinimumOrderValue, input.MaximumUse, input.PromoType, input.BrandID,
 	)
 	if err != nil {
 		return nil, err
@@ -499,9 +499,9 @@ func UpdatePromoCode(db DBExecutor, id string, input dtos.PromoCodeRequest) (*dt
 	// Update promo code attributes (code itself is not updated)
 	_, err = db.Exec(`
 		UPDATE promocodes
-		SET code = ?, description = ?, discount_type = ?, discount_value = ?, expires_at = ?, is_active = ?, minimum_order_value = ?, maximum_use = ?
+		SET code = ?, description = ?, discount_type = ?, discount_value = ?, expires_at = ?, is_active = ?, minimum_order_value = ?, maximum_use = ?, promo_type = ?, brand_id = ?
 		WHERE promo_code_id = ?`,
-		input.Discount_Code, input.Description, input.DiscountType, input.DiscountValue, input.ExpiresAt, input.IsActive, input.MinimumOrderValue, input.MaximumUse, id,
+		input.Discount_Code, input.Description, input.DiscountType, input.DiscountValue, input.ExpiresAt, input.IsActive, input.MinimumOrderValue, input.MaximumUse, input.PromoType, input.BrandID, id,
 	)
 	if err != nil {
 		return nil, err
@@ -522,6 +522,7 @@ func UpdatePromoCode(db DBExecutor, id string, input dtos.PromoCodeRequest) (*dt
 //   - DiscountType, DiscountValue
 //   - ExpiresAt, IsActive
 //   - MinimumOrderValue, MaximumUse, TimesUsed
+//   - PromoType, BrandID
 //   - error: "promo code not found", nil if not found (sql.ErrNoRows), or database error
 func GetPromoCodeByID(db DBExecutor, id string) (*dtos.PromoCodeResponse, error) {
 	// Validate promo code exists
@@ -532,12 +533,12 @@ func GetPromoCodeByID(db DBExecutor, id string) (*dtos.PromoCodeResponse, error)
 
 	// Query promo code details
 	row := db.QueryRow(`
-		SELECT promo_code_id, code, description, discount_type, discount_value, expires_at, is_active, minimum_order_value, maximum_use, times_used
+		SELECT promo_code_id, code, description, discount_type, discount_value, expires_at, is_active, minimum_order_value, maximum_use, times_used, promo_type, brand_id
 		FROM promocodes WHERE promo_code_id = ?`, id,
 	)
 
 	var pc dtos.PromoCodeResponse
-	if err := row.Scan(&pc.ID, &pc.Code, &pc.Description, &pc.DiscountType, &pc.DiscountValue, &pc.ExpiresAt, &pc.IsActive, &pc.MinimumOrderValue, &pc.MaximumUse, &pc.TimesUsed); err != nil {
+	if err := row.Scan(&pc.ID, &pc.Code, &pc.Description, &pc.DiscountType, &pc.DiscountValue, &pc.ExpiresAt, &pc.IsActive, &pc.MinimumOrderValue, &pc.MaximumUse, &pc.TimesUsed, &pc.PromoType, &pc.BrandID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -572,7 +573,7 @@ func GetAllPromoCodes(db DBExecutor, page, size int) ([]dtos.PromoCodeResponse, 
 
 	// Query all promo codes (no LIMIT/OFFSET applied)
 	rows, err := db.Query(`
-		SELECT promo_code_id, code, description, discount_type, discount_value, expires_at, is_active, minimum_order_value, maximum_use, times_used FROM promocodes ORDER BY created_at DESC`)
+		SELECT promo_code_id, code, description, discount_type, discount_value, expires_at, is_active, minimum_order_value, maximum_use, times_used, promo_type, brand_id FROM promocodes ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -582,7 +583,7 @@ func GetAllPromoCodes(db DBExecutor, page, size int) ([]dtos.PromoCodeResponse, 
 	var promos []dtos.PromoCodeResponse
 	for rows.Next() {
 		var pc dtos.PromoCodeResponse
-		if err := rows.Scan(&pc.ID, &pc.Code, &pc.Description, &pc.DiscountType, &pc.DiscountValue, &pc.ExpiresAt, &pc.IsActive, &pc.MinimumOrderValue, &pc.MaximumUse, &pc.TimesUsed); err != nil {
+		if err := rows.Scan(&pc.ID, &pc.Code, &pc.Description, &pc.DiscountType, &pc.DiscountValue, &pc.ExpiresAt, &pc.IsActive, &pc.MinimumOrderValue, &pc.MaximumUse, &pc.TimesUsed, &pc.PromoType, &pc.BrandID); err != nil {
 			return nil, nil, err
 		}
 		promos = append(promos, pc)

@@ -24,6 +24,7 @@ type Order struct {
 	Items                []OrderProduct       `json:"items"`
 	UserAddress          *[]UserAddress       `json:"user_address"`
 	UserID               *string              `json:"user_id,omitempty"`
+	OrderSource          *string              `json:"order_source,omitempty"`
 }
 type AdminOrder struct {
 	OrderID              string               `json:"order_id"`
@@ -47,6 +48,7 @@ type AdminOrder struct {
 	Items                []OrderProduct       `json:"items"`
 	User                 *Users               `json:"user"`
 	Rider                *Rider               `json:"rider"`
+	OrderSource          *string              `json:"order_source,omitempty"`
 }
 type GuestPersonalDetails struct {
 	FirstName *string `json:"first_name"`
@@ -197,6 +199,7 @@ type OrderRequest struct {
 	OrderItems           []OrderItemRequest    `json:"order_items" validate:"required,dive"`
 	DeliveryCharge       float64               `json:"delivery_charge" validate:"required"`
 	DeliveryAddress      string                `json:"delivery_address" validate:"required"`
+	OrderSource          *string               `json:"order_source,omitempty"`
 }
 type CreateOrderPayload struct {
 	IsGuestOrder         *bool                 `json:"is_guest_order"`
@@ -206,6 +209,7 @@ type CreateOrderPayload struct {
 	DeliveryAddressID    *int64                `json:"location_id,omitempty"`
 	PromoCode            *string               `json:"promo_code,omitempty"`
 	StoreID              *string               `json:"store_id,omitempty"`
+	OrderSource          *string               `json:"order_source,omitempty"`
 }
 type OrderItemPayload struct {
 	ProductID string `json:"product_id" validate:"required"`

@@ -202,7 +202,29 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Continue even if no image was uploaded
 	isActive := models.StringToBool(r.FormValue("is_active"))
-	products, err := parseProducts(r.FormValue("deal_products"))
+	dealType := r.FormValue("deal_type")
+	brandID := r.FormValue("brand_id")
+	if dealType == "" {
+		dealType = "product"
+	}
+	brandDiscount := r.FormValue("discount")
+	brandDiscountType := r.FormValue("discount_type")
+	if dealType == "brand" && (brandID == "" || brandDiscount == "" || brandDiscountType == "") {
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Deals",
+				Description: "Brand ID, discount, and discount type are required for brand deals",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   "Brand ID, discount, and discount type are required for brand deals",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
+	products, err := parseProducts(r.FormValue("deal_products"), brandID, dealType, brandDiscount, brandDiscountType)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -223,6 +245,8 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 		EndDate:   models.StringToTime(r.FormValue("end_date")),
 		IsActive:  &isActive,
 		Products:  products,
+		DealType:  dealType,
+		BrandID:   &brandID,
 	}
 
 	// Only set image if it was uploaded
@@ -536,7 +560,7 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dealID, err := createDeal(req.Title, startDate, endDate, req.Image)
+	dealID, err := createDeal(req, startDate, endDate)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -576,38 +600,64 @@ func parseDealProductRequest(r *http.Request) (*dtos.FlashDealProducts, error) {
 		return nil, fmt.Errorf("failed to parse form: %w", err)
 	}
 
-	file, header, err := r.FormFile("image")
+	file, _, err := r.FormFile("image")
 	if err != nil {
 		return nil, fmt.Errorf("image is required")
 	}
 	defer file.Close()
 
 	// Upload to GCS (placeholder)
-	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
-	if err != nil {
-		return nil, fmt.Errorf("%s", "Failed to upload image")
-	}
+	// url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
+	// if err != nil {
+	// 	return nil, fmt.Errorf("%s", "Failed to upload image")
+	// }
 
-	products, err := parseProducts(r.FormValue("products"))
+	url := "https://example.com/image.jpg" // Placeholder URL since GCS upload is not implemented here
+
+	dealType := r.FormValue("deal_type")
+	brandID := r.FormValue("brand_id")
+	if dealType == "" {
+		dealType = "product"
+	}
+	brandDiscount := r.FormValue("discount")
+	brandDiscountType := r.FormValue("discount_type")
+	if dealType == "brand" && (brandID == "" || brandDiscount == "" || brandDiscountType == "") {
+		return nil, fmt.Errorf("brand ID, discount, and discount type are required for brand deals")
+	}
+	products, err := parseProducts(r.FormValue("products"), brandID, dealType, brandDiscount, brandDiscountType)
 	if err != nil {
 		return nil, err
 	}
-
 	return &dtos.FlashDealProducts{
 		Title:    r.FormValue("title"),
 		Image:    url,
 		Duration: r.FormValue("duration"),
 		Products: products,
+		DealType: dealType,
+		BrandID:  &brandID,
 	}, nil
 }
-func parseProducts(productsStr string) ([]dtos.ProductsDeal, error) {
-	if productsStr == "" {
-		return []dtos.ProductsDeal{}, nil
-	}
-
+func parseProducts(productsStr string, brandID, dealType, brandDiscount, brandDiscountType string) ([]dtos.ProductsDeal, error) {
 	var products []dtos.ProductsDeal
-	if err := json.Unmarshal([]byte(productsStr), &products); err != nil {
-		return nil, fmt.Errorf("invalid products format: %w", err)
+	if dealType == "product" {
+		if productsStr == "" {
+			return products, nil
+		}
+
+		if err := json.Unmarshal([]byte(productsStr), &products); err != nil {
+			return nil, fmt.Errorf("invalid products format: %w", err)
+		}
+		if len(products) == 0 {
+			return products, fmt.Errorf("products array cannot be empty for product deals")
+		}
+	} else if dealType == "brand" {
+		var err error
+		products, err = models.GetProductIDsByBrandID(models.DB, brandID, brandDiscount, brandDiscountType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get products by brand ID: %w", err)
+		}
+	} else {
+		return nil, fmt.Errorf("invalid deal type: %s", dealType)
 	}
 	return products, nil
 }
@@ -642,12 +692,14 @@ func parseDuration(duration string) (time.Time, time.Time, error) {
 	}
 	return models.StringToTime(startStr), models.StringToTime(endStr), nil
 }
-func createDeal(title string, startDate, endDate time.Time, image string) (string, error) {
+func createDeal(req *dtos.FlashDealProducts, startDate, endDate time.Time) (string, error) {
 	dealData := dtos.CreateDeal{
-		Name:      title,
+		Name:      req.Title,
 		StartDate: startDate,
 		EndDate:   endDate,
-		Image:     image,
+		Image:     req.Image,
+		DealType:  req.DealType,
+		BrandID:   req.BrandID,
 	}
 	return models.CreateDeal(models.DB, dealData)
 }

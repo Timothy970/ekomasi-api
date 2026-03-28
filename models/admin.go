@@ -168,7 +168,7 @@ func ValidatePromoCode(db DBExecutor, voucherCode string, orderValue float64) (d
 	var isActive bool
 	// Query promo code details from database
 	err := db.QueryRow(`
-	SELECT discount_type, expires_at, is_active, discount_value, minimum_order_value, maximum_use
+	SELECT discount_type, expires_at, is_active, discount_value, minimum_order_value, maximum_use, promo_type, brand_id
 	FROM promocodes 
 	WHERE code = ?
 `, voucherCode).Scan(
@@ -178,6 +178,8 @@ func ValidatePromoCode(db DBExecutor, voucherCode string, orderValue float64) (d
 		&promoCode.DiscountValue,
 		&promoCode.MinimumOrderValue,
 		&promoCode.MaximumUse,
+		&promoCode.PromoType,
+		&promoCode.BrandID,
 	)
 
 	if err != nil {

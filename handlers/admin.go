@@ -5,6 +5,7 @@ import (
 	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"mime/multipart"
@@ -666,4 +667,148 @@ func UploadImageHandler2(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary,
 	})
+}
+
+// GetAllSubscribersHandler retrieves a paginated list of newsletter subscribers.
+//
+// @Summary      Get all subscribers
+// @Description  Retrieve a paginated list of newsletter subscribers with optional filtering
+// @Tags         Admin
+// @Produce      json
+// @Param        page        query     int     false  "Page number"
+// @Param        size        query     int     false  "Page size"
+// @Param        q           query     string  false  "Search query"
+// @Param        start_date  query     string  false  "Start date (YYYY-MM-DD)"
+// @Param        end_date    query     string  false  "End date (YYYY-MM-DD)"
+// @Success      200         {object}  map[string]interface{}
+// @Failure      401         {object}  dtos.ErrorResponse
+// @Failure      500         {object}  dtos.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/admin/subscribers [get]
+func GetAllSubscribersHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Ensure user is admin
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Subscribers", "subscribers.view"); !ok {
+		return
+	}
+
+	// Parse pagination and filters
+	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	q := r.URL.Query().Get("q")
+	startDate := r.URL.Query().Get("start_date")
+	endDate := r.URL.Query().Get("end_date")
+
+	offset := (page - 1) * size
+
+	// Fetch subscribers
+	subscribers, meta, err := models.GetAllSubscribers(models.DB, size, offset, q, startDate, endDate)
+	if err != nil {
+		log.Printf("Error fetching subscribers: %v", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Subscribers",
+				Description: "Failed to fetch subscribers",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Respond with data
+	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		CollectiveInfo: utils.CollectiveInfo{
+			Module:      "Subscribers",
+			Description: "Subscribers fetched successfully",
+			Code:        http.StatusOK,
+		},
+		Payload: map[string]interface{}{
+			"subscribers": subscribers,
+			"pagination":  meta,
+		},
+		Message:   "Subscribers fetched successfully",
+		TimeTaken: time.Since(start),
+		Function:  utils.GetCurrentFuncName(),
+		Request:   r,
+		RawBody:   requestSummary,
+	})
+}
+
+// DownloadSubscribersCSVHandler downloads the subscriber list as a CSV.
+//
+// @Summary      Download subscribers CSV
+// @Description  Download a CSV file containing all subscribers or filtered results
+// @Tags         Admin
+// @Produce      text/csv
+// @Param        q           query     string  false  "Search query"
+// @Param        start_date  query     string  false  "Start date (YYYY-MM-DD)"
+// @Param        end_date    query     string  false  "End date (YYYY-MM-DD)"
+// @Success      200         {file}    file
+// @Security     BearerAuth
+// @Router       /api/admin/subscribers/csv [get]
+func DownloadSubscribersCSVHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Ensure user is admin
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Subscribers", "subscribers.view"); !ok {
+		return
+	}
+
+	// Parse filters (ignore pagination for CSV export)
+	q := r.URL.Query().Get("q")
+	startDate := r.URL.Query().Get("start_date")
+	endDate := r.URL.Query().Get("end_date")
+
+	// Fetch subscribers - using a large limit for export
+	subscribers, _, err := models.GetAllSubscribers(models.DB, 1000000, 0, q, startDate, endDate)
+	if err != nil {
+		log.Printf("Error fetching subscribers for CSV: %v", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Subscribers",
+				Description: "Failed to fetch subscribers for CSV",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Set headers for CSV download
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=subscribers.csv")
+
+	// Initialize CSV writer
+	writer := csv.NewWriter(w)
+	defer writer.Flush()
+
+	// Write header row
+	header := []string{"Email", "Date Subscribed"}
+	if err := writer.Write(header); err != nil {
+		log.Printf("Error writing CSV header: %v", err)
+		return
+	}
+
+	// Write data rows
+	for _, s := range subscribers {
+		row := []string{
+			s.Email,
+			s.CreatedAt,
+		}
+		if err := writer.Write(row); err != nil {
+			log.Printf("Error writing CSV row: %v", err)
+			return
+		}
+	}
 }

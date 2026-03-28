@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/teris-io/shortid"
 )
@@ -54,7 +55,7 @@ func CreateDeal(db DBExecutor, deal dtos.CreateDeal) (string, error) {
 	dealID, _ := shortid.Generate()
 
 	// Insert new deal into database
-	_, err = db.Exec(`INSERT INTO deals (deal_id, name, description, discount, start_date, end_date, image) VALUES (?, ?, ?, ?, ?, ?, ?)`, dealID, deal.Name, deal.Description, deal.Discount, deal.StartDate, deal.EndDate, deal.Image)
+	_, err = db.Exec(`INSERT INTO deals (deal_id, name, description, discount, start_date, end_date, image, deal_type, brand_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, dealID, deal.Name, deal.Description, deal.Discount, deal.StartDate, deal.EndDate, deal.Image, deal.DealType, deal.BrandID)
 	if err != nil {
 		return "", err
 	}
@@ -100,9 +101,10 @@ func GetAllDeals(db DBExecutor, page, size int, isAdmin bool) ([]dtos.Deal, *dto
 
 	// Data query
 	dataQuery := fmt.Sprintf(`
-		SELECT deal_id, name, start_date, end_date, is_active, image
+		SELECT deal_id, name, start_date, end_date, is_active, image, deal_type, brand_id
 		FROM deals
 		%s
+		ORDER BY created_at desc
 		LIMIT ? OFFSET ?
 	`, whereClause)
 
@@ -118,7 +120,7 @@ func GetAllDeals(db DBExecutor, page, size int, isAdmin bool) ([]dtos.Deal, *dto
 	// Iterate through deals and fetch associated products
 	for rows.Next() {
 		var d dtos.Deal
-		if err := rows.Scan(&d.DealID, &d.Name, &d.StartDate, &d.EndDate, &d.IsActive, &d.Image); err != nil {
+		if err := rows.Scan(&d.DealID, &d.Name, &d.StartDate, &d.EndDate, &d.IsActive, &d.Image, &d.DealType, &d.BrandID); err != nil {
 			return nil, nil, err
 		}
 
@@ -192,14 +194,14 @@ func UpdateDeal(db DBExecutor, dealID string, deal dtos.UpdateDeal) error {
 
 	// If image is provided, update including image field
 	if deal.Image != nil {
-		_, err := db.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ?, is_active = ?, image = ? WHERE deal_id = ?`,
-			deal.Name, deal.StartDate, deal.EndDate, *deal.IsActive, deal.Image, dealID)
+		_, err := db.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ?, is_active = ?, image = ?, deal_type = ?, brand_id = ? WHERE deal_id = ?`,
+			deal.Name, deal.StartDate, deal.EndDate, *deal.IsActive, deal.Image, deal.DealType, deal.BrandID, dealID)
 		return err
 	}
 
 	// Otherwise, update without changing image
-	_, err := db.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ?, is_active = ? WHERE deal_id = ?`,
-		deal.Name, deal.StartDate, deal.EndDate, *deal.IsActive, dealID)
+	_, err := db.Exec(`UPDATE deals SET name = ?, start_date = ?, end_date = ?, is_active = ?, deal_type = ?, brand_id = ? WHERE deal_id = ?`,
+		deal.Name, deal.StartDate, deal.EndDate, *deal.IsActive, deal.DealType, deal.BrandID, dealID)
 	if err != nil {
 		return err
 	}
@@ -355,7 +357,7 @@ func GetDealWithProducts(db DBExecutor, dealID string, page, limit int) (*dtos.D
 	// Query deal details
 	query := `
 		SELECT 
-			d.deal_id, d.name, d.start_date, d.end_date, d.is_active, d.image
+			d.deal_id, d.name, d.start_date, d.end_date, d.is_active, d.image, d.deal_type, d.brand_id
 		FROM deals d
 		WHERE d.deal_id = ?
 	`
@@ -370,7 +372,7 @@ func GetDealWithProducts(db DBExecutor, dealID string, page, limit int) (*dtos.D
 	)
 
 	// Scan deal fields, handling nullable columns
-	if err := row.Scan(&deal.DealID, &name, &startDate, &endDate, &deal.IsActive, &deal.Image); err != nil {
+	if err := row.Scan(&deal.DealID, &name, &startDate, &endDate, &deal.IsActive, &deal.Image, &deal.DealType, &deal.BrandID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, dtos.PaginationMeta{}, fmt.Errorf("deal not found")
 		}
@@ -625,4 +627,42 @@ func GetProductDiscount(db DBExecutor, productID string) (float64, string, error
 		return 0, "", err
 	}
 	return discount, discountType, nil
+}
+
+//helper funtion to return product in a deal
+// params: brandID, dealType, brandDiscount, brandDiscountType
+//returns: []dtos.ProductsDeal, error
+
+func GetProductIDsByBrandID(db DBExecutor, brandID, brandDiscount, brandDiscountType string) ([]dtos.ProductsDeal, error) {
+	var products []dtos.ProductsDeal
+	var productIds []string
+	discountValue, err := strconv.ParseFloat(brandDiscount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid brand discount %q", brandDiscount)
+	}
+	parsedDiscount := dtos.FloatOrString(discountValue)
+
+	rows, err := db.Query(`SELECT product_id FROM product_variants WHERE variant_id = ?`, brandID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var productID string
+		if err := rows.Scan(&productID); err != nil {
+			return nil, err
+		}
+		productIds = append(productIds, productID)
+	}
+	if len(productIds) == 0 {
+		return nil, fmt.Errorf("no products found for brand ID %s", brandID)
+	}
+	for _, productID := range productIds {
+		products = append(products, dtos.ProductsDeal{
+			ProductID:    productID,
+			Discount:     parsedDiscount,
+			DiscountType: brandDiscountType,
+		})
+	}
+	return products, nil
 }

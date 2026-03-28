@@ -14,4 +14,6 @@ type PromoCodeData struct {
 	DiscountValue     float64  `json:"discount_value"`
 	MinimumOrderValue *float64 `json:"minimum_order_value"`
 	MaximumUse        int      `json:"maximum_use"`
+	PromoType         *string  `json:"promo_type"`
+	BrandID           *string  `json:"brand_id"`
 }

@@ -13,6 +13,7 @@ import (
 	"adenzo_backend/middleware"
 	"adenzo_backend/models"
 	"adenzo_backend/utils"
+	"encoding/csv"
 
 	"github.com/gorilla/mux"
 )
@@ -84,6 +85,22 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
+	if input.Phonenumber != "" {
+		if !utils.IsValidKenyanPhone(input.Phonenumber) {
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Users",
+					Description: "Invalid phone number format",
+					Code:        http.StatusBadRequest,
+				},
+				Message:   "Invalid phone number format",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+	}
 
 	// Create the user in the database
 	user, err := models.CreateUser(models.DB, *input)
@@ -146,17 +163,7 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse pagination parameters
-	pageStr := r.URL.Query().Get("page")
-	limitStr := r.URL.Query().Get("limit")
-
-	page, _ := strconv.Atoi(pageStr)
-	limit, _ := strconv.Atoi(limitStr)
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 10
-	}
+	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
 
 	// Get filter parameters: query (name, phone, email) and role
 	q := r.URL.Query().Get("q")
@@ -1902,4 +1909,83 @@ func DeletePartner(w http.ResponseWriter, r *http.Request) {
 		Function:  utils.GetCurrentFuncName(),
 		Request:   r,
 		RawBody:   requestSummary})
+}
+
+// DownloadUsersCSVHandler downloads the user list as a CSV.
+//
+// @Summary      Download users CSV
+// @Description  Download a CSV file containing all users or filtered results by search, role, or isAdmin
+// @Tags         Admin
+// @Produce      text/csv
+// @Param        q        query     string  false  "Search query (name, phone, email)"
+// @Param        role     query     string  false  "Filter by role"
+// @Param        isAdmin  query     string  false  "Filter by admin status"
+// @Success      200      {file}    file
+// @Security     BearerAuth
+// @Router       /api/admin/users/csv [get]
+func DownloadUsersCSVHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestSummary := utils.GetRequestSummary(r)
+
+	// Check if the requesting user has admin privileges
+	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", ""); !ok {
+		return
+	}
+
+	// Parse filters (ignore pagination for CSV export)
+	q := r.URL.Query().Get("q")
+	role := r.URL.Query().Get("role")
+	isAdmin := r.URL.Query().Get("isAdmin")
+
+	// Fetch users - using a large limit for export
+	users, _, err := models.GetAllUsersWithPagination(models.DB, 1000000, 0, q, role, isAdmin)
+	if err != nil {
+		log.Printf("Error fetching users for CSV: %v", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Failed to fetch users for CSV",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	// Set headers for CSV download
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=users.csv")
+
+	// Initialize CSV writer
+	writer := csv.NewWriter(w)
+	defer writer.Flush()
+
+	// Write header row
+	header := []string{"First Name", "Last Name", "Email", "Phone", "Role", "Status", "Date Joined", "Last Login"}
+	if err := writer.Write(header); err != nil {
+		log.Printf("Error writing CSV header: %v", err)
+		return
+	}
+
+	// Write data rows
+	for _, u := range users {
+		row := []string{
+			u.FirstName,
+			u.LastName,
+			u.Email,
+			u.Phone,
+			u.Role,
+			u.Status,
+			u.DateJoined,
+			u.LastLogin,
+		}
+		if err := writer.Write(row); err != nil {
+			log.Printf("Error writing CSV row: %v", err)
+			return
+		}
+	}
 }

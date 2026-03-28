@@ -866,3 +866,85 @@ func DeletePartnerByID(db DBExecutor, partnerID string) error {
 	_, err = db.Exec("DELETE FROM partners WHERE partner_id = ?", partnerID)
 	return err
 }
+
+// GetAllSubscribers retrieves all newsletter subscribers.
+//
+// This function returns subscribers ordered by creation date (newest first).
+//
+// Parameters:
+//   - db: DBExecutor - The database executor
+//
+// filters:
+//
+//	q - string - Search query (case-insensitive) across email
+//
+// startDate - string - Filter subscribers created after this date (YYYY-MM-DD)
+// endDate - string - Filter subscribers created before this date (YYYY-MM-DD)
+//
+// Returns:
+//   - []dtos.Subscriber: List of subscribers
+//   - error: Database error or nil on success
+func GetAllSubscribers(db DBExecutor, size, limit int, q string, startDate string, endDate string) ([]dtos.Subscriber, *dtos.PaginationMeta, error) {
+	var conditions []string
+	var args []interface{}
+
+	countQuery := "SELECT COUNT(*) FROM subscribers"
+	selectQuery := `
+		SELECT subscriber_id, email, created_at
+		FROM subscribers`
+
+	// Add search filter
+	if q != "" {
+		conditions = append(conditions, "LOWER(email) LIKE ?")
+		args = append(args, "%"+strings.ToLower(q)+"%")
+	}
+	// Add date filters
+	if startDate != "" && endDate != "" {
+		newStartDate := StringToTime(startDate)
+		newEndDate := StringToTime(endDate)
+		conditions = append(conditions, "created_at BETWEEN ? AND ?")
+		args = append(args, newStartDate, newEndDate)
+	}
+	// Combine conditions
+	if len(conditions) > 0 {
+		whereClause := " WHERE " + strings.Join(conditions, " AND ")
+		countQuery += whereClause
+		selectQuery += whereClause
+	}
+	// Add ordering and pagination
+	selectQuery += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	argsWithPagination := append(args, size, limit)
+
+	// Execute count query
+	var totalItems int
+	if err := db.QueryRow(countQuery, args...).Scan(&totalItems); err != nil {
+		return nil, nil, fmt.Errorf("failed to count subscribers: %w", err)
+	}
+	// Execute select query
+	rows, err := db.Query(selectQuery, argsWithPagination...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to query subscribers: %w", err)
+	}
+	defer rows.Close()
+
+	var subscribers []dtos.Subscriber
+	for rows.Next() {
+		var s dtos.Subscriber
+		if err := rows.Scan(&s.SubscriberID, &s.Email, &s.CreatedAt); err != nil {
+			return nil, nil, fmt.Errorf("failed to scan subscriber: %w", err)
+		}
+		subscribers = append(subscribers, s)
+	}
+
+	page := (limit / size) + 1
+	totalPages := int(math.Ceil(float64(totalItems) / float64(size)))
+	meta := &dtos.PaginationMeta{
+		Page:       page,
+		Size:       size,
+		TotalItems: totalItems,
+		TotalPages: totalPages,
+		HasPrev:    page > 1,
+		HasNext:    page < totalPages,
+	}
+	return subscribers, meta, nil
+}
