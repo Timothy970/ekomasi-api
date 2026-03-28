@@ -37,6 +37,8 @@ type PromoCodeRequest struct {
 	Discount_Code     string   `json:"discount_code"`
 	MinimumOrderValue *float64 `json:"minimum_order_value"`
 	MaximumUse        int      `json:"maximum_use"`
+	PromoType         string   `json:"promo_type" validate:"required"`
+	BrandID           *string  `json:"brand_id"`
 }
 
 type PromoCodeResponse struct {
@@ -50,6 +52,8 @@ type PromoCodeResponse struct {
 	MinimumOrderValue *float64  `json:"minimum_order_value"`
 	MaximumUse        int       `json:"maximum_use"`
 	TimesUsed         int       `json:"times_used"`
+	PromoType         string    `json:"promo_type"`
+	BrandID           *string   `json:"brand_id"`
 }
 
 type AddPromotionToProductRequest struct {

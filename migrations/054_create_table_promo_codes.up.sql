@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS promocodes (
     minimum_order_value DECIMAL(10, 2),
     maximum_use    INT DEFAULT 1,
     times_used     INT DEFAULT 0,
+    promo_type     VARCHAR(50) NOT NULL DEFAULT 'product',
+    brand_id       CHAR(36) DEFAULT NULL,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

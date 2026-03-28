@@ -1,8 +1,13 @@
 package dtos
 
 type CashPayment struct {
-	Amount  float64 `json:"amount" binding:"required"`
-	OrderID string  `json:"order_id" binding:"required"`
+	Amount  float64 `json:"amount" validate:"required"`
+	OrderID string  `json:"order_id" validate:"required"`
+	// PromoCode *string `json:"promo_code"`
+}
+
+type CreditPayment struct {
+	OrderID string `json:"order_id" validate:"required"`
 	// PromoCode *string `json:"promo_code"`
 }
 
@@ -15,12 +20,12 @@ type PaymentMethod struct {
 }
 
 type SplitPaymentRequest struct {
-	OrderID        string          `json:"order_id" binding:"required"`
-	PaymentMethods []PaymentMethod `json:"payments" binding:"required,dive,required"`
+	OrderID        string          `json:"order_id" validate:"required"`
+	PaymentMethods []PaymentMethod `json:"payments" validate:"required,dive,required"`
 }
 
 type VoucherPayment struct {
-	VoucherCode string `json:"voucher_code" binding:"required"`
-	OrderID     string `json:"order_id" binding:"required"`
+	VoucherCode string `json:"voucher_code" validate:"required"`
+	OrderID     string `json:"order_id" validate:"required"`
 	// PromoCode *string `json:"promo_code"`
 }

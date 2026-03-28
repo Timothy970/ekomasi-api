@@ -798,6 +798,32 @@ func AddNewProduct(db DBExecutor, input dtos.CreateProduct, userID string) (*dto
 	}, nil
 }
 
+// IsProductInBrand checks if a product belongs to a specific brand.
+// Under product_variants table the variant_id is the brand_id and there is product_id.
+//
+// Parameters:
+//   - db: DBExecutor
+//   - productID: The product ID to check
+//   - brandID: The brand ID (variant_id) to check against
+//
+// Returns:
+//   - bool: true if the product belongs to the brand
+//   - error: Database error or nil on success
+func IsProductInBrand(db DBExecutor, productID string, brandID string) (bool, error) {
+	var exists bool
+	query := `
+		SELECT EXISTS(
+			SELECT 1 FROM product_variants 
+			WHERE product_id = ? AND variant_id = ?
+		)
+	`
+	err := db.QueryRow(query, productID, brandID).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 // UpdateProductByID updates an existing product with SKU uniqueness validation.
 //
 // This function updates product details while ensuring the SKU remains unique

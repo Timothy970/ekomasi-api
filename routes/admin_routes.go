@@ -69,11 +69,12 @@ func SetupAdminRoutes(api *mux.Router) {
 	admin.Handle("/products/categories/{category_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateCategoryHandler))).Methods("PATCH")
 	admin.Handle("/products/categories/{category_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteCategoryHandler))).Methods("DELETE")
 
-	// Admin user management
-	admin.Handle("/users", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddUser))).Methods("POST")
+	// Register handlers for general user management
 	admin.Handle("/users", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllUsers))).Methods("GET")
+	admin.Handle("/users", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddUser))).Methods("POST")
+	admin.Handle("/users/csv", middleware.AuthenticateToken(http.HandlerFunc(handlers.DownloadUsersCSVHandler))).Methods("GET")
+	admin.Handle("/users/{user_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserByID))).Methods("GET")
 	adminUser := admin.PathPrefix("/users/{user_id}").Subrouter()
-	adminUser.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserByID))).Methods("GET")
 	adminUser.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateUserByAdmin))).Methods("PATCH")
 	adminUser.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteUserByAdmin))).Methods("DELETE")
 	adminUser.Handle("/activate", middleware.AuthenticateToken(http.HandlerFunc(handlers.ActivateUserByAdmin))).Methods("PATCH")
@@ -272,4 +273,8 @@ func SetupAdminRoutes(api *mux.Router) {
 	// Admin partners
 	admin.Handle("/partners", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddPartner))).Methods("POST")
 	admin.Handle("/partners/{partner_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeletePartner))).Methods("DELETE")
+
+	// Admin subscribers
+	admin.Handle("/subscribers", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllSubscribersHandler))).Methods("GET")
+	admin.Handle("/subscribers/csv", middleware.AuthenticateToken(http.HandlerFunc(handlers.DownloadSubscribersCSVHandler))).Methods("GET")
 }

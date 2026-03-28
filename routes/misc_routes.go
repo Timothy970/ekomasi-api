@@ -109,6 +109,7 @@ func SetupMiscRoutes(api *mux.Router) {
 	pos := api.PathPrefix("/pos/").Subrouter()
 	pos.Handle("/scan/product", middleware.AuthenticateToken(http.HandlerFunc(handlers.ScanProductsHandler))).Methods("GET")
 	pos.Handle("/cash/payment", middleware.AuthenticateToken(http.HandlerFunc(handlers.ProcessCashPaymentHandler))).Methods("POST")
+	pos.Handle("/credit/payment", middleware.AuthenticateToken(http.HandlerFunc(handlers.ProcessCreditPaymentHandler))).Methods("POST")
 	pos.Handle("/split/payment", middleware.AuthenticateToken(http.HandlerFunc(handlers.ProcessSplitPaymentHandler))).Methods("POST")
 	pos.Handle("/voucher/payment", middleware.AuthenticateToken(http.HandlerFunc(handlers.ProcessVoucherPaymentHandler))).Methods("POST")
 	pos.Handle("/print/{order_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.PrintReceiptHandler))).Methods("POST")

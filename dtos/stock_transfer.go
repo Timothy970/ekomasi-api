@@ -14,6 +14,7 @@ type StockTransferDTO struct {
 	Quantity        int       `json:"quantity" validate:"required"`
 	TransferDate    time.Time `json:"transfer_date"`
 	TransferDetails string    `json:"transfer_details,omitempty"`
+	Status          string    `json:"status"`
 }
 type StockTransferUpdateDTO struct {
 	TransferID      string    `json:"transfer_id"`

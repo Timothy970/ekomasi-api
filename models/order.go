@@ -60,10 +60,10 @@ func CreateOrder(db DBExecutor, req dtos.OrderRequest, totalAmount, totalDiscoun
 	_, err := db.Exec(`
 	INSERT INTO orders (
 		order_id, user_id, is_guest_order, status,
-		total_amount, total_discount, delivery_id, guest_personal_details, guest_delivery_address
-	) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)
+		total_amount, total_discount, delivery_id, guest_personal_details, guest_delivery_address, source
+	) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
 `, orderID, req.UserID, isGuest, totalAmount, totalDiscount, deliveryID,
-		guestPersonalDetailsJSON, guestDeliveryAddressJSON)
+		guestPersonalDetailsJSON, guestDeliveryAddressJSON, req.OrderSource)
 
 	if err != nil {
 		return "", "", err
@@ -221,7 +221,8 @@ func GetOrderByUser(db DBExecutor, orderID, userID string) (*dtos.Order, error) 
             o.guest_delivery_address,
             o.guest_personal_details,
             o.created_at,
-            o.is_guest_order
+            o.is_guest_order,
+			o.source
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
         WHERE o.order_id = ? AND o.user_id = ?`
@@ -245,6 +246,7 @@ func GetOrderByUser(db DBExecutor, orderID, userID string) (*dtos.Order, error) 
 		&guestDetailsStr,
 		&ord.CreatedAt,
 		&ord.IsGuestOrder,
+		&ord.OrderSource,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -328,7 +330,8 @@ func GetAllOrders(db DBExecutor, status *string) ([]dtos.Order, error) {
             o.guest_personal_details,
             o.created_at,
             o.user_id,
-			o.is_guest_order
+			o.is_guest_order,
+			o.source
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id`
 
@@ -370,6 +373,7 @@ func GetAllOrders(db DBExecutor, status *string) ([]dtos.Order, error) {
 			&ord.CreatedAt,
 			&userID,
 			&ord.IsGuestOrder,
+			&ord.OrderSource,
 		); err != nil {
 			return nil, err
 		}
@@ -453,7 +457,8 @@ func ListOrdersByUser(db DBExecutor, userID string, page, limit int) ([]dtos.Ord
             o.guest_delivery_address,
             o.guest_personal_details,
             o.created_at,
-			o.is_guest_order
+			o.is_guest_order,
+			o.source
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
         WHERE o.user_id = ?
@@ -488,6 +493,7 @@ func ListOrdersByUser(db DBExecutor, userID string, page, limit int) ([]dtos.Ord
 			&guestDetailsStr,
 			&ord.CreatedAt,
 			&ord.IsGuestOrder,
+			&ord.OrderSource,
 		); err != nil {
 			return nil, nil, err
 		}
@@ -588,7 +594,8 @@ func ListGuestOrders(db DBExecutor, orderID, email, phone string) (*dtos.Order, 
             o.guest_delivery_address,
             o.guest_personal_details,
             o.created_at,
-			o.is_guest_order
+			o.is_guest_order,
+			o.source
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
         WHERE o.order_id = ?
@@ -615,6 +622,7 @@ func ListGuestOrders(db DBExecutor, orderID, email, phone string) (*dtos.Order, 
 		&guestDetailsStr,
 		&ord.CreatedAt,
 		&ord.IsGuestOrder,
+		&ord.OrderSource,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -809,7 +817,8 @@ func GetOrderByID(db DBExecutor, orderID string) (*dtos.Order, error) {
             o.guest_personal_details,
             o.created_at,
             o.user_id,
-			o.is_guest_order
+			o.is_guest_order,
+			o.source
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
         WHERE o.order_id = ?`
@@ -834,6 +843,7 @@ func GetOrderByID(db DBExecutor, orderID string) (*dtos.Order, error) {
 		&ord.CreatedAt,
 		&userID,
 		&ord.IsGuestOrder,
+		&ord.OrderSource,
 	)
 
 	// Calculate tax and subtotal
@@ -1392,6 +1402,7 @@ func buildAdminOrderQuery(conds OrderConditions, limit, offset int) (string, []i
 			o.guest_personal_details,
 			o.created_at,
 			o.is_guest_order,
+			o.source,
 			d.delivered_at,
 			ro.rider_id AS rider_user_id,
 			rider.first_name AS rider_first_name,
@@ -1503,6 +1514,7 @@ func scanSingleAdminOrder(db DBExecutor, rows *sql.Rows) (dtos.AdminOrder, error
 		&guestDetailsStr,
 		&ord.CreatedAt,
 		&ord.IsGuestOrder,
+		&ord.OrderSource,
 		&deliveredAt,
 		&riderUserID,
 		&riderFirstName,
@@ -1819,14 +1831,13 @@ func UpdateOrderByRider(db DBExecutor, req dtos.UpdateOrderDeliveryStatusRequest
 	return err
 }
 
-
-//helper function to see if order belongs to a rider
+// helper function to see if order belongs to a rider
 func IsOrderAssignedToRider(db DBExecutor, orderID, riderID string) (bool, error) {
 	var existingRiderID sql.NullString
 	err := db.QueryRow(`SELECT rider_id FROM rider_orders WHERE order_id = ?`, orderID).Scan(&existingRiderID)
 	if err != nil && err != sql.ErrNoRows {
 		return false, err
-	}	
+	}
 	if existingRiderID.Valid && existingRiderID.String == riderID {
 		return true, nil
 	}

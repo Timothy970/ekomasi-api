@@ -26,7 +26,9 @@ type RegisterRequest struct {
 	RoleID      string `json:"role_id"`
 }
 type Subscriber struct {
-	Email string `json:"email" validate:"required,email"`
+	Email        string `json:"email" validate:"required,email"`
+	SubscriberID string `json:"subscriber_id"`
+	CreatedAt    string `json:"created_at"`
 }
 type UserAdress struct {
 	Address   string `json:"address" validate:"required"`

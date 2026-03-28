@@ -1254,6 +1254,11 @@ func buildOrderRequest(req *dtos.CreateOrderPayload, w http.ResponseWriter, r *h
 		return nil, err
 	}
 
+	if req.OrderSource == nil || *req.OrderSource == "" {
+		defaultSource := "Online"
+		req.OrderSource = &defaultSource
+	}
+
 	return &dtos.OrderRequest{
 		OrderItems:           orderItems,
 		IsGuestOrder:         req.IsGuestOrder,
@@ -1261,6 +1266,7 @@ func buildOrderRequest(req *dtos.CreateOrderPayload, w http.ResponseWriter, r *h
 		GuestDeliveryAddress: req.GuestDeliveryAddress,
 		UserID:               userID,
 		DeliveryCharge:       deliveryCharge,
+		OrderSource:          req.OrderSource,
 	}, nil
 }
 
@@ -1311,7 +1317,7 @@ func calculateOrderTotals(order *dtos.OrderRequest, promoCode *string, module st
 
 	if promoCode != nil && *promoCode != "" {
 		promoCodeType := models.GetDiscountCodeType(db, *promoCode)
-		totalAmount, totalDiscount, err = applyPromoCodeToOrder(db, totalAmount, totalDiscount, *promoCode, promoCodeType)
+		totalAmount, totalDiscount, err = applyPromoCodeToOrder(db, totalAmount, totalDiscount, *promoCode, promoCodeType, *order)
 		if err != nil {
 			return 0, 0, err
 		}
