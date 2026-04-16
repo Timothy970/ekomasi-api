@@ -748,7 +748,7 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//mark the order as refunded and restock items
-	err = models.HandleMpesaMoneyReturnRefunds(*order)
+	err = models.HandleMpesaMoneyReturnRefunds(models.DB, *order)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

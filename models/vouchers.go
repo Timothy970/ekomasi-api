@@ -1565,3 +1565,29 @@ func UpdateVoucherPurchases(db DBExecutor, v dtos.BuyVoucherData, voucherID stri
 	}
 	return nil
 }
+
+// helper function to mark voucher status as aactive and update voucher order payment status to paid
+// parameters:
+//   - voucherID: string - The voucher ID to update
+//
+// returns:
+//   - error: Database error or nil on success
+func MarkVoucherAsPaid(db DBExecutor, voucherID string) error {
+	// Update voucher status to active and payment status to paid
+	query := `
+		UPDATE vouchers SET status = 'active' WHERE voucher_id = ?
+	`
+	_, err := db.Exec(query, voucherID)
+	if err != nil {
+		return err
+	}
+	// update voucher order payment status to paid
+	orderQuery := `
+		UPDATE voucher_orders SET status = 'COMPLETED' WHERE voucher_id = ?
+	`
+	_, err = db.Exec(orderQuery, voucherID)
+	if err != nil {
+		return err
+	}
+	return nil
+}

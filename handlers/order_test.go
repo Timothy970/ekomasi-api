@@ -102,6 +102,11 @@ func TestNewCreateOrderHandler(t *testing.T) {
 		// Tax
 		mock.ExpectQuery("SELECT .* FROM product_charges").WillReturnRows(sqlmock.NewRows([]string{"charge_id", "charge_name", "charge_value"}))
 
+		// 3. GetProductDiscount (called in processOrderItems)
+		mock.ExpectQuery("SELECT dp.discount, dp.discount_type FROM deal_products dp").
+			WithArgs("prod-1").
+			WillReturnRows(sqlmock.NewRows([]string{"discount", "discount_type"})) // No rows = no discount
+
 		// 3. GetProductPromotionData
 		mock.ExpectQuery("SELECT .* FROM promotion_products").
 			WithArgs("prod-1").
@@ -237,6 +242,11 @@ func TestNewCreateOrderHandler(t *testing.T) {
 
 		// Tax
 		mock.ExpectQuery("SELECT .* FROM product_charges").WillReturnRows(sqlmock.NewRows([]string{"charge_id", "charge_name", "charge_value"}))
+
+		// GetProductDiscount (called in processOrderItems)
+		mock.ExpectQuery("SELECT dp.discount, dp.discount_type FROM deal_products dp").
+			WithArgs("prod-1").
+			WillReturnRows(sqlmock.NewRows([]string{"discount", "discount_type"}))
 
 		// GetProductPromotionData
 		mock.ExpectQuery("SELECT .* FROM promotion_products").

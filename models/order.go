@@ -86,17 +86,17 @@ func CreateOrder(db DBExecutor, req dtos.OrderRequest, totalAmount, totalDiscoun
 // Returns:
 //   - string: Generated order_item_id
 //   - error: Database error or nil on success
-func CreateOrderItem(db DBExecutor, orderID, productID, variantID string, quantity int, unitPrice float64) (string, error) {
+func CreateOrderItem(db DBExecutor, orderID, productID string, variantSKU *string, quantity int, unitPrice float64) (string, error) {
 	// Generate unique ID for this order item
 	orderItemID, _ := shortid.Generate()
 
 	// Insert order item with product, variant, quantity, and price
 	_, err := db.Exec(`
 		INSERT INTO order_items (
-			order_item_id, order_id, product_id, variant_id,
+			order_item_id, order_id, product_id, variant_sku,
 			quantity, unit_price
 		) VALUES (?, ?, ?, ?, ?, ?)
-	`, orderItemID, orderID, productID, variantID, quantity, unitPrice)
+	`, orderItemID, orderID, productID, variantSKU, quantity, unitPrice)
 
 	if err != nil {
 		return "", err
@@ -1724,7 +1724,17 @@ func DeductProductStock(db DBExecutor, productID string, quantity int) error {
 		SET stock_quantity = stock_quantity - ?
 		WHERE product_id = ?`
 	_, err := db.Exec(query, quantity, productID)
-	return err
+	if err != nil {
+		return err
+	}
+	// update product_variant_combinations table if the product has variants
+	_, err = db.Exec(`
+	UPDATE product_variant_combinations  SET stock_quantity = stock_quantity - ?
+	WHERE product_id = ?`, quantity, productID)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // MarkOrderNotificationSent updates order notification tracking status.

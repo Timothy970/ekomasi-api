@@ -82,21 +82,14 @@ var BulkUploadHeaders = []BulkUploadHeader{
 	{Name: "stock_quantity", Required: false},
 	{Name: "tag", Required: false},
 	{Name: "low_stock_quantity_warning", Required: false},
-	{Name: "sell_when_out_of_stock", Required: false},
-	{Name: "show_stock_quantity", Required: false},
+	{Name: "barcode", Required: true},
 	{Name: "buying_price", Required: true},
 	{Name: "weight", Required: true},
 	{Name: "weight_limit", Required: true},
 	{Name: "dimensions", Required: true},
-	{Name: "age_range", Required: true},
 	{Name: "brand", Required: true},
 	{Name: "manufacturer", Required: false},
-	{Name: "material", Required: true},
-	{Name: "colors", Required: true},
-	{Name: "sizes", Required: true},
 	{Name: "warranty_period", Required: true},
-	{Name: "expiry_date", Required: true},
-	{Name: "manufacturing_date", Required: true},
 }
 
 // ParseProductsCSV reads and parses a CSV file into bulk upload products.
@@ -201,39 +194,31 @@ func ParseProductsCSV(file multipart.File) ([]dtos.BulkUploadProduct, error) {
 		price, _ := strconv.ParseFloat(record[3], 64)        // price
 		stockQty, _ := strconv.Atoi(record[5])               // stock_quantity
 		lowStockWarn, _ := strconv.Atoi(record[7])           // low_stock_quantity_warning
-		sellOut, _ := strconv.ParseBool(record[8])           // sell_when_out_of_stock
-		showStock, _ := strconv.ParseBool(record[9])         // show_stock_quantity
-		buyingPrice, _ := strconv.ParseFloat(record[10], 64) // buying_price
-		weight, _ := strconv.ParseFloat(record[11], 64)      // weight
-		weightLimit, _ := strconv.ParseFloat(record[12], 64) // weight_limit
-		warrantyType, _ := strconv.Atoi(record[20])          // warranty_period
+		barcode := record[8]                                 // barcode
+		buyingPrice, _ := strconv.ParseFloat(record[9], 64)  // buying_price
+		weight, _ := strconv.ParseFloat(record[10], 64)      // weight
+		weightLimit, _ := strconv.ParseFloat(record[11], 64) // weight_limit
+		warrantyType, _ := strconv.Atoi(record[15])          // warranty_period
 
 		// Construct product struct from parsed values
 		product := dtos.BulkUploadProduct{
-			Name:                    record[0],                 // name
-			Description:             record[1],                 // description
-			SKU:                     record[2],                 // sku
-			Price:                   price,                     // converted price
-			CategoryID:              record[4],                 // category_id
-			StockQuantity:           stockQty,                  // converted stock_quantity
-			Tag:                     strToPtr(record[6]),       // tag (optional)
-			SearchVector:            record[0],                 // use name for search indexing
-			LowStockQuantityWarning: lowStockWarn,              // converted low_stock_quantity_warning
-			SellWhenOutOfStock:      sellOut,                   // converted sell_when_out_of_stock
-			ShowStockQuantity:       showStock,                 // converted show_stock_quantity
-			BuyingPrice:             buyingPrice,               // converted buying_price
-			Weight:                  &weight,                   // converted weight
-			WeightLimit:             &weightLimit,              // converted weight_limit
-			Dimensions:              strToPtr(record[13]),      // dimensions (optional)
-			AgeRange:                strToSlicePtr(record[14]), // age_range (optional)
-			Brand:                   strToPtr(record[15]),      // brand (optional)
-			Manufacturer:            strToPtr(record[16]),      // manufacturer (optional)
-			Material:                strToSlicePtr(record[17]), // material (optional)
-			Colors:                  strToSlicePtr(record[18]), // colors (optional, comma-separated)
-			Sizes:                   strToSlicePtr(record[19]), // sizes (optional, comma-separated)
-			WarrantyPeriod:          &warrantyType,             // warranty_period (optional)
-			ExpiryDate:              strToPtr(record[21]),      // expiry_date
-			ManufacturingDate:       strToPtr(record[22]),      // manufacturing_date
+			Name:                    record[0],            // name
+			Description:             record[1],            // description
+			SKU:                     record[2],            // sku
+			Price:                   price,                // converted price
+			CategoryID:              record[4],            // category_id
+			StockQuantity:           stockQty,             // converted stock_quantity
+			Tag:                     strToPtr(record[6]),  // tag (optional)
+			SearchVector:            record[0],            // use name for search indexing
+			LowStockQuantityWarning: lowStockWarn,         // converted low_stock_quantity_warning
+			Barcode:                 barcode,              // barcode
+			BuyingPrice:             buyingPrice,          // converted buying_price
+			Weight:                  &weight,              // converted weight
+			WeightLimit:             &weightLimit,         // converted weight_limit
+			Dimensions:              strToPtr(record[12]), // dimensions (optional)
+			Brand:                   strToPtr(record[13]), // brand (optional)
+			Manufacturer:            strToPtr(record[14]), // manufacturer (optional)
+			WarrantyPeriod:          &warrantyType,        // warranty_period (optional)
 		}
 
 		// Log successful parsing

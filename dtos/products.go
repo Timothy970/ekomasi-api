@@ -13,10 +13,9 @@ type CreateProduct struct {
 	SearchVector  string   `json:"search_vector" validate:"required"`
 	Tag           *string  `json:"tag,omitempty"`
 	LowStockAlert int      `json:"low_stock_quantity_warning" validate:"gte=0"`
-	SellWhenOOS   *bool    `json:"sell_when_out_of_stock"`
-	ShowStock     *bool    `json:"show_stock_quantity"`
 	BuyingPrice   *float64 `json:"buying_price"`
 	Details       []string `json:"details,omitempty"`
+	Barcode       string   `json:"barcode"`
 }
 
 // AddToCartWithVariantsRequest represents the request to add item with specific variants to cart
@@ -75,7 +74,6 @@ type GetBundleRequest struct {
 	Details          []string          `json:"details,omitempty"`
 	Features         []ProductFeature  `json:"features,omitempty"`
 	Products         []Product         `json:"products"`
-	KeepSelling      *bool             `json:"keep_selling_when_out_of_stock"`
 	BuyingPrice      *float64          `json:"buying_price,omitempty"`
 }
 
@@ -85,7 +83,6 @@ type Bundle struct {
 	Price          float64          `json:"bundle_price" validate:"required,min=0"`
 	Image          string           `json:"bundle_image" validate:"required"`
 	Products       []BundleProducts `json:"products" validate:"required"`
-	KeepSelling    *bool            `json:"keep_selling"`
 	CompareAtPrice *float64         `json:"compare_at_price"`
 	StockQuantity  int              `json:"stock_quantity" validate:"required,gte=0"`
 }
@@ -170,16 +167,17 @@ type CategoryProduct struct {
 	ProductVariants []ProductVariants `json:"products_variants"`
 	Warranty        *ProductWarranty  `json:"warranty"`
 	//only visible when user is authenticated
-	InWishlist   *bool            `json:"liked_by_user,omitempty"`
-	Details      []string         `json:"details,omitempty"`
-	Features     []ProductFeature `json:"features,omitempty"`
-	Discount     *float64         `json:"discount"`
-	DiscountType *string          `json:"discount_type"`
-	Weight       *string          `json:"weight"`
-	WeightLimit  *string          `json:"weight_limit"`
-	Dimensions   *string          `json:"dimensions"`
-	Manufacturer *string          `json:"manufacturer"`
-	Tax          *ProductTax      `json:"tax"`
+	InWishlist       *bool              `json:"liked_by_user,omitempty"`
+	Details          []string           `json:"details,omitempty"`
+	Features         []ProductFeature   `json:"features,omitempty"`
+	Discount         *float64           `json:"discount"`
+	DiscountType     *string            `json:"discount_type"`
+	Weight           *string            `json:"weight"`
+	WeightLimit      *string            `json:"weight_limit"`
+	Dimensions       *string            `json:"dimensions"`
+	Manufacturer     *string            `json:"manufacturer"`
+	Tax              *ProductTax        `json:"tax"`
+	VariantSelection []VariantSelection `json:"variant_selection,omitempty"`
 }
 
 // SearchParams represents the search parameters
@@ -231,23 +229,26 @@ type UpdateProductFeature struct {
 	ImagePosition string `json:"image-position" validate:"required"`
 }
 type ProductSpecification struct {
-	ProductID        string   `json:"product_id" validate:"required"`
-	Age              []string `json:"age" validate:"required,min=1"` //ids of the age variants
-	Brand            string   `json:"brand"`                         //brand id for the variant brand
-	CategoryID       string   `json:"category_id" validate:"required"`
-	Color            []string `json:"color" validate:"required,min=1"` //color variants ids
-	Dimensions       string   `json:"dimensions"`
-	DiscountType     string   `json:"discount_type"` // type id
-	ExpiryDate       *string  `json:"expiry_date"`
-	ManufacturerDate *string  `json:"manufacture_date"`
-	Manufacturer     string   `json:"manufacturer"`
-	Material         []string `json:"material" validate:"required,min=1"`  //material variant ids
-	Size             []string `json:"size"`                                //size variant ids
-	WarrantyType     string   `json:"warranty_type"`                       //warranty type id
-	WarrantyPeriod   int      `json:"warranty_period" validate:"required"` //in months
-	Weight           float64  `json:"weight" validate:"required"`
-	WeightLimit      float64  `json:"weight_limit" validate:"required"`
+	ProductID         string             `json:"product_id" validate:"required"`
+	Brand             string             `json:"brand"` //brand id for the variant brand
+	CategoryID        string             `json:"category_id" validate:"required"`
+	Dimensions        string             `json:"dimensions"`
+	Manufacturer      string             `json:"manufacturer"`
+	WarrantyType      string             `json:"warranty_type"`                       //warranty type id
+	WarrantyPeriod    int                `json:"warranty_period" validate:"required"` //in months
+	Weight            float64            `json:"weight"`
+	WeightLimit       float64            `json:"weight_limit"`
+	VariantSelections []VariantSelection `json:"variant_selections" validate:"omitempty,dive"`
 }
+
+type VariantSelection struct {
+	VariantIDs      []string `json:"variant_ids" validate:"required,min=1"`
+	Name            string   `json:"name" validate:"required"`
+	SKU             string   `json:"sku" validate:"required"`
+	AdditionalPrice float64  `json:"additional_price"`
+	StockQuantity   int      `json:"stock_quantity"`
+}
+
 type ExpensiveCheapProduct struct {
 	CheapestProduct  Product `json:"cheapest_product"`
 	ExpensiveProduct Product `json:"expensive_product"`
@@ -271,23 +272,16 @@ type BulkUploadProduct struct {
 	SearchVector            string    `json:"search_vector"`
 	Tag                     *string   `json:"tag"`
 	LowStockQuantityWarning int       `json:"low_stock_quantity_warning"`
-	SellWhenOutOfStock      bool      `json:"sell_when_out_of_stock"`
-	ShowStockQuantity       bool      `json:"show_stock_quantity"`
 	CreatedByID             string    `json:"created_by_id"`
 	BuyingPrice             float64   `json:"buying_price"`
 	Weight                  *float64  `json:"weight"`
 	WeightLimit             *float64  `json:"weight_limit"`
 	Dimensions              *string   `json:"dimensions"`
-	AgeRange                *[]string `json:"age_range"`
 	Brand                   *string   `json:"brand"`
 	Manufacturer            *string   `json:"manufacturer"`
-	Material                *[]string `json:"material"`
-	Colors                  *[]string `json:"colors"`
-	Sizes                   *[]string `json:"sizes"`
 	WarrantyPeriod          *int      `json:"warranty_period"`
-	ExpiryDate              *string   `json:"expiry_date"`
-	ManufacturingDate       *string   `json:"manufacturing_date"`
 	CreatedAt               time.Time `json:"created_at"`
+	Barcode                 string    `json:"barcode"`
 }
 type VoucherDesign struct {
 	DesignID   string  `json:"design_id"`
@@ -307,4 +301,11 @@ type PublishBulkProduct struct {
 	Images         []Image   `json:"images" validate:"required,dive"`
 	ProductDetails *[]string `json:"product_details"`
 	VideoLink      *string   `json:"video_link"`
+}
+
+type Combination struct {
+	ProductID       string  `json:"product_id"`
+	Name            string  `json:"name"`
+	SKU             string  `json:"sku"`
+	AdditionalPrice float64 `json:"additional_price"`
 }

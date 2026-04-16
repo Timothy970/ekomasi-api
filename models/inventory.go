@@ -1130,3 +1130,18 @@ func UpdateProductPrices(db DBExecutor, productID string, buyingPrice, sellingPr
 		buyingPrice, sellingPrice, productID)
 	return err
 }
+
+// helper to update variant selection stock quantity
+func UpdateVariantQuantities(db DBExecutor, variantQuantities []dtos.VariantQuantity) error {
+	query := `
+		UPDATE product_variant_combinations
+		SET stock_quantity = stock_quantity + ?
+		WHERE sku = ?`
+
+	for _, vq := range variantQuantities {
+		if _, err := db.Exec(query, vq.Quantity, vq.SKU); err != nil {
+			return err
+		}
+	}
+	return nil
+}

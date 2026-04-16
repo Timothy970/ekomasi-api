@@ -810,7 +810,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	err = voucherPaymentProcessor(tx, req.PaymentMethod, voucherOrderID, req.PhoneNumber, req.Amount)
+	err = voucherPaymentProcessor(tx, req.PaymentMethod, voucherOrderID, req.PhoneNumber, req.Amount, voucherID)
 	if err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -958,7 +958,7 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Amount > 0 || req.PaymentMethod != "none" {
-		err = voucherPaymentProcessor(tx, req.PaymentMethod, voucherOrderID, req.PhoneNumber, req.Amount)
+		err = voucherPaymentProcessor(tx, req.PaymentMethod, voucherOrderID, req.PhoneNumber, req.Amount, voucherID)
 		if err != nil {
 			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
@@ -1006,12 +1006,18 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		Request:   r,
 		RawBody:   requestSummary})
 }
-func voucherPaymentProcessor(db models.DBExecutor, paymentMethod string, voucherOrderID, phoneNumber string, amount float64) error {
+func voucherPaymentProcessor(db models.DBExecutor, paymentMethod string, voucherOrderID, phoneNumber string, amount float64, voucherID string) error {
 	switch paymentMethod {
 	//where method is mpesa or empty use mpesa
 	case "mpesa", "":
 		// Initiate Mpesa payment
 		err := HandleMpesaVoucherPayment(db, voucherOrderID, phoneNumber, amount)
+		if err != nil {
+			return err
+		}
+	case "cash":
+		// For cash payments, we can directly mark the order as paid and activate the voucher without external processing to active
+		err := models.MarkVoucherAsPaid(db, voucherID)
 		if err != nil {
 			return err
 		}

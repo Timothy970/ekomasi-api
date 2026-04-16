@@ -184,10 +184,10 @@ type GenericResponse struct {
 	Message string `json:"message"`
 }
 type OrderItemRequest struct {
-	ProductID string  `json:"product_id" validate:"required"`
-	VariantID *string `json:"variant_id,omitempty"`
-	Quantity  int     `json:"quantity" validate:"required"`
-	UnitPrice float64 `json:"unit_price" validate:"required"`
+	ProductID    string  `json:"product_id" validate:"required"`
+	Quantity     int     `json:"quantity" validate:"required"`
+	UnitPrice    float64 `json:"unit_price" validate:"required"`
+	VariationSKU *string `json:"variation_sku,omitempty"`
 }
 
 type OrderRequest struct {
@@ -212,8 +212,9 @@ type CreateOrderPayload struct {
 	OrderSource          *string               `json:"order_source,omitempty"`
 }
 type OrderItemPayload struct {
-	ProductID string `json:"product_id" validate:"required"`
-	Quantity  int    `json:"quantity" validate:"required"`
+	ProductID    string  `json:"product_id" validate:"required"`
+	Quantity     int     `json:"quantity" validate:"required"`
+	VariationSKU *string `json:"variation_sku,omitempty"`
 }
 
 type OrderStatusCount struct {

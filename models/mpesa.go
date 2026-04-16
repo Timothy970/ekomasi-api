@@ -25,12 +25,12 @@ import "adenzo_backend/dtos"
 //   2. Iterate through all order items
 //   3. Restore stock quantity for each item
 //
-func HandleMpesaMoneyReturnRefunds(order dtos.Order) error {
+func HandleMpesaMoneyReturnRefunds(db DBExecutor, order dtos.Order) error {
 	// Update order status to refunded
 	status := "REFUNDED"
 	deliveryStatus := "REFUNDED"
 	paymentStatus := "REFUNDED"
-	err := UpdateOrderStatus(DB, order.OrderID, dtos.UpdateOrderStatusRequest{
+	err := UpdateOrderStatus(db, order.OrderID, dtos.UpdateOrderStatusRequest{
 		Status:         &status,
 		PaymentStatus:  &paymentStatus,
 		DeliveryStatus: &deliveryStatus,
@@ -42,7 +42,7 @@ func HandleMpesaMoneyReturnRefunds(order dtos.Order) error {
 	// Iterate through all order items to restore stock
 	for _, item := range order.Items {
 		// Restock each item by adding back the quantity that was sold
-		err = UpdateProductStock(item.ID, item.StockQuantity)
+		err = UpdateProductStock(db, item.ID, item.StockQuantity)
 		if err != nil {
 			return err
 		}
@@ -65,11 +65,24 @@ func HandleMpesaMoneyReturnRefunds(order dtos.Order) error {
 // SQL Operation:
 //   - Uses atomic increment: stock_quantity = stock_quantity + ?
 //   - Prevents race conditions with direct SQL increment
-func UpdateProductStock(productID string, quantity int) error {
+func UpdateProductStock(db DBExecutor, productID string, quantity int) error {
 	// Execute atomic stock increment query
-	_, err := DB.Exec(`
+	_, err := db.Exec(`
 		UPDATE products SET stock_quantity = stock_quantity + ? WHERE product_id = ?`,
 		quantity, productID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// also update stock quantity in product_variant_combinations table if the product has variants
+	_, err = db.Exec(`
+		UPDATE product_variant_combinations SET stock_quantity = stock_quantity + ? WHERE product_id = ?`,
+		quantity, productID,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

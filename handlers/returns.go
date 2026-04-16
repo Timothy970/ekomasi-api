@@ -287,7 +287,7 @@ func handleReturnRefunding(db models.DBExecutor, returnID string, phoneNumber *s
 	}
 
 	//mark the order as refunded and restock items
-	err = models.HandleMpesaMoneyReturnRefunds(*order)
+	err = models.HandleMpesaMoneyReturnRefunds(db, *order)
 	if err != nil {
 		return err
 	}

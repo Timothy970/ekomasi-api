@@ -73,13 +73,7 @@ func processOrderItems(db models.DBExecutor, items []dtos.OrderItemRequest) (tot
 
 func createOrderItems(db models.DBExecutor, orderID string, items []dtos.OrderItemRequest) error {
 	for _, item := range items {
-		var variantID string
-		if item.VariantID != nil {
-			variantID = *item.VariantID
-		} else {
-			variantID = ""
-		}
-		if _, err := models.CreateOrderItem(db, orderID, item.ProductID, variantID, item.Quantity, item.UnitPrice); err != nil {
+		if _, err := models.CreateOrderItem(db, orderID, item.ProductID, item.VariationSKU, item.Quantity, item.UnitPrice); err != nil {
 			return err
 		}
 	}
@@ -1373,11 +1367,20 @@ func getOrderItems(db models.DBExecutor, items []dtos.OrderItemPayload) ([]dtos.
 		if err != nil {
 			return nil, err
 		}
+		// is variation sku is not nil, get additional price for the variation and add to the product price
+		if item.VariationSKU != nil && *item.VariationSKU != "" {
+			additionalPrice, _, err := models.GetVariationPrice(db, *item.VariationSKU)
+			if err != nil {
+				return nil, err
+			}
+			product.Price += additionalPrice
+		}
 		orderItems = append(orderItems, dtos.OrderItemRequest{
 			ProductID: product.ID,
 			// VariantID: product.VariantID,
-			Quantity:  item.Quantity,
-			UnitPrice: product.Price,
+			Quantity:     item.Quantity,
+			UnitPrice:    product.Price,
+			VariationSKU: item.VariationSKU,
 		})
 	}
 	return orderItems, nil

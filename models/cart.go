@@ -99,7 +99,7 @@ func UpdateCartTimestamp(db DBExecutor, cartID string) error {
 //
 // Returns:
 //   - error: Validation error, stock error, or database error if insert fails
-func InsertCartItem(db DBExecutor, cartID string, productID string, quantity int) error {
+func InsertCartItem(db DBExecutor, cartID string, productID string, quantity int, variationSKU *string) error {
 	// Validate cart exists
 	err := isCartThere(db, cartID)
 	if err != nil {
@@ -119,10 +119,10 @@ func InsertCartItem(db DBExecutor, cartID string, productID string, quantity int
 
 	// Insert or update cart item using ON DUPLICATE KEY UPDATE
 	_, err = db.Exec(`
-        INSERT INTO cart_items(id, cart_id, product_id, quantity)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO cart_items(id, cart_id, product_id, quantity, variation_sku)
+        VALUES (?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE quantity = VALUES(quantity)
-    `, ID, cartID, productID, quantity)
+    `, ID, cartID, productID, quantity, variationSKU)
 	if err != nil {
 		return fmt.Errorf("failed to insert cart item: %w", err)
 	}
@@ -258,7 +258,7 @@ func GetCartItems(db DBExecutor, cartID string) ([]dtos.CartItem, error) {
 
 	// Query all items in cart
 	rows, err := db.Query(`
-		SELECT c.product_id, c.quantity
+		SELECT c.product_id, c.quantity, c.variation_sku
 		FROM cart_items c
 		WHERE c.cart_id = ?
 	`, cartID)
@@ -272,8 +272,8 @@ func GetCartItems(db DBExecutor, cartID string) ([]dtos.CartItem, error) {
 	for rows.Next() {
 		var productID string
 		var quantity int
-
-		if err := rows.Scan(&productID, &quantity); err != nil {
+		var variationSKU *string
+		if err := rows.Scan(&productID, &quantity, &variationSKU); err != nil {
 			return nil, err
 		}
 
@@ -282,16 +282,45 @@ func GetCartItems(db DBExecutor, cartID string) ([]dtos.CartItem, error) {
 		if err != nil {
 			return nil, err
 		}
+		isVariation := false
+		// if variationSKU != nil  get additional price
+		if variationSKU != nil {
+			// Fetch additional price for the variation
+			additionalPrice, variationName, err := GetVariationPrice(db, *variationSKU)
+			if err != nil {
+				return nil, err
+			}
+			product.Price += additionalPrice
+			// add - plus variation name to product name
+			product.Name += " - " + variationName
+			isVariation = true
+
+		}
 
 		// Build enriched CartItem DTO with full product details
 		item := dtos.CartItem{
-			Product:  *product, // Complete product object
-			Quantity: quantity,
+			Product:      *product, // Complete product object
+			Quantity:     quantity,
+			IsVariant:    isVariation,
+			VariationSKU: variationSKU,
 		}
 		items = append(items, item)
 	}
 
 	return items, nil
+}
+
+func GetVariationPrice(db DBExecutor, variationSKU string) (float64, string, error) {
+	var additionalPrice float64
+	var variationName string
+	err := db.QueryRow(`SELECT additional_price, name FROM product_variant_combinations WHERE sku = ?`, variationSKU).Scan(&additionalPrice, &variationName)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, "", nil // No additional price for this variation - not an error
+		}
+		return 0, "", err
+	}
+	return additionalPrice, variationName, nil
 }
 
 // UpdateCartItem updates the quantity of a specific product in a cart.
