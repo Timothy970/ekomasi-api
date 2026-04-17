@@ -563,7 +563,7 @@ func handleFileUploads(db models.DBExecutor, r *http.Request, productID, fileTyp
 
 	var uploaded []map[string]string
 
-	for idx, _ := range formFiles {
+	for idx, fileHeader := range formFiles {
 		// Determine isPrimary for gallery and thumbnail types
 		isPrimary := false
 		if fileType == "gallery" || fileType == "thumbnail" {
@@ -574,12 +574,12 @@ func handleFileUploads(db models.DBExecutor, r *http.Request, productID, fileTyp
 			}
 		}
 
-		// url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fileHeader})
-		// if err != nil {
-		// 	log.Printf("error uploading %s: %v", fileType, err)
-		// 	// log.Printf("using hardcoded url")
-		// }
-		url := "https://cdn.pixabay.com/photo/2018/05/18/15/30/web-design-3411373_1280.jpg"
+		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fileHeader})
+		if err != nil {
+			log.Printf("error uploading %s: %v", fileType, err)
+			// log.Printf("using hardcoded url")
+		}
+		// url := "https://cdn.pixabay.com/photo/2018/05/18/15/30/web-design-3411373_1280.jpg"
 
 		if err := models.InsertProductImage(db, productID, url, fileType, isPrimary); err != nil {
 			return nil, fmt.Errorf("failed to insert %s into DB: %w", fileType, err)
