@@ -563,7 +563,7 @@ func handleFileUploads(db models.DBExecutor, r *http.Request, productID, fileTyp
 
 	var uploaded []map[string]string
 
-	for idx, fileHeader := range formFiles {
+	for idx, _ := range formFiles {
 		// Determine isPrimary for gallery and thumbnail types
 		isPrimary := false
 		if fileType == "gallery" || fileType == "thumbnail" {
@@ -574,12 +574,12 @@ func handleFileUploads(db models.DBExecutor, r *http.Request, productID, fileTyp
 			}
 		}
 
-		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fileHeader})
-		if err != nil {
-			log.Printf("error uploading %s: %v", fileType, err)
-			// log.Printf("using hardcoded url")
-		}
-		// url = "https://cdn.pixabay.com/photo/2018/05/18/15/30/web-design-3411373_1280.jpg"
+		// url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fileHeader})
+		// if err != nil {
+		// 	log.Printf("error uploading %s: %v", fileType, err)
+		// 	// log.Printf("using hardcoded url")
+		// }
+		url := "https://cdn.pixabay.com/photo/2018/05/18/15/30/web-design-3411373_1280.jpg"
 
 		if err := models.InsertProductImage(db, productID, url, fileType, isPrimary); err != nil {
 			return nil, fmt.Errorf("failed to insert %s into DB: %w", fileType, err)
@@ -1769,23 +1769,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	// add discount to a product
-	err = attachProductDiscount(*req, state)
 
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Products",
-				Description: "Failed to add product discount: " + err.Error(),
-				Code:        http.StatusNotFound,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
@@ -1884,23 +1868,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 			RawBody:   requestSummary})
 		return
 	}
-	// add discount to a product
-	err = attachProductDiscount(*req, state)
 
-	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Products",
-				Description: "Failed to update product discount: " + err.Error(),
-				Code:        http.StatusNotFound,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary})
-		return
-	}
 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
@@ -1957,17 +1925,18 @@ func handleProductsVariants(db models.DBExecutor, req dtos.ProductSpecification,
 
 	// Map each variant type to its IDs
 	variantGroups := map[string][]string{
-		"age":          req.Age,
-		"brand":        toSlice(req.Brand), // handle single value as slice
-		"material":     req.Material,
-		"color":        req.Color,
-		"size":         req.Size,
+		"brand":        toSlice(req.Brand),        // handle single value as slice
 		"manufacturer": toSlice(req.Manufacturer), // handle single value as slice
 	}
 	// If updating, first hold existing variants
 	var err error
 	if state == "update" {
 		err = models.HoldProductVariants(db, req.ProductID)
+		if err != nil {
+			return err
+		}
+		//also hold existing combinations if updating
+		err = models.DeleteVariantSelectionsByProductID(db, req.ProductID)
 		if err != nil {
 			return err
 		}
@@ -1982,6 +1951,28 @@ func handleProductsVariants(db models.DBExecutor, req dtos.ProductSpecification,
 				return err
 			}
 		}
+	}
+	// now handle VariantSelections.
+	for _, variantSelection := range req.VariantSelections {
+		// 1. Insert combination
+		combinationID, err := models.InsertCombination(db, dtos.Combination{
+			ProductID:       req.ProductID,
+			Name:            variantSelection.Name,
+			SKU:             variantSelection.SKU,
+			AdditionalPrice: variantSelection.AdditionalPrice,
+		})
+		if err != nil {
+			return err
+		}
+
+		// 2. Insert mapping (VERY IMPORTANT)
+		for _, variantID := range variantSelection.VariantIDs {
+			err := models.InsertCombinationOption(db, combinationID, variantID, req.ProductID)
+			if err != nil {
+				return err
+			}
+		}
+
 	}
 
 	return nil
@@ -2011,38 +2002,14 @@ func addProductVariantWithHandling(db models.DBExecutor, variantID, variantType 
 func handleProductsWarranty(db models.DBExecutor, req dtos.ProductSpecification) error {
 	// Build warranty data transfer object from product specification
 	data := dtos.AddProductWarrantiesRequest{
-		ProductID:         req.ProductID,        // Product identifier
-		WarrantyTypeID:    req.WarrantyType,     // Type of warranty (manufacturer, extended, etc.)
-		WarrantyPeriod:    req.WarrantyPeriod,   // Duration of warranty coverage
-		ManufacturingDate: req.ManufacturerDate, // Product manufacturing date
-		ExpiryDate:        req.ExpiryDate,       // Warranty expiration date
+		ProductID:      req.ProductID,      // Product identifier
+		WarrantyTypeID: req.WarrantyType,   // Type of warranty (manufacturer, extended, etc.)
+		WarrantyPeriod: req.WarrantyPeriod, // Duration of warranty coverage
 	}
 
 	// Insert warranty record into database
 	err := models.AddProductWarranties(db, data)
 	return err
-}
-
-// attachProductDiscount associates a promotional discount with a product.
-// When updating (state="update"), it holds existing promotions, adds new ones, then removes held promotions.
-// This ensures atomic promotion updates without conflicts.
-func attachProductDiscount(req dtos.ProductSpecification, state string) error {
-	// Build promotion attachment data
-	data := dtos.AddPromotionToProductRequest{
-		ProductID:       req.ProductID,    // Product to attach discount to
-		PromotionTypeID: req.DiscountType, // Discount/promotion identifier
-	}
-
-	// Only proceed if a promotion type is specified
-	if data.PromotionTypeID == "" {
-		return nil
-	}
-
-	if state == "update" {
-		return updateProductDiscount(req.ProductID, data)
-	}
-
-	return models.AddPromotionToProduct(models.DB, data)
 }
 
 // updateProductDiscount handles the atomic update of product promotions.

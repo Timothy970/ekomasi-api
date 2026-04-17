@@ -322,6 +322,31 @@ func HoldProductVariants(db DBExecutor, productID string) error {
 	return nil
 }
 
+func DeleteVariantSelectionsByProductID(db DBExecutor, productID string) error {
+	query := `
+	DELETE FROM product_variant_combinations
+	WHERE product_id = ?
+	`
+
+	result, err := db.Exec(query, productID)
+	if err != nil {
+		return fmt.Errorf("deleting variant selections for product %s: %w", productID, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("getting rows affected: %w", err)
+	}
+
+	// Optional: useful for logging/debugging
+	if rowsAffected == 0 {
+		// not necessarily an error, but good to know
+		return nil
+	}
+
+	return nil
+}
+
 // RemoveHeldProductVariants removes all product-variant associations for a variant.
 //
 // This function deletes all products associated with the specified variant.

@@ -180,7 +180,7 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Insert item into cart
-	if err := models.InsertCartItem(models.DB, req.CartID, req.ProductID, req.Quantity); err != nil {
+	if err := models.InsertCartItem(models.DB, req.CartID, req.ProductID, req.Quantity, req.VariationSKU); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",

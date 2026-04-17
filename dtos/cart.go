@@ -7,13 +7,16 @@ package dtos
 // 	Price       float64 `json:"price"`
 // }
 type CartItem struct {
-	Product  Product `json:"product"`
-	Quantity int     `json:"quantity"`
+	Product      Product `json:"product"`
+	Quantity     int     `json:"quantity"`
+	IsVariant    bool    `json:"is_variant"`
+	VariationSKU *string `json:"variation_sku,omitempty"`
 }
 type AddToCartRequest struct {
-	ProductID string `json:"product_id" validate:"required"`
-	Quantity  int    `json:"quantity" validate:"required,min=1"`
-	CartID    string `json:"cart_id" validate:"required"`
+	ProductID    string  `json:"product_id" validate:"required"`
+	Quantity     int     `json:"quantity" validate:"required,min=1"`
+	CartID       string  `json:"cart_id" validate:"required"`
+	VariationSKU *string `json:"variation_sku,omitempty"`
 }
 type CreateCartRequest struct {
 	UserID    *string `json:"user_id" validate:"omitempty"`

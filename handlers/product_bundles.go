@@ -274,7 +274,6 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		Price:          bundlePrice,
 		Image:          url,
 		Products:       parseBundleProducts(r.FormValue("products")),
-		KeepSelling:    parseKeepSelling(r.FormValue("keep_selling")),
 		CompareAtPrice: parseCompareAtPrice(r.FormValue("compare_at_price")),
 		StockQuantity:  stockQuantity,
 	}
@@ -412,7 +411,6 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		Price:          parseBundlePrice(r.FormValue("bundle_price")),
 		Image:          imageURL,
 		Products:       parseBundleProducts(r.FormValue("products")),
-		KeepSelling:    parseKeepSelling(r.FormValue("keep_selling")),
 		CompareAtPrice: parseCompareAtPrice(r.FormValue("compare_at_price")),
 		StockQuantity:  parseStockQuantity(r.FormValue("stock_quantity")),
 	}

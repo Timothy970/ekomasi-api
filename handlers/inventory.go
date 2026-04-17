@@ -682,6 +682,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		BuyingPrice:       parseFloat(r.FormValue("buying_price")),
 		HandlingNotes:     &handlingNotes,
 		SellingPrice:      parseFloat(r.FormValue("selling_price")),
+		VariantQuantity:   ParseVariantQuantityArray(r.FormValue("variant_quantity")),
 	}
 	//Validate the request
 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Inventory") {
@@ -897,6 +898,24 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// update variant quantities if applicable
+	if len(req.VariantQuantity) > 0 {
+		if err := models.UpdateVariantQuantities(tx, req.VariantQuantity); err != nil {
+			tx.Rollback()
+			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Inventory",
+					Description: "Failed to update variant quantities when creating stock entry",
+					Code:        http.StatusNotFound,
+				},
+				Message:   err.Error(),
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   r,
+				RawBody:   requestSummary})
+			return
+		}
+	}
 	// Commit Transaction
 	if err := tx.Commit(); err != nil {
 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
@@ -1047,6 +1066,18 @@ func ParseStoreInfoArray(s string) []dtos.StoreInfo {
 		return stores
 	}
 	return stores
+}
+func ParseVariantQuantityArray(s string) []dtos.VariantQuantity {
+
+	var variants []dtos.VariantQuantity
+	if s == "" {
+		return variants
+	}
+	err := json.Unmarshal([]byte(s), &variants)
+	if err != nil {
+		return variants
+	}
+	return variants
 }
 
 func GetInventoryStockSummary(w http.ResponseWriter, r *http.Request) {

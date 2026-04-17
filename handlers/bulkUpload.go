@@ -257,23 +257,6 @@ func validateAndCreateProduct(product dtos.BulkUploadProduct, userID string) err
 		return err
 	}
 
-	// Convert date format from DD/MM/YYYY to YYYY/MM/DD if needed
-	if product.ExpiryDate != nil {
-		convertedDate := convertDateFormat(*product.ExpiryDate)
-		product.ExpiryDate = &convertedDate
-	}
-	if product.ManufacturingDate != nil {
-		convertedDate := convertDateFormat(*product.ManufacturingDate)
-		product.ManufacturingDate = &convertedDate
-	}
-
-	//check if expiry date is after manufacturing date
-	if product.ExpiryDate != nil && product.ManufacturingDate != nil {
-		if models.StringToTime(*product.ExpiryDate).Before(models.StringToTime(*product.ManufacturingDate)) {
-			return fmt.Errorf("expiry date cannot be before manufacturing date for product: %s", product.Name)
-		}
-	}
-
 	err := models.AddNewBulkProduct(models.DB, product, userID)
 	if err != nil {
 		return fmt.Errorf("error adding product: %w", err)
@@ -435,8 +418,6 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		SearchVector:  bulkProduct.Name,
 		Tag:           bulkProduct.Tag,
 		LowStockAlert: bulkProduct.LowStockQuantityWarning,
-		SellWhenOOS:   &bulkProduct.SellWhenOutOfStock,
-		ShowStock:     &bulkProduct.ShowStockQuantity,
 		BuyingPrice:   &bulkProduct.BuyingPrice,
 		Details:       productDetails,
 	}
@@ -458,21 +439,15 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	//handle product specifications
 	specificationsRequest := dtos.ProductSpecification{
-		ProductID:        product.ID,
-		Age:              models.GetAgeVariantIDs(tx, *bulkProduct.AgeRange), //should be IDS
-		Brand:            models.GetBrandID(tx, *bulkProduct.Brand),          //should be ID
-		CategoryID:       bulkProduct.CategoryID,
-		Color:            models.GetColorIDs(tx, *bulkProduct.Colors), //should be IDS
-		Dimensions:       *bulkProduct.Dimensions,
-		ExpiryDate:       bulkProduct.ExpiryDate,
-		ManufacturerDate: bulkProduct.ManufacturingDate,
-		Manufacturer:     *bulkProduct.Manufacturer,
-		Material:         models.GetMaterialIDs(tx, *bulkProduct.Material), //should be IDs
-		Size:             models.GetSizeIDs(tx, *bulkProduct.Sizes),        //should be IDs
-		WarrantyPeriod:   *bulkProduct.WarrantyPeriod,
-		Weight:           *bulkProduct.Weight,
-		WeightLimit:      *bulkProduct.WeightLimit,
-		WarrantyType:     models.GetDefaultWarrantyType(tx),
+		ProductID:      product.ID,
+		Brand:          models.GetBrandID(tx, *bulkProduct.Brand), //should be ID
+		CategoryID:     bulkProduct.CategoryID,
+		Dimensions:     *bulkProduct.Dimensions,
+		Manufacturer:   *bulkProduct.Manufacturer,
+		WarrantyPeriod: *bulkProduct.WarrantyPeriod,
+		Weight:         *bulkProduct.Weight,
+		WeightLimit:    *bulkProduct.WeightLimit,
+		WarrantyType:   models.GetDefaultWarrantyType(tx),
 	}
 	state := "add"
 	err = handleProductSpecs(tx, specificationsRequest, state)

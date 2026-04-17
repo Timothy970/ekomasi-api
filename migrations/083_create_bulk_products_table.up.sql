@@ -8,8 +8,6 @@ CREATE TABLE IF NOT EXISTS bulk_products (
     stock_quantity INT DEFAULT 0,
     tag VARCHAR(100),
     low_stock_quantity_warning INT DEFAULT 0,
-    sell_when_out_of_stock BOOLEAN DEFAULT FALSE,
-    show_stock_quantity BOOLEAN DEFAULT TRUE,
     buying_price DECIMAL(10, 2),
     weight INT,
     weight_limit INT,

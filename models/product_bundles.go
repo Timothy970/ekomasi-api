@@ -68,7 +68,7 @@ func GetBundleProducts(db DBExecutor, limit, page int) ([]dtos.GetBundleRequest,
 	query := `
 		SELECT 
 			product_id, name, description, sku, tag, price, stock_quantity,
-			created_at, last_updated_at, sell_when_out_of_stock, buying_price
+			created_at, last_updated_at, buying_price
 		FROM products
 		WHERE product_type = 'bundle'
 		ORDER BY created_at DESC
@@ -90,7 +90,7 @@ func GetBundleProducts(db DBExecutor, limit, page int) ([]dtos.GetBundleRequest,
 		// Scan bundle base fields
 		if err := rows.Scan(
 			&bundle.ID, &bundle.Name, &bundle.Description, &bundle.SKU, &bundle.Tag,
-			&bundle.Price, &bundle.StockQuantity, &bundle.CreatedAt, &bundle.LastUpdated, &bundle.KeepSelling, &bundle.BuyingPrice,
+			&bundle.Price, &bundle.StockQuantity, &bundle.CreatedAt, &bundle.LastUpdated, &bundle.BuyingPrice,
 		); err != nil {
 			return nil, nil, err
 		}
@@ -130,7 +130,7 @@ func GetBundleByIDProducts(db DBExecutor, bundleID string) (*dtos.GetBundleReque
 	query := `
 		SELECT 
 			product_id, name, description, sku, tag, price, stock_quantity,
-			created_at, last_updated_at, sell_when_out_of_stock, buying_price
+			created_at, last_updated_at, buying_price
 		FROM products
 		WHERE product_type = 'bundle' AND product_id = ?
 		ORDER BY created_at DESC
@@ -149,7 +149,7 @@ func GetBundleByIDProducts(db DBExecutor, bundleID string) (*dtos.GetBundleReque
 		// Scan bundle base fields
 		if err := rows.Scan(
 			&bundle.ID, &bundle.Name, &bundle.Description, &bundle.SKU, &bundle.Tag,
-			&bundle.Price, &bundle.StockQuantity, &bundle.CreatedAt, &bundle.LastUpdated, &bundle.KeepSelling, &bundle.BuyingPrice,
+			&bundle.Price, &bundle.StockQuantity, &bundle.CreatedAt, &bundle.LastUpdated, &bundle.BuyingPrice,
 		); err != nil {
 			return nil, err
 		}
@@ -326,10 +326,6 @@ func updateBundleMetadata(db DBExecutor, req dtos.Bundle, bundleID string) error
 	if req.Price != 0 {
 		updates = append(updates, "price = ?")
 		args = append(args, req.Price)
-	}
-	if req.KeepSelling != nil {
-		updates = append(updates, "sell_when_out_of_stock = ?")
-		args = append(args, *req.KeepSelling)
 	}
 	if req.CompareAtPrice != nil {
 		updates = append(updates, "buying_price = ?")

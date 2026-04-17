@@ -118,29 +118,34 @@ type InventoryTurnoverItem struct {
 }
 
 type StockEntryRequest struct {
-	ProductID         string      `json:"product_id" validate:"required"`
-	BatchNumber       string      `json:"batch_number" validate:"required"`
-	BatchImages       *[]string   `json:"batch_images"`
-	ExpiryDate        string      `json:"expiry_date" validate:"required"`
-	ManufacturingDate string      `json:"manufacturing_date" validate:"required"`
-	InspectionDate    string      `json:"inspection_date" validate:"required"`
-	InspectorID       string      `json:"inspector_id" validate:"required"`
-	InspectionNotes   *string     `json:"inspection_notes"`
-	InspectionImage   *[]string   `json:"inspection_images"`
-	QuantityReceived  int         `json:"quantity_received" validate:"gte=1"`
-	MinimumStockLevel int         `json:"minimum_stock_level" validate:"gte=0"`
-	StoreQuantity     []StoreInfo `json:"store_quantity" validate:"required,dive"`
-	SupplierID        *string     `json:"supplier_id"`
-	BuyingPrice       float64     `json:"buying_price" validate:"required,gte=0"`
-	HandlingNotes     *string     `json:"handling_notes"`
-	SellingPrice      float64     `json:"selling_price" validate:"required,gte=0"`
+	ProductID         string            `json:"product_id" validate:"required"`
+	BatchNumber       string            `json:"batch_number" validate:"required"`
+	BatchImages       *[]string         `json:"batch_images"`
+	ExpiryDate        string            `json:"expiry_date" validate:"required"`
+	ManufacturingDate string            `json:"manufacturing_date" validate:"required"`
+	InspectionDate    string            `json:"inspection_date" validate:"required"`
+	InspectorID       string            `json:"inspector_id" validate:"required"`
+	InspectionNotes   *string           `json:"inspection_notes"`
+	InspectionImage   *[]string         `json:"inspection_images"`
+	QuantityReceived  int               `json:"quantity_received" validate:"gte=1"`
+	MinimumStockLevel int               `json:"minimum_stock_level" validate:"gte=0"`
+	StoreQuantity     []StoreInfo       `json:"store_quantity" validate:"required,dive"`
+	SupplierID        *string           `json:"supplier_id"`
+	BuyingPrice       float64           `json:"buying_price" validate:"required,gte=0"`
+	HandlingNotes     *string           `json:"handling_notes"`
+	SellingPrice      float64           `json:"selling_price" validate:"required,gte=0"`
+	VariantQuantity   []VariantQuantity `json:"variant_quantity" validate:"dive"`
 }
 
 type StoreInfo struct {
 	StoreID  string `json:"store_id" validate:"required"`
 	Quantity int    `json:"quantity" validate:"required,gte=0"`
 }
-
+type VariantQuantity struct {
+	SKU      string `json:"sku"`
+	Name     string `json:"name"`
+	Quantity int    `json:"quantity"`
+}
 type Batch struct {
 	InventoryID       string   `json:"inventory_id"`
 	BatchNumber       string   `json:"batch_number"`

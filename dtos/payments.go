@@ -85,7 +85,7 @@ type BuyVoucherData struct {
 	FromName      string  `json:"from_name" validate:"required"`
 	ToName        string  `json:"to_name" validate:"required"`
 	ToEmail       string  `json:"to_email" validate:"required"`
-	Message       string  `json:"message" validate:"required"`
+	Message       string  `json:"message"`
 	DeliveryTime  string  `json:"delivery_time" validate:"required"`
 	PhoneNumber   string  `json:"phone_number"`
 	PaymentMethod string  `json:"payment_method" `

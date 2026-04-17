@@ -298,12 +298,15 @@ func scanAndEnrichProduct(db DBExecutor, rows *sql.Rows) (dtos.Product, error) {
 		return dtos.Product{}, err
 	}
 	product.ProductVariants = variants
-
-	tax, err := fetchProductTax(db, product.ID)
+	product.VariantSelection, err = GetVariantSelection(db, product.ID)
 	if err != nil {
 		return dtos.Product{}, err
 	}
-	product.Tax = &tax
+	// tax, err := fetchProductTax(db, product.ID)
+	// if err != nil {
+	// 	return dtos.Product{}, err
+	// }
+	// product.Tax = &tax
 
 	return product, nil
 }
@@ -395,6 +398,92 @@ func getProductVariants(db DBExecutor, productID string) ([]dtos.ProductVariants
 	return variants, nil
 }
 
+// GetVariantSelection retrieves the variant selection for a product, including available options and their stock levels.
+// This function is used to populate variant selection dropdowns on the frontend, showing which options are in stock.
+// Parameters:
+//   - productID: string - The product_id to fetch variant selection for
+//
+// Returns:
+//   - []dtos.VariantSelection: Array of variant selection options containing:
+//   - VariantIDs: Array of variant IDs that make up this selection (e.g., size and color combination)
+//   - Name: Human-readable name for this variant selection (e.g., "Large Red")
+//   - SKU: SKU for this specific variant selection
+//   - StockQuantity: Stock level for this variant selection (calculated from product and variant stock)
+//
+// - AdditionalPrice: Price adjustment for this variant selection (sum of all variant adjustments)
+//   - error: Database error or nil on success
+func GetVariantSelection(db DBExecutor, productID string) ([]dtos.VariantSelection, error) {
+	query := `
+	SELECT 
+		pvc.id,
+		pvc.name,
+		pvc.sku,
+		pvc.additional_price,
+		pvc.stock_quantity,
+		pcvo.variant_id
+	FROM product_variant_combinations pvc
+	LEFT JOIN product_variant_combination_options pcvo 
+		ON pvc.id = pcvo.combination_id
+	WHERE pvc.product_id = ?
+	ORDER BY pvc.id;
+	`
+
+	rows, err := db.Query(query, productID)
+	if err != nil {
+		return nil, fmt.Errorf("querying variant selections: %w", err)
+	}
+	defer rows.Close()
+
+	// map to group combinations
+	combinationMap := make(map[string]*dtos.VariantSelection)
+
+	for rows.Next() {
+		var (
+			combinationID string
+			variantID     *string // pointer to handle NULL (LEFT JOIN)
+			name          string
+			sku           string
+			price         float64
+			stock         int
+		)
+
+		if err := rows.Scan(&combinationID, &name, &sku, &price, &stock, &variantID); err != nil {
+			return nil, fmt.Errorf("scanning variant selection: %w", err)
+		}
+
+		// create if not exists
+		if _, exists := combinationMap[combinationID]; !exists {
+			combinationMap[combinationID] = &dtos.VariantSelection{
+				VariantIDs:      make([]string, 0, 3), // small optimization
+				Name:            name,
+				SKU:             sku,
+				AdditionalPrice: price,
+				StockQuantity:   stock,
+			}
+		}
+
+		// append only if not NULL
+		if variantID != nil {
+			combinationMap[combinationID].VariantIDs = append(
+				combinationMap[combinationID].VariantIDs,
+				*variantID,
+			)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating rows: %w", err)
+	}
+
+	// convert map → slice (preallocate)
+	selections := make([]dtos.VariantSelection, 0, len(combinationMap))
+	for _, v := range combinationMap {
+		selections = append(selections, *v)
+	}
+
+	return selections, nil
+}
+
 // GetProductByID retrieves complete details for a single product by its ID.
 //
 // This function fetches a product with all associated data including images, warranties,
@@ -428,7 +517,7 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 	query := `
 		SELECT 
 			p.product_id, p.name, p.description, p.sku, p.price, p.category_id,
-			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag, p.details, dp.discount, dp.discount_type, ps.weight, ps.dimensions, v.name, ps.weight_limit, p.product_type, p.low_stock_quantity_warning, p.sell_when_out_of_stock, p.show_stock_quantity
+			p.stock_quantity, p.search_vector, p.created_at, p.last_updated_at, c.name, p.tag, p.details, dp.discount, dp.discount_type, ps.weight, ps.dimensions, v.name, ps.weight_limit, p.product_type, p.low_stock_quantity_warning, p.barcode
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.category_id
 		LEFT JOIN deal_products dp ON p.product_id = dp.product_id
@@ -449,7 +538,7 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 	err = db.QueryRow(query, productID).Scan(
 		&p.ID, &p.Name, &p.Description, &p.SKU, &p.Price, &categotyID,
 		&p.StockQuantity, &p.SearchVector, &p.CreatedAt, &p.LastUpdated,
-		&categoryName, &p.Tag, &detailsData, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit, &productType, &p.LowStockAlert, &p.SellWhenOutOfStock, &p.ShowStockQuantity,
+		&categoryName, &p.Tag, &detailsData, &p.Discount, &p.DiscountType, &p.Weight, &p.Dimensions, &p.Manufacturer, &p.WeightLimit, &productType, &p.LowStockAlert, &p.Barcode,
 	)
 	if err != nil {
 		return nil, err
@@ -498,7 +587,10 @@ func GetProductByID(db DBExecutor, productID string) (*dtos.Product, error) {
 		return nil, err
 	}
 	p.ProductVariants = variants
-
+	p.VariantSelection, err = GetVariantSelection(db, p.ID)
+	if err != nil {
+		return nil, err
+	}
 	// Fetch tax information
 	// tax, err := fetchProductTax(db, p.ID)
 	// if err != nil {
@@ -639,13 +731,16 @@ func getBundleProducts(db DBExecutor, bundleID string) ([]dtos.Product, error) {
 			return nil, err
 		}
 		p.ProductVariants = variants
-
-		// Fetch tax information
-		tax, err := fetchProductTax(db, p.ID)
+		p.VariantSelection, err = GetVariantSelection(db, p.ID)
 		if err != nil {
 			return nil, err
 		}
-		p.Tax = &tax
+		// Fetch tax information
+		// tax, err := fetchProductTax(db, p.ID)
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// p.Tax = &tax
 
 		p.StockQuantity = p.BundleQuantity
 
@@ -750,16 +845,6 @@ func AddNewProduct(db DBExecutor, input dtos.CreateProduct, userID string) (*dto
 	// Generate unique product ID
 	productID, _ := shortid.Generate()
 
-	// Set default values for optional boolean fields
-	sellWhenOOs := false
-	showStock := false
-	if input.SellWhenOOS != nil {
-		sellWhenOOs = *input.SellWhenOOS
-	}
-	if input.ShowStock != nil {
-		showStock = *input.ShowStock
-	}
-
 	// Marshal product details to JSON
 	var detailsJSON []byte
 	if input.Details != nil {
@@ -774,9 +859,9 @@ func AddNewProduct(db DBExecutor, input dtos.CreateProduct, userID string) (*dto
 	// Insert product record
 	//The price is set to 0 by default and will be updated later when
 	_, err = db.Exec(`
-		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, sell_when_out_of_stock, show_stock_quantity, created_by_id, buying_price, details)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		productID, input.Name, input.Description, input.SKU, 0, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, sellWhenOOs, showStock, userID, input.BuyingPrice, detailsJSON,
+		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, created_by_id, buying_price, details, barcode)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		productID, input.Name, input.Description, input.SKU, 0, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, userID, input.BuyingPrice, detailsJSON, input.Barcode,
 	)
 	if err != nil {
 		return nil, err
@@ -794,7 +879,7 @@ func AddNewProduct(db DBExecutor, input dtos.CreateProduct, userID string) (*dto
 		SearchVector:  input.SearchVector,
 		Tag:           input.Tag,
 		Details:       input.Details,
-		SellWhenOOS:   input.SellWhenOOS,
+		Barcode:       input.Barcode,
 	}, nil
 }
 
@@ -868,9 +953,9 @@ func UpdateProductByID(db DBExecutor, productID string, input dtos.CreateProduct
 	// Update product (last_updated_at auto-updated by CURRENT_TIMESTAMP)
 	_, err = db.Exec(`
 		UPDATE products
-		SET name = ?, description = ?, sku = ?, price = ?, stock_quantity = ?, search_vector = ?, last_updated_at = CURRENT_TIMESTAMP, tag = ?, low_stock_quantity_warning = ?, sell_when_out_of_stock = ?, show_stock_quantity = ?
+		SET name = ?, description = ?, sku = ?, stock_quantity = ?, search_vector = ?, last_updated_at = CURRENT_TIMESTAMP, tag = ?, low_stock_quantity_warning = ?, barcode = ?
 		WHERE product_id = ?`,
-		input.Name, input.Description, input.SKU, input.Price, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, input.SellWhenOOS, input.ShowStock,
+		input.Name, input.Description, input.SKU, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, input.Barcode,
 		productID,
 	)
 
@@ -884,10 +969,12 @@ func UpdateProductByID(db DBExecutor, productID string, input dtos.CreateProduct
 		Name:          input.Name,
 		Description:   input.Description,
 		SKU:           input.SKU,
-		Price:         input.Price,
 		CategoryID:    input.CategoryID,
 		StockQuantity: input.StockQuantity,
 		SearchVector:  input.SearchVector,
+		Tag:           input.Tag,
+		LowStockAlert: input.LowStockAlert,
+		Barcode:       input.Barcode,
 	}, nil
 }
 
@@ -1164,6 +1251,11 @@ func enrichProduct(db DBExecutor, product *dtos.Product) error {
 	}
 	product.ProductVariants = variants
 
+	product.VariantSelection, err = GetVariantSelection(db, product.ID)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 func ptr[T any](v T) *T {
@@ -1421,11 +1513,15 @@ func enrichSubcategoryProduct(db DBExecutor, p *dtos.Product) error {
 	}
 	p.ProductVariants = variants
 
-	tax, err := fetchProductTax(db, p.ID)
+	// tax, err := fetchProductTax(db, p.ID)
+	// if err != nil {
+	// 	return err
+	// }
+	// p.Tax = &tax
+	p.VariantSelection, err = GetVariantSelection(db, p.ID)
 	if err != nil {
 		return err
 	}
-	p.Tax = &tax
 
 	return nil
 }
@@ -1835,11 +1931,15 @@ func enrichCategoryProduct(db DBExecutor, pr *dtos.CategoryProduct) error {
 		return err
 	}
 
-	tax, err := fetchProductTax(db, pr.ID)
+	// tax, err := fetchProductTax(db, pr.ID)
+	// if err != nil {
+	// 	return err
+	// }
+	// pr.Tax = &tax
+	pr.VariantSelection, err = GetVariantSelection(db, pr.ID)
 	if err != nil {
 		return err
 	}
-	pr.Tax = &tax
 
 	return nil
 }
@@ -2665,11 +2765,15 @@ func getProductByPriceType(db DBExecutor, priceType string) (*dtos.Product, erro
 	}
 
 	// Fetch tax information
-	tax, err := fetchProductTax(db, p.ID)
+	// tax, err := fetchProductTax(db, p.ID)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// p.Tax = &tax
+	p.VariantSelection, err = GetVariantSelection(db, p.ID)
 	if err != nil {
 		return nil, err
 	}
-	p.Tax = &tax
 
 	return &p, nil
 }
@@ -2760,5 +2864,53 @@ func HoldProductSpecs(db DBExecutor, productID string) ([]string, error) {
 //   - error: Database error or nil on success
 func RemoveAllProductVariants(productID string) error {
 	_, err := DB.Exec(`DELETE FROM product_variants WHERE product_id = ?`, productID)
+	return err
+}
+
+// InsertCombination inserts a product combination into the database and returns the new combination ID.
+// param db: Database executor for performing the query
+// param combination: Data transfer object containing combination details (product ID, name, SKU, additional price)
+// returns: The ID of the newly created combination and any error encountered
+func InsertCombination(db DBExecutor, combination dtos.Combination) (string, error) {
+	combinationID, _ := shortid.Generate()
+	query := `INSERT INTO product_variant_combinations (id, product_id, name, sku, additional_price) VALUES (?, ?, ?, ?, ?)`
+	_, err := db.Exec(query, combinationID, combination.ProductID, combination.Name, combination.SKU, combination.AdditionalPrice)
+	return combinationID, err
+}
+
+// InserCombinationOption inserts options for a product combination into the database.
+// param db: Database executor for performing the query
+// param combinationID: The ID of the combination to associate options with
+// param variantID: The ID of the variant that defines the option (e.g., size, color)
+// returns: Any error encountered during the insertion process
+func InsertCombinationOption(db DBExecutor, combinationID, variantID string, productID string) error {
+	combinationOptionsID, _ := shortid.Generate()
+	query := `INSERT INTO product_variant_combination_options (id, combination_id, variant_id) VALUES (?, ?, ?)`
+	_, err := db.Exec(query, combinationOptionsID, combinationID, variantID)
+	if err != nil {
+		return err
+	}
+	// Check if product-variant association already exists
+	exists, err := isProductWithVariant(db, variantID, productID)
+	if err != nil {
+		return err
+	}
+
+	// Handle optional additional price
+	additionalPrice := 0.0
+	// Skip insertion if association already exists (idempotent)
+	if exists {
+		return nil
+
+	} else {
+		pvID, _ := shortid.Generate()
+		// Insert new product-variant record
+		_, err = db.Exec(`
+			INSERT INTO product_variants (product_variants_id, variant_id, product_id, additional_price, stock_quantity)
+			VALUES (?, ?, ?, ?, ?)`,
+			pvID, variantID, productID, additionalPrice, 0,
+		)
+	}
+
 	return err
 }
