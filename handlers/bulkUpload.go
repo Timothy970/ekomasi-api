@@ -174,21 +174,14 @@ func DownloadSampleCSVHandler(w http.ResponseWriter, r *http.Request) {
 			"100",
 			"",
 			"5",
-			"false",
-			"true",
+			"123355677",
 			"2.00",
 			"12",
 			"5",
 			"3x3x1",
-			"1-2 years, 12-60 months",
 			"Nature's Best",
 			"Nature's Best Co.",
-			"Organic",
-			"Green, White",
-			"Small, Medium",
 			"12",
-			"2025-12-31",
-			"2024-01-01",
 		},
 		{
 			"Herbal Shampoo",
@@ -199,21 +192,14 @@ func DownloadSampleCSVHandler(w http.ResponseWriter, r *http.Request) {
 			"75",
 			"beauty",
 			"10",
-			"true",
-			"true",
+			"987654321",
 			"4.50",
 			"6",
 			"2",
 			"6x6x2",
-			"18-45 years, 1-12 months",
 			"Nature's Best",
 			"Nature's Best Co.",
-			"Organic",
-			"Green, White",
-			"Small, Medium",
 			"12",
-			"2025-11-30",
-			"2024-02-01",
 		},
 	}
 
@@ -437,17 +423,34 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 			RawBody:   requestSummary})
 		return
 	}
+	warrantyType, err := models.GetDefaultWarrantyType(tx)
+	if err != nil {
+		log.Printf("Error fetching default warranty type: %s", err)
+		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Failed to fetch default warranty type",
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   fmt.Sprintf("%s", err),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   r,
+			RawBody:   requestSummary})
+		return
+	}
+
 	//handle product specifications
 	specificationsRequest := dtos.ProductSpecification{
 		ProductID:      product.ID,
-		Brand:          models.GetBrandID(tx, *bulkProduct.Brand), //should be ID
+		Brand:          models.GetVariantID(tx, *bulkProduct.Brand, "brand"), //should be ID
 		CategoryID:     bulkProduct.CategoryID,
 		Dimensions:     *bulkProduct.Dimensions,
-		Manufacturer:   *bulkProduct.Manufacturer,
+		Manufacturer:   models.GetVariantID(tx, *bulkProduct.Manufacturer, "manufacturer"),
 		WarrantyPeriod: *bulkProduct.WarrantyPeriod,
 		Weight:         *bulkProduct.Weight,
 		WeightLimit:    *bulkProduct.WeightLimit,
-		WarrantyType:   models.GetDefaultWarrantyType(tx),
+		WarrantyType:   warrantyType,
 	}
 	state := "add"
 	err = handleProductSpecs(tx, specificationsRequest, state)
@@ -483,7 +486,6 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	//handle product warranty
-	specificationsRequest.WarrantyType = models.GetManufacturingWarrantyID(tx)
 	err = handleProductsWarranty(tx, specificationsRequest)
 
 	if err != nil {
