@@ -159,17 +159,19 @@ func nullToString(ns sql.NullString) string {
 //   - "COMPLETED" -> orderStatus = "PAID"
 //   - Any other status -> orderStatus = "FAILED"
 func UpdateDeliveryOrderTables(db DBExecutor, deliveryID, orderId string, status string) error {
-	// Determine order status based on payment result
+	// status passed is either "COMPLETED" or "FAILED" based on M-Pesa response
 	orderStatus := "PROCESSING"
+	paymentStatus := "PAID"
 	if status != "COMPLETED" {
 		orderStatus = "FAILED"
+		paymentStatus = "FAILED"
 	}
 
 	// Update order status and payment status
 	_, err := db.Exec(`
 		UPDATE orders SET status = ?, payment_status = ?
 		WHERE order_id = ?
-	`, orderStatus, orderStatus, orderId)
+	`, orderStatus, paymentStatus, orderId)
 	if err != nil {
 		return fmt.Errorf("failed to update orders table: %w", err)
 	}

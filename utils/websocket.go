@@ -2,6 +2,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
@@ -30,6 +31,15 @@ const (
 	pingPeriod     = (pongWait * 9) / 10 // Send pings at 90% of pong wait time
 	maxMessageSize = 512                 // Maximum message size in bytes
 )
+
+// WSMessage defines the structure for Redis-broadcasted WebSocket messages.
+type WSMessage struct {
+	Key     string      `json:"key"`
+	Payload interface{} `json:"payload"`
+}
+
+// wsChannel is the Redis channel name for WebSocket broadcasts.
+const wsChannel = "ws_broadcast"
 
 // HandleWebSocket upgrades HTTP connection to WebSocket and manages lifecycle.
 // It uses a "key" query parameter to identify the connection.
@@ -111,8 +121,38 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// SendToUser sends a JSON message to a specific connection identified by key.
+// SendToUser broadcasts a JSON message to a specific connection identified by key.
+// In a multi-instance environment, this publishes to Redis so all instances can check local connections.
 func SendToUser(key string, message interface{}) {
+	if RedisClient == nil {
+		// Fallback to local send if Redis is not configured
+		sendLocally(key, message)
+		return
+	}
+
+	// Prepare the broadcast message
+	broadcastMsg := WSMessage{
+		Key:     key,
+		Payload: message,
+	}
+
+	data, err := json.Marshal(broadcastMsg)
+	if err != nil {
+		log.Printf("Error marshaling WebSocket broadcast message: %v", err)
+		return
+	}
+
+	// Publish to Redis
+	err = RedisClient.Publish(ctx, wsChannel, data).Err()
+	if err != nil {
+		log.Printf("Error publishing WebSocket message to Redis: %v", err)
+		// Fallback to local send as last resort
+		sendLocally(key, message)
+	}
+}
+
+// sendLocally sends a JSON message to a connection on the current server instance.
+func sendLocally(key string, message interface{}) {
 	var conn *websocket.Conn
 	var ok bool
 
@@ -123,7 +163,8 @@ func SendToUser(key string, message interface{}) {
 
 	// Connection not found - log and return
 	if !ok || conn == nil {
-		log.Printf("No WebSocket connection found for key=%s", key)
+		// Only log if Redis is NOT used (locally) or if we want to trace local attempts
+		// log.Printf("No local WebSocket connection found for key=%s", key)
 		return
 	}
 
@@ -139,6 +180,35 @@ func SendToUser(key string, message interface{}) {
 		delete(activeConnections, key)
 		mu.Unlock()
 	}
+}
+
+// StartWebSocketBroadcaster starts a background listener for Redis WebSocket broadcasts.
+// It should be called once during application startup.
+func StartWebSocketBroadcaster() {
+	if RedisClient == nil {
+		log.Println("RedisClient not initialized. WebSocket broadcaster will not start.")
+		return
+	}
+
+	go func() {
+		pubsub := RedisClient.Subscribe(ctx, wsChannel)
+		defer pubsub.Close()
+
+		log.Printf("WebSocket broadcaster started on channel: %s", wsChannel)
+
+		ch := pubsub.Channel()
+		for msg := range ch {
+			var wsMsg WSMessage
+			err := json.Unmarshal([]byte(msg.Payload), &wsMsg)
+			if err != nil {
+				log.Printf("Error unmarshaling WebSocket broadcast: %v", err)
+				continue
+			}
+
+			// Deliver to local connection if it exists
+			sendLocally(wsMsg.Key, wsMsg.Payload)
+		}
+	}()
 }
 
 // IsConnected checks if a key has an active WebSocket connection.

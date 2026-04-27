@@ -150,6 +150,8 @@ func main() {
 	handlers.Redis = redisClient
 	utils.RedisClient = redisClient
 	dtos.Redis = redisClient
+	// Start WebSocket broadcaster for multi-instance support
+	utils.StartWebSocketBroadcaster()
 	// Initialize router with OpenTelemetry middleware
 	router := mux.NewRouter()
 	// WebSocket: No middleware
