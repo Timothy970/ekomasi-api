@@ -92,10 +92,15 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		ticker.Stop()
 		conn.Close()
 
-		// Remove connection from map
+		// Remove connection from map ONLY if it's the same connection we added
+		// This prevents a newer reconnection from being deleted by an old connection's cleanup
 		mu.Lock()
-		delete(activeConnections, key)
-		log.Printf("WebSocket closed for key %s", key)
+		if activeConnections[key] == conn {
+			delete(activeConnections, key)
+			log.Printf("WebSocket closed for key %s", key)
+		} else {
+			log.Printf("WebSocket for key %s was already replaced by a newer connection, skipping cleanup", key)
+		}
 		mu.Unlock()
 	}()
 
@@ -161,10 +166,10 @@ func sendLocally(key string, message interface{}) {
 	conn, ok = activeConnections[key]
 	mu.RUnlock()
 
-	// Connection not found - log and return
+	// Connection not found - return without logging as error
+	// In multi-pod environments, this is expected behavior on pods where the user is not connected
 	if !ok || conn == nil {
-		// Only log if Redis is NOT used (locally) or if we want to trace local attempts
-		// log.Printf("No local WebSocket connection found for key=%s", key)
+		log.Printf("No active WebSocket connection for key %s on this instance", key)
 		return
 	}
 
@@ -183,7 +188,7 @@ func sendLocally(key string, message interface{}) {
 }
 
 // StartWebSocketBroadcaster starts a background listener for Redis WebSocket broadcasts.
-// It should be called once during application startup.
+// It includes a retry mechanism to handle transient Redis connection failures.
 func StartWebSocketBroadcaster() {
 	if RedisClient == nil {
 		log.Println("RedisClient not initialized. WebSocket broadcaster will not start.")
@@ -191,22 +196,36 @@ func StartWebSocketBroadcaster() {
 	}
 
 	go func() {
-		pubsub := RedisClient.Subscribe(ctx, wsChannel)
-		defer pubsub.Close()
-
-		log.Printf("WebSocket broadcaster started on channel: %s", wsChannel)
-
-		ch := pubsub.Channel()
-		for msg := range ch {
-			var wsMsg WSMessage
-			err := json.Unmarshal([]byte(msg.Payload), &wsMsg)
+		for {
+			pubsub := RedisClient.Subscribe(ctx, wsChannel)
+			
+			// Verify subscription is working
+			_, err := pubsub.Receive(ctx)
 			if err != nil {
-				log.Printf("Error unmarshaling WebSocket broadcast: %v", err)
+				log.Printf("Error subscribing to WebSocket channel: %v. Retrying in 5s...", err)
+				pubsub.Close()
+				time.Sleep(5 * time.Second)
 				continue
 			}
 
-			// Deliver to local connection if it exists
-			sendLocally(wsMsg.Key, wsMsg.Payload)
+			log.Printf("WebSocket broadcaster started on channel: %s", wsChannel)
+
+			ch := pubsub.Channel()
+			for msg := range ch {
+				var wsMsg WSMessage
+				err := json.Unmarshal([]byte(msg.Payload), &wsMsg)
+				if err != nil {
+					log.Printf("Error unmarshaling WebSocket broadcast: %v", err)
+					continue
+				}
+
+				// Deliver to local connection if it exists
+				sendLocally(wsMsg.Key, wsMsg.Payload)
+			}
+
+			log.Println("WebSocket broadcaster channel closed. Reconnecting...")
+			pubsub.Close()
+			time.Sleep(1 * time.Second)
 		}
 	}()
 }
