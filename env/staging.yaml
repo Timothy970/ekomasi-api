@@ -1,4 +1,4 @@
-type: go-app
+type: go
 
 ingress: true
 
