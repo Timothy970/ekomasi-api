@@ -4,10 +4,10 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // parseBundleProducts parses the products JSON string from form data
@@ -75,15 +75,15 @@ func parseStockQuantity(quantityStr string) int {
 
 // GetBundleProductsHandler retrieves a paginated list of all product bundles.
 // Product bundles are collections of products sold together at a special price.
-func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
+func GetBundleProductsHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	requestSummary := utils.GetRequestSummary(c.Request)
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 
 	bundles, pagination, err := models.GetBundleProducts(models.DB, limit, page)
 	if err != nil {
 		// Return error response if database query fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to fetch bundles",
@@ -92,13 +92,13 @@ func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response with bundles and pagination metadata
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Bundles fetched successfully",
@@ -108,7 +108,7 @@ func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Bundles fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 
 }
@@ -126,21 +126,21 @@ func GetBundleProductsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/bundles/{bundle_id} [get]
 // @Security BearerAuth
-func GetBundleByIDProductsHandler(w http.ResponseWriter, r *http.Request) {
+func GetBundleByIDProductsHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract bundle ID from URL path parameters
-	bundleID := mux.Vars(r)["bundle_id"]
+	bundleID := c.Param("bundle_id")
 
 	// Retrieve bundle from database by ID
 	bundle, err := models.GetBundleByIDProducts(models.DB, bundleID)
 	if err != nil {
 		// Return error response if bundle not found or query fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to fetch bundle",
@@ -149,13 +149,13 @@ func GetBundleByIDProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response with bundle details
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Bundle fetched successfully",
@@ -165,7 +165,7 @@ func GetBundleByIDProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Bundle fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 
 }
@@ -193,26 +193,26 @@ func GetBundleByIDProductsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/bundles [post]
 // @Security BearerAuth
-func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
+func CreateBundleHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		return
 	}
 
 	// Retrieve authenticated admin user from context
-	authuser, _ := middleware.UserFromContext(r.Context())
+	authuser, _ := middleware.UserFromContext(c.Request.Context())
 
 	// Parse multipart form data (max 20MB for image upload)
-	if err := r.ParseMultipartForm(20 << 20); err != nil {
+	if err := c.Request.ParseMultipartForm(20 << 20); err != nil {
 		// Return error if form parsing fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to parse form data: " + err.Error(),
@@ -221,16 +221,16 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
 	// Extract image file from multipart form (required field)
-	file, header, err := r.FormFile("image")
+	file, header, err := c.Request.FormFile("image")
 	if err != nil {
 		// Return error if image is not provided
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Image is required when creating a bundle",
@@ -239,7 +239,7 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Image is required",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
@@ -249,7 +249,7 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 	if err != nil {
 		// Return error if image upload fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: err.Error(),
@@ -258,28 +258,28 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
 	// Parse form values
-	bundlePrice, _ := strconv.ParseFloat(r.FormValue("bundle_price"), 64)
-	stockQuantity, _ := strconv.Atoi(r.FormValue("stock_quantity"))
+	bundlePrice, _ := strconv.ParseFloat(c.Request.FormValue("bundle_price"), 64)
+	stockQuantity, _ := strconv.Atoi(c.Request.FormValue("stock_quantity"))
 
 	// Construct bundle object from form data
 	req := &dtos.Bundle{
-		Name:           r.FormValue("bundle_name"),
-		Description:    r.FormValue("bundle_description"),
+		Name:           c.Request.FormValue("bundle_name"),
+		Description:    c.Request.FormValue("bundle_description"),
 		Price:          bundlePrice,
 		Image:          url,
-		Products:       parseBundleProducts(r.FormValue("products")),
-		CompareAtPrice: parseCompareAtPrice(r.FormValue("compare_at_price")),
+		Products:       parseBundleProducts(c.Request.FormValue("products")),
+		CompareAtPrice: parseCompareAtPrice(c.Request.FormValue("compare_at_price")),
 		StockQuantity:  stockQuantity,
 	}
 
 	// Validate the bundle data according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 
@@ -287,7 +287,7 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	err = models.CreateBundle(models.DB, *req, authuser.ID)
 	if err != nil {
 		// Return error if bundle creation fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to create product bundle",
@@ -296,7 +296,7 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -304,7 +304,7 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	// Invalidate cached bundle data to ensure consistency
 	utils.DeleteCacheByPrefix("products_bundles_page_")
 	utils.DeleteCacheByPrefix("bundles_pagination_page_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product bundle created successfully",
@@ -314,7 +314,7 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Created product bundle successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 
 }
@@ -344,26 +344,26 @@ func CreateBundleHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/bundles/{bundle_id} [patch]
 // @Security BearerAuth
-func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateBundleHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.update")
 	if !ok {
 		return
 	}
 
 	// Extract bundle ID from URL path parameters
-	bundleID := mux.Vars(r)["bundle_id"]
+	bundleID := c.Param("bundle_id")
 
 	// Parse multipart form (max 20MB for optional image upload)
-	if err := r.ParseMultipartForm(20 << 20); err != nil {
+	if err := c.Request.ParseMultipartForm(20 << 20); err != nil {
 		// Return error if form parsing fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to parse form data: " + err.Error(),
@@ -372,20 +372,20 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to parse form: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
 	// Handle optional image upload (if new image provided, upload it)
 	var imageURL string
-	if file, header, err := r.FormFile("image"); err == nil {
+	if file, header, err := c.Request.FormFile("image"); err == nil {
 		defer file.Close()
 		// Upload new image to Google Cloud Storage
 		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 		if err != nil {
 			// Return error if image upload fails
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Failed to upload image to storage :" + err.Error(),
@@ -394,29 +394,29 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   "Failed to upload image",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 			})
 			return
 		}
 		imageURL = url
 	} else {
 		// If no file uploaded, use existing image URL from form value
-		imageURL = r.FormValue("image")
+		imageURL = c.Request.FormValue("image")
 	}
 
 	// Construct bundle object from form data using helper functions
 	req := &dtos.Bundle{
-		Name:           r.FormValue("bundle_name"),
-		Description:    r.FormValue("bundle_description"),
-		Price:          parseBundlePrice(r.FormValue("bundle_price")),
+		Name:           c.Request.FormValue("bundle_name"),
+		Description:    c.Request.FormValue("bundle_description"),
+		Price:          parseBundlePrice(c.Request.FormValue("bundle_price")),
 		Image:          imageURL,
-		Products:       parseBundleProducts(r.FormValue("products")),
-		CompareAtPrice: parseCompareAtPrice(r.FormValue("compare_at_price")),
-		StockQuantity:  parseStockQuantity(r.FormValue("stock_quantity")),
+		Products:       parseBundleProducts(c.Request.FormValue("products")),
+		CompareAtPrice: parseCompareAtPrice(c.Request.FormValue("compare_at_price")),
+		StockQuantity:  parseStockQuantity(c.Request.FormValue("stock_quantity")),
 	}
 
 	// Validate the updated bundle data
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 
@@ -424,7 +424,7 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 	err := models.UpdateBundle(models.DB, *req, bundleID)
 	if err != nil {
 		// Return error if bundle update fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update product bundle with ID " + bundleID,
@@ -433,11 +433,11 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product bundle with ID " + bundleID + " updated successfully",
@@ -447,7 +447,7 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product bundle updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -465,26 +465,26 @@ func UpdateBundleHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/bundles/{bundle_id} [delete]
 // @Security BearerAuth
-func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteBundleHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		return
 	}
 
 	// Extract bundle ID from URL path parameters
-	bundleID := mux.Vars(r)["bundle_id"]
+	bundleID := c.Param("bundle_id")
 
 	// Delete bundle from database
 	if err := models.DeleteBundle(models.DB, bundleID); err != nil {
 		// Return error if bundle deletion fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to delete product bundle with ID " + bundleID,
@@ -493,13 +493,13 @@ func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response confirming deletion
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product bundle with ID " + bundleID + " deleted successfully",
@@ -509,7 +509,7 @@ func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product bundle deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -530,60 +530,60 @@ func DeleteBundleHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/bundles/{bundle_id}/products [post]
 // @Security BearerAuth
-func AddProductsToBundleHandler(w http.ResponseWriter, r *http.Request) {
+func AddProductsToBundleHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		return
 	}
 
 	// Decode and validate the request body (array of products)
-	req, ok := DecodeRequestBody[[]dtos.BundleProducts](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[[]dtos.BundleProducts](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 
 	// Add products to bundle in database
-	err := models.AddProductsToBundle(models.DB, *req, mux.Vars(r)["bundle_id"])
+	err := models.AddProductsToBundle(models.DB, *req, c.Param("bundle_id"))
 	if err != nil {
 		// Return error if adding products fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
-				Description: "Failed to add product(s) to bundle with ID " + mux.Vars(r)["bundle_id"],
+				Description: "Failed to add product(s) to bundle with ID " + c.Param("bundle_id"),
 				Code:        http.StatusInternalServerError,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response confirming products added
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
-			Description: "Product(s) added to bundle with ID " + mux.Vars(r)["bundle_id"] + " successfully",
+			Description: "Product(s) added to bundle with ID " + c.Param("bundle_id") + " successfully",
 			Code:        http.StatusOK,
 		},
 		Payload:   nil,
 		Message:   "Product(s) added to bundle successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -604,37 +604,37 @@ func AddProductsToBundleHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/bundles/{bundle_id}/products [delete]
 // @Security BearerAuth
-func RemoveProductsFromBundleHandler(w http.ResponseWriter, r *http.Request) {
+func RemoveProductsFromBundleHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		return
 	}
 
 	// Extract bundle ID from URL path parameters
-	bundleID := mux.Vars(r)["bundle_id"]
+	bundleID := c.Param("bundle_id")
 
 	// Decode and validate the request body
-	req, ok := DecodeRequestBody[dtos.AddProductsToBundle](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.AddProductsToBundle](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 
 	// Remove products from bundle in database
 	if err := models.RemoveProductsFromBundle(models.DB, *req, bundleID); err != nil {
 		// Return error if removing products fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to remove product(s) from bundle with ID " + bundleID,
@@ -643,7 +643,7 @@ func RemoveProductsFromBundleHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to remove product(s) from bundle",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -653,7 +653,7 @@ func RemoveProductsFromBundleHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("bundles_pagination_page_")
 
 	// Return success response confirming products removed
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product(s) removed from bundle with ID " + bundleID + " successfully",
@@ -663,6 +663,6 @@ func RemoveProductsFromBundleHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product(s) removed from bundle successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

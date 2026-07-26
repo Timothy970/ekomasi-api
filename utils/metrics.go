@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-var meter = otel.Meter("adenzo-backend")
+var meter = otel.Meter("ekomasi-backend")
 
 // Business metrics
 var (

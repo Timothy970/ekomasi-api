@@ -250,3 +250,29 @@ type UpdateOrderDeliveryStatusRequest struct {
 	OrderID        string `json:"order_id" validate:"required"`
 	DeliveryStatus string `json:"status" validate:"required"`
 }
+
+// OrderTimelineStep represents a single milestone step in visual order tracking
+type OrderTimelineStep struct {
+	Step        string     `json:"step"` // 'placed', 'processing', 'shipped', 'out_for_delivery', 'delivered'
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	IsCompleted bool       `json:"is_completed"`
+	IsCurrent   bool       `json:"is_current"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+}
+
+// OrderTrackingTimelineResponse holds full order details and visual step-by-step tracking timeline
+type OrderTrackingTimelineResponse struct {
+	OrderID           string              `json:"order_id"`
+	TrackingToken     string              `json:"tracking_token,omitempty"`
+	OrderStatus       string              `json:"order_status"`
+	DeliveryStatus    string              `json:"delivery_status"`
+	PaymentStatus     string              `json:"payment_status"`
+	CustomerName      string              `json:"customer_name"`
+	CustomerEmail     string              `json:"customer_email"`
+	DeliveryAddress   string              `json:"delivery_address"`
+	CreatedAt         time.Time           `json:"created_at"`
+	EstimatedDelivery *time.Time          `json:"estimated_delivery,omitempty"`
+	Items             []OrderProduct      `json:"items,omitempty"`
+	TimelineSteps     []OrderTimelineStep `json:"timeline_steps"`
+}

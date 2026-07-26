@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var tracer = otel.Tracer("adenzo-backend")
+var tracer = otel.Tracer("ekomasi-backend")
 
 // TelemetryMiddleware provides comprehensive telemetry for HTTP requests
 func TelemetryMiddleware(next http.Handler) http.Handler {

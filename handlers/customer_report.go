@@ -1,11 +1,12 @@
-// Package handlers provides HTTP request handlers for the Adenzo backend API.
+// Package handlers provides HTTP request handlers for the Ekomasi backend API.
 // This file contains customer analytics and reporting handlers that track customer retention,
 // behavior patterns, and lifecycle metrics to support customer relationship management.
 package handlers
 
 import (
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"net/http"
 	"strconv"
 	"time"
@@ -28,19 +29,19 @@ import (
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/reports/customer-retention [get]
 // @Security BearerAuth
-func GetCustomerRetention(w http.ResponseWriter, r *http.Request) {
+func GetCustomerRetention(c *gin.Context) {
 	// Track request execution time for performance monitoring
 	start := time.Now()
 
 	// Extract request summary for logging and error reporting
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse and validate date range from query parameters
-	start, end, err := ParseDateRange(r)
+	start, end, err := ParseDateRange(c.Request)
 
 	// Parse optional duration parameter (in months) for retention calculation
 	duration := 0
-	months := r.URL.Query().Get("duration")
+	months := c.Query("duration")
 	if months != "" {
 		// Convert duration string to integer (ignoring conversion errors, defaults to 0)
 		duration, _ = strconv.Atoi(months)
@@ -50,7 +51,7 @@ func GetCustomerRetention(w http.ResponseWriter, r *http.Request) {
 	ret, err := models.GetCustomerRetention(start, end, duration)
 	if err != nil {
 		// Return error response if retention data retrieval fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get customer retention report",
@@ -59,7 +60,7 @@ func GetCustomerRetention(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -75,7 +76,7 @@ func GetCustomerRetention(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return success response with comprehensive retention metrics
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Customer retention report generated successfully",
@@ -93,7 +94,7 @@ func GetCustomerRetention(w http.ResponseWriter, r *http.Request) {
 		Message:   "Customer retention report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -115,24 +116,24 @@ func GetCustomerRetention(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/reports/customer-retention/trends [get]
 // @Security BearerAuth
-func GetCustomerRetentionTrends(w http.ResponseWriter, r *http.Request) {
+func GetCustomerRetentionTrends(c *gin.Context) {
 	// Track request execution time for performance monitoring
 	start := time.Now()
 
 	// Extract request summary for logging and error reporting
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse and validate date range from query parameters
-	start, end, err := ParseDateRange(r)
+	start, end, err := ParseDateRange(c.Request)
 
 	// Set default period to month, can be overridden by query parameter
 	period := "month"
-	periodStr := r.URL.Query().Get("period")
+	periodStr := c.Query("period")
 	if periodStr != "" {
 		// Validate period parameter - must be month, quarter, or year
 		if periodStr != "month" && periodStr != "quarter" && periodStr != "year" {
 			// Return error if period parameter is invalid
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Reports",
 					Description: "Invalid period specified for customer retention trends",
@@ -141,7 +142,7 @@ func GetCustomerRetentionTrends(w http.ResponseWriter, r *http.Request) {
 				Message:   "Period should be either month, quarter or year",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -154,7 +155,7 @@ func GetCustomerRetentionTrends(w http.ResponseWriter, r *http.Request) {
 	ret, err := models.GetCustomerRetentionTrends(start, end, period)
 	if err != nil {
 		// Return error response if trend data retrieval fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get customer retention trends",
@@ -163,13 +164,13 @@ func GetCustomerRetentionTrends(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response with time-series retention trend data
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Customer retention trend report generated successfully",
@@ -179,7 +180,7 @@ func GetCustomerRetentionTrends(w http.ResponseWriter, r *http.Request) {
 		Message:   "Customer retention trend report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -200,21 +201,21 @@ func GetCustomerRetentionTrends(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/reports/customer-retention/summary [get]
 // @Security BearerAuth
-func GetCustomerRetentionSummary(w http.ResponseWriter, r *http.Request) {
+func GetCustomerRetentionSummary(c *gin.Context) {
 	// Track request execution time for performance monitoring
 	start := time.Now()
 
 	// Extract request summary for logging and error reporting
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse and validate date range from query parameters
-	start, end, err := ParseDateRange(r)
+	start, end, err := ParseDateRange(c.Request)
 
 	// Retrieve aggregated customer retention summary from the database
 	ret, err := models.GetCustomerRetentionSummary(start, end)
 	if err != nil {
 		// Return error response if summary data retrieval fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get customer retention summary",
@@ -223,13 +224,13 @@ func GetCustomerRetentionSummary(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response with aggregated retention summary metrics
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Customer retention summary report generated successfully",
@@ -239,7 +240,7 @@ func GetCustomerRetentionSummary(w http.ResponseWriter, r *http.Request) {
 		Message:   "Customer retention summary report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }

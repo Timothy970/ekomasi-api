@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo e-commerce backend.
+// Package models provides data access functions for the Ekomasi e-commerce backend.
 //
 // shipping.go handles shipping and delivery management including:
 //   - Delivery rate calculation by location
@@ -8,7 +8,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"errors"
 	"fmt"

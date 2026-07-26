@@ -282,6 +282,12 @@ type BulkUploadProduct struct {
 	WarrantyPeriod          *int      `json:"warranty_period"`
 	CreatedAt               time.Time `json:"created_at"`
 	Barcode                 string    `json:"barcode"`
+	CombinationName         string    `json:"combination_name,omitempty"`
+	CombinationSKU          string    `json:"combination_sku,omitempty"`
+	AdditionalPrice         float64   `json:"additional_price,omitempty"`
+	Option1                 string    `json:"option_1,omitempty"`
+	Option2                 string    `json:"option_2,omitempty"`
+	Option3                 string    `json:"option_3,omitempty"`
 }
 type VoucherDesign struct {
 	DesignID   string  `json:"design_id"`
@@ -308,4 +314,27 @@ type Combination struct {
 	Name            string  `json:"name"`
 	SKU             string  `json:"sku"`
 	AdditionalPrice float64 `json:"additional_price"`
+}
+
+// BulkValidationRowError represents a granular error for a specific row/cell during CSV validation
+type BulkValidationRowError struct {
+	RowNumber    int    `json:"row_number"`
+	SKU          string `json:"sku,omitempty"`
+	ProductName  string `json:"product_name,omitempty"`
+	Field        string `json:"field"`
+	Value        string `json:"value"`
+	ErrorMessage string `json:"error_message"`
+}
+
+// BulkImportDiagnosticResult holds comprehensive validation and batch execution results
+type BulkImportDiagnosticResult struct {
+	TotalRows        int                      `json:"total_rows"`
+	ValidRowsCount   int                      `json:"valid_rows_count"`
+	InvalidRowsCount int                      `json:"invalid_rows_count"`
+	Mode             string                   `json:"mode"`
+	ValidateOnly     bool                     `json:"validate_only"`
+	Errors           []BulkValidationRowError `json:"errors"`
+	ProcessedCount   int                      `json:"processed_count"`
+	CreatedSKUs      []string                 `json:"created_skus,omitempty"`
+	UpdatedSKUs      []string                 `json:"updated_skus,omitempty"`
 }

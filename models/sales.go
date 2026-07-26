@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo e-commerce backend.
+// Package models provides data access functions for the Ekomasi e-commerce backend.
 //
 // sales.go handles sales analytics and reporting including:
 //   - Sales trends and growth analysis
@@ -9,7 +9,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"fmt"
 	"time"
 )

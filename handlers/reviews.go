@@ -5,10 +5,11 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"context"
 	"database/sql"
 	"fmt"
@@ -17,8 +18,6 @@ import (
 	"strconv"
 
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 var productWithID = "Product with ID "
@@ -38,23 +37,23 @@ var productWithID = "Product with ID "
 // @Success      200         {object}  map[string]interface{}  "Review details with pagination"
 // @Failure      500         {object}  dtos.ErrorResponse      "Internal server error"
 // @Router       /api/products/{product_id}/reviews/{review_id} [get]
-func GetReview(w http.ResponseWriter, r *http.Request) {
+func GetReview(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract product ID and review ID from URL path parameters
-	productID := mux.Vars(r)["product_id"]
-	reviewID := mux.Vars(r)["review_id"]
+	productID := c.Param("product_id")
+	reviewID := c.Param("review_id")
 	// Parse pagination parameters from query string
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 
 	// Fetch specific review(s) from database for the product
 	reviews, pagination, err := models.GetProductReview(models.DB, productID, reviewID, limit, page)
 	if err != nil {
 		// Database query failed, log and return error response
 		log.Printf("error getting reviews:::%v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error fetching product reviews for product with product id " + productID,
@@ -63,7 +62,7 @@ func GetReview(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 
 		return
@@ -79,7 +78,7 @@ func GetReview(w http.ResponseWriter, r *http.Request) {
 		response["pagination"] = pagination
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product reviews for product ID " + productID + " retrieved successfully",
@@ -89,7 +88,7 @@ func GetReview(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product reviews",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -110,19 +109,19 @@ func GetReview(w http.ResponseWriter, r *http.Request) {
 // @Failure      404         {object}  dtos.ErrorResponse      "Product not found"
 // @Failure      500         {object}  dtos.ErrorResponse      "Internal server error"
 // @Router       /api/products/{product_id}/reviews [get]
-func GetProductReviews(w http.ResponseWriter, r *http.Request) {
+func GetProductReviews(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract product ID from URL path parameters
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 	// Parse pagination parameters from query string
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 	// Extract optional sorting parameter (newest, oldest, highest_rated, lowest_rated)
-	sortBy := r.URL.Query().Get("sort_by")
+	sortBy := c.Query("sort_by")
 	// Extract optional rating filter parameter (1-5 stars)
-	ratingStr := r.URL.Query().Get("ratings")
+	ratingStr := c.Query("ratings")
 	rating, _ := strconv.Atoi(ratingStr)
 	// Fetch all reviews for product from database with filters and sorting
 	reviews, pagination, err := models.GetProductReviews(models.DB, productID, sortBy, rating, limit, page)
@@ -130,7 +129,7 @@ func GetProductReviews(w http.ResponseWriter, r *http.Request) {
 		// Handle different error types with appropriate responses
 		if err == sql.ErrNoRows {
 			// Product not found in database
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: productWithID + productID + " is not found",
@@ -139,12 +138,12 @@ func GetProductReviews(w http.ResponseWriter, r *http.Request) {
 				Message:   "Product not found",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 		} else {
 			// Database query failed, log and return error response
 			log.Printf("error getting reviews:::%v", err)
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Error fetching product reviews for product with ID " + productID,
@@ -153,7 +152,7 @@ func GetProductReviews(w http.ResponseWriter, r *http.Request) {
 				Message:   "Error fetching product reviews",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 		}
 		return
@@ -169,7 +168,7 @@ func GetProductReviews(w http.ResponseWriter, r *http.Request) {
 		response["pagination"] = pagination
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product reviews for product ID " + productID + " retrieved successfully",
@@ -179,7 +178,7 @@ func GetProductReviews(w http.ResponseWriter, r *http.Request) {
 		Message:   "All reviews for product",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -200,18 +199,18 @@ func GetProductReviews(w http.ResponseWriter, r *http.Request) {
 // @Failure      500         {object}  dtos.ErrorResponse   "Internal server error"
 // @Security     BearerAuth
 // @Router       /api/products/{product_id}/reviews [post]
-func CreateReview(w http.ResponseWriter, r *http.Request) {
+func CreateReview(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract product ID from URL path parameters
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 	// Extract authenticated user from request context
-	authuser, ok := middleware.UserFromContext(r.Context())
+	authuser, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// User not authenticated, return unauthorized error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "User not validated or authenticated",
@@ -220,12 +219,12 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 			Message:   "User not validated",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.ReviewRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.ReviewRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
@@ -233,7 +232,7 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 	// Associate review with authenticated user
 	req.UserID = authuser.ID
 	// Validate all required fields in the request (rating, comment, etc.)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -241,7 +240,7 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 	err := models.IsProductThere(models.DB, productID)
 	if err != nil {
 		// Product not found or database error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error fetching product reviews for product with ID " + productID,
@@ -250,7 +249,7 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 
 		return
@@ -260,7 +259,7 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Review creation failed (duplicate, invalid data, or database error)
 		log.Printf("Error adding new product review: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error adding new review for product ID " + productID,
@@ -269,7 +268,7 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -282,7 +281,7 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to invalidate review cache: %v", err)
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Review added successfully for product ID " + productID,
@@ -292,7 +291,7 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 		Message:   "Review added successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -313,32 +312,32 @@ func CreateReview(w http.ResponseWriter, r *http.Request) {
 // @Failure      401         {object}  dtos.ErrorResponse    "User not authorized (admin required)"
 // @Security     BearerAuth
 // @Router       /api/admin/products/{product_id}/reviews/{review_id} [patch]
-func UpdateReview(w http.ResponseWriter, r *http.Request) {
+func UpdateReview(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.UpdateReview](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.UpdateReview](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields in the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Extract product ID and review ID from URL path parameters
-	productID := mux.Vars(r)["product_id"]
-	reviewID := mux.Vars(r)["review_id"]
+	productID := c.Param("product_id")
+	reviewID := c.Param("review_id")
 
 	// Update review in database (admin moderation/content update)
 	err := models.UpdateReview(models.DB, *req, reviewID, productID)
 	if err != nil {
 		// Update failed (review not found or database error)
 		log.Printf("Error moderating review: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error moderating review for product ID " + productID,
@@ -347,7 +346,7 @@ func UpdateReview(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -356,10 +355,10 @@ func UpdateReview(w http.ResponseWriter, r *http.Request) {
 	// Scan for all keys matching the review cache pattern
 	pattern := "reviews_"
 
-	iter := Redis.Scan(r.Context(), 0, pattern, 0).Iterator()
-	for iter.Next(r.Context()) {
+	iter := Redis.Scan(c.Request.Context(), 0, pattern, 0).Iterator()
+	for iter.Next(c.Request.Context()) {
 		// Delete each matching cache key
-		if err := Redis.Del(r.Context(), iter.Val()).Err(); err != nil {
+		if err := Redis.Del(c.Request.Context(), iter.Val()).Err(); err != nil {
 			log.Printf("Failed to delete review cache key %s: %v", iter.Val(), err)
 		}
 	}
@@ -367,7 +366,7 @@ func UpdateReview(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to scan review cache keys: %v", err)
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Review moderated successfully for product ID " + productID,
@@ -377,7 +376,7 @@ func UpdateReview(w http.ResponseWriter, r *http.Request) {
 		Message:   "Review updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -397,28 +396,28 @@ func UpdateReview(w http.ResponseWriter, r *http.Request) {
 // @Failure      404         {object}  dtos.ErrorResponse    "Product not found"
 // @Security     BearerAuth
 // @Router       /api/admin/products/{product_id}/reviews/{review_id} [delete]
-func DeleteReview(w http.ResponseWriter, r *http.Request) {
+func DeleteReview(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
-	ctx := r.Context()
+	ctx := c.Request.Context()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can delete reviews)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract product ID and review ID from URL path parameters
-	productID := mux.Vars(r)["product_id"]
-	reviewID := mux.Vars(r)["review_id"]
+	productID := c.Param("product_id")
+	reviewID := c.Param("review_id")
 	// Verify product exists before attempting to delete review
 	product, err := models.GetProductByID(models.DB, productID)
 	if err != nil || product == nil {
 		// Handle different error types with appropriate responses
 		if err == sql.ErrNoRows {
 			// Product not found in database
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: productWithID + productID + " not found",
@@ -427,11 +426,11 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 				Message:   productNotFound,
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 		} else {
 			// Database query failed
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Error fetching product reviews for product ID " + productID,
@@ -440,7 +439,7 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 		}
 		return
@@ -450,7 +449,7 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Deletion failed (review not found or database error)
 		log.Printf("Error deleteing review: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error deleting review for product ID " + productID,
@@ -459,7 +458,7 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -479,7 +478,7 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to scan review cache keys: %v", err)
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Review deleted successfully for product ID " + productID,
@@ -489,6 +488,6 @@ func DeleteReview(w http.ResponseWriter, r *http.Request) {
 		Message:   "Review deleted succesfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }

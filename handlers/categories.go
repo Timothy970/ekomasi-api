@@ -1,14 +1,16 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 var (
@@ -25,18 +27,20 @@ var (
 // @Success      200  {object}  []dtos.CategoryData
 // @Failure      404  {object}  dtos.ErrorResponse
 // @Router       /api/categories [get]
-func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
+func GetCategoriesHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
 	var categories []dtos.CategoryData
 	var cachedCategories []dtos.CategoryData
-	_ = utils.GetCache("category_data", &cachedCategories)
+	cacheKey := fmt.Sprintf("category_data:tenant:%d", tenantID)
+	_ = utils.GetCache(cacheKey, &cachedCategories)
 	if cachedCategories == nil {
 		var err error
-		categories, err = models.GetAllCategories(models.DB)
+		categories, err = models.GetAllCategories(models.DB, tenantID)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Categories",
 					Description: "Failed to fetch categories",
@@ -45,15 +49,15 @@ func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
-		_ = utils.SetCache("category_data", categories)
+		_ = utils.SetCache(cacheKey, categories)
 	} else {
 		categories = cachedCategories
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Categories",
 			Description: "All categories fetched successfully",
@@ -63,7 +67,7 @@ func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   categorySuccess,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 
 }
@@ -81,15 +85,15 @@ func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      404  {object}  dtos.ErrorResponse
 // @Failure      500  {object}  dtos.ErrorResponse
 // @Router       /api/categories/{id} [get]
-func GetCategoryByIDHandler(w http.ResponseWriter, r *http.Request) {
+func GetCategoryByIDHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	id := mux.Vars(r)["id"]
+	requestSummary := utils.GetRequestSummary(c.Request)
+	id := c.Param("id")
 
 	category, err := models.GetCategoryByID(models.DB, id)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Categories",
 				Description: "Failed to fetch category with ID " + id,
@@ -98,13 +102,13 @@ func GetCategoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to fetch category",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	if category == nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Categories",
 				Description: "Category with ID " + id + " not found",
@@ -113,12 +117,12 @@ func GetCategoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Category not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Categories",
 			Description: "Category with ID " + id + " fetched successfully",
@@ -128,7 +132,7 @@ func GetCategoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Category fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -147,21 +151,22 @@ func GetCategoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      400   {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/categories [get]
-func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
+func AdminGetCategoriesHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Categories", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Categories", ""); !ok {
 		return
 	}
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	categoryName := r.URL.Query().Get("q")
-	categoryType := r.URL.Query().Get("type")
-	categories, pagination, err := models.GetAdminCategories(models.DB, page, limit, categoryName, categoryType)
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
+	categoryName := c.Query("q")
+	categoryType := c.Query("type")
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	categories, pagination, err := models.GetAdminCategories(models.DB, tenantID, page, limit, categoryName, categoryType)
 	if err != nil {
 		log.Printf("Failed to get categories: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Categories",
 				Description: "Failed to get categories",
@@ -170,12 +175,12 @@ func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Categories",
 			Description: categorySuccess,
@@ -185,7 +190,7 @@ func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Category fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -199,15 +204,16 @@ func AdminGetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  map[string]interface{}
 // @Failure      400  {object}  dtos.ErrorResponse
 // @Router       /api/categories/tree [get]
-func GetCategoriesWithSubCategoriesHandler(w http.ResponseWriter, r *http.Request) {
+func GetCategoriesWithSubCategoriesHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	categories, err := models.GetCategoriesWithSubCategories(models.DB)
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	categories, err := models.GetCategoriesWithSubCategories(models.DB, tenantID)
 	if err != nil {
 		log.Printf("Failed to get categories: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Categories",
 				Description: "Failed to get categories",
@@ -216,12 +222,12 @@ func GetCategoriesWithSubCategoriesHandler(w http.ResponseWriter, r *http.Reques
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Categories",
 			Description: "Categories with subcategories fetched successfully",
@@ -231,7 +237,7 @@ func GetCategoriesWithSubCategoriesHandler(w http.ResponseWriter, r *http.Reques
 		Message:   categorySuccess,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }

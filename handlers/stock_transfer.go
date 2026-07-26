@@ -5,13 +5,12 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"net/http"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 // CreateStockTransfer initiates a new stock transfer between warehouses.
@@ -29,31 +28,31 @@ import (
 // @Failure      401       {object}  dtos.ErrorResponse       "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/stock_transfers [post]
-func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
+func CreateStockTransfer(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can create stock transfers)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Warehouse", "warehouse.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Warehouse", "warehouse.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body with transfer details
-	req, ok := DecodeRequestBody[dtos.StockTransferDTO](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.StockTransferDTO](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields (from/to warehouse, product, quantity, etc.)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Warehouse") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Warehouse") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Prevent transfers within the same warehouse (business rule validation)
 	if req.FromWarehouseID == req.ToWarehouseID {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Warehouse",
 				Description: "From and To warehouse cannot be the same",
@@ -62,14 +61,14 @@ func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
 			Message:   "From and To warehouse cannot be the same",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Create stock transfer record and update inventory levels in both warehouses
 	if err := models.CreateStockTransfer(models.DB, *req); err != nil {
 		// Transfer creation failed (insufficient stock, invalid warehouses, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Warehouse",
 				Description: "Failed to create stock transfer",
@@ -78,14 +77,14 @@ func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate transfer caches to ensure fresh data
 	utils.DeleteCacheByPrefix("transfers_")
 	utils.DeleteCacheByPrefix("transfers_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Warehouse",
 			Description: "Stock transfer created successfully",
@@ -95,7 +94,7 @@ func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
 		Message:   "Stock transfer created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -115,25 +114,25 @@ func CreateStockTransfer(w http.ResponseWriter, r *http.Request) {
 // @Failure      500   {object}  dtos.ErrorResponse        "Failed to list transfers"
 // @Security     BearerAuth
 // @Router       /api/stock_transfers [get]
-func ListStockTransfers(w http.ResponseWriter, r *http.Request) {
+func ListStockTransfers(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can view stock transfers)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Warehouse", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Warehouse", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract optional search query parameter
-	q := r.URL.Query().Get("q")
+	q := c.Query("q")
 	// Parse pagination parameters from query string
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
 	// Fetch paginated stock transfers from database with search filtering
 	transfers, meta, err := models.ListStockTransfers(models.DB, page, size, q)
 	if err != nil {
 		// Database query failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Warehouse",
 				Description: "Failed to list stock transfers",
@@ -142,12 +141,12 @@ func ListStockTransfers(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return stock transfers list with pagination metadata for inventory tracking
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Warehouse",
 			Description: "Stock transfers fetched successfully",
@@ -157,7 +156,7 @@ func ListStockTransfers(w http.ResponseWriter, r *http.Request) {
 		Message:   "Stock transfers fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -173,19 +172,19 @@ func ListStockTransfers(w http.ResponseWriter, r *http.Request) {
 // @Success      200          {object}  map[string]interface{}      "Transfer details"
 // @Failure      404          {object}  dtos.ErrorResponse      "Transfer not found"
 // @Router       /api/stock_transfers/{transfer_id} [get]
-func GetStockTransfer(w http.ResponseWriter, r *http.Request) {
+func GetStockTransfer(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract transfer ID from URL path parameters
-	id := mux.Vars(r)["transfer_id"]
+	id := c.Param("transfer_id")
 
 	// Fetch specific stock transfer details from database
 	st, err := models.GetStockTransferByID(models.DB, id)
 	if err != nil {
 		// Transfer not found or database error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Warehouse",
 				Description: "Failed to fetch stock transfer with ID " + id,
@@ -194,14 +193,14 @@ func GetStockTransfer(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return stock transfer details for verification and tracking
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Warehouse",
 			Description: "Stock transfer fetched successfully",
@@ -211,7 +210,7 @@ func GetStockTransfer(w http.ResponseWriter, r *http.Request) {
 		Message:   "Stock transfer fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -231,35 +230,35 @@ func GetStockTransfer(w http.ResponseWriter, r *http.Request) {
 // @Failure      401          {object}  dtos.ErrorResponse           "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/stock_transfers/{transfer_id} [patch]
-func UpdateStockTransfer(w http.ResponseWriter, r *http.Request) {
+func UpdateStockTransfer(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can update stock transfers)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Warehouse", "warehouse.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Warehouse", "warehouse.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body with updated quantity
-	req, ok := DecodeRequestBody[dtos.StockTransferUpdateDTO](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.StockTransferUpdateDTO](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate the quantity field in the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Warehouse") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Warehouse") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Extract transfer ID from URL path parameters
-	id := mux.Vars(r)["transfer_id"]
+	id := c.Param("transfer_id")
 
 	// Update stock transfer quantity in database and adjust inventory levels
 	if err := models.UpdateStockTransfer(models.DB, *req, id); err != nil {
 		// Update failed (insufficient stock, invalid transfer, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Warehouse",
 				Description: "Failed to update stock transfer with ID " + id,
@@ -268,14 +267,14 @@ func UpdateStockTransfer(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate transfer caches to ensure fresh data
 	utils.DeleteCacheByPrefix("transfers_")
 	utils.DeleteCacheByPrefix("transfers_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Warehouse",
 			Description: "Stock transfer with ID " + id + " updated successfully",
@@ -285,6 +284,6 @@ func UpdateStockTransfer(w http.ResponseWriter, r *http.Request) {
 		Message:   "Stock transfer updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }

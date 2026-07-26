@@ -1,4 +1,4 @@
-// Package notification provides email notification services for the Adenzo e-commerce platform.
+// Package notification provides email notification services for the Ekomasi e-commerce platform.
 //
 // This package handles:
 //   - Email sending via external API (V2 email service)

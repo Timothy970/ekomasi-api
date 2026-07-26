@@ -1,7 +1,8 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
 	"bytes"
 	"encoding/json"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/mux"
 )
 
@@ -45,9 +47,16 @@ func TestGetAllTransactionHandler(t *testing.T) {
 
 	// Need empty body to avoid nil pointer in GetRequestSummary
 	req, _ := http.NewRequest("GET", "/api/admin/transactions?page=1&limit=10", bytes.NewBuffer([]byte{}))
+	req = req.WithContext(middleware.ContextWithUser(req.Context(), middleware.AuthenticatedUser{
+		Role:  "admin",
+		Email: "admin@ekomasi.shop",
+	}))
 	rr := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rr)
+	c.Request = req
 
-	GetAllTransactionHandler(rr, req)
+	GetAllTransactionHandler(c)
+
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
@@ -87,23 +96,30 @@ func TestUpdateTransactionStatusHandler_Success(t *testing.T) {
 		WithArgs("completed", "ord-1").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	// 3. Success Log?
-	// Assuming RespondWithJSON logs "INFO".
+	// Expect Commit
+	mock.ExpectCommit()
+
+	// 3. Success Log
 	mock.ExpectExec("INSERT INTO logs").
 		WithArgs(sqlmock.AnyArg(), "INFO", "Transaction status updated successfully", sqlmock.AnyArg(), sqlmock.AnyArg(), "Transactions", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	// Expect Commit
-	mock.ExpectCommit()
-
 	body, _ := json.Marshal(payload)
 	req, _ := http.NewRequest("PATCH", "/api/admin/transactions/tx-1/status", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(middleware.ContextWithUser(req.Context(), middleware.AuthenticatedUser{
+		Role:  "admin",
+		Email: "admin@ekomasi.shop",
+	}))
 	req = mux.SetURLVars(req, map[string]string{"transaction_id": "tx-1"})
 
 	rr := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rr)
+	c.Request = req
+	c.Params = gin.Params{gin.Param{Key: "transaction_id", Value: "tx-1"}}
 
-	UpdateTransactionStatusHandler(rr, req)
+	UpdateTransactionStatusHandler(c)
+
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)

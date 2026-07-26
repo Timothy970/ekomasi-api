@@ -5,15 +5,14 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"database/sql"
 	"fmt"
 	"net/http"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 // PurchaseOrderHandler handles purchase order-related HTTP requests
@@ -39,25 +38,25 @@ var pOrderWithID = "Purchase Order with ID "
 // @Failure      500      {object}  dtos.ErrorResponse               "Internal server error"
 // @Security     BearerAuth
 // @Router       /admin/purchase-orders [post]
-func CreatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
+func CreatePurchaseOrder(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for creating purchase orders)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", "orders.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.CreatePurchaseOrderRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CreatePurchaseOrderRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields in the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Orders") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -65,7 +64,7 @@ func CreatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	err := models.AddNewPurchaseOrder(models.DB, *req)
 	if err != nil {
 		// Database insertion failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to add new purchase order",
@@ -74,7 +73,7 @@ func CreatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -82,7 +81,7 @@ func CreatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("purchase_orders_")
 	utils.DeleteCacheByPrefix("purchase_orders_pagination_")
 	// Return successful response confirming order creation
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Purchase order added successfully",
@@ -92,7 +91,7 @@ func CreatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 		Message:   "Purchase order added successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -110,19 +109,19 @@ func CreatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 // @Failure      500    {object}  dtos.ErrorResponse                    "Internal server error"
 // @Security     BearerAuth
 // @Router       /purchase-orders [get]
-func ListPurchaseOrders(w http.ResponseWriter, r *http.Request) {
+func ListPurchaseOrders(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for viewing purchase orders)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Parse pagination parameters from query string
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
 	// Generate cache keys for purchase orders and pagination metadata
 	cacheKeyPurchaseOrders := fmt.Sprintf("purchase_orders_%d_size_%d", page, size)
 	cacheKeyPagination := fmt.Sprintf("purchase_orders_pagination_%d_size_%d", page, size)
@@ -140,7 +139,7 @@ func ListPurchaseOrders(w http.ResponseWriter, r *http.Request) {
 		purchaseOrders, pagination, err := models.ListPurchaseOrders(models.DB, page, size)
 		if err != nil {
 			// Database query failed, return error response
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Orders",
 					Description: "Failed to list purchase orders",
@@ -149,7 +148,7 @@ func ListPurchaseOrders(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -165,7 +164,7 @@ func ListPurchaseOrders(w http.ResponseWriter, r *http.Request) {
 	resp := dtos.PaginatedPurchaseOrdersResponse{Data: orders, Meta: *meta}
 
 	// Return successful response with purchase orders list and pagination
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Purchase orders fetched successfully",
@@ -175,7 +174,7 @@ func ListPurchaseOrders(w http.ResponseWriter, r *http.Request) {
 		Message:   "Purchase orders fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 
 }
@@ -193,24 +192,24 @@ func ListPurchaseOrders(w http.ResponseWriter, r *http.Request) {
 // @Failure      404    {object}  dtos.ErrorResponse          "Purchase order not found"
 // @Security     BearerAuth
 // @Router       /purchase-orders/{po_id} [get]
-func GetPurchaseOrder(w http.ResponseWriter, r *http.Request) {
+func GetPurchaseOrder(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for viewing purchase orders)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract purchase order ID from URL path parameters
-	id := mux.Vars(r)["po_id"]
+	id := c.Param("po_id")
 	// Fetch purchase order details from database
 	order, err := models.GetPurchaseOrderByID(models.DB, id)
 	if err != nil {
 		// Purchase order not found or database error, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to fetch purchase order with ID " + id,
@@ -219,13 +218,13 @@ func GetPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return successful response with purchase order details
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: pOrderWithID + id + " fetched successfully",
@@ -235,7 +234,7 @@ func GetPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 		Message:   "Purchase order fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 
 }
@@ -256,35 +255,35 @@ func GetPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 // @Failure      404      {object}  dtos.ErrorResponse                "Purchase order not found"
 // @Security     BearerAuth
 // @Router       /admin/purchase-orders/{po_id} [patch]
-func UpdatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
+func UpdatePurchaseOrder(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for updating purchase orders)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", "orders.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.UpdatePurchaseOrderRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.UpdatePurchaseOrderRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields in the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Orders") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Extract purchase order ID from URL path parameters
-	id := mux.Vars(r)["po_id"]
+	id := c.Param("po_id")
 	// Update purchase order in database
 	err := models.UpdatePurchaseOrder(models.DB, *req, id)
 	if err != nil {
 		// Database update failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to update purchase order with ID " + id,
@@ -293,7 +292,7 @@ func UpdatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -301,7 +300,7 @@ func UpdatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("purchase_orders_")
 	utils.DeleteCacheByPrefix("purchase_orders_pagination_")
 	// Return successful response confirming update
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: pOrderWithID + id + " updated successfully",
@@ -311,7 +310,7 @@ func UpdatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 		Message:   "Purchase order updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 
 }
@@ -330,24 +329,24 @@ func UpdatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 // @Failure      404    {object}  dtos.ErrorResponse      "Purchase order not found"
 // @Security     BearerAuth
 // @Router       /admin/purchase-orders/{po_id} [delete]
-func DeletePurchaseOrder(w http.ResponseWriter, r *http.Request) {
+func DeletePurchaseOrder(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for deleting purchase orders)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", "orders.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract purchase order ID from URL path parameters
-	id := mux.Vars(r)["po_id"]
+	id := c.Param("po_id")
 	// Delete purchase order from database
 	err := models.DeletePurchaseOrder(models.DB, id)
 	if err != nil {
 		// Deletion failed or purchase order not found, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to delete purchase order with ID " + id,
@@ -356,7 +355,7 @@ func DeletePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -364,7 +363,7 @@ func DeletePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("purchase_orders_")
 	utils.DeleteCacheByPrefix("purchase_orders_pagination_")
 	// Return successful response confirming deletion
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: pOrderWithID + id + " deleted successfully",
@@ -374,7 +373,7 @@ func DeletePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 		Message:   "Purchase order deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -393,25 +392,25 @@ func DeletePurchaseOrder(w http.ResponseWriter, r *http.Request) {
 // @Failure      404      {object}  dtos.ErrorResponse          "Purchase order or product not found"
 // @Security     BearerAuth
 // @Router       /admin/purchase_order_items [post]
-func AddPurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
+func AddPurchaseOrderItem(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for adding items to purchase orders)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", "orders.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.PurchaseOrderItem](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.PurchaseOrderItem](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields in the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Orders") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -420,7 +419,7 @@ func AddPurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 	err := models.AddProductToPurchaseOrder(models.DB, *req)
 	if err != nil {
 		// Database insertion failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to add product to purchase order with ID " + req.PoID,
@@ -429,7 +428,7 @@ func AddPurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -437,7 +436,7 @@ func AddPurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("purchase_orders_")
 	utils.DeleteCacheByPrefix("purchase_orders_pagination_")
 	// Return successful response confirming product addition
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Product added to purchase order with ID " + req.PoID + " successfully",
@@ -447,7 +446,7 @@ func AddPurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product added to purchase order successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -464,25 +463,24 @@ func AddPurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 // @Failure      404         {object}  dtos.ErrorResponse      "Purchase order item not found"
 // @Security     BearerAuth
 // @Router       /admin/purchase_order_items/{po_item_id} [delete]
-func RemovePurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
+func RemovePurchaseOrderItem(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for removing items from purchase orders)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", "orders.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract purchase order item ID from URL path parameters
-	vars := mux.Vars(r)
-	itemID := vars["po_item_id"]
+	itemID := c.Param("po_item_id")
 	// Remove product from purchase order in database
 	err := models.RemoveProductFromPurchaseOrder(models.DB, itemID)
 	if err != nil {
 		// Deletion failed or item not found, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to remove product from purchase order item with ID " + itemID,
@@ -491,7 +489,7 @@ func RemovePurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -499,7 +497,7 @@ func RemovePurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("purchase_orders_")
 	utils.DeleteCacheByPrefix("purchase_orders_pagination_")
 	// Return successful response confirming removal
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Product removed from purchase order with ID " + itemID + " successfully",
@@ -509,6 +507,6 @@ func RemovePurchaseOrderItem(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product removed from purchase order successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }

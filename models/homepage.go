@@ -1,4 +1,4 @@
-// Package models provides data access layer for the Adenzo e-commerce platform.
+// Package models provides data access layer for the Ekomasi e-commerce platform.
 //
 // This file handles homepage and content management including:
 //   - Footer data (copyright, contact info)
@@ -18,7 +18,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"encoding/json"
 	"errors"

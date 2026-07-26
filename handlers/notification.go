@@ -5,10 +5,10 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/notification"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/notification"
+	"ekomasi_backend/utils"
 	"errors"
 	"fmt"
 	"log"
@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // CreateNotificationHandler creates and sends a notification to a user.
@@ -36,27 +36,27 @@ import (
 // @Failure      404             {object}  dtos.ErrorResponse     "User not found"
 // @Security     BearerAuth
 // @Router       /api/admin/notifications [post]
-func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
+func CreateNotificationHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify user has admin privileges (only admins can create notifications)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Notifications", "notifications.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Notifications", "notifications.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body with notification details
-	req, ok := DecodeRequestBody[dtos.Notification](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.Notification](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 
 	// Validate all required fields (recipient ID, channel, content)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Notifications") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Notifications") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -64,7 +64,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	exists, err := models.RecordExists(models.DB, "users", "user_id = ?", req.RecipientID)
 	if err != nil {
 		// Database query failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
 				Description: "Failed to check if user exists with ID " + req.RecipientID,
@@ -73,13 +73,13 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	if !exists {
 		// Recipient user not found
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
 				Description: "User not found with ID " + req.RecipientID,
@@ -88,14 +88,14 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "user not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Validate notification channel (must be email, SMS, WhatsApp, or push)
 	if req.Channel != "email" && req.Channel != "sms" && req.Channel != "whatsapp" && req.Channel != "push" {
 		// Invalid channel specified
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
 				Description: "Invalid notification type",
@@ -104,7 +104,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Invalid notification type specified",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -112,7 +112,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	err = sendNotification(*req)
 	if err != nil {
 		// Notification sending failed (service down, invalid phone, etc.)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
 				Description: "Failed to send notification",
@@ -121,7 +121,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -130,7 +130,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	// Store notification record in database for audit trail
 	if err := models.CreateNotification(*req); err != nil {
 		// Database insertion failed (notification was sent but not logged)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
 				Description: "Failed to create notification",
@@ -139,7 +139,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -147,7 +147,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("notifications_")
 	utils.DeleteCacheByPrefix("notifications_pagination_")
 	// Return success response
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
 			Description: "Notification created successfully",
@@ -157,7 +157,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Notification created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -215,19 +215,19 @@ func sendNotification(req dtos.Notification) error {
 // @Failure      500            {object}  dtos.ErrorResponse     "Failed to retrieve notifications"
 // @Security     BearerAuth
 // @Router       /api/admin/notifications [get]
-func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
+func ListNotificationsHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can view all notifications)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Notifications", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Notifications", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Parse pagination parameters from query string
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 	// Generate unique cache keys for notifications and pagination metadata
 	cacheKeyNotification := fmt.Sprintf("notifications_%d_size_%d", page, limit)
 	cacheKeyPagination := fmt.Sprintf("notifications_pagination_%d_size_%d", page, limit)
@@ -245,7 +245,7 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 		notifications, pagination, err = models.ListNotifications(page, limit)
 		if err != nil {
 			// Database query failed
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Notifications",
 					Description: "Failed to list notifications",
@@ -254,7 +254,7 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -270,7 +270,7 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return success response with notifications list
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
 			Description: "Notifications fetched successfully",
@@ -280,7 +280,7 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Notifications fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -301,35 +301,35 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      404                {object}  dtos.ErrorResponse          "Notification not found"
 // @Security     BearerAuth
 // @Router       /api/admin/notifications/{notification_id} [patch]
-func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateNotificationHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can update notifications)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Notifications", "notifications.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Notifications", "notifications.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract notification ID from URL path parameters
-	id := mux.Vars(r)["notification_id"]
+	id := c.Param("notification_id")
 	// Decode and parse JSON request body with updated status
-	req, ok := DecodeRequestBody[dtos.UpdateNotification](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.UpdateNotification](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 
 	// Validate all required fields (status)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Notifications") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Notifications") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Update notification status in database
 	if err := models.UpdateNotification(req.Status, id); err != nil {
 		// Update failed (notification not found or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
 				Description: "Failed to update notification with ID " + id,
@@ -338,7 +338,7 @@ func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -346,7 +346,7 @@ func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("notifications_")
 	utils.DeleteCacheByPrefix("notifications_pagination_")
 	// Return success response
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
 			Description: "Notification with ID " + id + " updated successfully",
@@ -356,7 +356,7 @@ func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Notification updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -374,23 +374,23 @@ func UpdateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      404                {object}  dtos.ErrorResponse     "Notification not found"
 // @Security     BearerAuth
 // @Router       /api/admin/notifications/{notification_id} [delete]
-func DeleteNotificationHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteNotificationHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can delete notifications)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Notifications", "notifications.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Notifications", "notifications.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract notification ID from URL path parameters
-	id := mux.Vars(r)["notification_id"]
+	id := c.Param("notification_id")
 	// Delete notification from database
 	if err := models.DeleteNotification(id); err != nil {
 		// Deletion failed (notification not found or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
 				Description: "Failed to delete notification with ID " + id,
@@ -399,7 +399,7 @@ func DeleteNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -407,7 +407,7 @@ func DeleteNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("notifications_")
 	utils.DeleteCacheByPrefix("notifications_pagination_")
 	// Return success response
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
 			Description: "Notification with ID " + id + " deleted successfully",
@@ -417,7 +417,7 @@ func DeleteNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Notification deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -437,26 +437,26 @@ func DeleteNotificationHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500            {object}  dtos.ErrorResponse     "Failed to retrieve logs"
 // @Security     BearerAuth
 // @Router       /api/admin/logs [get]
-func ListLogsHandler(w http.ResponseWriter, r *http.Request) {
+func ListLogsHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can view system logs)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Users", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Parse pagination parameters from query string
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	page, _ := strconv.Atoi(c.Query("page"))
+	limit, _ := strconv.Atoi(c.Query("limit"))
 
 	// Fetch logs from database with pagination
 	logs, meta, err := models.ListLogs(page, limit)
 	if err != nil {
 		// Database query failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Logs",
 				Description: "Failed to list logs",
@@ -465,7 +465,7 @@ func ListLogsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -477,7 +477,7 @@ func ListLogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return success response with logs list
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Logs",
 			Description: "Logs retrieved successfully",
@@ -487,7 +487,7 @@ func ListLogsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Logs",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -729,7 +729,7 @@ func processLowStockEmails() {
 	}
 	log.Printf("Preparing to send low stock alert emails for ...")
 	// Prepare email data with store info and low stock products
-	storeName := "Adenzo Store"
+	storeName := "Ekomasi Store"
 	emailData := dtos.LowStockEmailData{
 		StoreName: storeName,
 		AlertDate: time.Now().Format("2006-01-02"),

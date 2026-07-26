@@ -13,8 +13,9 @@ import (
 	"os"
 	"strings"
 
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -26,6 +27,84 @@ var (
 	invalidTokenClaimsMsg = "Invalid token claims"
 	blacklist             = "blacklist:"
 )
+
+// GinAuthenticateToken is native Gin middleware that validates JWT access tokens for protected routes.
+func GinAuthenticateToken() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		r := c.Request
+		authHeader := r.Header.Get("Authorization")
+		tokenString := ""
+		if strings.HasPrefix(authHeader, bearer) {
+			tokenString = strings.TrimPrefix(authHeader, bearer)
+		}
+
+		if tokenString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status_code": http.StatusUnauthorized,
+				"message":     tokenMissingMsg,
+			})
+			c.Abort()
+			return
+		}
+
+		if dtos.Redis != nil {
+			val, err := dtos.Redis.Get(r.Context(), blacklist+tokenString).Result()
+			if err == nil && val == "1" {
+				c.JSON(http.StatusForbidden, gin.H{
+					"status_code": http.StatusForbidden,
+					"message":     "Token is invalidated",
+				})
+				c.Abort()
+				return
+			}
+		}
+
+		jwtSecret := os.Getenv("JWT_SECRET")
+		if jwtSecret == "" {
+			jwtSecret = "secret"
+		}
+
+		token, err := jwt.ParseWithClaims(tokenString, &dtos.CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+			return []byte(jwtSecret), nil
+		})
+
+		if err != nil || !token.Valid {
+			c.JSON(http.StatusForbidden, gin.H{
+				"status_code": http.StatusForbidden,
+				"message":     invalidTokenMsg,
+			})
+			c.Abort()
+			return
+		}
+
+		claims, ok := token.Claims.(*dtos.CustomClaims)
+		if !ok {
+			c.JSON(http.StatusForbidden, gin.H{
+				"status_code": http.StatusForbidden,
+				"message":     invalidTokenClaimsMsg,
+			})
+			c.Abort()
+			return
+		}
+
+		user := AuthenticatedUser{
+			ID:          claims.UserID,
+			Email:       claims.Email,
+			FirstName:   claims.FirstName,
+			LastName:    claims.LastName,
+			Role:        claims.Role,
+			Phone:       claims.Phone,
+			Permissions: claims.Permissions,
+		}
+
+		c.Set("user", user)
+		c.Set("user_id", user.ID)
+		ctx := context.WithValue(r.Context(), userContextKey, user)
+		c.Request = r.WithContext(ctx)
+
+		c.Next()
+	}
+}
 
 // AuthenticateToken is middleware that validates JWT access tokens for protected routes.
 // Extracts token from Authorization header, validates against blacklist and JWT signature,
@@ -207,11 +286,15 @@ type contextKey string
 // userContextKey is the key used to store/retrieve AuthenticatedUser from request context
 const userContextKey contextKey = "authenticatedUser"
 
-// contextWithUser creates a new context with the authenticated user attached.
-// Used by middleware to propagate user information to downstream handlers.
 func contextWithUser(ctx context.Context, user AuthenticatedUser) context.Context {
 	return context.WithValue(ctx, userContextKey, user)
 }
+
+// ContextWithUser is an exported wrapper around contextWithUser to inject an AuthenticatedUser in context (primarily for testing).
+func ContextWithUser(ctx context.Context, user AuthenticatedUser) context.Context {
+	return contextWithUser(ctx, user)
+}
+
 
 // UserFromContext retrieves the authenticated user from request context.
 // Returns (user, true) if user exists, (empty, false) if not found or wrong type.

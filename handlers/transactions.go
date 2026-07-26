@@ -5,13 +5,13 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // GetAllTransactionHandler retrieves a paginated list of all payment transactions.
@@ -31,27 +31,27 @@ import (
 // @Failure      401     {object}  dtos.ErrorResponse        "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/transactions [get]
-func GetAllTransactionHandler(w http.ResponseWriter, r *http.Request) {
+func GetAllTransactionHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can view all transactions)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Transactions", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Transactions", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Parse pagination parameters from query string
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 	// Extract optional status filter (e.g., "pending", "completed", "failed")
-	status := r.URL.Query().Get("status")
+	status := c.Query("status")
 	// Extract optional search query parameter
-	q := r.URL.Query().Get("q")
+	q := c.Query("q")
 	// Fetch paginated transactions from database with filters
 	transactions, pagination, err := models.GetAllTransactions(page, limit, status, q)
 	if err != nil {
 		// Database query failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to fetch transactions " + err.Error(),
@@ -60,12 +60,12 @@ func GetAllTransactionHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return transactions list with pagination metadata for financial tracking
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Transactions",
 			Description: "All transactions fetched successfully",
@@ -78,7 +78,7 @@ func GetAllTransactionHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Transactions fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -96,23 +96,23 @@ func GetAllTransactionHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      401             {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/transactions/{transaction_id} [get]
-func GetTransactionByIDHandler(w http.ResponseWriter, r *http.Request) {
+func GetTransactionByIDHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can view transaction details)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Transactions", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Transactions", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract transaction ID from URL path parameters
-	transactionID := mux.Vars(r)["transaction_id"]
+	transactionID := c.Param("transaction_id")
 	// Fetch specific transaction details from database
 	transaction, err := models.GetTransactionByID(transactionID)
 	if err != nil {
 		// Transaction not found or database error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Transactions",
 				Description: "Transaction with id " + transactionID + " failed to fetch: " + err.Error(),
@@ -121,7 +121,7 @@ func GetTransactionByIDHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -129,7 +129,7 @@ func GetTransactionByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Return transaction details for verification and reconciliation
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Transactions",
 			Description: "Transaction with id" + transactionID + " fetched successfully",
@@ -139,7 +139,7 @@ func GetTransactionByIDHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Transaction fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -159,33 +159,33 @@ func GetTransactionByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      401             {object}  dtos.ErrorResponse             "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/transactions/{transaction_id}/status [patch]
-func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateTransactionStatusHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can update transaction status)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Transactions", "payments.update"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Transactions", "payments.update"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract transaction ID from URL path parameters
-	transactionID := mux.Vars(r)["transaction_id"]
+	transactionID := c.Param("transaction_id")
 	// Decode and parse JSON request body with new status
-	req, ok := DecodeRequestBody[dtos.UpdateTransactionStatus](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.UpdateTransactionStatus](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate status field in request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Transactions") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Transactions") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Start transaction
 	tx, err := models.DB.Begin()
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Transactions",
 				Description: "Failed to start transaction",
@@ -194,7 +194,7 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -204,7 +204,7 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 	orderID, err := models.UpdateTransactionStatusByID(tx, transactionID, req.Status)
 	if err != nil {
 		// Transaction status update failed (invalid transaction, status, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Transactions",
 				Description: "Failed to update transaction status " + err.Error(),
@@ -213,7 +213,7 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -222,7 +222,7 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 	err = models.UpdateOrderPaymentStatus(tx, orderID, req.Status)
 	if err != nil {
 		// Order payment status synchronization failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Transactions",
 				Description: "Failed to update order payment status " + err.Error(),
@@ -231,13 +231,29 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	if err := tx.Commit(); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Transactions",
+				Description: "Failed to commit transaction " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   c.Request,
+			RawBody:   requestSummary,
+		})
+		return
+	}
+
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Transactions",
 			Description: "Transaction status updated successfully",
@@ -247,7 +263,7 @@ func UpdateTransactionStatusHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Transaction status updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }

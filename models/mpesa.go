@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo backend.
+// Package models provides data access functions for the Ekomasi backend.
 //
 // This file (mpesa.go) contains M-Pesa payment integration functions including:
 //   - Refund processing with order status updates
@@ -6,7 +6,7 @@
 //   - Inventory management for refunded items
 package models
 
-import "adenzo_backend/dtos"
+import "ekomasi_backend/dtos"
 
 // HandleMpesaMoneyReturnRefunds processes refunds for M-Pesa payments.
 //

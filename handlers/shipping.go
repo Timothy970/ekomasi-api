@@ -5,9 +5,10 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -15,8 +16,6 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 // GetShippingCostHandler calculates shipping costs based on delivery location.
@@ -32,13 +31,13 @@ import (
 // @Success      200      {object}  dtos.ShippingCostResponse  "Shipping cost calculated"
 // @Failure      500      {object}  dtos.ErrorResponse         "Failed to calculate cost"
 // @Router       /api/shipping/cost [post]
-func GetShippingCostHandler(w http.ResponseWriter, r *http.Request) {
+func GetShippingCostHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Decode and parse JSON request body with location details
-	req, ok := DecodeRequestBody[dtos.ShippingCostRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.ShippingCostRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
@@ -58,7 +57,7 @@ func GetShippingCostHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Database query failed or location not found
 		log.Printf("Server error::%s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Shipping",
 				Description: "Failed to fetch delivery rates",
@@ -67,7 +66,7 @@ func GetShippingCostHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -75,7 +74,7 @@ func GetShippingCostHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO1: Cache delivery rate result in Redis for 24 hours
 	// _ = Redis.Set(context.Background(), cacheKey, charge, 24*time.Hour).Err()
 	// Return shipping cost response with location and charge details
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Shipping",
 			Description: "Delivery rates fetched successfully",
@@ -88,7 +87,7 @@ func GetShippingCostHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Delivery rates fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 
 }
@@ -108,25 +107,25 @@ func GetShippingCostHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      401       {object}  dtos.ErrorResponse         "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/locations [post]
-func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
+func StoreShippingRates(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can configure shipping rates)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Shipping", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Shipping", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.ShippingCostResponse](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.ShippingCostResponse](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields in the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Shipping") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Shipping") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -135,7 +134,7 @@ func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Shipping rate creation failed (duplicate location or database error)
 		log.Printf("Error adding new shipping rate: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Shipping",
 				Description: "Failed to add new shipping rate",
@@ -144,14 +143,14 @@ func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate location caches to ensure fresh data
 	utils.DeleteCacheByPrefix("locations_")
 	utils.DeleteCacheByPrefix("locations_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Shipping",
 			Description: "Location added successfully",
@@ -161,7 +160,7 @@ func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
 		Message:   "Location added successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -178,13 +177,13 @@ func StoreShippingRates(w http.ResponseWriter, r *http.Request) {
 // @Success      200       {object}  map[string]interface{}    "Feedback submitted successfully"
 // @Failure      400       {object}  dtos.ErrorResponse      "Invalid feedback data"
 // @Router       /api/deliveries/feedback [post]
-func SubmitFeedbackHandler(w http.ResponseWriter, r *http.Request) {
+func SubmitFeedbackHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Decode and parse JSON request body with feedback details
-	req, ok := DecodeRequestBody[dtos.DeliveryFeedback](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.DeliveryFeedback](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
@@ -194,7 +193,7 @@ func SubmitFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Feedback submission failed (invalid delivery ID or database error)
 		log.Printf("Error adding new feed back: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
 				Description: "Failed to submit delivery feedback",
@@ -203,12 +202,12 @@ func SubmitFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Feedback submitted successfully for service improvement
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
 			Description: "Feedback submitted successfully",
@@ -218,7 +217,7 @@ func SubmitFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Feedback submitted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -235,13 +234,13 @@ func SubmitFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      404          {object}  dtos.ErrorResponse      "Feedback not found"
 // @Failure      500          {object}  dtos.ErrorResponse      "Error fetching feedback"
 // @Router       /api/deliveries/{delivery_id}/feedback [get]
-func GetDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
+func GetDeliveryFeedbacks(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract delivery ID from URL path parameters
-	deliveryID := mux.Vars(r)["delivery_id"]
+	deliveryID := c.Param("delivery_id")
 
 	// Fetch feedback data from database for the specified delivery
 	feedback, err := models.GetDeliveryFeedBack(models.DB, deliveryID)
@@ -249,7 +248,7 @@ func GetDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 		// Handle different error types with appropriate responses
 		if err == sql.ErrNoRows {
 			// No feedback exists for this delivery
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Users",
 					Description: "No delivery feedback found",
@@ -258,12 +257,12 @@ func GetDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 				Message:   "No delivery feedback found",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 		} else {
 			// Database query failed
 			log.Printf("error getting feedback:::%v", err)
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Users",
 					Description: "Error fetching feedback",
@@ -272,7 +271,7 @@ func GetDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 				Message:   "Error fetching feedback",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 		}
 		return
@@ -280,7 +279,7 @@ func GetDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 
 	// Return feedback data for delivery quality assessment
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
 			Description: "Feedback fetched successfully",
@@ -290,7 +289,7 @@ func GetDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 		Message:   "Feedback",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -307,20 +306,20 @@ func GetDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 // @Failure      404      {object}  dtos.ErrorResponse        "No feedback found for user"
 // @Failure      500      {object}  dtos.ErrorResponse        "Error fetching feedback"
 // @Router       /api/deliveries/feedback/user/{user_id} [get]
-func GetUserDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
+func GetUserDeliveryFeedbacks(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract user ID from URL path parameters
-	userID := mux.Vars(r)["user_id"]
+	userID := c.Param("user_id")
 	// Fetch all feedback submitted by the user from database
 	feedback, err := models.GetDeliveryUserFeedBack(models.DB, userID)
 	if err != nil {
 		// Handle different error types with appropriate responses
 		if err == sql.ErrNoRows {
 			// User has not submitted any feedback yet
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Users",
 					Description: "Delivery feedback not found for user ID " + userID,
@@ -329,12 +328,12 @@ func GetUserDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 				Message:   "Delivery feedback not found",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 		} else {
 			// Database query failed
 			log.Printf("error getting feedback:::%v", err)
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Users",
 					Description: "Error fetching feedback for user ID " + userID,
@@ -343,7 +342,7 @@ func GetUserDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 		}
 		return
@@ -351,7 +350,7 @@ func GetUserDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 
 	// Return user's feedback history for satisfaction tracking
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
 			Description: "Feedback fetched successfully for user ID " + userID,
@@ -361,17 +360,17 @@ func GetUserDeliveryFeedbacks(w http.ResponseWriter, r *http.Request) {
 		Message:   "Feedback",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
-// DecodeRequestBody is a generic helper function for parsing JSON request bodies.
+// DecodeRequestBody is a generic helper function for parsing JSON request bodies using Gin context.
 // Provides consistent error handling and validation across all handlers.
 // Detects malformed JSON, type mismatches, and unknown fields automatically.
-func DecodeRequestBody[T any](r *http.Request, w http.ResponseWriter, requestSummary string, start time.Time) (*T, bool) {
+func DecodeRequestBody[T any](c *gin.Context, requestSummary string, start time.Time) (*T, bool) {
 	var req T
 	// Initialize JSON decoder with strict validation
-	decoder := json.NewDecoder(r.Body)
+	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields() // Reject unexpected fields in JSON
 
 	// Attempt to decode JSON into the generic type T
@@ -393,7 +392,7 @@ func DecodeRequestBody[T any](r *http.Request, w http.ResponseWriter, requestSum
 		}
 
 		// Send detailed error response to client
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Requests",
 				Description: msg,
@@ -402,7 +401,7 @@ func DecodeRequestBody[T any](r *http.Request, w http.ResponseWriter, requestSum
 			Message:   msg,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return nil, false
@@ -425,13 +424,13 @@ func DecodeRequestBody[T any](r *http.Request, w http.ResponseWriter, requestSum
 // @Success      200   {object}  map[string]interface{}    "Locations with pagination"
 // @Failure      400   {object}  dtos.ErrorResponse        "Failed to retrieve locations"
 // @Router       /api/locations [get]
-func ListLocations(w http.ResponseWriter, r *http.Request) {
+func ListLocations(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Parse pagination parameters from query string
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
 	// Generate cache keys for locations and pagination data
 	cacheKeyLocations := fmt.Sprintf("locations_%d_size_%d", page, size)
 	cacheKeyPagination := fmt.Sprintf("locations_pagination_%d_size_%d", page, size)
@@ -448,7 +447,7 @@ func ListLocations(w http.ResponseWriter, r *http.Request) {
 		locations, pagination, err = models.ListLocations(models.DB, page, size)
 		if err != nil {
 			// Database query failed
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Shipping",
 					Description: "Failed to retrieve locations",
@@ -457,7 +456,7 @@ func ListLocations(w http.ResponseWriter, r *http.Request) {
 				Message:   fmt.Sprintf("%s", err),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 			return
 
@@ -476,7 +475,7 @@ func ListLocations(w http.ResponseWriter, r *http.Request) {
 		"pagination": pagination,
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Shipping",
 			Description: "Locations fetched successfully",
@@ -486,7 +485,7 @@ func ListLocations(w http.ResponseWriter, r *http.Request) {
 		Message:   "Locations fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -502,20 +501,20 @@ func ListLocations(w http.ResponseWriter, r *http.Request) {
 // @Success      200          {object}  dtos.Location       "Location details"
 // @Failure      400          {object}  dtos.ErrorResponse  "Location not found"
 // @Router       /api/locations/{location_id} [get]
-func GetLocation(w http.ResponseWriter, r *http.Request) {
+func GetLocation(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract location ID from URL path parameters
-	locationID := mux.Vars(r)["location_id"]
+	locationID := c.Param("location_id")
 	// Convert location ID string to integer
 	id, _ := strconv.Atoi(locationID)
 	// Fetch location details from database
 	loc, err := models.GetLocationByID(models.DB, id)
 	if err != nil {
 		// Location not found or database error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Shipping",
 				Description: "Failed to fetch location details",
@@ -524,12 +523,12 @@ func GetLocation(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return location details for display
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Shipping",
 			Description: "Location fetched successfully",
@@ -539,7 +538,7 @@ func GetLocation(w http.ResponseWriter, r *http.Request) {
 		Message:   "Location fetched sucessfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -559,27 +558,27 @@ func GetLocation(w http.ResponseWriter, r *http.Request) {
 // @Failure      401          {object}  dtos.ErrorResponse    "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/locations/{location_id} [patch]
-func UpdateLocation(w http.ResponseWriter, r *http.Request) {
+func UpdateLocation(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract location ID from URL path parameters
-	locationID := mux.Vars(r)["location_id"]
+	locationID := c.Param("location_id")
 	// Verify user has admin privileges (only admins can update locations)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Shipping", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Shipping", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.UpdateLocation](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.UpdateLocation](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields in the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Shipping") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Shipping") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -587,7 +586,7 @@ func UpdateLocation(w http.ResponseWriter, r *http.Request) {
 	// Update location details in database
 	if err := models.UpdateLocation(models.DB, *req, locationID); err != nil {
 		// Update failed (location not found or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Shipping",
 				Description: "Failed to update location with ID " + locationID,
@@ -596,14 +595,14 @@ func UpdateLocation(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate location caches to ensure fresh data
 	utils.DeleteCacheByPrefix("locations_")
 	utils.DeleteCacheByPrefix("locations_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Shipping",
 			Description: "Location with ID " + locationID + " updated successfully",
@@ -613,7 +612,7 @@ func UpdateLocation(w http.ResponseWriter, r *http.Request) {
 		Message:   "Location updated sucessfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -631,15 +630,15 @@ func UpdateLocation(w http.ResponseWriter, r *http.Request) {
 // @Failure      401          {object}  dtos.ErrorResponse    "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/locations/{location_id} [delete]
-func DeleteLocation(w http.ResponseWriter, r *http.Request) {
+func DeleteLocation(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract location ID from URL path parameters
-	locationID := mux.Vars(r)["location_id"]
+	locationID := c.Param("location_id")
 	// Verify user has admin privileges (only admins can delete locations)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Shipping", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Shipping", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -648,7 +647,7 @@ func DeleteLocation(w http.ResponseWriter, r *http.Request) {
 	// Permanently delete location from database
 	if err := models.DeleteLocation(models.DB, locationID); err != nil {
 		// Deletion failed (location not found, in use, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Shipping",
 				Description: "Failed to delete location with ID " + locationID,
@@ -657,14 +656,14 @@ func DeleteLocation(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate location caches to ensure fresh data
 	utils.DeleteCacheByPrefix("locations_")
 	utils.DeleteCacheByPrefix("locations_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Shipping",
 			Description: "Location with ID " + locationID + " deleted successfully",
@@ -674,7 +673,7 @@ func DeleteLocation(w http.ResponseWriter, r *http.Request) {
 		Message:   "Location deleted sucessfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -690,20 +689,20 @@ func DeleteLocation(w http.ResponseWriter, r *http.Request) {
 // @Success      200          {object}  map[string]interface{}  "Feedback deleted successfully"
 // @Failure      400          {object}  dtos.ErrorResponse    "Deletion failed"
 // @Router       /api/deliveries/feedback/{feedback_id} [delete]
-func DeleteFeedbackHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteFeedbackHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract feedback ID from URL path parameters
-	feedbackID := mux.Vars(r)["feedback_id"]
+	feedbackID := c.Param("feedback_id")
 
 	// Permanently delete feedback from database
 	err := models.DeleteDeliveryFeedback(models.DB, feedbackID)
 	if err != nil {
 		// Deletion failed (feedback not found or database error)
 		log.Printf("Error adding new feed back: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
 				Description: "Failed to delete delivery feedback with ID " + feedbackID,
@@ -712,12 +711,12 @@ func DeleteFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Feedback deleted successfully
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
 			Description: "Feedback with ID " + feedbackID + " deleted successfully",
@@ -727,6 +726,6 @@ func DeleteFeedbackHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Feedback deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }

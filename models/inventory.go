@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo e-commerce inventory management system.
+// Package models provides data access functions for the Ekomasi e-commerce inventory management system.
 //
 // This file handles inventory operations including:
 //   - Inventory listing with filtering (category, stock level, warehouse, search)
@@ -13,7 +13,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"encoding/json"
 	"errors"

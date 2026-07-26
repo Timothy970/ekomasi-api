@@ -5,16 +5,15 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 // CreateReturnsHandler allows authenticated customers to create a return request for order items.
@@ -32,16 +31,16 @@ import (
 // @Failure      401      {object}  dtos.ErrorResponse       "User not authenticated"
 // @Security     BearerAuth
 // @Router       /api/returns [post]
-func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
+func CreateReturnsHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract authenticated user from request context
-	authuser, ok := middleware.UserFromContext(r.Context())
+	authuser, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// User not authenticated, return unauthorized error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
 				Description: notAuthenticated,
@@ -50,24 +49,24 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   noUserFound,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.ReturnRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.ReturnRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields in the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Orders") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Validate return request against business rules (return window, order status, etc.)
 	if err := models.ValidateReturnRequest(models.DB, *req); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Invalid return request " + err.Error(),
@@ -76,7 +75,7 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -87,7 +86,7 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 	err := models.CreateReturns(models.DB, *req, authuser.ID)
 	if err != nil {
 		// Database operation failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to register return " + err.Error(),
@@ -96,7 +95,7 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -110,7 +109,7 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	err = models.UpdateOrderStatus(models.DB, req.OrderID, updateRequest)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to update order status " + err.Error(),
@@ -119,13 +118,13 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return success response - return request created and awaiting admin approval
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Return registered successfully",
@@ -135,7 +134,7 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Return registered successfully, pending approval",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -156,32 +155,32 @@ func CreateReturnsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      401        {object}  dtos.ErrorResponse        "User not authorized (admin required)"
 // @Security     BearerAuth
 // @Router       /api/returns/{return_id}/status [patch]
-func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateReturnStatusHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can update return status)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.update"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", "orders.update"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract return ID from URL path parameters
-	returnID := mux.Vars(r)["return_id"]
+	returnID := c.Param("return_id")
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.ReturnStatusUpdate](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.ReturnStatusUpdate](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields in the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Orders") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	if strings.ToLower(req.Status) == "approved" {
 		if req.PhoneNumber == nil || *req.PhoneNumber == "" {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Orders",
 					Description: "Phone number is required for approved returns",
@@ -190,7 +189,7 @@ func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   "Phone number is required for approved returns",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -201,7 +200,7 @@ func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 	err := models.UpdateReturnStatus(models.DB, returnID, *req)
 	if err != nil {
 		// Status update failed (invalid status transition or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to update return status " + err.Error(),
@@ -210,7 +209,7 @@ func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -218,7 +217,7 @@ func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 	//handle retrun approval - update inventory and process refund if needed
 	err = handleReturnRefunding(models.DB, returnID, req.PhoneNumber)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to handle return refunding " + err.Error(),
@@ -227,13 +226,13 @@ func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return success response - status updated (customer may be notified)
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Return status updated successfully",
@@ -243,7 +242,7 @@ func UpdateReturnStatusHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Return status updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -309,23 +308,23 @@ func handleReturnRefunding(db models.DBExecutor, returnID string, phoneNumber *s
 // @Failure      401        {object}  dtos.ErrorResponse    "User not authorized (admin required)"
 // @Security     BearerAuth
 // @Router       /api/returns/{return_id} [get]
-func GetReturnByIDHandler(w http.ResponseWriter, r *http.Request) {
+func GetReturnByIDHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can view all returns)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract return ID from URL path parameters
-	returnID := mux.Vars(r)["return_id"]
+	returnID := c.Param("return_id")
 	// Fetch complete return details from database
 	returnRequest, err := models.GetReturnByID(models.DB, returnID)
 	if err != nil {
 		// Return not found or database error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to fetch return details " + err.Error(),
@@ -334,13 +333,13 @@ func GetReturnByIDHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return success response with complete return details
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Return fetched successfully",
@@ -350,7 +349,7 @@ func GetReturnByIDHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Return fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -369,23 +368,23 @@ func GetReturnByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      401        {object}  dtos.ErrorResponse    "User not authorized (admin required)"
 // @Security     BearerAuth
 // @Router       /api/returns/{return_id} [delete]
-func DeleteReturnHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteReturnHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can delete returns)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.delete"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", "orders.delete"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract return ID from URL path parameters
-	returnID := mux.Vars(r)["return_id"]
+	returnID := c.Param("return_id")
 	// Permanently delete return from database
 	err := models.DeleteReturn(models.DB, returnID)
 	if err != nil {
 		// Deletion failed (return not found or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to delete return " + err.Error(),
@@ -394,13 +393,13 @@ func DeleteReturnHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return success response - return permanently removed from system
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Return deleted successfully",
@@ -410,7 +409,7 @@ func DeleteReturnHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Return deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -432,26 +431,26 @@ func DeleteReturnHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      401     {object}  dtos.ErrorResponse      "User not authorized (admin required)"
 // @Security     BearerAuth
 // @Router       /api/returns [get]
-func ListAllReturnsHandler(w http.ResponseWriter, r *http.Request) {
+func ListAllReturnsHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can view all returns)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract optional filter parameters from query string
-	status := r.URL.Query().Get("status")
-	q := r.URL.Query().Get("q")
+	status := c.Query("status")
+	q := c.Query("q")
 	// Parse pagination parameters
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
 	// Fetch paginated returns list from database with filters
 	returns, pagination, err := models.GetAllReturns(models.DB, page, size, status, q)
 	if err != nil {
 		// Database query failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to fetch returns " + err.Error(),
@@ -460,13 +459,13 @@ func ListAllReturnsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return success response with paginated returns list and metadata
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "All returns fetched successfully",
@@ -479,7 +478,7 @@ func ListAllReturnsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "All returns fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -499,16 +498,16 @@ func ListAllReturnsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      401     {object}  dtos.ErrorResponse       "User not authenticated"
 // @Security     BearerAuth
 // @Router       /api/my-returns [get]
-func ListOwnerReturnsHandler(w http.ResponseWriter, r *http.Request) {
+func ListOwnerReturnsHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract authenticated user from request context
-	authuser, ok := middleware.UserFromContext(r.Context())
+	authuser, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// User not authenticated, return unauthorized error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
 				Description: "User not found in context or not authenticated",
@@ -517,18 +516,18 @@ func ListOwnerReturnsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "User not validated",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Extract optional filter parameters from query string
-	status := r.URL.Query().Get("status")
-	q := r.URL.Query().Get("q")
+	status := c.Query("status")
+	q := c.Query("q")
 	// Fetch all returns for this user from database with filters
 	returns, err := models.GetAllOwnerReturns(models.DB, status, q, authuser.ID)
 	if err != nil {
 		// Database query failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to fetch returns " + err.Error(),
@@ -537,13 +536,13 @@ func ListOwnerReturnsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return success response with user's returns list
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Returns fetched successfully",
@@ -553,7 +552,7 @@ func ListOwnerReturnsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Returns fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -572,16 +571,16 @@ func ListOwnerReturnsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      401        {object}  dtos.ErrorResponse    "User not authenticated"
 // @Security     BearerAuth
 // @Router       /api/my-returns/{return_id} [get]
-func GetOwnerReturnsHandler(w http.ResponseWriter, r *http.Request) {
+func GetOwnerReturnsHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract authenticated user from request context
-	authuser, ok := middleware.UserFromContext(r.Context())
+	authuser, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// User not authenticated, return unauthorized error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
 				Description: "User not found in context or not authenticated",
@@ -590,17 +589,17 @@ func GetOwnerReturnsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "User not validated",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Extract return ID from URL path parameters
-	returnID := mux.Vars(r)["return_id"]
+	returnID := c.Param("return_id")
 	// Fetch return details from database (verifies user ownership)
 	ret, err := models.GetOwnerReturnByID(models.DB, returnID, authuser.ID)
 	if err != nil {
 		// Return not found or not owned by user
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to fetch return details " + err.Error(),
@@ -609,13 +608,13 @@ func GetOwnerReturnsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return success response with return details for user's own return
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Return details fetched successfully",
@@ -625,7 +624,7 @@ func GetOwnerReturnsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Return details fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }

@@ -1,4 +1,4 @@
-// Package utils provides PDF generation utilities for the Adenzo e-commerce platform.
+// Package utils provides PDF generation utilities for the Ekomasi e-commerce platform.
 //
 // This file contains PDF document generation functions:
 //   - Invoice PDF generation from order data
@@ -23,7 +23,7 @@
 package utils
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"bytes"
 	"fmt"
 	"net/http"
@@ -97,7 +97,7 @@ func GenerateInvoicePDF(order dtos.AdminOrder) ([]byte, error) {
 	// Website URL next to logo
 	pdf.SetXY(40, 22)
 	pdf.SetFont("Arial", "", 10)
-	pdf.Cell(40, 5, "www.adenzo.ac.ke")
+	pdf.Cell(40, 5, "www.ekomasi.ac.ke")
 
 	// -----------------------------
 	// ORDER DETAILS (Right Side)

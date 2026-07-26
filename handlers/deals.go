@@ -1,16 +1,16 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 var dealWithID = "Deal with ID "
@@ -36,24 +36,24 @@ var dealWithID = "Deal with ID "
 // @Failure      500   {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/deals [post]
-func CreateDealHandler(w http.ResponseWriter, r *http.Request) {
+func CreateDealHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Deals", "promotions.create")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Deals", "promotions.create")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.CreateDeal](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CreateDeal](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Deals") {
 		return
 	}
 	_, err := models.CreateDeal(models.DB, *req)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: "Failed to create deal",
@@ -62,12 +62,12 @@ func CreateDealHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Deals",
 			Description: "Deal created successfully",
@@ -77,7 +77,7 @@ func CreateDealHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Deal created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -92,12 +92,12 @@ func CreateDealHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200   {object}  map[string]interface{}
 // @Failure      404   {object}  dtos.ErrorResponse
 // @Router       /api/deals [get]
-func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
+func GetDealsHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	admin := r.URL.Query().Get("isAdmin")
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
+	admin := c.Query("isAdmin")
 	isAdmin := false
 	if admin != "" {
 		isAdmin = true
@@ -105,7 +105,7 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 
 	deals, meta, err := models.GetAllDeals(models.DB, page, limit, isAdmin)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: "Failed to get deals",
@@ -114,11 +114,11 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Deals",
 			Description: "All deals fetched successfully",
@@ -128,7 +128,7 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Deals fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -151,15 +151,15 @@ func GetDealsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/deals/{deal_id} [patch]
-func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateDealHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Deals", "promotions.update")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Deals", "promotions.update")
 	if !ok {
 		return
 	}
-	dealID := mux.Vars(r)["deal_id"]
-	file, header, err := r.FormFile("image")
+	dealID := c.Param("deal_id")
+	file, header, err := c.Request.FormFile("image")
 	var url string
 
 	if err == nil && header != nil {
@@ -169,7 +169,7 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 		// Upload to GCS
 		url, err = utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Deals",
 					Description: err.Error(),
@@ -178,14 +178,14 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   "Failed to upload image",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return
 		}
 	} else if err != http.ErrMissingFile && err != nil {
 		// Handle any other unexpected error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: err.Error(),
@@ -194,23 +194,23 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Error reading image file",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Continue even if no image was uploaded
-	isActive := models.StringToBool(r.FormValue("is_active"))
-	dealType := r.FormValue("deal_type")
-	brandID := r.FormValue("brand_id")
+	isActive := models.StringToBool(c.Request.FormValue("is_active"))
+	dealType := c.Request.FormValue("deal_type")
+	brandID := c.Request.FormValue("brand_id")
 	if dealType == "" {
 		dealType = "product"
 	}
-	brandDiscount := r.FormValue("discount")
-	brandDiscountType := r.FormValue("discount_type")
+	brandDiscount := c.Request.FormValue("discount")
+	brandDiscountType := c.Request.FormValue("discount_type")
 	if dealType == "brand" && (brandID == "" || brandDiscount == "" || brandDiscountType == "") {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: "Brand ID, discount, and discount type are required for brand deals",
@@ -219,14 +219,14 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Brand ID, discount, and discount type are required for brand deals",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	products, err := parseProducts(r.FormValue("deal_products"), brandID, dealType, brandDiscount, brandDiscountType)
+	products, err := parseProducts(c.Request.FormValue("deal_products"), brandID, dealType, brandDiscount, brandDiscountType)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: "Failed to update deal with ID " + dealID,
@@ -235,14 +235,14 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	req := &dtos.UpdateDeal{
-		Name:      r.FormValue("name"),
-		StartDate: models.StringToTime(r.FormValue("start_date")),
-		EndDate:   models.StringToTime(r.FormValue("end_date")),
+		Name:      c.Request.FormValue("name"),
+		StartDate: models.StringToTime(c.Request.FormValue("start_date")),
+		EndDate:   models.StringToTime(c.Request.FormValue("end_date")),
 		IsActive:  &isActive,
 		Products:  products,
 		DealType:  dealType,
@@ -254,12 +254,12 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 		req.Image = &url
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Deals") {
 		return
 	}
 	err = models.UpdateDeal(models.DB, dealID, *req)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: "Failed to update deal with ID " + dealID,
@@ -268,11 +268,11 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Deals",
 			Description: dealWithID + dealID + " updated successfully",
@@ -282,7 +282,7 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Deal updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -298,16 +298,16 @@ func UpdateDealHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500      {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/deals/{deal_id} [delete]
-func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteDealHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Deals", "promotions.delete")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Deals", "promotions.delete")
 	if !ok {
 		return
 	}
-	dealID := mux.Vars(r)["deal_id"]
+	dealID := c.Param("deal_id")
 	if err := models.DeleteDeal(models.DB, dealID); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: "Failed to delete deal with ID " + dealID,
@@ -316,11 +316,11 @@ func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Deals",
 			Description: dealWithID + dealID + " deleted successfully",
@@ -330,7 +330,7 @@ func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Deal deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -348,23 +348,23 @@ func DeleteDealHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/deals/products [post]
-func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
+func AddProductToDealHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Deals", "products.create")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Deals", "products.create")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.ProductDeal](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.ProductDeal](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Deals") {
 		return
 	}
 	err := models.AddProductToDeal(models.DB, req.ID, req.ProductID, nil, nil)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: "Failed to add product with product ID " + req.ProductID + " to deal with deal ID " + req.ID,
@@ -373,11 +373,11 @@ func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Deals",
 			Description: "Product with ID " + req.ProductID + " added to deal with ID " + req.ID + " successfully",
@@ -387,7 +387,7 @@ func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product added to deal successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -405,22 +405,22 @@ func AddProductToDealHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/deals/products [delete]
-func RemoveProductFromDealHandler(w http.ResponseWriter, r *http.Request) {
+func RemoveProductFromDealHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Deals", "products.delete")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Deals", "products.delete")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.ProductDeal](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.ProductDeal](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Deals") {
 		return
 	}
 	if err := models.RemoveProductFromDeal(models.DB, req.ID, req.ProductID); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: "Failed to remove product with product ID " + req.ProductID + " from deal with deal ID " + req.ID,
@@ -429,11 +429,11 @@ func RemoveProductFromDealHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Deals",
 			Description: "Product with ID " + req.ProductID + " removed from deal with ID " + req.ID + " successfully",
@@ -443,7 +443,7 @@ func RemoveProductFromDealHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product removed from deal successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -459,15 +459,15 @@ func RemoveProductFromDealHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200      {object}  map[string]interface{}
 // @Failure      500      {object}  dtos.ErrorResponse
 // @Router       /api/deals/{deal_id}/products [get]
-func GetDealWithProductsHandler(w http.ResponseWriter, r *http.Request) {
+func GetDealWithProductsHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	requestSummary := utils.GetRequestSummary(c.Request)
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 
-	dealID := mux.Vars(r)["deal_id"]
+	dealID := c.Param("deal_id")
 	deals, pagination, err := models.GetDealWithProducts(models.DB, dealID, page, limit)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: "Failed to get deal with ID " + dealID,
@@ -476,11 +476,11 @@ func GetDealWithProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Deals",
 			Description: "Deal of ID " + dealID + " with products fetched successfully",
@@ -490,7 +490,7 @@ func GetDealWithProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Deal with products fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -511,17 +511,17 @@ func GetDealWithProductsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500       {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/deals/create [post]
-func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
+func CreateDealProductHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Deals", "products.create"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Deals", "products.create"); !ok {
 		return
 	}
 
-	req, err := parseDealProductRequest(r)
+	req, err := parseDealProductRequest(c.Request)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: "Failed to parse deal product request",
@@ -530,22 +530,22 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Deals") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Deals") {
 		return
 	}
 
-	if err := validateProductsExist(req.Products, w, r, start, requestSummary); err != nil {
+	if err := validateProductsExist(req.Products, c, start, requestSummary); err != nil {
 		return
 	}
 
 	startDate, endDate, err := parseDuration(req.Duration)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: "Failed to parse duration when creating deal",
@@ -554,7 +554,7 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -562,7 +562,7 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 
 	dealID, err := createDeal(req, startDate, endDate)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Deals",
 				Description: "Failed to create deal",
@@ -571,17 +571,17 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
-	if err := addProductsToDeal(dealID, req.Products, w, r, start, requestSummary); err != nil {
+	if err := addProductsToDeal(dealID, req.Products, c, start, requestSummary); err != nil {
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Deals",
 			Description: dealWithID + dealID + " created successfully",
@@ -591,7 +591,7 @@ func CreateDealProductHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   fmt.Sprintf("%s Deal created successfully", req.Title),
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -605,12 +605,6 @@ func parseDealProductRequest(r *http.Request) (*dtos.FlashDealProducts, error) {
 		return nil, fmt.Errorf("image is required")
 	}
 	defer file.Close()
-
-	// Upload to GCS (placeholder)
-	// url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
-	// if err != nil {
-	// 	return nil, fmt.Errorf("%s", "Failed to upload image")
-	// }
 
 	url := "https://example.com/image.jpg" // Placeholder URL since GCS upload is not implemented here
 
@@ -661,14 +655,14 @@ func parseProducts(productsStr string, brandID, dealType, brandDiscount, brandDi
 	}
 	return products, nil
 }
-func validateProductsExist(products []dtos.ProductsDeal, w http.ResponseWriter, r *http.Request, start time.Time, requestSummary string) error {
+func validateProductsExist(products []dtos.ProductsDeal, c *gin.Context, start time.Time, requestSummary string) error {
 	for _, p := range products {
 		err := models.IsProductThere(models.DB, p.ProductID)
 		if err != nil {
 			if err.Error() == "product not found" {
 				err = fmt.Errorf("product with ID %s not found", p.ProductID)
 			}
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Deals",
 					Description: "Failed to validate product existence when creating deal",
@@ -677,7 +671,7 @@ func validateProductsExist(products []dtos.ProductsDeal, w http.ResponseWriter, 
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return err
@@ -704,11 +698,11 @@ func createDeal(req *dtos.FlashDealProducts, startDate, endDate time.Time) (stri
 	return models.CreateDeal(models.DB, dealData)
 }
 
-func addProductsToDeal(dealID string, products []dtos.ProductsDeal, w http.ResponseWriter, r *http.Request, start time.Time, requestSummary string) error {
+func addProductsToDeal(dealID string, products []dtos.ProductsDeal, c *gin.Context, start time.Time, requestSummary string) error {
 	for _, p := range products {
 		discount := float64(p.Discount)
 		if err := models.AddProductToDeal(models.DB, dealID, p.ProductID, &p.DiscountType, &discount); err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Deals",
 					Description: "Failed to add product to deal when creating deal with deal ID " + dealID,
@@ -717,7 +711,7 @@ func addProductsToDeal(dealID string, products []dtos.ProductsDeal, w http.Respo
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return err

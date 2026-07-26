@@ -1,16 +1,16 @@
-// Package handlers provides HTTP request handlers for the Adenzo backend API.
+// Package handlers provides HTTP request handlers for the Ekomasi backend API.
 // This file contains user activity logging and audit trail handlers that track
 // system usage, user actions, and provide comprehensive audit capabilities.
 package handlers
 
 import (
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 var dateFormat = "2006-01-02"
@@ -38,38 +38,38 @@ var dateFormat = "2006-01-02"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/logs [get]
 // @Security BearerAuth
-func GetUserLogs(w http.ResponseWriter, r *http.Request) {
+func GetUserLogs(c *gin.Context) {
 	// Track request execution time for performance monitoring
 	start := time.Now()
 
 	// Extract request summary for logging and error reporting
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Users", ""); !ok {
 		return
 	}
 
 	// Parse pagination parameters from query string
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 
 	// Build filter criteria with sanitized inputs to prevent injection attacks
 	filters := models.UserLogFilters{
-		Module:    sanitizeString(r.URL.Query().Get("module")),   // Module name filter
-		Status:    sanitizeString(r.URL.Query().Get("status")),   // Status filter (success/error)
-		Role:      sanitizeString(r.URL.Query().Get("role")),     // User role filter
-		StartDate: validateDate(r.URL.Query().Get("start_date")), // Validated start date
-		EndDate:   validateDate(r.URL.Query().Get("end_date")),   // Validated end date
-		Search:    sanitizeString(r.URL.Query().Get("q")),        // General search query
-		Page:      page,                                          // Current page number
-		Limit:     limit,                                         // Items per page
+		Module:    sanitizeString(c.Query("module")),   // Module name filter
+		Status:    sanitizeString(c.Query("status")),   // Status filter (success/error)
+		Role:      sanitizeString(c.Query("role")),     // User role filter
+		StartDate: validateDate(c.Query("start_date")), // Validated start date
+		EndDate:   validateDate(c.Query("end_date")),   // Validated end date
+		Search:    sanitizeString(c.Query("q")),        // General search query
+		Page:      page,                                // Current page number
+		Limit:     limit,                               // Items per page
 	}
 
 	// Validate that end date is after or equal to start date if both are provided
 	if filters.StartDate != "" && filters.EndDate != "" {
 		if !isValidDateRange(filters.StartDate, filters.EndDate) {
 			// Return error if date range is invalid
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Users",
 					Description: "Invalid date range",
@@ -78,7 +78,7 @@ func GetUserLogs(w http.ResponseWriter, r *http.Request) {
 				Message:   "End date must be after start date",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 			})
 			return
 		}
@@ -88,7 +88,7 @@ func GetUserLogs(w http.ResponseWriter, r *http.Request) {
 	logs, meta, err := models.GetUserLogsOptimized(models.DB, filters)
 	if err != nil {
 		// Return error response if log retrieval fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
 				Description: "Failed to fetch user logs",
@@ -97,13 +97,13 @@ func GetUserLogs(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
 	// Return success response with logs and pagination metadata
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
 			Description: "All user logs fetched successfully",
@@ -113,7 +113,7 @@ func GetUserLogs(w http.ResponseWriter, r *http.Request) {
 		Message:   "User logs fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -204,29 +204,29 @@ func isValidDateRange(start, end string) bool {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/logs/user/{user_id} [get]
 // @Security BearerAuth
-func GetUserLogsByUserID(w http.ResponseWriter, r *http.Request) {
+func GetUserLogsByUserID(c *gin.Context) {
 	// Track request execution time for performance monitoring
 	start := time.Now()
 
 	// Extract request summary for logging and error reporting
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Users", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Users", ""); !ok {
 		return
 	}
 
 	// Parse pagination parameters from query string
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 
 	// Extract user ID from URL path parameters
-	userID := mux.Vars(r)["user_id"]
+	userID := c.Param("user_id")
 
 	// Retrieve logs for the specified user from the database
 	logs, meta, err := models.GetUserLogsByUserID(models.DB, userID, limit, page)
 	if err != nil {
 		// Return error response if log retrieval fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Users",
 				Description: "Failed to fetch user logs for user ID " + userID,
@@ -235,13 +235,13 @@ func GetUserLogsByUserID(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
 	// Return success response with user-specific logs and pagination metadata
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Users",
 			Description: "User logs for user ID " + userID + " fetched successfully",
@@ -251,7 +251,7 @@ func GetUserLogsByUserID(w http.ResponseWriter, r *http.Request) {
 		Message:   "User logs fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }

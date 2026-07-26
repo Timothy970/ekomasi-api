@@ -1,4 +1,4 @@
-// Package models provides the autocomplete search functionality for the Adenzo e-commerce platform.
+// Package models provides the autocomplete search functionality for the Ekomasi e-commerce platform.
 //
 // This package implements a fast, concurrent autocomplete search system that searches across:
 //   - Products: Searches by name, description, SKU with popularity-based ranking
@@ -22,7 +22,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"fmt"
 	"net/url"

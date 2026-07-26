@@ -1,19 +1,19 @@
-// Package handlers provides HTTP request handlers for the Adenzo backend API.
+// Package handlers provides HTTP request handlers for the Ekomasi backend API.
 // This file contains handlers for managing chart of accounts and journal entries,
 // which form the core of the accounting/financial management system.
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // Global message template variables for consistent response formatting
@@ -40,32 +40,32 @@ var (
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/accounts [post]
 // @Security BearerAuth
-func CreateAccount(w http.ResponseWriter, r *http.Request) {
+func CreateAccount(c *gin.Context) {
 	// Track request execution time for performance monitoring
 	start := time.Now()
 
 	// Extract request summary for logging and error reporting
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Accounts", "accounts.create")
 	if !ok {
 		return
 	}
 
 	// Decode and validate the request body into CreateAccountRequest DTO
-	req, ok := DecodeRequestBody[dtos.CreateAccountRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CreateAccountRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Accounts") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Accounts") {
 		return
 	}
 	//check that account type is valid
 	if !IsValidAccountType(req.AccountType) {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Invalid account type provided",
@@ -74,7 +74,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 			Message:   "Account type must be one of: asset, liability, equity, revenue, expense",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -82,7 +82,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 	//check if statement type is valid and if it matches the account type
 	err := IsValidStatementType(req.StatementType, req.AccountType)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Invalid statement type provided " + err.Error(),
@@ -91,7 +91,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -99,7 +99,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 	var accountCode string
 	codeRange, err := utils.GetAccountCodeRange(req.AccountType)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to get account code range for account type " + req.AccountType,
@@ -108,7 +108,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -117,7 +117,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 	if req.AccountCode == nil || *req.AccountCode == "" {
 		accountCode, err = models.GetNextAccountCode(models.DB, req.AccountType, codeRange)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Accounts",
 					Description: "Failed to generate account code for account type " + req.AccountType,
@@ -126,7 +126,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -138,7 +138,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 		// Validate that the provided code is within the valid range for this account type
 		err = utils.ValidateAccountCode(accountCode, req.AccountType)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Accounts",
 					Description: "Invalid account code provided: " + err.Error(),
@@ -147,7 +147,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -159,7 +159,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 	_, err = models.CreateAccount(models.DB, *req, accountCode)
 	if err != nil {
 		// Return error response if account creation fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to create account",
@@ -168,7 +168,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -178,7 +178,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("entries_pagination_")
 
 	// Return success response with account creation confirmation
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Accounts",
 			Description: "Account created successfully",
@@ -188,7 +188,7 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 		Message:   "Account created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -207,22 +207,22 @@ func CreateAccount(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/accounts/next-code [get]
 // @Security BearerAuth
-func GetNextAccountCode(w http.ResponseWriter, r *http.Request) {
+func GetNextAccountCode(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure user has required permissions
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Accounts", ""); !ok {
 		return
 	}
 
 	// Get account type from query parameter
-	accountType := r.URL.Query().Get("account_type")
+	accountType := c.Query("account_type")
 	if accountType == "" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Account type is required",
@@ -231,7 +231,7 @@ func GetNextAccountCode(w http.ResponseWriter, r *http.Request) {
 			Message:   "account_type query parameter is required",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -240,7 +240,7 @@ func GetNextAccountCode(w http.ResponseWriter, r *http.Request) {
 	// Validate account type and get code range
 	codeRange, err := utils.GetAccountCodeRange(accountType)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Invalid account type",
@@ -249,7 +249,7 @@ func GetNextAccountCode(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -258,7 +258,7 @@ func GetNextAccountCode(w http.ResponseWriter, r *http.Request) {
 	// Get next available code from database
 	nextCode, err := models.GetNextAccountCode(models.DB, accountType, codeRange)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to get next account code",
@@ -267,7 +267,7 @@ func GetNextAccountCode(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -281,7 +281,7 @@ func GetNextAccountCode(w http.ResponseWriter, r *http.Request) {
 		MaxCode:     codeRange.Max,
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Accounts",
 			Description: "Next account code retrieved successfully",
@@ -291,7 +291,7 @@ func GetNextAccountCode(w http.ResponseWriter, r *http.Request) {
 		Message:   "Next account code retrieved successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -357,22 +357,22 @@ func IsValidStatementType(statementType string, accountType string) error {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/accounts/stats [get]
 // @Security BearerAuth
-func GetAccountStats(w http.ResponseWriter, r *http.Request) {
+func GetAccountStats(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure user has required permissions
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Accounts", ""); !ok {
 		return
 	}
 
 	// Fetch statistics from model
 	stats, err := models.GetAccountStats(models.DB)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to fetch account statistics",
@@ -381,12 +381,12 @@ func GetAccountStats(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Accounts",
 			Description: "Account statistics fetched successfully",
@@ -396,7 +396,7 @@ func GetAccountStats(w http.ResponseWriter, r *http.Request) {
 		Message:   "Account statistics fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -415,27 +415,27 @@ func GetAccountStats(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/accounts [get]
 // @Security BearerAuth
-func ListAccounts(w http.ResponseWriter, r *http.Request) {
+func ListAccounts(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure user has admin privileges
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Accounts", ""); !ok {
 		return
 	}
 
 	// Parse pagination parameters from query string
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	accountType := r.URL.Query().Get("account_type")
-	q := r.URL.Query().Get("q")
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
+	accountType := c.Query("account_type")
+	q := c.Query("q")
 	// Fetch accounts from database with pagination
 	accounts, meta, err := models.ListAccounts(models.DB, page, size, accountType, q)
 	if err != nil {
 		// Return error response if database query fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to list accounts",
@@ -444,11 +444,11 @@ func ListAccounts(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Accounts",
 			Description: "All Accounts fetched successfully",
@@ -461,7 +461,7 @@ func ListAccounts(w http.ResponseWriter, r *http.Request) {
 		Message:   "Accounts fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -479,20 +479,20 @@ func ListAccounts(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/accounts/{account_id} [get]
 // @Security BearerAuth
-func GetAccount(w http.ResponseWriter, r *http.Request) {
+func GetAccount(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract account ID from URL path parameters
-	accountId := mux.Vars(r)["account_id"]
+	accountId := c.Param("account_id")
 
 	// Fetch account from database by ID
 	acc, err := models.GetAccount(models.DB, accountId)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to fetch account with id " + accountId,
@@ -501,11 +501,11 @@ func GetAccount(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Accounts",
 			Description: accountWithID + accountId + " fetched successfully",
@@ -515,7 +515,7 @@ func GetAccount(w http.ResponseWriter, r *http.Request) {
 		Message:   "Accounts fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -537,36 +537,36 @@ func GetAccount(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/accounts/{account_id} [patch]
 // @Security BearerAuth
-func UpdateAccount(w http.ResponseWriter, r *http.Request) {
+func UpdateAccount(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Accounts", "accounts.update")
 	if !ok {
 		return
 	}
 
 	// Decode and validate the request body into UpdateAccountRequest DTO
-	req, ok := DecodeRequestBody[dtos.UpdateAccountRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.UpdateAccountRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Accounts") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Accounts") {
 		return
 	}
 
 	// Extract account ID from URL path parameters
-	accountId := mux.Vars(r)["account_id"]
+	accountId := c.Param("account_id")
 
 	//check that account type is valid
 	if !IsValidAccountType(req.AccountType) {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Invalid account type provided",
@@ -575,7 +575,7 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 			Message:   "Account type must be one of: asset, liability, equity, revenue, expense",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -583,7 +583,7 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	//check if statement type is valid and if it matches the account type
 	err := IsValidStatementType(req.StatementType, req.AccountType)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Invalid statement type provided " + err.Error(),
@@ -592,7 +592,7 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -600,7 +600,7 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	// Attempt to update the account in the database
 	if err := models.UpdateAccount(models.DB, accountId, *req); err != nil {
 		// Return error response if update fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to update account with id " + accountId,
@@ -609,7 +609,7 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -617,7 +617,7 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	// Invalidate cached accounts to ensure data consistency
 	utils.DeleteCacheByPrefix("accounts_")
 	utils.DeleteCacheByPrefix("accounts_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Accounts",
 			Description: accountWithID + accountId + " updated successfully",
@@ -627,7 +627,7 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 		Message:   "Account updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -646,26 +646,26 @@ func UpdateAccount(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/accounts/{account_id} [delete]
 // @Security BearerAuth
-func DeleteAccount(w http.ResponseWriter, r *http.Request) {
+func DeleteAccount(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Accounts", "accounts.delete")
 	if !ok {
 		return
 	}
 
 	// Extract account ID from URL path parameters
-	accountId := mux.Vars(r)["account_id"]
+	accountId := c.Param("account_id")
 
 	// Attempt to delete the account from the database
 	if err := models.DeleteAccount(models.DB, accountId); err != nil {
 		// Return error response if deletion fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to delete account with id " + accountId,
@@ -674,7 +674,7 @@ func DeleteAccount(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -682,7 +682,7 @@ func DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	// Invalidate cached accounts to ensure data consistency
 	utils.DeleteCacheByPrefix("accounts_")
 	utils.DeleteCacheByPrefix("accounts_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Accounts",
 			Description: accountWithID + accountId + " deleted successfully",
@@ -692,7 +692,7 @@ func DeleteAccount(w http.ResponseWriter, r *http.Request) {
 		Message:   "Account deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -719,27 +719,27 @@ func DeleteAccount(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/entries [post]
 // @Security BearerAuth
-func CreateEntry(w http.ResponseWriter, r *http.Request) {
+func CreateEntry(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Accounts", "accounts.create")
 	if !ok {
 		return
 	}
 
 	// Decode and validate the request body into CreateJournalEntryRequest DTO
-	req, ok := DecodeRequestBody[dtos.CreateJournalEntryRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CreateJournalEntryRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields, ensuring debits and credits balance
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Accounts") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Accounts") {
 		return
 	}
 
@@ -747,7 +747,7 @@ func CreateEntry(w http.ResponseWriter, r *http.Request) {
 	_, err := models.CreateEntry(models.DB, *req)
 	if err != nil {
 		// Return error response if entry creation fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to create journal entry",
@@ -756,7 +756,7 @@ func CreateEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -764,7 +764,7 @@ func CreateEntry(w http.ResponseWriter, r *http.Request) {
 	// Invalidate account cache as journal entries affect account balances
 	utils.DeleteCacheByPrefix("accounts_")
 	utils.DeleteCacheByPrefix("accounts_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Accounts",
 			Description: "Entry created successfully",
@@ -774,7 +774,7 @@ func CreateEntry(w http.ResponseWriter, r *http.Request) {
 		Message:   "Entry created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -793,27 +793,27 @@ func CreateEntry(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/entries [get]
 // @Security BearerAuth
-func ListEntries(w http.ResponseWriter, r *http.Request) {
+func ListEntries(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure user has admin privileges
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Accounts", ""); !ok {
 		return
 	}
 
 	// Parse pagination parameters from query string
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	q := r.URL.Query().Get("q")
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
+	q := c.Query("q")
 
 	// Fetch journal entries from database with pagination
 	entries, meta, err := models.ListEntries(models.DB, page, size, q)
 	if err != nil {
 		// Return error response if database query fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to list journal entries",
@@ -822,13 +822,13 @@ func ListEntries(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response with entries and pagination metadata
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Accounts",
 			Description: "Journal entries fetched successfully",
@@ -841,7 +841,7 @@ func ListEntries(w http.ResponseWriter, r *http.Request) {
 		Message:   "Entries fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -859,20 +859,20 @@ func ListEntries(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/entries/{entry_id} [get]
 // @Security BearerAuth
-func GetEntry(w http.ResponseWriter, r *http.Request) {
+func GetEntry(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract entry ID from URL path parameters
-	entryId := mux.Vars(r)["entry_id"]
+	entryId := c.Param("entry_id")
 
 	// Fetch journal entry from database by ID
 	entry, err := models.GetEntry(models.DB, entryId)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to fetch journal entry with id " + entryId,
@@ -881,11 +881,11 @@ func GetEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Accounts",
 			Description: journalWithID + entryId + " fetched successfully",
@@ -895,7 +895,7 @@ func GetEntry(w http.ResponseWriter, r *http.Request) {
 		Message:   "Entry fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -917,37 +917,37 @@ func GetEntry(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/entries/{entry_id} [patch]
 // @Security BearerAuth
-func UpdateEntry(w http.ResponseWriter, r *http.Request) {
+func UpdateEntry(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Accounts", "accounts.update")
 	if !ok {
 		return
 	}
 
 	// Decode and validate the request body into UpdateJournalEntryRequest DTO
-	req, ok := DecodeRequestBody[dtos.UpdateJournalEntryRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.UpdateJournalEntryRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields, ensuring debits and credits still balance
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Accounts") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Accounts") {
 		return
 	}
 
 	// Extract entry ID from URL path parameters
-	entryId := mux.Vars(r)["entry_id"]
+	entryId := c.Param("entry_id")
 
 	// Attempt to update the journal entry in the database
 	if err := models.UpdateEntry(models.DB, entryId, *req); err != nil {
 		// Return error response if update fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to update journal entry with id " + entryId,
@@ -956,7 +956,7 @@ func UpdateEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -964,7 +964,7 @@ func UpdateEntry(w http.ResponseWriter, r *http.Request) {
 	// Invalidate cached entries to ensure data consistency
 	utils.DeleteCacheByPrefix("entries_")
 	utils.DeleteCacheByPrefix("entries_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Accounts",
 			Description: journalWithID + entryId + " updated successfully",
@@ -974,7 +974,7 @@ func UpdateEntry(w http.ResponseWriter, r *http.Request) {
 		Message:   "Entry updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -993,26 +993,26 @@ func UpdateEntry(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/entries/{entry_id} [delete]
 // @Security BearerAuth
-func DeleteEntry(w http.ResponseWriter, r *http.Request) {
+func DeleteEntry(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "accounts.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Accounts", "accounts.delete")
 	if !ok {
 		return
 	}
 
 	// Extract entry ID from URL path parameters
-	entryID := mux.Vars(r)["entry_id"]
+	entryID := c.Param("entry_id")
 
 	// Attempt to delete the journal entry from the database
 	if err := models.DeleteEntry(models.DB, entryID); err != nil {
 		// Return error response if deletion fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Accounts",
 				Description: "Failed to delete journal entry with id " + entryID,
@@ -1021,7 +1021,7 @@ func DeleteEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -1029,7 +1029,7 @@ func DeleteEntry(w http.ResponseWriter, r *http.Request) {
 	// Invalidate cached entries to ensure data consistency
 	utils.DeleteCacheByPrefix("entries_")
 	utils.DeleteCacheByPrefix("entries_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Accounts",
 			Description: journalWithID + entryID + " deleted successfully",
@@ -1039,6 +1039,6 @@ func DeleteEntry(w http.ResponseWriter, r *http.Request) {
 		Message:   "Entry deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

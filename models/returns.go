@@ -15,7 +15,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"fmt"
 
 	"github.com/teris-io/shortid"

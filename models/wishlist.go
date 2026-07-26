@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo e-commerce backend.
+// Package models provides data access functions for the Ekomasi e-commerce backend.
 //
 // This file contains wishlist management operations including:
 //   - Wishlist CRUD (create, read, update, delete)
@@ -12,7 +12,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"errors"
 	"fmt"

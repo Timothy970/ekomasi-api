@@ -1,11 +1,12 @@
-// Package handlers provides HTTP request handlers for the Adenzo backend API.
+// Package handlers provides HTTP request handlers for the Ekomasi backend API.
 // This file contains cart analytics and reporting handlers that track cart abandonment
 // metrics and trends to help understand customer shopping behavior.
 package handlers
 
 import (
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"fmt"
 	"net/http"
 	"time"
@@ -26,21 +27,21 @@ import (
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/reports/cart-abandonment [get]
 // @Security BearerAuth
-func CartAbandonmentReport(w http.ResponseWriter, r *http.Request) {
+func CartAbandonmentReport(c *gin.Context) {
 	// Track request execution time for performance monitoring
 	start := time.Now()
 
 	// Extract request summary for logging and error reporting
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse and validate date range from query parameters (defaults to last 30 days)
-	startTime, endTime, err := ParseDateRange(r)
+	startTime, endTime, err := ParseDateRange(c.Request)
 
 	// Retrieve cart abandonment statistics from the database
 	report, err := models.GetCartAbandonmentRate(models.DB, startTime, endTime)
 	if err != nil {
 		// Return error response if report generation fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to generate cart abandonment report",
@@ -49,14 +50,14 @@ func CartAbandonmentReport(w http.ResponseWriter, r *http.Request) {
 			Message:   "failed to generate report: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Return success response with cart abandonment metrics
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Cart abandonment report generated successfully",
@@ -66,7 +67,7 @@ func CartAbandonmentReport(w http.ResponseWriter, r *http.Request) {
 		Message:   "Cart abandonment report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -87,29 +88,29 @@ func CartAbandonmentReport(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/reports/cart-abandonment/trend [get]
 // @Security BearerAuth
-func CartAbandonmentTrendReport(w http.ResponseWriter, r *http.Request) {
+func CartAbandonmentTrendReport(c *gin.Context) {
 	// Track request execution time for performance monitoring
 	start := time.Now()
 
 	// Extract request summary for logging and error reporting
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Set default period to daily, can be overridden by query parameter
 	period := "daily"
-	periodStr := r.URL.Query().Get("period")
+	periodStr := c.Query("period")
 	if periodStr != "" {
 		// Use custom period if provided (daily, weekly, or monthly)
 		period = periodStr
 	}
 
 	// Parse and validate date range from query parameters
-	startTime, endTime, err := ParseDateRange(r)
+	startTime, endTime, err := ParseDateRange(c.Request)
 
 	// Retrieve cart abandonment trend data grouped by specified period
 	report, err := models.GetCartAbandonmentTrend(models.DB, startTime, endTime, period)
 	if err != nil {
 		// Return error response if trend report generation fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to generate cart abandonment trend report",
@@ -118,14 +119,14 @@ func CartAbandonmentTrendReport(w http.ResponseWriter, r *http.Request) {
 			Message:   "failed to generate report: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Return success response with time-series abandonment trend data
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Cart abandonment trend report generated successfully",
@@ -135,7 +136,7 @@ func CartAbandonmentTrendReport(w http.ResponseWriter, r *http.Request) {
 		Message:   "Cart abandonment trend report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }

@@ -5,15 +5,14 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"log"
 	"net/http"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 // RequestRestockNotification allows customers to subscribe to restock alerts.
@@ -31,26 +30,26 @@ import (
 // @Failure      409      {object}  dtos.ErrorResponse               "Notification already exists"
 // @Security     BearerAuth
 // @Router       /api/restock-notifications [post]
-func RequestRestockNotification(w http.ResponseWriter, r *http.Request) {
+func RequestRestockNotification(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.RestockNotificationRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.RestockNotificationRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields in the request (user ID, product ID, contact method)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Notifications") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Notifications") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 
 	if err := models.CreateRestockNotification(models.DB, *req); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
 				Description: "Failed to create restock notification",
@@ -59,12 +58,12 @@ func RequestRestockNotification(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
 			Description: "Restock notification sent",
@@ -74,7 +73,7 @@ func RequestRestockNotification(w http.ResponseWriter, r *http.Request) {
 		Message:   "Restock notification sent",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -90,25 +89,25 @@ func RequestRestockNotification(w http.ResponseWriter, r *http.Request) {
 // @Failure      400      {object}  dtos.ErrorResponse                "Invalid user ID or database error"
 // @Security     BearerAuth
 // @Router       /api/restock-notifications/{user_id} [get]
-func ListUserRestockNotifications(w http.ResponseWriter, r *http.Request) {
+func ListUserRestockNotifications(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract user ID from URL path parameters
 	// The user ID from the path is not directly used for fetching notifications
 	// as the authenticated user's ID is preferred for security.
-	_ = mux.Vars(r)["user_id"]
+	_ = c.Param("user_id")
 
 	// Extract authenticated user from context for secure listing
-	authuser, _ := middleware.UserFromContext(r.Context())
+	authuser, _ := middleware.UserFromContext(c.Request.Context())
 	// Fetch all active restock notifications for this user from database
 	notifications, err := models.ListRestockNotificationsByUser(models.DB, authuser.ID)
 	// Debug logging to track notification retrieval
 	log.Printf("******nots %v", notifications)
 	if err != nil {
 		// Database query failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
 				Description: "Failed to list restock notifications for user",
@@ -117,12 +116,12 @@ func ListUserRestockNotifications(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return successful response with list of all active notification subscriptions
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
 			Description: "Restock notifications retrieved successfully",
@@ -132,7 +131,7 @@ func ListUserRestockNotifications(w http.ResponseWriter, r *http.Request) {
 		Message:   "Notifications",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -149,23 +148,23 @@ func ListUserRestockNotifications(w http.ResponseWriter, r *http.Request) {
 // @Failure      400              {object}  dtos.ErrorResponse     "Invalid parameters or notification not found"
 // @Security     BearerAuth
 // @Router       /api/restock-notifications/{user_id}/{notification_id} [delete]
-func CancelRestockNotification(w http.ResponseWriter, r *http.Request) {
+func CancelRestockNotification(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract notification ID and user ID from URL path parameters
-	notificationID := mux.Vars(r)["notification_id"]
-	_ = mux.Vars(r)["user_id"] // Placeholder for unused path variable
+	notificationID := c.Param("notification_id")
+	_ = c.Param("user_id") // Placeholder for unused path variable
 
 	// Extract authenticated user from context for secure cancellation
-	authuser, _ := middleware.UserFromContext(r.Context())
+	authuser, _ := middleware.UserFromContext(c.Request.Context())
 
 	// Delete the restock notification from database
 	// Verifies user owns this notification before deletion for security
 	if err := models.DeleteRestockNotification(models.DB, notificationID, authuser.ID); err != nil {
 		// Deletion failed (notification not found or user doesn't own it)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
 				Description: "Failed to cancel restock notification with ID " + notificationID,
@@ -174,13 +173,13 @@ func CancelRestockNotification(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response - user unsubscribed from restock notification
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
 			Description: "Restock notification with ID " + notificationID + " cancelled successfully",
@@ -190,7 +189,7 @@ func CancelRestockNotification(w http.ResponseWriter, r *http.Request) {
 		Message:   "Restock notification cancelled successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -208,16 +207,16 @@ func CancelRestockNotification(w http.ResponseWriter, r *http.Request) {
 // @Failure      400         {object}  dtos.ErrorResponse     "Invalid product ID or database error"
 // @Security     BearerAuth
 // @Router       /api/restock-notifications/trigger [post]
-func TriggerRestockNotifications(w http.ResponseWriter, r *http.Request) {
+func TriggerRestockNotifications(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract product ID from URL path parameters
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 	// Extract optional variant ID from query parameters
 	// If provided, only notify users waiting for this specific variant
-	variantID := r.URL.Query().Get("variant_id")
+	variantID := c.Query("variant_id")
 	var variantPtr *string
 	if variantID != "" {
 		// Convert to pointer for optional database query parameter
@@ -228,7 +227,7 @@ func TriggerRestockNotifications(w http.ResponseWriter, r *http.Request) {
 	notifications, err := models.GetNotificationsByProduct(models.DB, productID, variantPtr)
 	if err != nil {
 		// Database query failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Notifications",
 				Description: "Failed to get restock notifications for product ID " + productID,
@@ -237,7 +236,7 @@ func TriggerRestockNotifications(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -247,7 +246,7 @@ func TriggerRestockNotifications(w http.ResponseWriter, r *http.Request) {
 	// This should be implemented with a notification service (email, SMS, push)
 
 	// Return success response with count of notifications triggered
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Notifications",
 			Description: "Restock notifications triggered for product ID " + productID,
@@ -257,7 +256,7 @@ func TriggerRestockNotifications(w http.ResponseWriter, r *http.Request) {
 		Message:   "triggered_count",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 
 }

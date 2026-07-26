@@ -1,12 +1,13 @@
 package main
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/handlers"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/routes"
-	"adenzo_backend/utils"
+	"ekomasi_backend/config"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/handlers"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/routes"
+	"ekomasi_backend/utils"
 	"context"
 	"database/sql"
 	"flag"
@@ -20,15 +21,14 @@ import (
 	"strings"
 	"time"
 
-	_ "adenzo_backend/docs"
+	_ "ekomasi_backend/docs"
 
+	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/go-sql-driver/mysql"
-	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"github.com/uptrace/uptrace-go/uptrace"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 
 	// "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
@@ -48,32 +48,35 @@ var redisClient *redis.Client
 var tracer trace.Tracer
 var meter metric.Meter
 var logger *slog.Logger
-var adenzo = "adenzo-backend"
+var ekomasi = "ekomasi-backend"
 
 const migrationDir = "migrations"
 
-// Load environment variables
+// Load environment variables and global configuration
 func init() {
-	// Initialize database connection or other configurations here.
-	fmt.Println("Initializing server...")
-
+	fmt.Println("Initializing server configuration...")
+	config.LoadConfig()
 }
+
 
 func main() {
 	ctx := context.Background()
+
+	// Retrieve application configuration
+	cfg := config.Get()
 
 	// Configure OpenTelemetry with comprehensive setup
 	uptrace.ConfigureOpentelemetry(
 		// Use environment variable for DSN or fallback to hardcoded value
 		uptrace.WithDSN(os.Getenv("UPTRACE_DSN")),
-		uptrace.WithServiceName("Adenzo"),
+		uptrace.WithServiceName("Ekomasi"),
 		uptrace.WithServiceVersion("1.0.0"),
-		uptrace.WithDeploymentEnvironment(os.Getenv("ENVIRONMENT")),
+		uptrace.WithDeploymentEnvironment(cfg.Server.Environment),
 	)
 
 	// Initialize OpenTelemetry components
-	tracer = otel.Tracer(adenzo)
-	meter = otel.Meter(adenzo)
+	tracer = otel.Tracer(ekomasi)
+	meter = otel.Meter(ekomasi)
 
 	// Setup structured logging with OpenTelemetry integration
 	utils.InitLogger()
@@ -87,9 +90,9 @@ func main() {
 	defer uptrace.Shutdown(ctx)
 
 	/**
-		// @title AdEnzo API
+		// @title Ekomasi API
 	// @version 1.0
-	// @description This is the AdEnzo backend API documentation.
+	// @description This is the Ekomasi backend API documentation.
 	// @securityDefinitions.apikey BearerAuth
 	// @in header
 	// @name Authorization
@@ -102,10 +105,12 @@ func main() {
 	// Run migrations only if --migrate is passed
 	if *migrateOnly {
 		db, err := initDBConnection(
-			os.Getenv("MYSQL_USER"), os.Getenv("MYSQL_PASS"),
-			os.Getenv("MYSQL_HOST"), os.Getenv("MYSQL_PORT"), os.Getenv("DB_NAME"),
+			cfg.Database.User, cfg.Database.Password,
+			cfg.Database.Host, cfg.Database.Port, cfg.Database.Name,
 		)
 		if err != nil {
+			log.Printf("Failed to connect to database: %v", err)
+			log.Println(cfg.Database.User, cfg.Database.Password, cfg.Database.Host, cfg.Database.Port, cfg.Database.Name)
 			log.Fatalf("Failed to connect to database: %v", err)
 		}
 		defer db.Close()
@@ -119,10 +124,10 @@ func main() {
 
 	// Initialize Redis client
 	redisClient = redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")), // Redis server address
-		Username: os.Getenv("REDIS_USER"),
-		Password: os.Getenv("REDIS_PASS"),
-		DB:       0,
+		Addr:     fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port), // Redis server address
+		Username: cfg.Redis.User,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
 	})
 
 	// Test Redis connection
@@ -136,8 +141,8 @@ func main() {
 	fmt.Println("Connected to Redis")
 	// Initialize the database connection with OpenTelemetry instrumentation
 	Db, err = initDBConnection(
-		os.Getenv("MYSQL_USER"), os.Getenv("MYSQL_PASS"),
-		os.Getenv("MYSQL_HOST"), os.Getenv("MYSQL_PORT"), os.Getenv("DB_NAME"),
+		cfg.Database.User, cfg.Database.Password,
+		cfg.Database.Host, cfg.Database.Port, cfg.Database.Name,
 	)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -150,70 +155,45 @@ func main() {
 	handlers.Redis = redisClient
 	utils.RedisClient = redisClient
 	dtos.Redis = redisClient
+	middleware.RedisClient = redisClient
 	// Start WebSocket broadcaster for multi-instance support
 	utils.StartWebSocketBroadcaster()
 	// Initialize router with OpenTelemetry middleware
-	router := mux.NewRouter()
-	// WebSocket: No middleware
-	router.HandleFunc("/ws", utils.HandleWebSocket)
-	// Add OpenTelemetry middleware for HTTP requests
-	// Create a subrouter for all other routes that need OpenTelemetry
-	apiRouter := router.PathPrefix("/").Subrouter()
-	apiRouter.Use(otelmux.Middleware(adenzo))
+	// Initialize Gin Engine router with high performance, tenant middleware, and error recovery
+	ginEngine := gin.Default()
 
-	// Add custom telemetry middleware
-	apiRouter.Use(middleware.TelemetryMiddleware)
-	apiRouter.Use(middleware.BusinessMetricsMiddleware)
-	apiRouter.Use(middleware.ErrorHandlingMiddleware)
+	// Register WebSocket handler on Gin Engine
+	ginEngine.GET("/ws", gin.WrapH(http.HandlerFunc(utils.HandleWebSocket)))
 
-	// Swagger route (only in non-production environments)
-	// if os.Getenv("ENVIRONMENT") != "production" {
-	apiRouter.PathPrefix("/swagger/").Handler(middleware.RestrictSwaggerAccess(httpSwagger.WrapHandler))
-	// }
+	// Setup all application routes on Gin Engine
+	routes.SetupGinRoutes(ginEngine)
 
-	// Run cart reminders every 3 days (check daily at midnight, or use cron if needed)
-	// handlers.StartCartReminderScheduler(24*time.Hour, 3)
-	// handlers.StartCartReminderScheduler(1*time.Minute, 1)
-	//scheduler to send bought for voucher emails
-	handlers.StartVoucherEmailScheduler(10*time.Minute, 0) //every 10 minutes for testing
-	// Run abandoned checkout reminders every 24 hours
-	// Run wishlist reminders every 7 days
-	// handlers.StartWishlistReminderScheduler(1*time.Minute, 1)
-	// handlers.StartWishlistReminderScheduler(24*time.Hour, 7)
-
-	//order notifications scheduler that runs every 5 minutes
-	// handlers.StartOrderNotificationScheduler(5 * time.Minute)
-	//low stock email scheduler that runs every day in the morning at 7am
-	handlers.StartLowStockEmailScheduler(24*time.Hour, 7)
-
-	// Define routes
-	routes.SetupRoutes(apiRouter)
+	// Swagger route
+	ginEngine.GET("/swagger/*any", gin.WrapH(httpSwagger.WrapHandler))
 
 	// Static file serving
-	staticDir := "/static/"
-	router.PathPrefix(staticDir).Handler(http.StripPrefix(staticDir, http.FileServer(http.Dir("./static"))))
+	ginEngine.Static("/static", "./static")
 
-	// Middleware
-	// router.Use(middleware.Authenticate)
+	// Run schedulers
+	handlers.StartVoucherEmailScheduler(10*time.Minute, 0)
+	handlers.StartLowStockEmailScheduler(24*time.Hour, 7)
 
 	// Start the server
-	port := os.Getenv("PORT")
+	port := cfg.Server.Port
 	if port == "" {
 		port = "8000" // Default port if not specified
 	}
-	// CORS middleware
+	// CORS middleware configuration wrapping Gin Engine
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:8008/", "*"},                      // Specify exact origins
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"}, // Allow specific HTTP methods
-		AllowedHeaders:   []string{"Content-Type", "Authorization"},                    // Allow specific headers
+		AllowOriginFunc:  func(origin string) bool { return true },
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+		AllowedHeaders:   []string{"*"},
 		AllowCredentials: true,
-	}).Handler(router)
+		Debug:            false,
+	}).Handler(ginEngine)
 
-	// Wrap with OpenTelemetry HTTP instrumentation
-	// instrumentedHandler := otelhttp.NewHandler(corsHandler, adenzo)
-
-	log.Printf("Server started on port %s", port)
-	fmt.Printf("Server listening on port %s...\n", port)
+	log.Printf("Server started on Gin Engine on port %s", port)
+	fmt.Printf("Server listening on port %s (Gin Framework)...\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, corsHandler))
 }
 
@@ -231,6 +211,7 @@ func initDBConnection(user, password, host, port, dbName string) (*sql.DB, error
 			// This was causing the connection to fail when using a DB in Belgium
 			// "loc":                  "Africa/Nairobi",
 			"allowNativePasswords": "true",
+			"multiStatements":      "true",
 		},
 	}
 

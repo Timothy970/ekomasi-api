@@ -4,12 +4,12 @@
 package handlers
 
 import (
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // GetProductPerformanceSummary generates a performance report for products within a specific category.
@@ -28,21 +28,21 @@ import (
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/reports/products/performance [get]
 // @Security BearerAuth
-func GetProductPerformanceSummary(w http.ResponseWriter, r *http.Request) {
+func GetProductPerformanceSummary(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse date range from query parameters (start_date and end_date)
-	startTime, endTime, err := ParseDateRange(r)
+	startTime, endTime, err := ParseDateRange(c.Request)
 
 	// Extract category ID from query parameters (required)
-	categoryID := r.URL.Query().Get("category_id")
+	categoryID := c.Query("category_id")
 	if categoryID == "" {
 		// Return error if category ID is not provided
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Category ID is required for product performance report",
@@ -51,7 +51,7 @@ func GetProductPerformanceSummary(w http.ResponseWriter, r *http.Request) {
 			Message:   "Category ID is required",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -60,7 +60,7 @@ func GetProductPerformanceSummary(w http.ResponseWriter, r *http.Request) {
 	report, err := models.GetProductPerformance(models.DB, startTime, endTime, categoryID)
 	if err != nil {
 		// Return error if report generation fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to generate product performance report",
@@ -69,14 +69,14 @@ func GetProductPerformanceSummary(w http.ResponseWriter, r *http.Request) {
 			Message:   "failed to generate report: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Return success response with product performance data
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Product performance report generated successfully",
@@ -86,7 +86,7 @@ func GetProductPerformanceSummary(w http.ResponseWriter, r *http.Request) {
 		Message:   "product performance report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -108,24 +108,24 @@ func GetProductPerformanceSummary(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/reports/products/{product_id}/performance [get]
 // @Security BearerAuth
-func GetIndividualProductPerformanceSummary(w http.ResponseWriter, r *http.Request) {
+func GetIndividualProductPerformanceSummary(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse date range from query parameters
-	startTime, endTime, err := ParseDateRange(r)
+	startTime, endTime, err := ParseDateRange(c.Request)
 
 	// Extract product ID from URL path parameters
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 
 	// Generate individual product performance report from database
 	performance, err := models.GetSingleProductPerformance(models.DB, productID, startTime, endTime)
 	if err != nil {
 		// Return error if report generation fails or product not found
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to generate individual product performance report",
@@ -134,14 +134,14 @@ func GetIndividualProductPerformanceSummary(w http.ResponseWriter, r *http.Reque
 			Message:   "failed to generate report: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Return success response with individual product performance data
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Individual product performance report generated successfully",
@@ -151,7 +151,7 @@ func GetIndividualProductPerformanceSummary(w http.ResponseWriter, r *http.Reque
 		Message:   "individual product performance report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }

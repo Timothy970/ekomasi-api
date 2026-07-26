@@ -1,4 +1,4 @@
-// Package utils provides validation utilities for the Adenzo e-commerce platform.
+// Package utils provides validation utilities for the Ekomasi e-commerce platform.
 //
 // This file contains validation and authorization functions:
 //   - Struct validation with user-friendly error messages
@@ -26,12 +26,13 @@
 package utils
 
 import (
-	"adenzo_backend/middleware"
+	"ekomasi_backend/middleware"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -339,4 +340,42 @@ var RequirePermissions = func(
 
 	// User is authenticated and has one of the allowed roles
 	return user, true
+}
+
+// RequireGinPermissions verifies authorization using native Gin context
+func RequireGinPermissions(
+	c *gin.Context,
+	start time.Time,
+	requestSummary string,
+	module string,
+	allowedPermission string,
+) (middleware.AuthenticatedUser, bool) {
+	return RequirePermissions(c.Request, c.Writer, start, requestSummary, module, allowedPermission)
+}
+
+// ValidateGinStructAndRespond validates struct fields and responds via Gin if invalid
+func ValidateGinStructAndRespond(
+	data interface{},
+	c *gin.Context,
+	requestSummary string,
+	start time.Time,
+	module string,
+) bool {
+	errs := ValidateStruct(data)
+	if len(errs) > 0 {
+		RespondWithGinError(c, ErrorJSONResponseOptions{
+			CollectiveInfo: CollectiveInfo{
+				Module:      module,
+				Description: "Validation failed",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   fmt.Sprintf("Validation failed: %v", errs),
+			TimeTaken: time.Since(start),
+			Function:  GetCurrentFuncName(),
+			Request:   c.Request,
+			RawBody:   requestSummary,
+		})
+		return false
+	}
+	return true
 }

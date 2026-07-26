@@ -1,4 +1,4 @@
-// Package utils provides image and media upload utilities for the Adenzo e-commerce platform.
+// Package utils provides image and media upload utilities for the Ekomasi e-commerce platform.
 //
 // This file contains Google Cloud Storage (GCS) upload functions:
 //   - Multipart form file parsing and extraction

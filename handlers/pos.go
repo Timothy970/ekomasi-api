@@ -4,24 +4,24 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
 	"bytes"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 var (
 	orderError               = "Failed to retrieve order"
 	insufficientPaymentError = "Insufficient payment amount"
 	paymentSuccessMessage    = "Payment processed successfully"
-	adenzoMpesaPrefix        = "ADENZO - "
+	ekomasiMpesaPrefix       = "EKOMASI - "
 )
 
 // ScanProductsHandler scans and retrieves product information using a barcode.
@@ -38,19 +38,19 @@ var (
 // @Failure 404 {object} map[string]interface{} "Product not found"
 // @Router /api/pos/scan [get]
 // @Security BearerAuth
-func ScanProductsHandler(w http.ResponseWriter, r *http.Request) {
+func ScanProductsHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract barcode from query parameters
-	barcode := r.URL.Query().Get("barcode")
+	barcode := c.Query("barcode")
 
 	// Validate that barcode is provided
 	if barcode == "" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to continue sacanning as barcode is empty",
@@ -59,7 +59,7 @@ func ScanProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Barcode is required and cannot be empty",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -69,7 +69,7 @@ func ScanProductsHandler(w http.ResponseWriter, r *http.Request) {
 	product, err := models.GetProductThroughScanning(models.DB, barcode)
 	if err != nil {
 		// Return error response if product not found or scan fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: fmt.Sprintf("Failed to scan product: %s", err.Error()),
@@ -78,14 +78,14 @@ func ScanProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to scan product",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Return success response with product details
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product scanned successfully",
@@ -95,7 +95,7 @@ func ScanProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product scanned successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -116,26 +116,26 @@ func ScanProductsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/pos/cash-payment [post]
 // @Security BearerAuth
-func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
+func ProcessCashPaymentHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Decode and validate the request body
-	req, ok := DecodeRequestBody[dtos.CashPayment](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CashPayment](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 	order, err := models.GetOrderByID(models.DB, req.OrderID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: fmt.Sprintf("Failed to retrieve order with ID %s: %s", req.OrderID, err.Error()),
@@ -144,7 +144,7 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   orderError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -153,7 +153,7 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	// Verify that the payment amount is sufficient
 	if req.Amount < order.TotalAmount {
 		// Return error if payment is insufficient
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: insufficientPaymentError,
@@ -162,7 +162,7 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   insufficientPaymentError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -182,7 +182,7 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	err = models.UpdateOrderStatus(models.DB, order.OrderID, orderStatusData)
 	if err != nil {
 		// Return error if order status update fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: fmt.Sprintf("Failed to update order status: %s", err.Error()),
@@ -191,7 +191,7 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to update order status",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -206,7 +206,7 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	// Create transaction log entry for audit trail
 	logEntry := &dtos.TransactionsList{
 		OrderID:              &order.OrderID,
-		TransactionReference: adenzoMpesaPrefix + order.OrderID,
+		TransactionReference: ekomasiMpesaPrefix + order.OrderID,
 		Amount:               order.TotalAmount,
 		Status:               "COMPLETED",
 		PaymentMethod:        "CASH",
@@ -220,7 +220,7 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return success response with order ID and change amount
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Payment processed and order status updated successfully",
@@ -233,7 +233,7 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   paymentSuccessMessage,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 
@@ -255,55 +255,55 @@ func ProcessCashPaymentHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/pos/split-payment [post]
 // @Security BearerAuth
-func ProcessSplitPaymentHandler(w http.ResponseWriter, r *http.Request) {
+func ProcessSplitPaymentHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	req, ok := DecodeRequestBody[dtos.SplitPaymentRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.SplitPaymentRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Payments") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Payments") {
 		return
 	}
 
 	if err := validateSplitPaymentMethods(req.PaymentMethods); err != nil {
-		respondWithPaymentError(w, r, requestSummary, start, "Invalid payment methods", err.Error(), http.StatusBadRequest)
+		respondWithPaymentError(c, requestSummary, start, "Invalid payment methods", err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	order, err := models.GetOrderByID(models.DB, req.OrderID)
 	if err != nil {
-		respondWithPaymentError(w, r, requestSummary, start, fmt.Sprintf("Failed to retrieve order with ID %s", req.OrderID), orderError, http.StatusBadRequest)
+		respondWithPaymentError(c, requestSummary, start, fmt.Sprintf("Failed to retrieve order with ID %s", req.OrderID), orderError, http.StatusBadRequest)
 		return
 	}
 
 	if err := validateTotalPaymentAmount(req.PaymentMethods, order.TotalAmount); err != nil {
-		respondWithPaymentError(w, r, requestSummary, start, insufficientPaymentError, insufficientPaymentError, http.StatusBadRequest)
+		respondWithPaymentError(c, requestSummary, start, insufficientPaymentError, insufficientPaymentError, http.StatusBadRequest)
 		return
 	}
 
 	// Start transaction
 	tx, err := models.DB.Begin()
 	if err != nil {
-		respondWithPaymentError(w, r, requestSummary, start, "Failed to start transaction", err.Error(), http.StatusInternalServerError)
+		respondWithPaymentError(c, requestSummary, start, "Failed to start transaction", err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
 
 	// Process all valid payment methods
-	if err := processAllPaymentMethods(tx, req.PaymentMethods, order, w, r, requestSummary, start); err != nil {
+	if err := processAllPaymentMethods(tx, req.PaymentMethods, order, c, requestSummary, start); err != nil {
 		// Error response already sent by helper function
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
-		respondWithPaymentError(w, r, requestSummary, start, "Failed to commit transaction", err.Error(), http.StatusInternalServerError)
+		respondWithPaymentError(c, requestSummary, start, "Failed to commit transaction", err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Payment processed and order status updated successfully",
@@ -316,7 +316,7 @@ func ProcessSplitPaymentHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   paymentSuccessMessage,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -334,9 +334,9 @@ func validateTotalPaymentAmount(methods []dtos.PaymentMethod, orderTotal float64
 }
 
 // processAllPaymentMethods processes each payment method in the split payment
-func processAllPaymentMethods(db models.DBExecutor, methods []dtos.PaymentMethod, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
+func processAllPaymentMethods(db models.DBExecutor, methods []dtos.PaymentMethod, order *dtos.Order, c *gin.Context, requestSummary string, start time.Time) error {
 	for _, paymentMethod := range methods {
-		if err := processSinglePaymentMethod(db, paymentMethod, order, w, r, requestSummary, start); err != nil {
+		if err := processSinglePaymentMethod(db, paymentMethod, order, c, requestSummary, start); err != nil {
 			return err
 		}
 	}
@@ -344,54 +344,54 @@ func processAllPaymentMethods(db models.DBExecutor, methods []dtos.PaymentMethod
 }
 
 // processSinglePaymentMethod processes a single payment method
-func processSinglePaymentMethod(db models.DBExecutor, paymentMethod dtos.PaymentMethod, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
+func processSinglePaymentMethod(db models.DBExecutor, paymentMethod dtos.PaymentMethod, order *dtos.Order, c *gin.Context, requestSummary string, start time.Time) error {
 	switch strings.ToLower(paymentMethod.Type) {
 	case "cash":
-		return handleCashPaymentMethod(db, order, w, r, requestSummary, start)
+		return handleCashPaymentMethod(db, order, c, requestSummary, start)
 	case "mpesa":
-		return handleMpesaPaymentMethod(db, paymentMethod, order, w, r, requestSummary, start)
+		return handleMpesaPaymentMethod(db, paymentMethod, order, c, requestSummary, start)
 	case "voucher":
-		return handleVoucherPaymentMethod(db, paymentMethod, order, w, r, requestSummary, start)
+		return handleVoucherPaymentMethod(db, paymentMethod, order, c, requestSummary, start)
 	default:
-		respondWithPaymentError(w, r, requestSummary, start, fmt.Sprintf("Unsupported payment method: %s", paymentMethod.Type), fmt.Sprintf("Unsupported payment method: %s", paymentMethod.Type), http.StatusBadRequest)
+		respondWithPaymentError(c, requestSummary, start, fmt.Sprintf("Unsupported payment method: %s", paymentMethod.Type), fmt.Sprintf("Unsupported payment method: %s", paymentMethod.Type), http.StatusBadRequest)
 		return fmt.Errorf("unsupported payment method: %s", paymentMethod.Type)
 	}
 }
 
 // handleCashPaymentMethod handles cash payment processing
-func handleCashPaymentMethod(db models.DBExecutor, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
+func handleCashPaymentMethod(db models.DBExecutor, order *dtos.Order, c *gin.Context, requestSummary string, start time.Time) error {
 	if err := processCashPayment(db, order); err != nil {
-		respondWithPaymentError(w, r, requestSummary, start, fmt.Sprintf("Failed to process cash payment: %s", err.Error()), "Failed to process cash payment", http.StatusBadRequest)
+		respondWithPaymentError(c, requestSummary, start, fmt.Sprintf("Failed to process cash payment: %s", err.Error()), "Failed to process cash payment", http.StatusBadRequest)
 		return err
 	}
 	return nil
 }
 
 // handleMpesaPaymentMethod handles M-PESA payment processing
-func handleMpesaPaymentMethod(db models.DBExecutor, paymentMethod dtos.PaymentMethod, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
+func handleMpesaPaymentMethod(db models.DBExecutor, paymentMethod dtos.PaymentMethod, order *dtos.Order, c *gin.Context, requestSummary string, start time.Time) error {
 	mpesaReq := &dtos.MpesaRequest{
 		OrderID:     order.OrderID,
 		Phone:       *paymentMethod.PhoneNumber,
 		Amount:      int(paymentMethod.Amount),
 		DeliveryID:  order.DeliveryID,
-		Reference:   adenzoMpesaPrefix + order.OrderID,
+		Reference:   ekomasiMpesaPrefix + order.OrderID,
 		Description: fmt.Sprintf("Payment for order %s", order.OrderID),
 	}
 
 	client, err := NewMpesaClient()
 	if err != nil {
-		respondWithPaymentError(w, r, requestSummary, start, "Failed to initialize MPESA client", fmt.Sprintf("Failed to initialize MPESA client: %s", err), http.StatusInternalServerError)
+		respondWithPaymentError(c, requestSummary, start, "Failed to initialize MPESA client", fmt.Sprintf("Failed to initialize MPESA client: %s", err), http.StatusInternalServerError)
 		return err
 	}
 
 	response, err := client.LipaNaMpesaOnline(*mpesaReq)
 	if err != nil {
-		respondWithPaymentError(w, r, requestSummary, start, "Failed to initiate MPESA payment", err.Error(), http.StatusBadRequest)
+		respondWithPaymentError(c, requestSummary, start, "Failed to initiate MPESA payment", err.Error(), http.StatusBadRequest)
 		return err
 	}
 
 	if err = models.StoreStkResponse(db, response, *mpesaReq); err != nil {
-		respondWithPaymentError(w, r, requestSummary, start, "Failed to store MPESA payment request", err.Error(), http.StatusInternalServerError)
+		respondWithPaymentError(c, requestSummary, start, "Failed to store MPESA payment request", err.Error(), http.StatusInternalServerError)
 		return err
 	}
 
@@ -403,17 +403,17 @@ func handleMpesaPaymentMethod(db models.DBExecutor, paymentMethod dtos.PaymentMe
 }
 
 // handleVoucherPaymentMethod handles voucher payment processing
-func handleVoucherPaymentMethod(db models.DBExecutor, paymentMethod dtos.PaymentMethod, order *dtos.Order, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) error {
+func handleVoucherPaymentMethod(db models.DBExecutor, paymentMethod dtos.PaymentMethod, order *dtos.Order, c *gin.Context, requestSummary string, start time.Time) error {
 	if err := processVoucherPayment(db, order, *paymentMethod.VoucherCode); err != nil {
-		respondWithPaymentError(w, r, requestSummary, start, fmt.Sprintf("Failed to process voucher payment: %s", err.Error()), err.Error(), http.StatusBadRequest)
+		respondWithPaymentError(c, requestSummary, start, fmt.Sprintf("Failed to process voucher payment: %s", err.Error()), err.Error(), http.StatusBadRequest)
 		return err
 	}
 	return nil
 }
 
 // respondWithPaymentError is a helper function to reduce code duplication for error responses
-func respondWithPaymentError(w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time, description, message string, code int) {
-	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+func respondWithPaymentError(c *gin.Context, requestSummary string, start time.Time, description, message string, code int) {
+	utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: description,
@@ -422,8 +422,6 @@ func respondWithPaymentError(w http.ResponseWriter, r *http.Request, requestSumm
 		Message:   message,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
-		RawBody:   requestSummary,
 	})
 }
 
@@ -449,7 +447,7 @@ func processCashPayment(db models.DBExecutor, order *dtos.Order) error {
 	// Create transaction log entry for audit purposes
 	logEntry := &dtos.TransactionsList{
 		OrderID:              &order.OrderID,
-		TransactionReference: adenzoMpesaPrefix + order.OrderID,
+		TransactionReference: ekomasiMpesaPrefix + order.OrderID,
 		Amount:               order.TotalAmount,
 		Status:               "COMPLETED",
 		PaymentMethod:        "CASH",
@@ -501,7 +499,7 @@ func processVoucherPayment(db models.DBExecutor, order *dtos.Order, voucherCode 
 	// Create transaction log entry for audit trail
 	logEntry := &dtos.TransactionsList{
 		OrderID:              &order.OrderID,
-		TransactionReference: adenzoMpesaPrefix + order.OrderID,
+		TransactionReference: ekomasiMpesaPrefix + order.OrderID,
 		Amount:               order.TotalAmount,
 		Status:               "COMPLETED",
 		PaymentMethod:        "VOUCHER",
@@ -552,7 +550,7 @@ func validateSplitPaymentMethods(methods []dtos.PaymentMethod) error {
 // @Failure 500 {object} map[string]interface{} "Printer error"
 // @Router /api/pos/receipt/print/{order_id} [post]
 // @Security BearerAuth
-func PrintReceiptHandler(w http.ResponseWriter, r *http.Request) {
+func PrintReceiptHandler(c *gin.Context) {
 	// TODO1: Implement receipt printing logic based on printer hardware
 }
 
@@ -570,21 +568,21 @@ func PrintReceiptHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "PDF generation failed"
 // @Router /api/pos/receipt/download/{order_id} [get]
 // @Security BearerAuth
-func DownloadReceiptHandler(w http.ResponseWriter, r *http.Request) {
+func DownloadReceiptHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract order ID from URL path parameters
-	orderID := mux.Vars(r)["order_id"]
+	orderID := c.Param("order_id")
 
 	// Retrieve order details from database
 	order, err := models.GetOrderByID(models.DB, orderID)
 	if err != nil {
 		// Return error if order is not found
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: fmt.Sprintf("Failed to retrieve order: %s", err.Error()),
@@ -593,7 +591,7 @@ func DownloadReceiptHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   orderError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -603,7 +601,7 @@ func DownloadReceiptHandler(w http.ResponseWriter, r *http.Request) {
 	receiptData, err := models.GenerateReceiptPDF(*order)
 	if err != nil {
 		// Return error if PDF generation fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Receipts",
 				Description: fmt.Sprintf("Failed to generate receipt: %s", err.Error()),
@@ -612,22 +610,22 @@ func DownloadReceiptHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to generate receipt",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Set response headers for PDF download
-	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"receipt_%s.pdf\"", orderID))
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"receipt_%s.pdf\"", orderID))
 
 	// Write PDF to buffer for transmission
 	var buf bytes.Buffer
 	err = receiptData.Output(&buf)
 	if err != nil {
 		// Return error if PDF output fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Receipts",
 				Description: fmt.Sprintf("Failed to output PDF: %s", err.Error()),
@@ -636,14 +634,14 @@ func DownloadReceiptHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to output PDF",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Write PDF bytes to response
-	w.Write(buf.Bytes())
+	c.Writer.Write(buf.Bytes())
 }
 
 // ProcessVoucherPaymentHandler processes voucher payments for POS transactions.
@@ -662,21 +660,21 @@ func DownloadReceiptHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/pos/voucher-payment [post]
 // @Security BearerAuth
-func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
+func ProcessVoucherPaymentHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Decode and validate the request body
-	req, ok := DecodeRequestBody[dtos.VoucherPayment](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.VoucherPayment](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 
@@ -684,7 +682,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	order, err := models.GetOrderByID(models.DB, req.OrderID)
 	if err != nil {
 		// Return error if order is not found
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: fmt.Sprintf("Failed to retrieve order: %s", err.Error()),
@@ -693,7 +691,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   orderError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -704,7 +702,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		// Return error if voucher is invalid or expired
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: fmt.Sprintf("Failed to validate voucher: %s", err.Error()),
@@ -713,7 +711,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -722,7 +720,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if voucher has sufficient balance for the order
 	if voucherBalance < order.TotalAmount {
 		// Return error if voucher balance is insufficient
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: insufficientPaymentError,
@@ -731,7 +729,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   insufficientPaymentError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -750,7 +748,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	// Start transaction
 	tx, err := models.DB.Begin()
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "POS",
 				Description: "Failed to start transaction",
@@ -759,7 +757,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -769,7 +767,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	err = models.UpdateOrderStatus(tx, order.OrderID, orderStatusData)
 	if err != nil {
 		// Return error if order status update fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: fmt.Sprintf("Failed to update order status: %s", err.Error()),
@@ -778,7 +776,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to update order status",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -788,7 +786,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	err = updateVoucherBalanceAndHistory(tx, req.VoucherCode, voucherBalance, order.TotalAmount, order)
 	if err != nil {
 		// Return error if voucher update fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: fmt.Sprintf("Failed to update voucher balance and history: %s", err.Error()),
@@ -797,7 +795,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to update voucher balance and history",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -806,7 +804,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	// Create transaction log entry for audit trail
 	logEntry := &dtos.TransactionsList{
 		OrderID:              &order.OrderID,
-		TransactionReference: adenzoMpesaPrefix + order.OrderID,
+		TransactionReference: ekomasiMpesaPrefix + order.OrderID,
 		Amount:               order.TotalAmount,
 		Status:               "COMPLETED",
 		PaymentMethod:        "VOUCHER",
@@ -820,7 +818,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "POS",
 				Description: "Failed to commit transaction",
@@ -829,13 +827,13 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response with order ID
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: paymentSuccessMessage,
@@ -847,7 +845,7 @@ func ProcessVoucherPaymentHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   paymentSuccessMessage,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 
@@ -896,26 +894,26 @@ func updateVoucherBalanceAndHistory(db models.DBExecutor, voucherCode string, vo
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/pos/credit-payment [post]
 // @Security BearerAuth
-func ProcessCreditPaymentHandler(w http.ResponseWriter, r *http.Request) {
+func ProcessCreditPaymentHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Decode and validate the request body
-	req, ok := DecodeRequestBody[dtos.CreditPayment](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CreditPayment](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 	order, err := models.GetOrderByID(models.DB, req.OrderID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: fmt.Sprintf("Failed to retrieve order with ID %s: %s", req.OrderID, err.Error()),
@@ -924,7 +922,7 @@ func ProcessCreditPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   orderError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -944,7 +942,7 @@ func ProcessCreditPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	err = models.UpdateOrderStatus(models.DB, order.OrderID, orderStatusData)
 	if err != nil {
 		// Return error if order status update fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: fmt.Sprintf("Failed to update order status: %s", err.Error()),
@@ -953,7 +951,7 @@ func ProcessCreditPaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to update order status",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -962,7 +960,7 @@ func ProcessCreditPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	// Create transaction log entry for audit trail
 	logEntry := &dtos.TransactionsList{
 		OrderID:              &order.OrderID,
-		TransactionReference: adenzoMpesaPrefix + order.OrderID,
+		TransactionReference: ekomasiMpesaPrefix + order.OrderID,
 		Amount:               order.TotalAmount,
 		Status:               "COMPLETED",
 		PaymentMethod:        "CREDIT",
@@ -976,7 +974,7 @@ func ProcessCreditPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return success response with order ID and change amount
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Payment processed and order status updated successfully",
@@ -988,7 +986,7 @@ func ProcessCreditPaymentHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   paymentSuccessMessage,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 

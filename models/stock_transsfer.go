@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo e-commerce platform.
+// Package models provides data access functions for the Ekomasi e-commerce platform.
 //
 // This file contains functions for managing stock transfers between warehouses:
 //   - Create stock transfers with inventory updates
@@ -9,7 +9,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"errors"
 	"math"

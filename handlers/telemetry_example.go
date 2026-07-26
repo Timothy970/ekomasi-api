@@ -2,11 +2,12 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"time"
 
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+
+	"ekomasi_backend/utils"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -14,18 +15,18 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var tracer = otel.Tracer("adenzo-backend")
+var tracer = otel.Tracer("ekomasi-backend")
 
 // ExampleHandler demonstrates OpenTelemetry usage
-func ExampleHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+func ExampleHandler(c *gin.Context) {
+	ctx := c.Request.Context()
 
 	// Create a span for this operation
 	ctx, span := tracer.Start(ctx, "example.operation",
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(
 			attribute.String("operation.type", "example"),
-			attribute.String("user.agent", r.UserAgent()),
+			attribute.String("user.agent", c.Request.UserAgent()),
 		))
 	defer span.End()
 
@@ -45,7 +46,7 @@ func ExampleHandler(w http.ResponseWriter, r *http.Request) {
 		span.SetStatus(codes.Error, err.Error())
 		utils.RecordError(ctx, "database", "example_operation", err)
 		utils.LogError(ctx, "Database operation failed", "error", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "Database error")
 		return
 	}
 	utils.LogInfo(ctx, "Database operation completed successfully")
@@ -57,7 +58,7 @@ func ExampleHandler(w http.ResponseWriter, r *http.Request) {
 		span.SetStatus(codes.Error, err.Error())
 		utils.RecordError(ctx, "redis", "example_operation", err)
 		utils.LogError(ctx, "Redis operation failed", "error", err)
-		http.Error(w, "Redis error", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "Redis error")
 		return
 	}
 	utils.LogInfo(ctx, "Redis operation completed successfully")
@@ -77,8 +78,7 @@ func ExampleHandler(w http.ResponseWriter, r *http.Request) {
 		"trace_id":  span.SpanContext().TraceID().String(),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // exampleDatabaseOperation demonstrates database tracing
@@ -130,8 +130,8 @@ func exampleRedisOperation(ctx context.Context) error {
 }
 
 // HealthCheckHandler provides a health check endpoint with telemetry
-func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+func HealthCheckHandler(c *gin.Context) {
+	ctx := c.Request.Context()
 
 	ctx, span := tracer.Start(ctx, "health.check",
 		trace.WithSpanKind(trace.SpanKindServer))
@@ -163,11 +163,11 @@ func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
 		"trace_id": span.SpanContext().TraceID().String(),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	statusCode := http.StatusOK
 	if !healthy {
-		w.WriteHeader(http.StatusServiceUnavailable)
+		statusCode = http.StatusServiceUnavailable
 	}
-	json.NewEncoder(w).Encode(response)
+	c.JSON(statusCode, response)
 }
 
 // checkDatabaseHealth checks database connectivity

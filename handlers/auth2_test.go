@@ -1,19 +1,19 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redismock/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -87,16 +87,10 @@ func setupMockDB(t *testing.T) (sqlmock.Sqlmock, func()) {
 }
 
 func TestRegisterHandler(t *testing.T) {
-	mockUtils := new(MockUtilsService)
-
-	// Setup database mock
-	dbMock, cleanup := setupMockDB(t)
-	defer cleanup()
-
 	tests := []struct {
 		name           string
 		requestBody    interface{}
-		setupMocks     func()
+		setupMocks     func(dbMock sqlmock.Sqlmock, redisMock redismock.ClientMock)
 		expectedStatus int
 	}{
 		{
@@ -106,33 +100,26 @@ func TestRegisterHandler(t *testing.T) {
 				Firstname: "John",
 				Lastname:  "Doe",
 			},
-			setupMocks: func() {
+			setupMocks: func(dbMock sqlmock.Sqlmock, redisMock redismock.ClientMock) {
 				// Mock database calls for CheckUserExistsByEmailOrPhone
-				dbMock.ExpectQuery("SELECT COUNT.*FROM users WHERE email = ?").
-					WithArgs("test@example.com").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+				dbMock.ExpectQuery("SELECT u.user_id.* FROM users u").
+					WithArgs("test@example.com", 1).
+					WillReturnRows(sqlmock.NewRows([]string{"user_id", "first_name", "last_name", "email", "name", "role_id", "phone_number", "status"}))
 
-				dbMock.ExpectQuery("SELECT COUNT.*FROM users WHERE phone_number = ?").
-					WithArgs("").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+				// Expect Redis store for temporary registration data
+				expectedData, _ := json.Marshal(map[string]interface{}{
+					"email":     "test@example.com",
+					"phone":     "",
+					"firstname": "John",
+					"lastname":  "Doe",
+					"password":  "",
+					"otp":       "2025",
+				})
+				redisMock.ExpectSet("pending_signup:test@example.com", expectedData, 10*time.Minute).SetVal("OK")
 
-				// Mock utils calls
-				mockUtils.On("GetRequestSummary", mock.Anything).Return("request_summary")
-				mockUtils.On("ValidateStructAndRespond", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(true)
-				mockUtils.On("IsValidKenyanPhone", mock.Anything).Maybe().Return(true)
-				mockUtils.On("GenerateOTP").Return("123456", nil)
-				mockUtils.On("GetCurrentFuncName").Return("RegisterHandler")
-				mockUtils.On("RespondWithJSON", mock.Anything, mock.MatchedBy(func(opts utils.SuccessJSONResponseOptions) bool {
-					return opts.CollectiveInfo.Code == http.StatusCreated
-				})).Once()
-
-				// Mock models.CreateUser database calls
-				dbMock.ExpectQuery("SELECT COUNT.*FROM users WHERE email = ?").
-					WithArgs("test@example.com").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-
-				dbMock.ExpectExec("INSERT INTO users").
-					WithArgs(sqlmock.AnyArg(), "customer", "John", "Doe", "test@example.com").
+				// Expect Log Insert (triggered by RespondWithJSON in RegisterHandler)
+				dbMock.ExpectExec("INSERT INTO logs").
+					WithArgs(sqlmock.AnyArg(), "INFO", "Verify using the OTP sent within 10 minutes to complete registration.", sqlmock.AnyArg(), sqlmock.AnyArg(), "Auth", sqlmock.AnyArg()).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
 			expectedStatus: http.StatusCreated,
@@ -143,34 +130,35 @@ func TestRegisterHandler(t *testing.T) {
 				Firstname: "John",
 				Lastname:  "Doe",
 			},
-			setupMocks: func() {
-				mockUtils.On("GetRequestSummary", mock.Anything).Return("request_summary")
-				mockUtils.On("ValidateStructAndRespond", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(true)
-				mockUtils.On("GetCurrentFuncName").Return("RegisterHandler")
-				mockUtils.On("RespondWithError", mock.Anything, mock.MatchedBy(func(opts utils.ErrorJSONResponseOptions) bool {
-					return opts.CollectiveInfo.Code == http.StatusBadRequest && strings.Contains(opts.Message, "Phone number or email is required")
-				})).Once()
+			setupMocks: func(dbMock sqlmock.Sqlmock, redisMock redismock.ClientMock) {
+				// Expect Log Insert (triggered by RespondWithError)
+				dbMock.ExpectExec("INSERT INTO logs").
+					WithArgs(sqlmock.AnyArg(), "WARN", "Phone number or email is required", sqlmock.AnyArg(), sqlmock.AnyArg(), "Auth", sqlmock.AnyArg()).
+					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name: "User already exists by email",
 			requestBody: dtos.RegisterRequest{
-				Email:     "exist@example.com",
+				Email:     "existing@example.com",
 				Firstname: "John",
 			},
-			setupMocks: func() {
+			setupMocks: func(dbMock sqlmock.Sqlmock, redisMock redismock.ClientMock) {
 				// Mock database calls for CheckUserExistsByEmailOrPhone
-				dbMock.ExpectQuery("SELECT COUNT.*FROM users WHERE email = ?").
-					WithArgs("existing@example.com").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				userRows := sqlmock.NewRows([]string{"user_id", "first_name", "last_name", "email", "name", "role_id", "phone_number", "status"}).
+					AddRow("user-1", "Existing", "User", "existing@example.com", "customer", "role-1", "123456", "active")
+				dbMock.ExpectQuery("SELECT u.user_id.* FROM users u").
+					WithArgs("existing@example.com", 1).
+					WillReturnRows(userRows)
+				dbMock.ExpectQuery("SELECT pm.permission_key from permissions_master pm").
+					WithArgs("role-1").
+					WillReturnRows(sqlmock.NewRows([]string{"permission_key"}))
 
-				mockUtils.On("GetRequestSummary", mock.Anything).Return("request_summary")
-				mockUtils.On("ValidateStructAndRespond", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(true)
-				mockUtils.On("GetCurrentFuncName").Return("RegisterHandler")
-				mockUtils.On("RespondWithError", mock.Anything, mock.MatchedBy(func(opts utils.ErrorJSONResponseOptions) bool {
-					return opts.CollectiveInfo.Code == http.StatusConflict && strings.Contains(opts.Message, "already exists")
-				})).Once()
+				// Expect Log Insert (triggered by RespondWithError in CheckUserExistsByEmailOrPhone)
+				dbMock.ExpectExec("INSERT INTO logs").
+					WithArgs(sqlmock.AnyArg(), "WARN", "User with this email already exists", sqlmock.AnyArg(), sqlmock.AnyArg(), "Auth", sqlmock.AnyArg()).
+					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
 			expectedStatus: http.StatusConflict,
 		},
@@ -178,9 +166,19 @@ func TestRegisterHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup mocks
-			mockUtils.ExpectedCalls = nil
-			tt.setupMocks()
+			// Setup database mock inside subtest
+			dbMock, cleanup := setupMockDB(t)
+			defer cleanup()
+
+			// Setup Redis mock inside subtest
+			redisClient, redisMock := redismock.NewClientMock()
+			originalRedis := Redis
+			Redis = redisClient
+			defer func() {
+				Redis = originalRedis
+			}()
+
+			tt.setupMocks(dbMock, redisMock)
 
 			// Create request
 			body, _ := json.Marshal(tt.requestBody)
@@ -189,26 +187,28 @@ func TestRegisterHandler(t *testing.T) {
 
 			// Create response recorder
 			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = req
 
 			// Call handler
-			RegisterHandler(w, req)
+			RegisterHandler(c)
+
+			// Verify status
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			// Verify mocks
-			mockUtils.AssertExpectations(t)
 			assert.NoError(t, dbMock.ExpectationsWereMet())
+			assert.NoError(t, redisMock.ExpectationsWereMet())
 		})
 	}
 }
 
 // Test individual components separately
 func TestCheckUserExistsByEmailOrPhone_Unit(t *testing.T) {
-	dbMock, cleanup := setupMockDB(t)
-	defer cleanup()
-
 	tests := []struct {
 		name           string
 		request        dtos.RegisterRequest
-		setupMocks     func()
+		setupMocks     func(dbMock sqlmock.Sqlmock)
 		expectedResult bool
 	}{
 		{
@@ -216,10 +216,18 @@ func TestCheckUserExistsByEmailOrPhone_Unit(t *testing.T) {
 			request: dtos.RegisterRequest{
 				Email: "existing@example.com",
 			},
-			setupMocks: func() {
-				dbMock.ExpectQuery("SELECT COUNT.*FROM users WHERE email = ?").
-					WithArgs("existing@example.com").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+			setupMocks: func(dbMock sqlmock.Sqlmock) {
+				userRows := sqlmock.NewRows([]string{"user_id", "first_name", "last_name", "email", "name", "role_id", "phone_number", "status"}).
+					AddRow("user-1", "Existing", "User", "existing@example.com", "customer", "role-1", "123456", "active")
+				dbMock.ExpectQuery("SELECT u.user_id.* FROM users u").
+					WithArgs("existing@example.com", 1).
+					WillReturnRows(userRows)
+				dbMock.ExpectQuery("SELECT pm.permission_key from permissions_master pm").
+					WithArgs("role-1").
+					WillReturnRows(sqlmock.NewRows([]string{"permission_key"}))
+				dbMock.ExpectExec("INSERT INTO logs").
+					WithArgs(sqlmock.AnyArg(), "WARN", "User with this email already exists", sqlmock.AnyArg(), sqlmock.AnyArg(), "Auth", sqlmock.AnyArg()).
+					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
 			expectedResult: false, // Should return false (user exists)
 		},
@@ -228,10 +236,10 @@ func TestCheckUserExistsByEmailOrPhone_Unit(t *testing.T) {
 			request: dtos.RegisterRequest{
 				Email: "new@example.com",
 			},
-			setupMocks: func() {
-				dbMock.ExpectQuery("SELECT COUNT.*FROM users WHERE email = ?").
-					WithArgs("new@example.com").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+			setupMocks: func(dbMock sqlmock.Sqlmock) {
+				dbMock.ExpectQuery("SELECT u.user_id.* FROM users u").
+					WithArgs("new@example.com", 1).
+					WillReturnRows(sqlmock.NewRows([]string{"user_id", "first_name", "last_name", "email", "name", "role_id", "phone_number", "status"}))
 			},
 			expectedResult: true, // Should return true (user doesn't exist)
 		},
@@ -239,13 +247,18 @@ func TestCheckUserExistsByEmailOrPhone_Unit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+			dbMock, cleanup := setupMockDB(t)
+			defer cleanup()
+
+			tt.setupMocks(dbMock)
 
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest("POST", "/register", nil)
+			c, _ := gin.CreateTestContext(w)
+			c.Request = r
 			start := time.Now()
 
-			result := CheckUserExistsByEmailOrPhone(w, r, tt.request, start, "request_summary")
+			result := CheckUserExistsByEmailOrPhone(c, tt.request, start, "request_summary")
 
 			assert.Equal(t, tt.expectedResult, result)
 			assert.NoError(t, dbMock.ExpectationsWereMet())
@@ -254,19 +267,12 @@ func TestCheckUserExistsByEmailOrPhone_Unit(t *testing.T) {
 }
 
 func TestStoreOTPInRedis_Unit(t *testing.T) {
-	redisClient, mock := redismock.NewClientMock()
-	originalRedis := Redis
-	Redis = redisClient
-	defer func() {
-		Redis = originalRedis
-	}()
-
 	tests := []struct {
 		name        string
 		userID      string
 		otp         string
 		ttl         time.Duration
-		setupMock   func()
+		setupMock   func(redisMock redismock.ClientMock)
 		expectError bool
 	}{
 		{
@@ -274,8 +280,8 @@ func TestStoreOTPInRedis_Unit(t *testing.T) {
 			userID: "user123",
 			otp:    "123456",
 			ttl:    5 * time.Minute,
-			setupMock: func() {
-				mock.ExpectSetEX(fmt.Sprintf("otp:%s", "user123"), "123456", 5*time.Minute).SetVal("OK")
+			setupMock: func(redisMock redismock.ClientMock) {
+				redisMock.ExpectSet(fmt.Sprintf("otp:%s", "user123"), "123456", 5*time.Minute).SetVal("OK")
 			},
 			expectError: false,
 		},
@@ -284,8 +290,8 @@ func TestStoreOTPInRedis_Unit(t *testing.T) {
 			userID: "user123",
 			otp:    "123456",
 			ttl:    5 * time.Minute,
-			setupMock: func() {
-				mock.ExpectSetEX(fmt.Sprintf("otp:%s", "user123"), "123456", 5*time.Minute).SetErr(fmt.Errorf("redis error"))
+			setupMock: func(redisMock redismock.ClientMock) {
+				redisMock.ExpectSet(fmt.Sprintf("otp:%s", "user123"), "123456", 5*time.Minute).SetErr(fmt.Errorf("redis error"))
 			},
 			expectError: true,
 		},
@@ -293,7 +299,14 @@ func TestStoreOTPInRedis_Unit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
+			redisClient, redisMock := redismock.NewClientMock()
+			originalRedis := Redis
+			Redis = redisClient
+			defer func() {
+				Redis = originalRedis
+			}()
+
+			tt.setupMock(redisMock)
 
 			err := StoreOTPInRedis(tt.userID, tt.otp, tt.ttl)
 
@@ -303,7 +316,7 @@ func TestStoreOTPInRedis_Unit(t *testing.T) {
 				assert.NoError(t, err)
 			}
 
-			assert.NoError(t, mock.ExpectationsWereMet())
+			assert.NoError(t, redisMock.ExpectationsWereMet())
 		})
 	}
 }

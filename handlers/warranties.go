@@ -5,13 +5,13 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // CreateWarrantType creates a new warranty type in the system.
@@ -29,26 +29,26 @@ import (
 // @Failure      401       {object}  dtos.ErrorResponse              "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/warranty-types [post]
-func CreateWarrantType(w http.ResponseWriter, r *http.Request) {
+func CreateWarrantType(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can create warranty types)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 
 	// Decode and parse JSON request body with warranty type details
-	req, ok := DecodeRequestBody[dtos.CreateWarrantyTypeRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CreateWarrantyTypeRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields (name, duration, coverage terms)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -56,7 +56,7 @@ func CreateWarrantType(w http.ResponseWriter, r *http.Request) {
 	err := models.CreateWarrantType(models.DB, *req)
 	if err != nil {
 		// Warranty type creation failed (duplicate name, invalid data, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to create warranty",
@@ -65,13 +65,13 @@ func CreateWarrantType(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response with 201 Created status
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Warranty created successfully",
@@ -81,7 +81,7 @@ func CreateWarrantType(w http.ResponseWriter, r *http.Request) {
 		Message:   "Warranty created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -96,17 +96,17 @@ func CreateWarrantType(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  map[string]interface{}  "Warranty types retrieved successfully"
 // @Failure      500  {object}  dtos.ErrorResponse    "Failed to retrieve warranty types"
 // @Router       /api/warranty-types [get]
-func GetAllWarrantyTypes(w http.ResponseWriter, r *http.Request) {
+func GetAllWarrantyTypes(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Fetch all warranty types from database
 	warrantyTypes, err := models.GetAllWarrantTypes(models.DB)
 	if err != nil {
 		// Database query failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to get warranty types",
@@ -115,13 +115,13 @@ func GetAllWarrantyTypes(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return warranty types list with success status
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Warranty types retrieved successfully",
@@ -131,7 +131,7 @@ func GetAllWarrantyTypes(w http.ResponseWriter, r *http.Request) {
 		Message:   "Warranty types retrieved successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -152,35 +152,35 @@ func GetAllWarrantyTypes(w http.ResponseWriter, r *http.Request) {
 // @Failure      404               {object}  dtos.ErrorResponse      "Warranty type not found"
 // @Security     BearerAuth
 // @Router       /api/admin/warranty-types/{warranty_type_id} [patch]
-func UpdateWarrantType(w http.ResponseWriter, r *http.Request) {
+func UpdateWarrantType(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can update warranty types)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body with updated warranty details
-	req, ok := DecodeRequestBody[dtos.WarrantyType](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.WarrantyType](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Extract warranty type ID from URL path parameters
-	warrantID := mux.Vars(r)["warranty_type_id"]
+	warrantID := c.Param("warranty_type_id")
 	// Update warranty type information in database
 	err := models.UpdateWarrantType(models.DB, warrantID, *req)
 	if err != nil {
 		// Update failed (warranty type not found, invalid data, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update warranty type with ID " + warrantID,
@@ -189,12 +189,12 @@ func UpdateWarrantType(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return success response
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Warranty type with ID " + warrantID + " updated successfully",
@@ -204,7 +204,7 @@ func UpdateWarrantType(w http.ResponseWriter, r *http.Request) {
 		Message:   "Warranty type updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -221,24 +221,24 @@ func UpdateWarrantType(w http.ResponseWriter, r *http.Request) {
 // @Failure      404               {object}  dtos.ErrorResponse      "Warranty type not found"
 // @Security     BearerAuth
 // @Router       /api/admin/warranty-types/{warranty_type_id} [delete]
-func DeleteWarrantType(w http.ResponseWriter, r *http.Request) {
+func DeleteWarrantType(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can delete warranty types)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract warranty type ID from URL path parameters
-	warrantID := mux.Vars(r)["warranty_type_id"]
+	warrantID := c.Param("warranty_type_id")
 	// Delete warranty type from database (may be soft delete)
 	err := models.DeleteWarrantType(models.DB, warrantID)
 	if err != nil {
 		// Deletion failed (warranty type not found, has dependencies, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to delete warranty type with ID " + warrantID,
@@ -247,12 +247,12 @@ func DeleteWarrantType(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return success response
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Warranty type with ID " + warrantID + " deleted successfully",
@@ -262,7 +262,7 @@ func DeleteWarrantType(w http.ResponseWriter, r *http.Request) {
 		Message:   "Warranty type deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -281,25 +281,25 @@ func DeleteWarrantType(w http.ResponseWriter, r *http.Request) {
 // @Failure      401         {object}  dtos.ErrorResponse                "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/products/warranties [post]
-func AddProductWarranties(w http.ResponseWriter, r *http.Request) {
+func AddProductWarranties(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can add product warranties)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body with product ID and warranty type IDs
-	req, ok := DecodeRequestBody[dtos.AddProductWarrantiesRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.AddProductWarrantiesRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields (product ID and warranty type IDs)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -307,7 +307,7 @@ func AddProductWarranties(w http.ResponseWriter, r *http.Request) {
 	err := models.AddProductWarranties(models.DB, *req)
 	if err != nil {
 		// Association failed (product not found, invalid warranty types, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product warranties",
@@ -316,12 +316,12 @@ func AddProductWarranties(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return success response
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product warranties added successfully",
@@ -331,6 +331,6 @@ func AddProductWarranties(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product warranties added successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

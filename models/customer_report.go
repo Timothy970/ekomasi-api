@@ -1,4 +1,4 @@
-// Package models provides data access layer for the Adenzo e-commerce platform.
+// Package models provides data access layer for the Ekomasi e-commerce platform.
 //
 // This file handles customer retention analytics including:
 //   - Customer retention metrics (new vs returning customers)

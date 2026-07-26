@@ -1,70 +1,69 @@
 package routes
 
 import (
-	"net/http"
-
-	"github.com/gorilla/mux"
-
-	"adenzo_backend/handlers"
-	"adenzo_backend/middleware"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/handlers"
+	"ekomasi_backend/middleware"
 )
 
-// SetupProductRoutes configures all product-related routes
-func SetupProductRoutes(api *mux.Router) {
-	product := api.PathPrefix("/product").Subrouter()
-	products := api.PathPrefix("/products").Subrouter()
+// SetupProductGinRoutes configures all product-related routes using native Gin router groups
+func SetupProductGinRoutes(api *gin.RouterGroup) {
+	product := api.Group("/product")
+	products := api.Group("/products")
 
 	// Product listings and search
-	products.HandleFunc("", handlers.GetProductsHandler).Methods("GET")
-	products.HandleFunc("/search", handlers.SearchProductsHandler).Methods("GET")
-	products.HandleFunc("/subcategories/{subcategory_id}", handlers.GetProductsHandlerBySubCategoryID).Methods("GET")
-	products.HandleFunc("/related", handlers.GetRelatedProductsHandler).Methods("GET")
-	product.HandleFunc("/{product_id}", handlers.GetProductByIDHandler).Methods("GET")
+	products.GET("", handlers.GetProductsHandler)
+	products.GET("/search", handlers.SearchProductsHandler)
+	products.GET("/subcategories/:subcategory_id", handlers.GetProductsHandlerBySubCategoryID)
+	products.GET("/related", handlers.GetRelatedProductsHandler)
+	product.GET("/:product_id", handlers.GetProductByIDHandler)
 
 	// Featured products
-	products.HandleFunc("/featured", handlers.GetFeatured).Methods("GET")
-	products.HandleFunc("/cheap/expensive", handlers.GetExpensiveAndCheapProducts).Methods("GET")
+	products.GET("/featured", handlers.GetFeatured)
+	products.GET("/cheap/expensive", handlers.GetExpensiveAndCheapProducts)
 
 	// Product images
-	product.Handle("/upload-images", middleware.AuthenticateToken(http.HandlerFunc(handlers.UploadProductImageHandler))).Methods("POST")
-	product.Handle("/upload-images", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateProductImageHandler))).Methods("PATCH")
+	product.POST("/upload-images", middleware.GinAuthenticateToken(), handlers.UploadProductImageHandler)
+	product.PATCH("/upload-images", middleware.GinAuthenticateToken(), handlers.UpdateProductImageHandler)
 
 	// Product bundles
-	product.Handle("/add-products/bundle", middleware.AuthenticateToken(http.HandlerFunc(handlers.AddProductsToBundleHandler))).Methods("POST")
-	api.HandleFunc("/products/bundles", handlers.GetBundleProductsHandler).Methods("GET")
-	api.HandleFunc("/products/bundles/{bundle_id}", handlers.GetBundleByIDProductsHandler).Methods("GET")
+	product.POST("/add-products/bundle", middleware.GinAuthenticateToken(), handlers.AddProductsToBundleHandler)
+	api.GET("/products/bundles", handlers.GetBundleProductsHandler)
+	api.GET("/products/bundles/:bundle_id", handlers.GetBundleByIDProductsHandler)
 
 	// Product reviews
-	products.HandleFunc("/{product_id}/reviews", handlers.GetProductReviews).Methods("GET")
-	products.HandleFunc("/{product_id}/reviews/{review_id}", handlers.GetReview).Methods("GET")
-	products.Handle("/{product_id}/reviews", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateReview))).Methods("POST")
-	api.Handle("/products/{product_id}/reviews/{review_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateReview))).Methods("PATCH")
+	products.GET("/:product_id/reviews", handlers.GetProductReviews)
+	products.GET("/:product_id/reviews/:review_id", handlers.GetReview)
+	products.POST("/:product_id/reviews", middleware.GinAuthenticateToken(), handlers.CreateReview)
+	api.PATCH("/products/:product_id/reviews/:review_id", middleware.GinAuthenticateToken(), handlers.UpdateReview)
 
 	// Categories
-	products.HandleFunc("/categories", handlers.GetCategoriesHandler).Methods("GET")
-	products.Handle("/categories", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateCategoryHandler))).Methods("POST")
-	products.HandleFunc("/categories/{id}", handlers.GetCategoryByIDHandler).Methods("GET")
-	products.HandleFunc("/categories-products", handlers.GetCategoryProductsHandler).Methods("GET")
-	products.HandleFunc("/categories-products/{category_id}", handlers.GetCategoryProductsHandlerByCategoryID).Methods("GET")
-	products.Handle("/admin/categories", middleware.AuthenticateToken(http.HandlerFunc(handlers.AdminGetCategoriesHandler))).Methods("GET")
+	products.GET("/categories", handlers.GetCategoriesHandler)
+	products.POST("/categories", middleware.GinAuthenticateToken(), handlers.CreateCategoryHandler)
+	products.GET("/categories/:id", handlers.GetCategoryByIDHandler)
+	products.GET("/categories-products", handlers.GetCategoryProductsHandler)
+	products.GET("/categories-products/:category_id", handlers.GetCategoryProductsHandlerByCategoryID)
+	products.GET("/admin/categories", middleware.GinAuthenticateToken(), handlers.AdminGetCategoriesHandler)
 
 	// Product variants
-	products.HandleFunc("/variants-products", handlers.GetVariantProductsHandler).Methods("GET")
-	products.HandleFunc("/variants/{variant_id}", handlers.GetVariant).Methods("GET")
-	products.HandleFunc("/variants", handlers.ListVariants).Methods("GET")
-	products.HandleFunc("/variants/{product_id}", handlers.ListProductVariants).Methods("GET")
+	products.GET("/variants-products", handlers.GetVariantProductsHandler)
+	products.GET("/variants/:variant_id", handlers.GetVariant)
+	products.GET("/variants", handlers.ListVariants)
+	products.GET("/:product_id/variants", handlers.ListProductVariants)
 
 	// Deals
-	products.HandleFunc("/deals", handlers.GetDealsHandler).Methods("GET")
-	products.HandleFunc("/deals/{deal_id}", handlers.GetDealWithProductsHandler).Methods("GET")
+	products.GET("/deals", handlers.GetDealsHandler)
+	products.GET("/deals/:deal_id", handlers.GetDealWithProductsHandler)
 
 	// Product features
-	product.HandleFunc("/features/{product_id}", handlers.GetFeaturesByProductHandler).Methods("GET")
+	product.GET("/features/:product_id", handlers.GetFeaturesByProductHandler)
 
 	// Bulk upload
-	api.Handle("/products/bulk-upload", middleware.AuthenticateToken(http.HandlerFunc(handlers.BulkUploadProductsHandler))).Methods("POST")
-	api.Handle("/products/bulk-upload/publish", middleware.AuthenticateToken(http.HandlerFunc(handlers.PublishBulkUploadedProductsHandler))).Methods("POST")
-	api.Handle("/products/bulk-upload/{bulk_product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteBulkUploadProductsHandler))).Methods("DELETE")
-	api.Handle("/products/bulk-upload", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetBulkUploadProductsHandler))).Methods("GET")
-	api.HandleFunc("/products/sample-csv", handlers.DownloadSampleCSVHandler).Methods("GET")
+	api.POST("/products/bulk-upload", middleware.GinAuthenticateToken(), handlers.BulkUploadProductsHandler)
+	api.POST("/products/bulk-upload/publish", middleware.GinAuthenticateToken(), handlers.PublishBulkUploadedProductsHandler)
+	api.DELETE("/products/bulk-upload/:bulk_product_id", middleware.GinAuthenticateToken(), handlers.DeleteBulkUploadProductsHandler)
+	api.GET("/products/bulk-upload", middleware.GinAuthenticateToken(), handlers.GetBulkUploadProductsHandler)
+	api.GET("/products/sample-csv", handlers.DownloadSampleCSVHandler)
 }
+
+// SetupProductRoutes configures all product-related routes

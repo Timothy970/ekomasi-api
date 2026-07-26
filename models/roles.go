@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo e-commerce backend.
+// Package models provides data access functions for the Ekomasi e-commerce backend.
 //
 // roles.go handles role-based access control (RBAC) including:
 //   - Role management (CRUD operations)
@@ -9,7 +9,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"errors"
 	"fmt"

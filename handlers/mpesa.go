@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
@@ -23,20 +24,20 @@ var (
 	content         = "Content-Type"
 )
 
-func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
+func HandleMpesaPayment(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
-	req, ok := DecodeRequestBody[dtos.MpesaRequest](r, w, requestSummary, start)
+	requestSummary := utils.GetRequestSummary(c.Request)
+	req, ok := DecodeRequestBody[dtos.MpesaRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 
 	order, err := models.GetOrderByID(models.DB, req.OrderID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to get order for MPESA payment",
@@ -45,7 +46,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -62,12 +63,12 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		req.Amount = computedAmount
 	}
 	req.DeliveryID = order.DeliveryID
-	req.Reference = "ADENZO - " + order.OrderID
+	req.Reference = "EKOMASI - " + order.OrderID
 	req.Description = fmt.Sprintf("Payment for order %s", order.OrderID)
 	if req.Amount > 0 {
 		client, err := NewMpesaClient()
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Payments",
 					Description: "Failed to initialize MPESA client",
@@ -76,7 +77,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 				Message:   fmt.Sprintf("Failed to initialize MPESA client %s", err),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -84,7 +85,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 
 		response, err := client.LipaNaMpesaOnline(*req)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Payments",
 					Description: "Failed to initiate MPESA payment",
@@ -93,14 +94,14 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary,
 			})
 			return
 		}
 		err = models.StoreStkResponse(models.DB, response, *req)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Payments",
 					Description: "Failed to store MPESA payment request",
@@ -109,7 +110,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -120,7 +121,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to store transaction log: %v", err)
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "MPESA payment request initiated successfully",
@@ -130,7 +131,7 @@ func HandleMpesaPayment(w http.ResponseWriter, r *http.Request) {
 		Message:   "Payment request initiated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 	if req.Amount == 0 {
@@ -154,17 +155,17 @@ func storeTransactionLog(db models.DBExecutor, req dtos.MpesaRequest) error {
 	return models.InsertTransaction(db, logEntry)
 }
 
-func RegisterMpesaRoutesHandler(w http.ResponseWriter, r *http.Request) {
+func RegisterMpesaRoutesHandler(c *gin.Context) {
 	client, err := NewMpesaClient()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
 	if err := client.RegisterURLs(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
-	w.Write([]byte("M-Pesa URLs registered successfully"))
+	c.String(http.StatusOK, "M-Pesa URLs registered successfully")
 }
 
 type MpesaClient struct {
@@ -316,19 +317,19 @@ func (m *MpesaClient) RegisterURLs() error {
 }
 
 // Handler for the MPesa callback
-func HandleMpesaCallback(w http.ResponseWriter, r *http.Request) {
+func HandleMpesaCallback(c *gin.Context) {
 	//log the IP address of the caller
-	log.Printf("MPESA CALLBACK FROM IP: %s", r.RemoteAddr)
-	bodyBytes, err := io.ReadAll(r.Body)
+	log.Printf("MPESA CALLBACK FROM IP: %s", c.Request.RemoteAddr)
+	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		http.Error(w, "failed to read body", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "failed to read body")
 		return
 	}
 	log.Printf("callback body:::::%v", string(bodyBytes))
 
 	var callback dtos.STKCallbackRequest
 	if err := json.Unmarshal(bodyBytes, &callback); err != nil {
-		http.Error(w, "failed to parse callback", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "failed to parse callback")
 		return
 	}
 
@@ -336,11 +337,11 @@ func HandleMpesaCallback(w http.ResponseWriter, r *http.Request) {
 	logCallbackInfo(stk.CheckoutRequestID, stk.ResultDesc)
 
 	if stk.ResultCode == 0 {
-		handleSuccessfulPayment(w, callback)
+		handleSuccessfulPayment(c, callback)
 		return
 	}
 
-	handleFailedPayment(w, callback)
+	handleFailedPayment(c, callback)
 
 }
 
@@ -372,7 +373,7 @@ func logCallbackInfo(checkoutID, resultDesc string) {
 }
 
 // handleSuccessfulPayment processes successful Mpesa payments
-func handleSuccessfulPayment(w http.ResponseWriter, callback dtos.STKCallbackRequest) {
+func handleSuccessfulPayment(c *gin.Context, callback dtos.STKCallbackRequest) {
 	stk := callback.Body.StkCallback
 	amount, mpesaCode, phone := extractMetadata(stk.CallbackMetadata.Item)
 
@@ -400,15 +401,13 @@ func handleSuccessfulPayment(w http.ResponseWriter, callback dtos.STKCallbackReq
 	//send sms and email notification
 	//store the order to order_notifications table for processing later
 	models.StoreOrderNotification(orderID)
-	if w == nil {
-		return
+	if c != nil {
+		c.JSON(http.StatusOK, gin.H{"ResultCode": 0, "ResultDesc": "Accepted"})
 	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Accepted"}`))
 }
 
 // handleFailedPayment logs failed payments and responds OK
-func handleFailedPayment(w http.ResponseWriter, callback dtos.STKCallbackRequest) {
+func handleFailedPayment(c *gin.Context, callback dtos.STKCallbackRequest) {
 	resultCode := callback.Body.StkCallback.ResultCode
 	resultDesc := callback.Body.StkCallback.ResultDesc
 	checkoutRequestID := callback.Body.StkCallback.CheckoutRequestID
@@ -426,8 +425,9 @@ func handleFailedPayment(w http.ResponseWriter, callback dtos.STKCallbackRequest
 		log.Printf("error updating transaction status: %v", err)
 	}
 	log.Printf("FAILED PAYMENT:\n- Code: %d\n- Desc: %s\n", resultCode, resultDesc)
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Callback received"}`))
+	if c != nil {
+		c.JSON(http.StatusOK, gin.H{"ResultCode": 0, "ResultDesc": "Callback received"})
+	}
 }
 
 // ✅ extractMetadata now matches the exact struct definition in your DTO
@@ -516,7 +516,7 @@ func HandleMpesaVoucherPayment(db models.DBExecutor, orderID, phoneNumber string
 		Phone:       phoneNumber,
 		Amount:      int(amount),
 		DeliveryID:  "",
-		Reference:   "ADENZO VOUCHER -" + orderID,
+		Reference:   "EKOMASI VOUCHER -" + orderID,
 		Description: fmt.Sprintf("Payment for voucher order %s", orderID),
 		Type:        "VOUCHER",
 	}
@@ -581,19 +581,19 @@ func (m *MpesaClient) FetchPayBillBalance() (map[string]any, error) {
 }
 
 // Handler for the MPesa callback
-func HandleMpesaBalance(w http.ResponseWriter, r *http.Request) {
-	log.Printf("MPESA CALLBACK FROM IP: %s", r.RemoteAddr)
+func HandleMpesaBalance(c *gin.Context) {
+	log.Printf("MPESA CALLBACK FROM IP: %s", c.Request.RemoteAddr)
 
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	client, err := NewMpesaClient()
 	if err != nil {
-		http.Error(w, "failed to create mpesa client", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "failed to create mpesa client")
 		return
 	}
 	result, err := client.FetchPayBillBalance()
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 
 				Module:      "Payments",
@@ -603,14 +603,14 @@ func HandleMpesaBalance(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("Failed to fetch MPESA PayBill balance %s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	resultJSON, _ := json.Marshal(result)
 	log.Printf("callback body:::::%v", string(resultJSON))
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "MPESA PayBill balance fetched successfully",
@@ -620,22 +620,21 @@ func HandleMpesaBalance(w http.ResponseWriter, r *http.Request) {
 		Message:   "PayBill balance fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
 
-func HandleMpesaBalanceCallback(w http.ResponseWriter, r *http.Request) {
-	log.Printf("MPESA BALANCE CALLBACK FROM IP: %s", r.RemoteAddr)
-	bodyBytes, err := io.ReadAll(r.Body)
+func HandleMpesaBalanceCallback(c *gin.Context) {
+	log.Printf("MPESA BALANCE CALLBACK FROM IP: %s", c.Request.RemoteAddr)
+	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		http.Error(w, "failed to read body", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "failed to read body")
 		return
 	}
 	log.Printf("balance callback body:::::%v", string(bodyBytes))
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Accepted"}`))
+	c.JSON(http.StatusOK, gin.H{"ResultCode": 0, "ResultDesc": "Accepted"})
 }
 
 type MpesaMoneyReturnRequest struct {
@@ -643,15 +642,15 @@ type MpesaMoneyReturnRequest struct {
 	PhoneNumber string `json:"phone_number" validate:"required"`
 }
 
-func HandleMpesaReturnCallback(w http.ResponseWriter, r *http.Request) {
-	bodyBytes, err := io.ReadAll(r.Body)
+func HandleMpesaReturnCallback(c *gin.Context) {
+	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		http.Error(w, "failed to read body", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "failed to read body")
 		return
 	}
 	var callback dtos.MpesaTransactionRufundResponse
 	if err := json.Unmarshal(bodyBytes, &callback); err != nil {
-		http.Error(w, "failed to parse callback", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "failed to parse callback")
 		return
 	}
 	phoneNumber := ""
@@ -678,28 +677,27 @@ func HandleMpesaReturnCallback(w http.ResponseWriter, r *http.Request) {
 		}
 		//INSERT INTO TRASACTION LOG WITH STATUS REFUNDED
 	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Accepted"}`))
+	c.JSON(http.StatusOK, gin.H{"ResultCode": 0, "ResultDesc": "Accepted"})
 }
 
-func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
+func HandleMpesaMoneyReturn(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Accounts", "payments.refund")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Accounts", "payments.refund")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[MpesaMoneyReturnRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[MpesaMoneyReturnRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Accounts") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Accounts") {
 		return
 	}
 	order, err := models.GetOrderByID(models.DB, req.OrderID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Order not found for MPESA money return " + err.Error(),
@@ -712,13 +710,13 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 	}
 	client, err := NewMpesaClient()
 	if err != nil {
-		http.Error(w, "failed to create mpesa client", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "failed to create mpesa client")
 		return
 	}
 
 	result, err := client.HandleMoneyReturn(order.TotalAmount, req.PhoneNumber)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to handle MPESA money return",
@@ -727,13 +725,13 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("Failed to handle MPESA money return %s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	if result.ResultCode != "0" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "MPESA money return failed",
@@ -742,7 +740,7 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("MPESA money return failed: %s", result.ResultDesc),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -750,7 +748,7 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 	//mark the order as refunded and restock items
 	err = models.HandleMpesaMoneyReturnRefunds(models.DB, *order)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to process refunds for MPESA money return",
@@ -759,12 +757,12 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("Failed to process refunds for MPESA money return %s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "MPESA money return handled successfully",
@@ -774,7 +772,7 @@ func HandleMpesaMoneyReturn(w http.ResponseWriter, r *http.Request) {
 		Message:   "MPESA money return handled successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -837,19 +835,19 @@ type MpesaMoneyReturnResponse struct {
 	OriginatorConversationID string `json:"OriginatorConversationID"`
 }
 
-func HandleMpesaTransactionStatus(w http.ResponseWriter, r *http.Request) {
+func HandleMpesaTransactionStatus(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
-	req, ok := DecodeRequestBody[dtos.MpesaTransactionStatus](r, w, requestSummary, start)
+	requestSummary := utils.GetRequestSummary(c.Request)
+	req, ok := DecodeRequestBody[dtos.MpesaTransactionStatus](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 	client, err := NewMpesaClient()
 	if err != nil {
-		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to initialize MPESA client",
@@ -859,7 +857,7 @@ func HandleMpesaTransactionStatus(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("Failed to initialize MPESA client %s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -867,7 +865,7 @@ func HandleMpesaTransactionStatus(w http.ResponseWriter, r *http.Request) {
 
 	response, err := client.CheckMpesaTransactionStatus(*req)
 	if err != nil {
-		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to initiate MPESA payment",
@@ -877,14 +875,14 @@ func HandleMpesaTransactionStatus(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to get transaction status!",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	if response.ResponseCode != "0" {
 		log.Printf("MPESA transaction status fetch failed: %s", response.ResponseDescription)
-		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "MPESA transaction status fetch failed",
@@ -894,13 +892,13 @@ func HandleMpesaTransactionStatus(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to get transaction status!",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "MPESA transaction status waiting for callback",
@@ -910,7 +908,7 @@ func HandleMpesaTransactionStatus(w http.ResponseWriter, r *http.Request) {
 		Message:   "Transaction status waiting for callback!",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 
@@ -973,17 +971,17 @@ func (m *MpesaClient) CheckMpesaTransactionStatus(req dtos.MpesaTransactionStatu
 	return &result, nil
 }
 
-func MpesaCallbackHandler(w http.ResponseWriter, r *http.Request) {
+func MpesaCallbackHandler(c *gin.Context) {
 	var callback dtos.MpesaResultResponse
 	//log recieved callback
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Printf("Failed to decode MPESA callback: %v", err)
 		return
 	}
 	log.Printf("Received MPESA callback: %s", string(bodyBytes))
-	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-	if err := json.NewDecoder(r.Body).Decode(&callback); err != nil {
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	if err := c.ShouldBindJSON(&callback); err != nil {
 		log.Printf("Failed to decode MPESA callback: %v", err)
 		return
 	}
@@ -1000,21 +998,20 @@ func MpesaCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		"data":   callback,
 	}
 	utils.SetCache("mpesa_status:"+trxID, finalObj, 2*time.Minute)
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"ResultCode":0,"ResultDesc":"Transaction status callback received"}`))
+	c.JSON(http.StatusOK, gin.H{"ResultCode": 0, "ResultDesc": "Transaction status callback received"})
 }
 
 // handler for mpesa transaction status callback// Handler for the MPesa callback
-func HandleTransactionStatusCallback(w http.ResponseWriter, r *http.Request) {
-	bodyBytes, err := io.ReadAll(r.Body)
+func HandleTransactionStatusCallback(c *gin.Context) {
+	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		http.Error(w, "failed to read body", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "failed to read body")
 		return
 	}
 
 	var callback dtos.TransactionStatusSafaricomResponse
 	if err := json.Unmarshal(bodyBytes, &callback); err != nil {
-		http.Error(w, "failed to parse callback", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "failed to parse callback")
 		return
 	}
 	message := map[string]interface{}{}

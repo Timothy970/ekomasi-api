@@ -1,12 +1,12 @@
-# 📖 Adenzo Technical Documentation
+# 📖 Ekomasi Technical Documentation
 
-Welcome to the comprehensive technical guide for the **Adenzo E-Commerce Backend**. This document is designed to give you a complete understanding of how the system is built, how it works, and where everything is located.
+Welcome to the comprehensive technical guide for the **Ekomasi E-Commerce Backend**. This document is designed to give you a complete understanding of how the system is built, how it works, and where everything is located.
 
 ---
 
 ## 🏗 System Overview & Architecture
 
-Adenzo is a high-performance, modular backend built with **Go**. It follows a layered architecture to ensure that the code is easy to maintain and scale.
+Ekomasi is a high-performance, modular backend built with **Go**. It follows a layered architecture to ensure that the code is easy to maintain and scale.
 
 ### 🔌 API Layer (How we handle requests)
 - **Framework:** We use `gorilla/mux` for fast and flexible routing.

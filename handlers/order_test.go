@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/mux"
 )
 
@@ -44,12 +45,12 @@ func TestNewCreateOrderHandler(t *testing.T) {
 			"product_id", "name", "description", "sku", "price", "category_id",
 			"stock_quantity", "search_vector", "created_at", "last_updated_at",
 			"category_name", "tag", "details", "discount", "discount_type",
-			"weight", "dimensions", "manufacturer", "weight_limit",
+			"weight", "dimensions", "manufacturer", "weight_limit", "product_type", "low_stock_quantity_warning", "barcode",
 		}).AddRow(
 			"prod-1", "Test Product", "Desc", "SKU1", 100.0, "cat-1",
 			10, "", time.Now(), time.Now(),
 			"Category", "Tag", nil, 0.0, "",
-			1.0, "10x10", "Manu", 10.0,
+			1.0, "10x10", "Manu", 10.0, "simple", 5, "barcode123",
 		)
 		mock.ExpectQuery("SELECT .* FROM products .* WHERE p.product_id = ?").
 			WithArgs("prod-1").
@@ -64,8 +65,13 @@ func TestNewCreateOrderHandler(t *testing.T) {
 		mock.ExpectQuery("SELECT .* FROM product_variants").
 			WillReturnRows(sqlmock.NewRows([]string{"variant_id", "variant_type", "name", "hex_code", "additional_price", "stock_quantity"}))
 
-		// Tax - Uses product_charges table
-		mock.ExpectQuery("SELECT .* FROM product_charges").WillReturnRows(sqlmock.NewRows([]string{"charge_id", "charge_name", "charge_value"}))
+		mock.ExpectQuery("SELECT .* FROM product_variant_combinations").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "sku", "additional_price", "stock_quantity", "variant_id"}))
+
+		// GetProductDiscount (called in processOrderItems)
+		mock.ExpectQuery("SELECT dp.discount, dp.discount_type FROM deal_products dp").
+			WithArgs("prod-1").
+			WillReturnRows(sqlmock.NewRows([]string{"discount", "discount_type"})) // No rows = no discount
 
 		// --- 2. Second Call: checkStockAvailability -> GetProductByID ---
 
@@ -79,12 +85,12 @@ func TestNewCreateOrderHandler(t *testing.T) {
 			"product_id", "name", "description", "sku", "price", "category_id",
 			"stock_quantity", "search_vector", "created_at", "last_updated_at",
 			"category_name", "tag", "details", "discount", "discount_type",
-			"weight", "dimensions", "manufacturer", "weight_limit",
+			"weight", "dimensions", "manufacturer", "weight_limit", "product_type", "low_stock_quantity_warning", "barcode",
 		}).AddRow(
 			"prod-1", "Test Product", "Desc", "SKU1", 100.0, "cat-1",
 			10, "", time.Now(), time.Now(),
 			"Category", "Tag", nil, 0.0, "",
-			1.0, "10x10", "Manu", 10.0,
+			1.0, "10x10", "Manu", 10.0, "simple", 5, "barcode123",
 		)
 		mock.ExpectQuery("SELECT .* FROM products .* WHERE p.product_id = ?").
 			WithArgs("prod-1").
@@ -99,15 +105,10 @@ func TestNewCreateOrderHandler(t *testing.T) {
 		mock.ExpectQuery("SELECT .* FROM product_variants").
 			WillReturnRows(sqlmock.NewRows([]string{"variant_id", "variant_type", "name", "hex_code", "additional_price", "stock_quantity"}))
 
-		// Tax
-		mock.ExpectQuery("SELECT .* FROM product_charges").WillReturnRows(sqlmock.NewRows([]string{"charge_id", "charge_name", "charge_value"}))
+		mock.ExpectQuery("SELECT .* FROM product_variant_combinations").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "sku", "additional_price", "stock_quantity", "variant_id"}))
 
-		// 3. GetProductDiscount (called in processOrderItems)
-		mock.ExpectQuery("SELECT dp.discount, dp.discount_type FROM deal_products dp").
-			WithArgs("prod-1").
-			WillReturnRows(sqlmock.NewRows([]string{"discount", "discount_type"})) // No rows = no discount
-
-		// 3. GetProductPromotionData
+		// GetProductPromotionData (called in processOrderItems)
 		mock.ExpectQuery("SELECT .* FROM promotion_products").
 			WithArgs("prod-1").
 			WillReturnRows(sqlmock.NewRows([]string{"promotion_type", "promotion_value"})) // Empty rows
@@ -118,12 +119,12 @@ func TestNewCreateOrderHandler(t *testing.T) {
 
 		// Expect CreateOrder (INSERT INTO orders)
 		mock.ExpectExec("INSERT INTO orders").
-			WithArgs(sqlmock.AnyArg(), nil, true, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(sqlmock.AnyArg(), nil, true, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		// Expect CreateOrderItem (INSERT INTO order_items)
 		mock.ExpectExec("INSERT INTO order_items").
-			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "prod-1", "", 2, 100.0). // Quantity 2, Price 100
+			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "prod-1", nil, 2, 100.0). // Quantity 2, Price 100
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		// Expect CreateDeliveries (INSERT INTO deliveries)
@@ -136,13 +137,18 @@ func TestNewCreateOrderHandler(t *testing.T) {
 			WithArgs(2, "prod-1").
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
-		// Expect Log Insert (Success)
-		mock.ExpectExec("INSERT INTO logs").
-			WithArgs(sqlmock.AnyArg(), "INFO", "Order created successfully", sqlmock.AnyArg(), sqlmock.AnyArg(), "Orders", sqlmock.AnyArg()).
+		// Expect variant stock update
+		mock.ExpectExec("UPDATE product_variant_combinations").
+			WithArgs(2, "prod-1").
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		// Expect Commit
 		mock.ExpectCommit()
+
+		// Expect Log Insert (Success)
+		mock.ExpectExec("INSERT INTO logs").
+			WithArgs(sqlmock.AnyArg(), "INFO", "Order created successfully", sqlmock.AnyArg(), sqlmock.AnyArg(), "Orders", sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		// Prepare request
 		body, _ := json.Marshal(validPayload)
@@ -150,11 +156,13 @@ func TestNewCreateOrderHandler(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		req = mux.SetURLVars(req, map[string]string{})
 
-		// Recorder
+		// Recorder & Context
 		rr := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rr)
+		c.Request = req
 
 		// Execute Handler
-		NewCreateOrderHandler(rr, req)
+		NewCreateOrderHandler(c)
 
 		// Assertions
 		if status := rr.Code; status != http.StatusCreated {
@@ -185,12 +193,12 @@ func TestNewCreateOrderHandler(t *testing.T) {
 			"product_id", "name", "description", "sku", "price", "category_id",
 			"stock_quantity", "search_vector", "created_at", "last_updated_at",
 			"category_name", "tag", "details", "discount", "discount_type",
-			"weight", "dimensions", "manufacturer", "weight_limit",
+			"weight", "dimensions", "manufacturer", "weight_limit", "product_type", "low_stock_quantity_warning", "barcode",
 		}).AddRow(
 			"prod-1", "Test Product", "Desc", "SKU1", 100.0, "cat-1",
 			10, "", time.Now(), time.Now(),
 			"Category", "Tag", nil, 0.0, "",
-			1.0, "10x10", "Manu", 10.0,
+			1.0, "10x10", "Manu", 10.0, "simple", 5, "barcode123",
 		)
 		mock.ExpectQuery("SELECT .* FROM products .* WHERE p.product_id = ?").
 			WithArgs("prod-1").
@@ -205,8 +213,13 @@ func TestNewCreateOrderHandler(t *testing.T) {
 		mock.ExpectQuery("SELECT .* FROM product_variants").
 			WillReturnRows(sqlmock.NewRows([]string{"variant_id", "variant_type", "name", "hex_code", "additional_price", "stock_quantity"}))
 
-		// Tax
-		mock.ExpectQuery("SELECT .* FROM product_charges").WillReturnRows(sqlmock.NewRows([]string{"charge_id", "charge_name", "charge_value"}))
+		mock.ExpectQuery("SELECT .* FROM product_variant_combinations").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "sku", "additional_price", "stock_quantity", "variant_id"}))
+
+		// GetProductDiscount (called in processOrderItems)
+		mock.ExpectQuery("SELECT dp.discount, dp.discount_type FROM deal_products dp").
+			WithArgs("prod-1").
+			WillReturnRows(sqlmock.NewRows([]string{"discount", "discount_type"}))
 
 		// --- 2. Second Call: checkStockAvailability -> GetProductByID ---
 
@@ -220,12 +233,12 @@ func TestNewCreateOrderHandler(t *testing.T) {
 			"product_id", "name", "description", "sku", "price", "category_id",
 			"stock_quantity", "search_vector", "created_at", "last_updated_at",
 			"category_name", "tag", "details", "discount", "discount_type",
-			"weight", "dimensions", "manufacturer", "weight_limit",
+			"weight", "dimensions", "manufacturer", "weight_limit", "product_type", "low_stock_quantity_warning", "barcode",
 		}).AddRow(
 			"prod-1", "Test Product", "Desc", "SKU1", 100.0, "cat-1",
 			10, "", time.Now(), time.Now(),
 			"Category", "Tag", nil, 0.0, "",
-			1.0, "10x10", "Manu", 10.0,
+			1.0, "10x10", "Manu", 10.0, "simple", 5, "barcode123",
 		)
 		mock.ExpectQuery("SELECT .* FROM products .* WHERE p.product_id = ?").
 			WithArgs("prod-1").
@@ -240,13 +253,8 @@ func TestNewCreateOrderHandler(t *testing.T) {
 		mock.ExpectQuery("SELECT .* FROM product_variants").
 			WillReturnRows(sqlmock.NewRows([]string{"variant_id", "variant_type", "name", "hex_code", "additional_price", "stock_quantity"}))
 
-		// Tax
-		mock.ExpectQuery("SELECT .* FROM product_charges").WillReturnRows(sqlmock.NewRows([]string{"charge_id", "charge_name", "charge_value"}))
-
-		// GetProductDiscount (called in processOrderItems)
-		mock.ExpectQuery("SELECT dp.discount, dp.discount_type FROM deal_products dp").
-			WithArgs("prod-1").
-			WillReturnRows(sqlmock.NewRows([]string{"discount", "discount_type"}))
+		mock.ExpectQuery("SELECT .* FROM product_variant_combinations").
+			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "sku", "additional_price", "stock_quantity", "variant_id"}))
 
 		// GetProductPromotionData
 		mock.ExpectQuery("SELECT .* FROM promotion_products").
@@ -258,7 +266,7 @@ func TestNewCreateOrderHandler(t *testing.T) {
 
 		// Expect CreateOrder (INSERT INTO orders)
 		mock.ExpectExec("INSERT INTO orders").
-			WithArgs(sqlmock.AnyArg(), nil, true, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(sqlmock.AnyArg(), nil, true, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		// CreateOrderItem Failure
@@ -279,8 +287,10 @@ func TestNewCreateOrderHandler(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		rr := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rr)
+		c.Request = req
 
-		NewCreateOrderHandler(rr, req)
+		NewCreateOrderHandler(c)
 
 		if status := rr.Code; status != http.StatusInternalServerError {
 			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusInternalServerError)

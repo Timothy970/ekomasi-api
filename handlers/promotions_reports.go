@@ -4,12 +4,12 @@
 package handlers
 
 import (
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // GetEffectiveness retrieves effectiveness metrics for a specific promotion.
@@ -25,19 +25,19 @@ import (
 // @Failure      404           {object}  dtos.ErrorResponse      "Promotion not found"
 // @Security     BearerAuth
 // @Router       /reports/promotions/effectiveness/{promotion_id} [get]
-func GetEffectiveness(w http.ResponseWriter, r *http.Request) {
+func GetEffectiveness(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract promotion ID from URL path parameters
-	promotionID := mux.Vars(r)["promotion_id"]
+	promotionID := c.Param("promotion_id")
 
 	// Fetch promotion effectiveness metrics from database
 	effectiveness, err := models.GetEffectiveness(models.DB, promotionID)
 	if err != nil {
 		// Database query failed or promotion not found, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get promotion effectiveness report",
@@ -46,13 +46,13 @@ func GetEffectiveness(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return successful response with effectiveness metrics
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Promotion effectiveness report generated successfully",
@@ -62,7 +62,7 @@ func GetEffectiveness(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promotion effectiveness report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -83,20 +83,20 @@ func GetEffectiveness(w http.ResponseWriter, r *http.Request) {
 // @Failure      404           {object}  dtos.ErrorResponse      "Promotion not found"
 // @Security     BearerAuth
 // @Router       /reports/promotions/comparison/{promotion_id} [get]
-func GetComparison(w http.ResponseWriter, r *http.Request) {
+func GetComparison(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract promotion ID from URL path parameters
-	promotionID := mux.Vars(r)["promotion_id"]
+	promotionID := c.Param("promotion_id")
 	// Parse and validate start and end date from query parameters
-	startTime, endTime, err := ParseDateRange(r)
+	startTime, endTime, err := ParseDateRange(c.Request)
 	// Fetch promotion comparison data for the specified date range
 	comparison, err := models.GetComparison(models.DB, promotionID, startTime, endTime)
 	if err != nil {
 		// Date parsing failed or database query error, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get promotion with promotion ID " + promotionID + " comparison report",
@@ -105,13 +105,13 @@ func GetComparison(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return successful response with comparison metrics
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Promotion for promotion ID " + promotionID + " comparison report generated successfully",
@@ -121,7 +121,7 @@ func GetComparison(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promotion comparison report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -141,18 +141,18 @@ func GetComparison(w http.ResponseWriter, r *http.Request) {
 // @Failure      404    {object}  dtos.ErrorResponse      "No data found"
 // @Security     BearerAuth
 // @Router       /reports/promotions/summary [get]
-func GetSummary(w http.ResponseWriter, r *http.Request) {
+func GetSummary(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Parse and validate start and end date from query parameters
-	startTime, endTime, err := ParseDateRange(r)
+	startTime, endTime, err := ParseDateRange(c.Request)
 	// Fetch aggregate promotion summary data for the date range
 	summary, err := models.GetPromotionSummary(models.DB, startTime, endTime)
 	if err != nil {
 		// Date parsing failed or database query error, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get promotion summary report",
@@ -161,13 +161,13 @@ func GetSummary(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return successful response with summary statistics
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Promotion summary report generated successfully",
@@ -177,7 +177,7 @@ func GetSummary(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promotion summary report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }

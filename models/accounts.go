@@ -4,7 +4,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"errors"
 	"fmt"
 	"math"

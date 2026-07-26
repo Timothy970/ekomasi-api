@@ -12,9 +12,9 @@ env:
   - name: APP_ENV
     value: development
   - name: BASE_URL
-    value: https://api.development.adenzo.shop/api/
+    value: https://api.development.ekomasi.shop/api/
   - name: FRONT_END_BASE_URL
-    value: https://adenzo-app.development.adenzo.shop/
+    value: https://ekomasi-app.development.ekomasi.shop/
   - name: ENVIRONMENT
     value: development
   - name: PORT
@@ -22,7 +22,7 @@ env:
   - name: V2_URL
     value: https://api.v2.emalify.com/api
   - name: DB_NAME
-    value: adenzo
+    value: ekomasi
   - name: SHORTCODE
     value: Emalify
   - name: BUCKET_NAME

@@ -17,3 +17,6 @@ CREATE TABLE IF NOT EXISTS  `blogs` (
    KEY `idx_blogs_is_published` (`is_published`),
    CONSTRAINT `blogs_ibfk_1` FOREIGN KEY (`author_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
  );
+
+
+--  CREATE TABLE `blogs` ( `blog_id` char(36) NOT NULL, `title` varchar(255) NOT NULL, `content` json NOT NULL, `author_id` char(36) DEFAULT NULL, `author` json DEFAULT NULL, `banner_image_url` varchar(255) DEFAULT NULL, `published_at` timestamp NOT NULL, `is_published` tinyint(1) NOT NULL DEFAULT '1', `tags` json DEFAULT NULL, `description` longtext, `read_time` int DEFAULT NULL, `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, `status` varchar(50) DEFAULT 'published', PRIMARY KEY (`blog_id`), KEY `author_id` (`author_id`), KEY `idx_blogs_published_at` (`published_at`), KEY `idx_blogs_is_published` (`is_published`), CONSTRAINT `blogs_ibfk_1` FOREIGN KEY (`author_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci

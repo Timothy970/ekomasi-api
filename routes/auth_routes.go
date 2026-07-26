@@ -1,32 +1,29 @@
 package routes
 
 import (
-	"net/http"
-
-	"github.com/gorilla/mux"
-
-	"adenzo_backend/handlers"
-	"adenzo_backend/middleware"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/handlers"
+	"ekomasi_backend/middleware"
 )
 
-// SetupAuthRoutes configures all authentication-related routes
-func SetupAuthRoutes(api *mux.Router) {
-	auth := api.PathPrefix("/auth/").Subrouter()
+// SetupAuthGinRoutes configures all authentication-related routes using native Gin router groups
+func SetupAuthGinRoutes(api *gin.RouterGroup) {
+	auth := api.Group("/auth")
 
-	// User authentication
-	auth.HandleFunc("/signup", handlers.RegisterHandler).Methods("POST")
-	auth.HandleFunc("/whatsapp/signup", handlers.WhatsAppLoginHandler).Methods("POST")
-	auth.HandleFunc("/whatsappwehbook/signup", handlers.WhatsAppWebhookHandler).Methods("POST")
-	api.HandleFunc("/verify-whatsapp", handlers.VerifyWhatsAppHandler).Methods("GET")
-	auth.HandleFunc("/signin", handlers.LoginHandler).Methods("POST")
-	auth.HandleFunc("/admin/signin", handlers.AdminLoginHandler).Methods("POST")
+	// User authentication with Redis rate limiting on sensitive endpoints
+	auth.POST("/signup", handlers.RegisterHandler)
+	auth.POST("/whatsapp/signup", handlers.WhatsAppLoginHandler)
+	auth.POST("/whatsappwehbook/signup", handlers.WhatsAppWebhookHandler)
+	api.GET("/verify-whatsapp", handlers.VerifyWhatsAppHandler)
+	auth.POST("/signin", middleware.GinRateLimiter(5, 60, "login"), handlers.LoginHandler)
+	auth.POST("/admin/signin", middleware.GinRateLimiter(5, 60, "admin_login"), handlers.AdminLoginHandler)
 
-	// OTP management
-	auth.HandleFunc("/resend-otp", handlers.ResendOptHandler).Methods("POST")
-	auth.HandleFunc("/verify-otp", handlers.VerifySignupOTPHandler).Methods("POST")
+	// OTP management with Redis rate limiting
+	auth.POST("/resend-otp", middleware.GinRateLimiter(3, 60, "otp_resend"), handlers.ResendOptHandler)
+	auth.POST("/verify-otp", handlers.VerifySignupOTPHandler)
 
 	// Token management
-	auth.Handle("/refresh-token", middleware.AuthenticateRefreshToken(http.HandlerFunc(handlers.RefreshTokenHandler))).Methods("POST")
-	auth.HandleFunc("/decode-token", handlers.DecodeTokenHandler).Methods("GET")
-	auth.Handle("/logout", middleware.AuthenticateToken(http.HandlerFunc(handlers.LogoutHandler))).Methods("POST")
+	auth.POST("/refresh-token", middleware.GinAuthenticateToken(), handlers.RefreshTokenHandler)
+	auth.GET("/decode-token", handlers.DecodeTokenHandler)
+	auth.POST("/logout", middleware.GinAuthenticateToken(), handlers.LogoutHandler)
 }

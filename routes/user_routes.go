@@ -1,32 +1,32 @@
 package routes
 
 import (
-	"net/http"
-
-	"github.com/gorilla/mux"
-
-	"adenzo_backend/handlers"
-	"adenzo_backend/middleware"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/handlers"
+	"ekomasi_backend/middleware"
 )
 
-// SetupUserRoutes configures all user profile-related routes
-func SetupUserRoutes(api *mux.Router) {
-	user := api.PathPrefix("/user/").Subrouter()
+// SetupUserGinRoutes configures all user profile-related routes using native Gin router groups
+func SetupUserGinRoutes(api *gin.RouterGroup) {
+	user := api.Group("/user")
 
 	// User profile
-	user.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserDetails))).Methods("GET")
-	user.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateUser))).Methods("PATCH")
-	user.Handle("/me/verify-update", middleware.AuthenticateToken(http.HandlerFunc(handlers.VerifyUserUpdateHandler))).Methods("PATCH")
-	user.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteUser))).Methods("DELETE")
+	user.GET("/me", middleware.GinAuthenticateToken(), handlers.GetUserDetails)
+	user.PATCH("/me", middleware.GinAuthenticateToken(), handlers.UpdateUser)
+	user.PATCH("/me/verify-update", middleware.GinAuthenticateToken(), handlers.VerifyUserUpdateHandler)
+	user.DELETE("/me", middleware.GinAuthenticateToken(), handlers.DeleteUser)
 
 	// User addresses
-	user.Handle("/profile/addresses", middleware.AuthenticateToken(http.HandlerFunc(handlers.CreateAddress))).Methods("POST")
-	user.Handle("/profile/addresses", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserAddress))).Methods("GET")
-	user.Handle("/profile/addresses/{address_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.UpdateAddress))).Methods("PATCH")
-	user.Handle("/profile/addresses/{address_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteAddress))).Methods("DELETE")
-	//deactivate user account
-	user.Handle("/deactivate", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeactivateMyAccount))).Methods("DELETE")
+	user.POST("/profile/addresses", middleware.GinAuthenticateToken(), handlers.CreateAddress)
+	user.GET("/profile/addresses", middleware.GinAuthenticateToken(), handlers.GetUserAddress)
+	user.PATCH("/profile/addresses/:address_id", middleware.GinAuthenticateToken(), handlers.UpdateAddress)
+	user.DELETE("/profile/addresses/:address_id", middleware.GinAuthenticateToken(), handlers.DeleteAddress)
+
+	// Deactivate user account
+	user.DELETE("/deactivate", middleware.GinAuthenticateToken(), handlers.DeactivateMyAccount)
 
 	// User recommendations
-	user.Handle("/products/recommendations", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserBasedProductsRecommendations))).Methods("GET")
+	user.GET("/products/recommendations", middleware.GinAuthenticateToken(), handlers.GetUserBasedProductsRecommendations)
 }
+
+// SetupUserRoutes configures all user profile-related routes

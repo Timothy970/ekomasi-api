@@ -22,6 +22,9 @@ var ExpirationTime = 60 * time.Minute
 
 // SetCache stores any struct or value in Redis with expiration
 var SetCache = func(key string, value interface{}, customExpiration ...time.Duration) error {
+	if RedisClient == nil {
+		return nil
+	}
 	// Determine expiration
 	exp := ExpirationTime
 
@@ -53,6 +56,9 @@ var SetCache = func(key string, value interface{}, customExpiration ...time.Dura
 
 // GetCache retrieves a value from Redis and unmarshals into the provided destination
 var GetCache = func(key string, dest interface{}) error {
+	if RedisClient == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
 	data, err := RedisClient.Get(ctx, key).Bytes()
 	if err != nil {
 		if err == redis.Nil {
@@ -69,11 +75,17 @@ var GetCache = func(key string, dest interface{}) error {
 
 // DeleteCache invalidates a key from Redis
 func DeleteCache(key string) error {
+	if RedisClient == nil {
+		return nil
+	}
 	return RedisClient.Del(ctx, key).Err()
 }
 
 // Delete by prefix
 var DeleteCacheByPrefix = func(prefix string) error {
+	if RedisClient == nil {
+		return nil
+	}
 	var cursor uint64
 	var keys []string
 	var err error

@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -22,13 +23,13 @@ import (
 // @Success      200   {object}  dtos.AutoCompleteResponse
 // @Failure      500   {object}  dtos.ErrorResponse
 // @Router       /api/products/autocomplete [get]
-func AutoCompleteHandler(w http.ResponseWriter, r *http.Request) {
+func AutoCompleteHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Get query parameters
-	query := r.URL.Query().Get("q")
-	limitStr := r.URL.Query().Get("size")
+	query := c.Query("q")
+	limitStr := c.Query("size")
 
 	// Parse limit with default value
 	limit := 10
@@ -43,7 +44,7 @@ func AutoCompleteHandler(w http.ResponseWriter, r *http.Request) {
 		// Perform autocomplete search
 		suggestions, err := AutoCompleteSearchWithCache(query, limit)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Failed to fetch autocomplete suggestions",
@@ -52,13 +53,13 @@ func AutoCompleteHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   "Failed to fetch autocomplete suggestions: " + err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary,
 			})
 			return
 		}
 
-		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+		utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Autocomplete suggestions fetched successfully",
@@ -71,7 +72,7 @@ func AutoCompleteHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Autocomplete suggestions",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 	}

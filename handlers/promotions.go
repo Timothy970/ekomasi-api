@@ -4,13 +4,12 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"net/http"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 // promoCodeWithID is a reusable string constant for promo code messages
@@ -37,37 +36,37 @@ var promoCodeWithID = "Promo code with ID "
 // @Failure      500                   {object}  dtos.ErrorResponse      "Internal server error"
 // @Security     BearerAuth
 // @Router       /admin/promotions/promo-codes [post]
-func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
+func AddPromoCodeHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for creating promo codes)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.create"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", "promotions.create"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Parse minimum order value from form data
-	minimumOrderValue := models.StringToFloat64(r.FormValue("minimum_order_value"))
-	promoType := r.FormValue("promo_type")
+	minimumOrderValue := models.StringToFloat64(c.Request.FormValue("minimum_order_value"))
+	promoType := c.Request.FormValue("promo_type")
 	if promoType == "" {
 		promoType = "product"
 	}
-	brandID := r.FormValue("brand_id")
+	brandID := c.Request.FormValue("brand_id")
 	// Build promo code request object from form data
 	req := &dtos.PromoCodeRequest{
-		Discount_Code:     r.FormValue("discount_code"),                            // Unique promo code
-		DiscountType:      r.FormValue("discount_type"),                            // percentage or fixed
-		DiscountValue:     models.StringToFloat64(r.FormValue("discount_value")),   // Discount amount
-		ExpiresAt:         r.FormValue("expires_at"),                               // Expiration date
+		Discount_Code:     c.Request.FormValue("discount_code"),                            // Unique promo code
+		DiscountType:      c.Request.FormValue("discount_type"),                            // percentage or fixed
+		DiscountValue:     models.StringToFloat64(c.Request.FormValue("discount_value")),   // Discount amount
+		ExpiresAt:         c.Request.FormValue("expires_at"),                               // Expiration date
 		MinimumOrderValue: &minimumOrderValue,                                      // Min order requirement
-		MaximumUse:        int(models.StringToFloat64(r.FormValue("maximum_use"))), // Usage limit
-		IsActive:          models.StringToBool(r.FormValue("is_active")),           // Active status
+		MaximumUse:        int(models.StringToFloat64(c.Request.FormValue("maximum_use"))), // Usage limit
+		IsActive:          models.StringToBool(c.Request.FormValue("is_active")),           // Active status
 		PromoType:         promoType,                                               // Promo type
 		BrandID:           &brandID,                                                // Brand ID
 	}
 	// Validate all required fields
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Promotions") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -76,7 +75,7 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	promo, err := models.AddPromoCode(models.DB, *req)
 	if err != nil {
 		// Database insertion failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to add promo code",
@@ -84,13 +83,13 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 			},
 			Message: err.Error(), TimeTaken: time.Since(start),
 			Function: utils.GetCurrentFuncName(),
-			Request:  r,
+			Request: c.Request,
 			RawBody:  requestSummary,
 		})
 		return
 	}
 	// Return successful response with created promo code data
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Promo code added successfully",
@@ -98,7 +97,7 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 		},
 		Payload: promo, Message: "Promo code added successfully", TimeTaken: time.Since(start),
 		Function: utils.GetCurrentFuncName(),
-		Request:  r,
+		Request: c.Request,
 		RawBody:  requestSummary,
 	})
 }
@@ -126,40 +125,40 @@ func AddPromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500                   {object}  dtos.ErrorResponse      "Internal server error"
 // @Security     BearerAuth
 // @Router       /admin/promotions/promo-codes/{promo_id} [patch]
-func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
+func UpdatePromoCodeHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for updating promo codes)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.update"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", "promotions.update"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 
 	// Extract promo code ID from URL path parameters
-	id := mux.Vars(r)["promo_id"]
+	id := c.Param("promo_id")
 	// Parse minimum order value from form data
-	minimumOrderValue := models.StringToFloat64(r.FormValue("minimum_order_value"))
-	promoType := r.FormValue("promo_type")
+	minimumOrderValue := models.StringToFloat64(c.Request.FormValue("minimum_order_value"))
+	promoType := c.Request.FormValue("promo_type")
 	if promoType == "" {
 		promoType = "product"
 	}
-	brandID := r.FormValue("brand_id")
+	brandID := c.Request.FormValue("brand_id")
 	// Build promo code update request object from form data
 	req := &dtos.PromoCodeRequest{
-		Discount_Code:     r.FormValue("discount_code"),                            // Updated promo code
-		DiscountType:      r.FormValue("discount_type"),                            // Updated discount type
-		DiscountValue:     models.StringToFloat64(r.FormValue("discount_value")),   // Updated discount value
-		ExpiresAt:         r.FormValue("expires_at"),                               // Updated expiration
+		Discount_Code:     c.Request.FormValue("discount_code"),                            // Updated promo code
+		DiscountType:      c.Request.FormValue("discount_type"),                            // Updated discount type
+		DiscountValue:     models.StringToFloat64(c.Request.FormValue("discount_value")),   // Updated discount value
+		ExpiresAt:         c.Request.FormValue("expires_at"),                               // Updated expiration
 		MinimumOrderValue: &minimumOrderValue,                                      // Updated min order value
-		MaximumUse:        int(models.StringToFloat64(r.FormValue("maximum_use"))), // Updated usage limit
-		IsActive:          models.StringToBool(r.FormValue("is_active")),           // Updated active status
+		MaximumUse:        int(models.StringToFloat64(c.Request.FormValue("maximum_use"))), // Updated usage limit
+		IsActive:          models.StringToBool(c.Request.FormValue("is_active")),           // Updated active status
 		PromoType:         promoType,
 		BrandID:           &brandID,
 	}
 	// Validate all required fields
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Promotions") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -167,7 +166,7 @@ func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 	promo, err := models.UpdatePromoCode(models.DB, id, *req)
 	if err != nil {
 		// Database update failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to update promo code with ID " + id,
@@ -175,13 +174,13 @@ func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 			},
 			Message: err.Error(), TimeTaken: time.Since(start),
 			Function: utils.GetCurrentFuncName(),
-			Request:  r,
+			Request: c.Request,
 			RawBody:  requestSummary,
 		})
 		return
 	}
 	// Return successful response with updated promo code data
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: promoCodeWithID + id + " updated successfully",
@@ -189,7 +188,7 @@ func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 		},
 		Payload: promo, Message: "Promo code updated successfully", TimeTaken: time.Since(start),
 		Function: utils.GetCurrentFuncName(),
-		Request:  r,
+		Request: c.Request,
 		RawBody:  requestSummary,
 	})
 }
@@ -207,23 +206,23 @@ func UpdatePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      404       {object}  dtos.ErrorResponse      "Promo code not found"
 // @Security     BearerAuth
 // @Router       /admin/promotions/promo-codes/{promo_id} [get]
-func GetPromoCodeByIDHandler(w http.ResponseWriter, r *http.Request) {
+func GetPromoCodeByIDHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for viewing promo codes)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract promo code ID from URL path parameters
-	id := mux.Vars(r)["promo_id"]
+	id := c.Param("promo_id")
 	// Fetch promo code details from database
 	promo, err := models.GetPromoCodeByID(models.DB, id)
 	if err != nil {
 		// Promo code not found or database error, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Failed to get promo code with ID " + id,
 			Code:        http.StatusNotFound,
@@ -231,12 +230,12 @@ func GetPromoCodeByIDHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return successful response with promo code details
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 		Module:      "Promotions",
 		Description: promoCodeWithID + id + " retrieved successfully",
 		Code:        http.StatusOK,
@@ -244,7 +243,7 @@ func GetPromoCodeByIDHandler(w http.ResponseWriter, r *http.Request) {
 		Payload: promo, Message: "Promo code retrieved successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -262,23 +261,23 @@ func GetPromoCodeByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500    {object}  dtos.ErrorResponse      "Internal server error"
 // @Security     BearerAuth
 // @Router       /admin/promotions/promo-codes [get]
-func GetAllPromoCodesHandler(w http.ResponseWriter, r *http.Request) {
+func GetAllPromoCodesHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for viewing promo codes)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Parse pagination parameters from query string
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 	// Fetch paginated promo codes from database
 	promos, pagination, err := models.GetAllPromoCodes(models.DB, page, limit)
 	if err != nil {
 		// Database query failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Failed to retrieve all promo codes",
 			Code:        http.StatusInternalServerError,
@@ -286,12 +285,12 @@ func GetAllPromoCodesHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return successful response with promo codes list and pagination metadata
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 		Module:      "Promotions",
 		Description: "All promo codes retrieved successfully",
 		Code:        http.StatusOK,
@@ -299,7 +298,7 @@ func GetAllPromoCodesHandler(w http.ResponseWriter, r *http.Request) {
 		Payload: map[string]any{"promocodes": promos, "pagination": pagination}, Message: "Promo codes retrieved successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -317,25 +316,25 @@ func GetAllPromoCodesHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500       {object}  dtos.ErrorResponse      "Internal server error"
 // @Security     BearerAuth
 // @Router       /admin/promotions/promo-codes/{promo_id} [delete]
-func DeletePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
+func DeletePromoCodeHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for deleting promo codes)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.delete"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", "promotions.delete"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 
 	// Extract promo code ID from URL path parameters
-	id := mux.Vars(r)["promo_id"]
+	id := c.Param("promo_id")
 
 	// Delete promo code from database
 	err := models.DeletePromoCode(models.DB, id)
 	if err != nil {
 		// Deletion failed or promo code not found, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Failed to delete promo code with ID " + id,
 			Code:        http.StatusInternalServerError,
@@ -343,12 +342,12 @@ func DeletePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return successful response confirming deletion
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 		Module:      "Promotions",
 		Description: promoCodeWithID + id + " deleted successfully",
 		Code:        http.StatusOK,
@@ -357,7 +356,7 @@ func DeletePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promo code deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -378,28 +377,28 @@ func DeletePromoCodeHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500        {object}  dtos.ErrorResponse             "Internal server error"
 // @Security     BearerAuth
 // @Router       /admin/promotions/promo-codes/{promo_id}/status [patch]
-func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
+func TogglePromoCodeStatusHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for changing promo code status)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.update"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", "promotions.update"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 
 	// Extract promo code ID from URL path parameters
-	id := mux.Vars(r)["promo_id"]
+	id := c.Param("promo_id")
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.PromoCodeStatusRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.PromoCodeStatusRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 
 	// Validate request structure
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Promotions") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -408,7 +407,7 @@ func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
 	err := models.SetPromoCodeActiveStatus(models.DB, id, req.IsActive)
 	if err != nil {
 		// Status update failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to set promo code active status for ID " + id,
@@ -417,7 +416,7 @@ func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -429,7 +428,7 @@ func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return successful response with status update confirmation
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: msg + " for ID " + id,
@@ -439,7 +438,7 @@ func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   msg,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -459,32 +458,32 @@ func TogglePromoCodeStatusHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500      {object}  dtos.ErrorResponse                 "Internal server error"
 // @Security     BearerAuth
 // @Router       /admin/promotions/products [post]
-func AddPromotionToProductHandler(w http.ResponseWriter, r *http.Request) {
+func AddPromotionToProductHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for managing product promotions)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.create"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", "promotions.create"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.AddPromotionToProductRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.AddPromotionToProductRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate request structure (product ID and promotion type ID required)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Promotions") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Create product-promotion association in database
 	if err := models.AddPromotionToProduct(models.DB, *req); err != nil {
 		// Association creation failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Failed to add promotion to product with ID " + req.ProductID,
 			Code:        http.StatusInternalServerError,
@@ -492,13 +491,13 @@ func AddPromotionToProductHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return successful response confirming promotion was added to product
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 		Module:      "Promotions",
 		Description: "Promotion added to product with ID " + req.ProductID + " successfully",
 		Code:        http.StatusOK,
@@ -507,6 +506,6 @@ func AddPromotionToProductHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promotion added to product successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }

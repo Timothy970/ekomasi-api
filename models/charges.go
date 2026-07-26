@@ -1,4 +1,4 @@
-// Package models provides data access layer for the Adenzo e-commerce platform.
+// Package models provides data access layer for the Ekomasi e-commerce platform.
 //
 // This file handles charges management including:
 //   - Charge CRUD operations (shipping, handling, tax, etc.)
@@ -10,7 +10,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"errors"
 	"strconv"

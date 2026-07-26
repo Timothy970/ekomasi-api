@@ -14,13 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"adenzo_backend/dtos"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/notification"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
 
-	"github.com/gorilla/mux"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/notification"
+	"ekomasi_backend/utils"
 )
 
 // noUser is the standard error message for missing user authentication
@@ -45,27 +45,27 @@ var noUser = "User is not validated"
 // @Failure      401            {object}  dtos.ErrorResponse        "User not authenticated"
 // @Security     BearerAuth
 // @Router       /api/wishlist/product [post]
-func AddToWishList(w http.ResponseWriter, r *http.Request) {
+func AddToWishList(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Decode and parse JSON request body with product ID
-	item, ok := DecodeRequestBody[dtos.CreateWishlistItem](r, w, requestSummary, start)
+	item, ok := DecodeRequestBody[dtos.CreateWishlistItem](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields (product ID)
-	if !utils.ValidateStructAndRespond(item, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(item, c, requestSummary, start, "Products") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Extract authenticated user from request context
-	user, ok := middleware.UserFromContext(r.Context())
+	user, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// User not authenticated or token invalid
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: noUser,
@@ -74,7 +74,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -82,7 +82,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 	wishlistID, err := models.GetOrCreateWishlist(models.DB, user.ID, "My Wishlist")
 	if err != nil {
 		// Failed to get or create wishlist
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to get or create wishlist for user with ID " + user.ID,
@@ -91,7 +91,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -99,7 +99,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 	err = models.CreateWishListItem(models.DB, wishlistID, item.ProductID, user.ID)
 	if err != nil {
 		// Failed to add item (duplicate, product not found, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to create wishlist item for user with ID " + user.ID,
@@ -108,7 +108,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -116,7 +116,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 	myWishlist, err := models.GetMyWishlistItems(models.DB, user.ID)
 	if err != nil {
 		// Failed to fetch updated wishlist
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to get wishlist items for user with ID " + user.ID,
@@ -125,12 +125,12 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return success response with updated wishlist containing all products
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product added successfully to the wishlist for user with ID " + user.ID,
@@ -140,7 +140,7 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product added successfully to the wishlist",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -158,16 +158,16 @@ func AddToWishList(w http.ResponseWriter, r *http.Request) {
 // @Failure      404            {object}  dtos.ErrorResponse     "Product not in wishlist"
 // @Security     BearerAuth
 // @Router       /api/wishlist/product/{product_id} [delete]
-func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
+func RemoveFromWishList(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract authenticated user from request context
-	user, ok := middleware.UserFromContext(r.Context())
+	user, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// User not authenticated or token invalid
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: noUser,
@@ -176,18 +176,18 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Extract product ID from URL path parameters
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 
 	// Get user's wishlist ID
 	wishlistID, err := models.GetWishlistByUserID(models.DB, user.ID)
 	if err != nil {
 		// Wishlist not found for user
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to get wishlist for user with ID " + user.ID,
@@ -196,7 +196,7 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -204,7 +204,7 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 	err = models.RemoveWishlistItem(models.DB, wishlistID, productID, user.ID)
 	if err != nil {
 		// Failed to remove item (product not in wishlist or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to remove wishlist item for user with ID " + user.ID,
@@ -213,7 +213,7 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -221,7 +221,7 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 	myWishlist, err := models.GetMyWishlistItems(models.DB, user.ID)
 	if err != nil {
 		// Failed to fetch updated wishlist
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to get wishlist items for user with ID " + user.ID,
@@ -230,12 +230,12 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return success response with updated wishlist
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product removed successfully from the wishlist for user with ID " + user.ID,
@@ -245,7 +245,7 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product removed successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -265,16 +265,16 @@ func RemoveFromWishList(w http.ResponseWriter, r *http.Request) {
 // @Failure      404            {object}  dtos.ErrorResponse     "No wishlists found"
 // @Security     BearerAuth
 // @Router       /api/wishlist [get]
-func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
+func GetAllUserWishList(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract authenticated user from request context
-	user, ok := middleware.UserFromContext(r.Context())
+	user, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// User not authenticated or token invalid
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: noUser,
@@ -283,7 +283,7 @@ func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -291,10 +291,10 @@ func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
 	limit := 0
 	page := 1
 	// Get optional wishlist ID filter from URL path
-	wishlistID := mux.Vars(r)["wishlist_id"]
+	wishlistID := c.Param("wishlist_id")
 	// Parse pagination query parameters
-	pageStr := r.URL.Query().Get("page")
-	limitStr := r.URL.Query().Get("size")
+	pageStr := c.Query("page")
+	limitStr := c.Query("size")
 	if limitStr != "" {
 		// Convert size parameter to integer
 		limit, _ = strconv.Atoi(limitStr)
@@ -311,7 +311,7 @@ func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("no wishlist:: %s", err)
 		// No wishlists found for user
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to get wishlists for user with ID " + user.ID,
@@ -320,7 +320,7 @@ func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   "WishList was not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -333,7 +333,7 @@ func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
 		response["pagination"] = pagination
 	}
 	// Return success response with wishlists and pagination
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Wishlists fetched successfully for user with ID " + user.ID,
@@ -343,7 +343,7 @@ func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
 		Message:   "All wishlists",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -362,16 +362,16 @@ func GetAllUserWishList(w http.ResponseWriter, r *http.Request) {
 // @Failure      401            {object}  dtos.ErrorResponse     "User not authenticated"
 // @Security     BearerAuth
 // @Router       /api/wishlist [post]
-func CreateWishList(w http.ResponseWriter, r *http.Request) {
+func CreateWishList(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract authenticated user from request context
-	user, ok := middleware.UserFromContext(r.Context())
+	user, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// User not authenticated or token invalid
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: noUser,
@@ -380,12 +380,12 @@ func CreateWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Decode and parse JSON request body with wishlist details
-	body, ok := DecodeRequestBody[dtos.CreateWishlist](r, w, requestSummary, start)
+	body, ok := DecodeRequestBody[dtos.CreateWishlist](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
@@ -394,7 +394,7 @@ func CreateWishList(w http.ResponseWriter, r *http.Request) {
 	newList, err := models.CreateWishList(models.DB, *body, user.ID)
 	if err != nil {
 		// Wishlist creation failed (duplicate name or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to create wishlist for user with ID " + user.ID,
@@ -403,13 +403,13 @@ func CreateWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to create wishlist",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response with newly created wishlist
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Wishlist created successfully for user with ID " + user.ID,
@@ -419,7 +419,7 @@ func CreateWishList(w http.ResponseWriter, r *http.Request) {
 		Message:   "Wishlist created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -440,17 +440,17 @@ func CreateWishList(w http.ResponseWriter, r *http.Request) {
 // @Failure      404            {object}  dtos.ErrorResponse            "Wishlist not found or empty"
 // @Security     BearerAuth
 // @Router       /api/wishlist/share [post]
-func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
+func SendWishlistToShare(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract authenticated user from request context
-	user, ok := middleware.UserFromContext(r.Context())
+	user, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// User not authenticated or token invalid
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: noUser,
@@ -459,12 +459,12 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Decode and parse JSON request body with recipient email and message
-	req, ok := DecodeRequestBody[dtos.ShareWishlistPayload](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.ShareWishlistPayload](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
@@ -474,7 +474,7 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil || len(wishlists.Products) == 0 {
 		// Wishlist not found or empty (no products to share)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Wishlist not found for user with ID " + user.ID,
@@ -483,7 +483,7 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 			Message:   "Wishlist not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -491,7 +491,7 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 	// Verify wishlist is marked as public (privacy check)
 	if !wishlists.IsPublic {
 		// Wishlist is private, cannot be shared
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Wishlist is private for user with ID " + user.ID,
@@ -500,7 +500,7 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 			Message:   "This wishlist is private",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -544,7 +544,7 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 	notification.SendEmail(req.Email, subject, htmlBody)
 
 	// Return success response confirming wishlist was shared
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Share link generated successfully" + shareLink,
@@ -554,7 +554,7 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 		Message:   "Wishlist shared successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -572,14 +572,13 @@ func SendWishlistToShare(w http.ResponseWriter, r *http.Request) {
 // @Failure      403          {object}  dtos.ErrorResponse     "Wishlist is private"
 // @Failure      404          {object}  dtos.ErrorResponse     "Wishlist not found"
 // @Router       /api/wishlist/share/{wishlist_id} [get]
-func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
+func ReceiceWishlistShared(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract encoded wishlist ID from URL path parameters
-	vars := mux.Vars(r)
-	encodedID := vars["wishlist_id"]
+	encodedID := c.Param("wishlist_id")
 
 	// Decode base64-encoded wishlist link
 	decodedBytes, err := base64.URLEncoding.DecodeString(encodedID)
@@ -599,7 +598,7 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 	// userID := parts[1]
 	if err != nil {
 		// Send error response for invalid link
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Invalid wishlist link",
@@ -608,7 +607,7 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 			Message:   "Invalid wishlist link",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -618,7 +617,7 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil || len(wishlistsByID) == 0 {
 		// Wishlist not found or empty
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Wishlist not found or is empty with ID " + wishlistID,
@@ -627,7 +626,7 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 			Message:   "Wishlist not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -637,7 +636,7 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 	// Verify wishlist is marked as public (privacy check)
 	if !wishlist.IsPublic {
 		// Wishlist is private, cannot be viewed via public link
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Wishlist with ID " + wishlistID + " is private",
@@ -646,12 +645,12 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 			Message:   "This wishlist is private",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return wishlist with all products to public viewer
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Shared wishlist fetched successfully",
@@ -661,7 +660,7 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 		Message:   "Shared wishlist",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -679,16 +678,16 @@ func ReceiceWishlistShared(w http.ResponseWriter, r *http.Request) {
 // @Failure      404            {object}  dtos.ErrorResponse     "Wishlist not found"
 // @Security     BearerAuth
 // @Router       /api/wishlist/{wishlist_id} [delete]
-func DeleteWishList(w http.ResponseWriter, r *http.Request) {
+func DeleteWishList(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract authenticated user from request context
-	user, ok := middleware.UserFromContext(r.Context())
+	user, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// User not authenticated or token invalid
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: noUser,
@@ -697,17 +696,17 @@ func DeleteWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Extract wishlist ID from URL path parameters
-	wishlistID := mux.Vars(r)["wishlist_id"]
+	wishlistID := c.Param("wishlist_id")
 	// Delete wishlist and all its items (verifies ownership)
 	err := models.DeleteWishList(models.DB, wishlistID, user.ID)
 	if err != nil {
 		// Deletion failed (wishlist not found, not owned by user, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to delete wishlist with ID " + wishlistID + " for user with ID " + user.ID,
@@ -716,13 +715,13 @@ func DeleteWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response confirming deletion
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Wishlist with ID " + wishlistID + " deleted successfully for user with ID " + user.ID,
@@ -732,7 +731,7 @@ func DeleteWishList(w http.ResponseWriter, r *http.Request) {
 		Message:   "Wishlist deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -750,16 +749,16 @@ func DeleteWishList(w http.ResponseWriter, r *http.Request) {
 // @Failure      500            {object}  dtos.ErrorResponse     "Failed to retrieve wishlist"
 // @Security     BearerAuth
 // @Router       /api/wishlist/me [get]
-func GetMyWishList(w http.ResponseWriter, r *http.Request) {
+func GetMyWishList(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract authenticated user from request context
-	user, ok := middleware.UserFromContext(r.Context())
+	user, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// User not authenticated or token invalid
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: noUser,
@@ -768,7 +767,7 @@ func GetMyWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -776,7 +775,7 @@ func GetMyWishList(w http.ResponseWriter, r *http.Request) {
 	myWishlist, err := models.GetMyWishlistItems(models.DB, user.ID)
 	if err != nil {
 		// Failed to retrieve wishlist
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to retrieve wishlist items for user with ID " + user.ID,
@@ -785,12 +784,12 @@ func GetMyWishList(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return wishlist with all product details
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Wishlist items retrieved successfully for user with ID " + user.ID,
@@ -800,6 +799,6 @@ func GetMyWishList(w http.ResponseWriter, r *http.Request) {
 		Message:   "My wishlists",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

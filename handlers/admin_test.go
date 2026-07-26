@@ -1,7 +1,7 @@
 package handlers
 
 // import (
-// 	"adenzo_backend/dtos"
+// 	"ekomasi_backend/dtos"
 // 	"errors"
 // 	"testing"
 // )

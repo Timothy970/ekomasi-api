@@ -5,11 +5,11 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/notification"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/notification"
+	"ekomasi_backend/utils"
 	"fmt"
 	"log"
 	"mime/multipart"
@@ -17,7 +17,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 var (
@@ -42,21 +42,21 @@ var (
 // @Failure      400     {object}  dtos.ErrorResponse   "Invalid request or upload failed"
 // @Security     BearerAuth
 // @Router       /api/admin/vouchers/design [post]
-func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
+func CreateVoucherDesign(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify user has admin privileges (only admins can create designs)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "promotions.create"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Vouchers", "promotions.create"); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 
 	// Parse multipart form for image upload (max 20 MB)
-	if err := r.ParseMultipartForm(20 << 20); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	if err := c.Request.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: err.Error(),
@@ -65,20 +65,20 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
 	// Extract design name and status from form values
-	name := r.FormValue("name")
-	status := r.FormValue("status")
+	name := c.Request.FormValue("name")
+	status := c.Request.FormValue("status")
 
 	// Get image file from form
-	file, header, err := r.FormFile("image")
+	file, header, err := c.Request.FormFile("image")
 	if err != nil {
 		// Image is required for new design
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Design image is required",
@@ -87,7 +87,7 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
@@ -97,7 +97,7 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 	if err != nil {
 		// GCS upload failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to upload design image",
@@ -106,7 +106,7 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
@@ -115,7 +115,7 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 	_, err = models.CreateVoucherDesign(models.DB, url, name, status)
 	if err != nil {
 		// Database insertion failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to save design record",
@@ -124,14 +124,14 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Respond with success
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher design created successfully",
@@ -141,7 +141,7 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher design created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -158,34 +158,34 @@ func CreateVoucherDesign(w http.ResponseWriter, r *http.Request) {
 // @Failure      401      {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/vouchers [post]
-func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
+func CreateVoucherHandlerTest(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "promotions.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Vouchers", "promotions.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode which authenticated user is creating the voucher
-	authuser, _ := middleware.UserFromContext(r.Context())
+	authuser, _ := middleware.UserFromContext(c.Request.Context())
 	// Decode JSON request body with voucher details
-	req, ok := DecodeRequestBody[dtos.VoucherDataCreate](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.VoucherDataCreate](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate the request payload
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Vouchers") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Start transaction
 	tx, err := models.DB.Begin()
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to start transaction",
@@ -194,7 +194,7 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -204,7 +204,7 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 	voucherID, err := models.CreateNewVoucher(tx, *req, authuser.ID)
 	if err != nil {
 		// Voucher creation failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to create voucher",
@@ -213,7 +213,7 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -228,7 +228,7 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 	err = models.InsertIntoVoucherPurchases(tx, data, voucherID, authuser.ID)
 	if err != nil {
 		// Purchase recording failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to record voucher purchase",
@@ -237,13 +237,13 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to commit transaction",
@@ -252,7 +252,7 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -260,7 +260,7 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("vouchers_")
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
 	// Respond with the created voucher ID
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher created successfully",
@@ -270,7 +270,7 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -292,29 +292,29 @@ func CreateVoucherHandlerTest(w http.ResponseWriter, r *http.Request) {
 // @Failure      500          {object}  dtos.ErrorResponse     "Query failed"
 // @Security     BearerAuth
 // @Router       /api/admin/vouchers [get]
-func ListVouchersHandler(w http.ResponseWriter, r *http.Request) {
+func ListVouchersHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Vouchers", ""); !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract filter parameters from query string
-	isRedeemed := r.URL.Query().Get("is_redeemed")
-	status := r.URL.Query().Get("status")
-	code := r.URL.Query().Get("q")
-	customer := r.URL.Query().Get("customer")
+	isRedeemed := c.Query("is_redeemed")
+	status := c.Query("status")
+	code := c.Query("q")
+	customer := c.Query("customer")
 
 	// Parse pagination parameters
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
 	// Fetch filtered and paginated vouchers from database
 	vouchers, pagination, err := models.ListVouchers(models.DB, page, size, isRedeemed, status, code, customer)
 	if err != nil {
 		// Database query failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to list vouchers",
@@ -323,12 +323,12 @@ func ListVouchersHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "All vouchers fetched successfully",
@@ -341,7 +341,7 @@ func ListVouchersHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Vouchers fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -359,25 +359,25 @@ func ListVouchersHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      404         {object}  dtos.ErrorResponse   "Voucher not found"
 // @Security     BearerAuth
 // @Router       /api/admin/vouchers/{voucher_id} [get]
-func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
+func GetVoucherHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Vouchers", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract voucher ID from URL path parameters
-	voucherID := mux.Vars(r)["voucher_id"]
+	voucherID := c.Param("voucher_id")
 
 	// Fetch specific voucher details from database
 	voucher, err := models.GetVoucherByID(models.DB, voucherID)
 	if err != nil {
 		// Voucher not found or database error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to fetch voucher with ID " + voucherID,
@@ -385,11 +385,11 @@ func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: voucherWithID + voucherID + " fetched successfully",
@@ -399,7 +399,7 @@ func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -417,26 +417,26 @@ func GetVoucherHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500         {object}  dtos.ErrorResponse      "Delete operation failed"
 // @Security     BearerAuth
 // @Router       /api/admin/vouchers/{voucher_id} [delete]
-func DeleteVoucherHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteVoucherHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can delete vouchers)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "promotions.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Vouchers", "promotions.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract voucher ID from URL path parameters
-	voucherID := mux.Vars(r)["voucher_id"]
+	voucherID := c.Param("voucher_id")
 
 	// Delete voucher from database (may be soft delete)
 	err := models.DeleteVoucher(models.DB, voucherID)
 
 	if err != nil {
 		// Deletion failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to delete voucher",
@@ -445,14 +445,14 @@ func DeleteVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate voucher caches to ensure fresh data
 	utils.DeleteCacheByPrefix("vouchers_")
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher deleted successfully",
@@ -462,7 +462,7 @@ func DeleteVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -482,34 +482,34 @@ func DeleteVoucherHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      401         {object}  dtos.ErrorResponse       "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/vouchers/{voucher_id} [patch]
-func UpdateVoucherHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateVoucherHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can update vouchers)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "promotions.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Vouchers", "promotions.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract voucher ID from URL path parameters
-	voucherID := mux.Vars(r)["voucher_id"]
+	voucherID := c.Param("voucher_id")
 	// Decode and parse JSON request body with updated voucher data
-	req, ok := DecodeRequestBody[dtos.VoucherDataUpdate](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.VoucherDataUpdate](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Vouchers") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	err := models.VoucherUpdate(models.DB, *req, voucherID)
 
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to update voucher with ID " + voucherID,
@@ -518,13 +518,13 @@ func UpdateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	utils.DeleteCacheByPrefix("vouchers_")
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: voucherWithID + voucherID + " updated successfully",
@@ -534,7 +534,7 @@ func UpdateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -552,13 +552,13 @@ func UpdateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      404         {object}  dtos.ErrorResponse   "Voucher not found or not owned by user"
 // @Security     BearerAuth
 // @Router       /api/user/vouchers/{voucher_id} [get]
-func GetUserVoucherHandler(w http.ResponseWriter, r *http.Request) {
+func GetUserVoucherHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	authuser, ok := middleware.UserFromContext(r.Context())
+	requestSummary := utils.GetRequestSummary(c.Request)
+	authuser, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: voucherNoUser,
@@ -567,15 +567,15 @@ func GetUserVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "User not validated",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	voucherID := mux.Vars(r)["voucher_id"]
+	voucherID := c.Param("voucher_id")
 
 	voucher, err := models.GetUserVoucherByID(models.DB, voucherID, authuser.ID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to fetch voucher with ID " + voucherID + " for user with ID " + fmt.Sprint(authuser.ID),
@@ -584,11 +584,11 @@ func GetUserVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: voucherWithID + voucherID + " fetched successfully for user with ID " + fmt.Sprint(authuser.ID),
@@ -598,7 +598,7 @@ func GetUserVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -616,13 +616,13 @@ func GetUserVoucherHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      401   {object}  dtos.ErrorResponse       "User authentication required"
 // @Security     BearerAuth
 // @Router       /api/user/vouchers [get]
-func ListUserVoucherHandler(w http.ResponseWriter, r *http.Request) {
+func ListUserVoucherHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	authuser, ok := middleware.UserFromContext(r.Context())
+	requestSummary := utils.GetRequestSummary(c.Request)
+	authuser, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: voucherNoUser,
@@ -631,14 +631,14 @@ func ListUserVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "User not validated",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 	voucher, pagination, err := models.GetUserVouchers(models.DB, authuser.ID, page, limit)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to fetch vouchers for user with ID " + fmt.Sprint(authuser.ID),
@@ -647,11 +647,11 @@ func ListUserVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Vouchers fetched successfully for user with ID " + fmt.Sprint(authuser.ID),
@@ -661,7 +661,7 @@ func ListUserVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Vouchers fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -680,14 +680,14 @@ func ListUserVoucherHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      401               {object}  dtos.ErrorResponse     "User authentication required"
 // @Security     BearerAuth
 // @Router       /api/user/vouchers/buy [post]
-func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
+func BuyVoucherHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	authuser, ok := middleware.UserFromContext(r.Context())
+	authuser, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: voucherNoUserFound,
@@ -696,16 +696,16 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   voucherNoUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.BuyVoucherData](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.BuyVoucherData](c, requestSummary, start)
 	if !ok {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Vouchers") {
 		return
 	}
 	// create voucher data
@@ -719,7 +719,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	//check delivery time is in the past (but allow today's date)
 	today := time.Now().Truncate(24 * time.Hour)
 	if deliveryTime.Before(today) {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Delivery time cannot be in the past",
@@ -728,7 +728,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Delivery time cannot be in the past",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -747,7 +747,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	// Start transaction
 	tx, err := models.DB.Begin()
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to start transaction",
@@ -756,7 +756,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -764,7 +764,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	voucherID, err := models.AddNewVoucher(tx, voucher, authuser.ID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to create voucher",
@@ -773,7 +773,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -781,7 +781,7 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	err = models.InsertIntoVoucherPurchases(tx, *req, authuser.ID, voucherID)
 	if err != nil {
 		// Purchase recording failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to record voucher purchase",
@@ -790,14 +790,14 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	//create voucher order
 	voucherOrderID, err := models.CreateVoucherOrder(tx, req.Amount, voucherID, req.PaymentMethod)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to create voucher order",
@@ -806,13 +806,13 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	err = voucherPaymentProcessor(tx, req.PaymentMethod, voucherOrderID, req.PhoneNumber, req.Amount, voucherID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to process voucher payment",
@@ -821,13 +821,13 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to commit transaction",
@@ -836,13 +836,13 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	utils.DeleteCacheByPrefix("vouchers_")
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher created and added successfully",
@@ -854,31 +854,31 @@ func BuyVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
-func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
+func BuyVoucherUpdateHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	req, ok := DecodeRequestBody[dtos.BuyVoucherData](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.BuyVoucherData](c, requestSummary, start)
 	if !ok {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Vouchers") {
 		return
 	}
-	voucherID := mux.Vars(r)["voucher_id"]
+	voucherID := c.Param("voucher_id")
 	// create voucher data
 	amount := req.Amount
 	status := "scheduled"
 	// Start transaction
 	tx, err := models.DB.Begin()
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to start transaction",
@@ -887,7 +887,7 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -895,7 +895,7 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 
 	err = models.ValidateDesignID(tx, req.DesignID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Invalid Design ID",
@@ -904,14 +904,14 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	if req.Amount > 0 {
 		err := models.UpdateVoucher(tx, voucherID, amount, status, req.DesignID)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Vouchers",
 					Description: "Failed to update voucher",
@@ -920,7 +920,7 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -928,7 +928,7 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	//insert into voucher purchases
 	err = models.UpdateVoucherPurchases(tx, *req, voucherID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to update voucher purchase",
@@ -937,14 +937,14 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	//create voucher order
 	voucherOrderID, err := models.UpdateVoucherPurchaseAmount(tx, req.Amount, voucherID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to update voucher purchase amount",
@@ -953,14 +953,14 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	if req.Amount > 0 || req.PaymentMethod != "none" {
 		err = voucherPaymentProcessor(tx, req.PaymentMethod, voucherOrderID, req.PhoneNumber, req.Amount, voucherID)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Vouchers",
 					Description: "Failed to process voucher payment",
@@ -969,14 +969,14 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to commit transaction",
@@ -985,13 +985,13 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	utils.DeleteCacheByPrefix("vouchers_")
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher updated and added successfully",
@@ -1003,7 +1003,7 @@ func BuyVoucherUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 func voucherPaymentProcessor(db models.DBExecutor, paymentMethod string, voucherOrderID, phoneNumber string, amount float64, voucherID string) error {
@@ -1042,16 +1042,16 @@ func voucherPaymentProcessor(db models.DBExecutor, paymentMethod string, voucher
 // @Failure      401      {object}  dtos.ErrorResponse         "User authentication required"
 // @Security     BearerAuth
 // @Router       /api/vouchers/redeem [post]
-func RedeemVoucherHandler(w http.ResponseWriter, r *http.Request) {
+func RedeemVoucherHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Get authenticated user from context
-	authuser, ok := middleware.UserFromContext(r.Context())
+	authuser, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// User not authenticated
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "User not validated or unauthorized",
@@ -1060,18 +1060,18 @@ func RedeemVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   voucherNoUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Decode and parse JSON request body with voucher code
-	req, ok := DecodeRequestBody[dtos.RedeemVoucherRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.RedeemVoucherRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate voucher code format
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Vouchers") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -1079,7 +1079,7 @@ func RedeemVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	_, err := models.RedeemVoucher(models.DB, req.Code, authuser.ID)
 	if err != nil {
 		// Redemption failed (invalid code, already redeemed, expired, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to redeem voucher",
@@ -1088,14 +1088,14 @@ func RedeemVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate voucher caches to reflect redemption status
 	utils.DeleteCacheByPrefix("vouchers_")
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher redeemed successfully",
@@ -1105,7 +1105,7 @@ func RedeemVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher redeemed successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1164,19 +1164,19 @@ func SendBoughtForVoucherEmails() {
 	}
 }
 
-func EditVoucherDesign(w http.ResponseWriter, r *http.Request) {
+func EditVoucherDesign(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "promotions.update"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Vouchers", "promotions.update"); !ok {
 		return
 	}
-	designID := mux.Vars(r)["voucher_id"]
+	designID := c.Param("voucher_id")
 
 	// Parse multipart form (20 MB max)
-	if err := r.ParseMultipartForm(20 << 20); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	if err := c.Request.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: err.Error(),
@@ -1185,20 +1185,20 @@ func EditVoucherDesign(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
 	// Get image file (optional)
 	var url string
-	file, header, err := r.FormFile("image")
+	file, header, err := c.Request.FormFile("image")
 	if err == nil {
 		defer file.Close()
 		// Upload image to GCS
 		url, err = utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Vouchers",
 					Description: err.Error(),
@@ -1207,15 +1207,15 @@ func EditVoucherDesign(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 			})
 			return
 		}
 	}
 	// Insert category into DB
-	err = models.EditVoucherDesign(models.DB, designID, &url, r.FormValue("name"), r.FormValue("status"))
+	err = models.EditVoucherDesign(models.DB, designID, &url, c.Request.FormValue("name"), c.Request.FormValue("status"))
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to update voucher design",
@@ -1224,12 +1224,12 @@ func EditVoucherDesign(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher design updated successfully",
@@ -1239,23 +1239,23 @@ func EditVoucherDesign(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher design updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
-func DeleteVoucherDesign(w http.ResponseWriter, r *http.Request) {
+func DeleteVoucherDesign(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "promotions.delete"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Vouchers", "promotions.delete"); !ok {
 		return
 	}
-	designID := mux.Vars(r)["voucher_id"]
+	designID := c.Param("voucher_id")
 
 	err := models.DeleteVoucherDesign(models.DB, designID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to delete voucher design",
@@ -1264,11 +1264,11 @@ func DeleteVoucherDesign(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher design deleted successfully",
@@ -1278,21 +1278,21 @@ func DeleteVoucherDesign(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher design deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
-func GetAllVoucherDesigns(w http.ResponseWriter, r *http.Request) {
+func GetAllVoucherDesigns(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	status := r.URL.Query().Get("status")
-	q := r.URL.Query().Get("name")
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
+	status := c.Query("status")
+	q := c.Query("name")
 
 	designs, pagination, err := models.GetAllVoucherDesigns(models.DB, page, limit, q, status)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to fetch voucher designs",
@@ -1301,11 +1301,11 @@ func GetAllVoucherDesigns(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher designs fetched successfully",
@@ -1315,19 +1315,19 @@ func GetAllVoucherDesigns(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher designs fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
-func GetVoucherDesignByID(w http.ResponseWriter, r *http.Request) {
+func GetVoucherDesignByID(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	designID := mux.Vars(r)["voucher_id"]
+	designID := c.Param("voucher_id")
 
 	design, err := models.GetVoucherDesign(models.DB, designID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to fetch voucher design",
@@ -1336,11 +1336,11 @@ func GetVoucherDesignByID(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher design fetched successfully",
@@ -1350,25 +1350,25 @@ func GetVoucherDesignByID(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher design fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
-func ListVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
+func ListVoucherPurchasesHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Vouchers", ""); !ok {
 		return
 	}
 
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	q := r.URL.Query().Get("name")
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
+	q := c.Query("name")
 
 	purchases, pagination, err := models.ListVoucherPurchases(models.DB, page, limit, q)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to fetch voucher purchases",
@@ -1377,11 +1377,11 @@ func ListVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher purchases fetched successfully",
@@ -1391,24 +1391,24 @@ func ListVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher purchases fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
-func GetVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
+func GetVoucherPurchasesHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Vouchers", ""); !ok {
 		return
 	}
 
-	purchaseID := mux.Vars(r)["voucher_id"]
+	purchaseID := c.Param("voucher_id")
 
 	purchase, err := models.GetVoucherPurchases(models.DB, purchaseID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to fetch voucher purchase",
@@ -1417,11 +1417,11 @@ func GetVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher purchase fetched successfully",
@@ -1431,6 +1431,6 @@ func GetVoucherPurchasesHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher purchase fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

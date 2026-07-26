@@ -5,14 +5,13 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"net/http"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 // CreateStaticPage creates a new static content page in the CMS.
@@ -31,28 +30,28 @@ import (
 // @Failure      404   {object}  dtos.ErrorResponse       "Failed to create page"
 // @Security     BearerAuth
 // @Router       /api/admin/static-pages [post]
-func CreateStaticPage(w http.ResponseWriter, r *http.Request) {
+func CreateStaticPage(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can create static pages)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "HomePage", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "HomePage", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract authenticated user from request context for audit tracking
-	authuser, _ := middleware.UserFromContext(r.Context())
+	authuser, _ := middleware.UserFromContext(c.Request.Context())
 
 	// Decode and parse JSON request body with page details
-	req, ok := DecodeRequestBody[dtos.StaticPageRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.StaticPageRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields (title, slug, content, etc.)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "HomePage") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "HomePage") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -60,7 +59,7 @@ func CreateStaticPage(w http.ResponseWriter, r *http.Request) {
 	err := models.CreateStaticPage(*req, authuser.ID)
 	if err != nil {
 		// Page creation failed (duplicate slug, database error, etc.)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "HomePage",
 				Code:        http.StatusNotFound,
@@ -69,13 +68,13 @@ func CreateStaticPage(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Static page created successfully
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "HomePage",
 			Code:        http.StatusCreated,
@@ -85,7 +84,7 @@ func CreateStaticPage(w http.ResponseWriter, r *http.Request) {
 		Message:   "Static page created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -102,18 +101,18 @@ func CreateStaticPage(w http.ResponseWriter, r *http.Request) {
 // @Success      200         {array}   map[string]interface{}       "Static pages list"
 // @Failure      404         {object}  dtos.ErrorResponse    "Failed to fetch pages"
 // @Router       /api/static-pages [get]
-func GetStaticPages(w http.ResponseWriter, r *http.Request) {
+func GetStaticPages(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract optional search query parameter
-	query := r.URL.Query().Get("q")
+	query := c.Query("q")
 	// Fetch static pages from database, filtered by search query if provided
 	staticPages, err := models.GetStaticPages(query)
 	if err != nil {
 		// Database query failed or no pages found
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "HomePage",
 				Code:        http.StatusNotFound,
@@ -122,13 +121,13 @@ func GetStaticPages(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return list of static pages for website display
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "HomePage",
 			Code:        http.StatusOK,
@@ -138,7 +137,7 @@ func GetStaticPages(w http.ResponseWriter, r *http.Request) {
 		Message:   "Static pages fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 
@@ -156,18 +155,18 @@ func GetStaticPages(w http.ResponseWriter, r *http.Request) {
 // @Success      200             {object}  map[string]interface{}     "Static page details"
 // @Failure      404             {object}  dtos.ErrorResponse  "Page not found"
 // @Router       /api/static-pages/{static_page_id} [get]
-func GetStaticPageByID(w http.ResponseWriter, r *http.Request) {
+func GetStaticPageByID(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract static page ID from URL path parameters
-	staticPageID := mux.Vars(r)["static_page_id"]
+	staticPageID := c.Param("static_page_id")
 	// Fetch specific static page from database by ID
 	staticPage, err := models.GetStaticPageByID(staticPageID)
 	if err != nil {
 		// Page not found or database error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "HomePage",
 				Code:        http.StatusNotFound,
@@ -176,13 +175,13 @@ func GetStaticPageByID(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return static page content for rendering
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "HomePage",
 			Code:        http.StatusOK,
@@ -192,7 +191,7 @@ func GetStaticPageByID(w http.ResponseWriter, r *http.Request) {
 		Message:   "Static page fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -211,24 +210,24 @@ func GetStaticPageByID(w http.ResponseWriter, r *http.Request) {
 // @Failure      404             {object}  dtos.ErrorResponse    "Page not found or deletion failed"
 // @Security     BearerAuth
 // @Router       /api/admin/static-pages/{static_page_id} [delete]
-func DeleteStaticPage(w http.ResponseWriter, r *http.Request) {
+func DeleteStaticPage(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can delete static pages)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "HomePage", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "HomePage", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract static page ID from URL path parameters
-	staticPageID := mux.Vars(r)["static_page_id"]
+	staticPageID := c.Param("static_page_id")
 	// Permanently delete static page from database
 	err := models.DeleteStaticPage(staticPageID)
 	if err != nil {
 		// Deletion failed (page not found or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "HomePage",
 				Code:        http.StatusNotFound,
@@ -237,13 +236,13 @@ func DeleteStaticPage(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Static page deleted successfully
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "HomePage",
 			Code:        http.StatusOK,
@@ -253,7 +252,7 @@ func DeleteStaticPage(w http.ResponseWriter, r *http.Request) {
 		Message:   "Static page deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -275,27 +274,27 @@ func DeleteStaticPage(w http.ResponseWriter, r *http.Request) {
 // @Failure      404             {object}  dtos.ErrorResponse      "Page not found or update failed"
 // @Security     BearerAuth
 // @Router       /api/admin/static-pages/{static_page_id} [patch]
-func UpdateStaticPage(w http.ResponseWriter, r *http.Request) {
+func UpdateStaticPage(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can update static pages)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "HomePage", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "HomePage", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract static page ID from URL path parameters
-	staticPageID := mux.Vars(r)["static_page_id"]
+	staticPageID := c.Param("static_page_id")
 	// Decode and parse JSON request body with updated page content
-	req, ok := DecodeRequestBody[dtos.StaticPageRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.StaticPageRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields in the update request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "HomePage") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "HomePage") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -303,7 +302,7 @@ func UpdateStaticPage(w http.ResponseWriter, r *http.Request) {
 	staticPage, err := models.UpdateStaticPage(staticPageID, *req)
 	if err != nil {
 		// Update failed (page not found, duplicate slug, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "HomePage",
 				Code:        http.StatusNotFound,
@@ -312,13 +311,13 @@ func UpdateStaticPage(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return updated static page content
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "HomePage",
 			Code:        http.StatusOK,
@@ -328,7 +327,7 @@ func UpdateStaticPage(w http.ResponseWriter, r *http.Request) {
 		Message:   "Static page updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }

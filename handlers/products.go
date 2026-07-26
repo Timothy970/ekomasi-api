@@ -4,10 +4,10 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -18,8 +18,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/go-redis/redis/v8"
-	"github.com/gorilla/mux"
 )
 
 var (
@@ -43,28 +44,29 @@ var (
 // @Success      200          {object}  map[string]interface{}
 // @Failure      404          {object}  dtos.ErrorResponse
 // @Router       /api/products [get]
-func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
+func GetProductsHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse pagination & filters from query parameters
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 	// Extract optional category name filter
-	categoryFilter := r.URL.Query().Get("category")
+	categoryFilter := c.Query("category")
 	// Extract optional product name filter
-	productFilter := r.URL.Query().Get("product")
+	productFilter := c.Query("product")
 	// Extract optional category ID filter
-	categoryID := r.URL.Query().Get("category_id")
+	categoryID := c.Query("category_id")
 
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
 	// Fetch products from database with all filters applied
-	products, pagination, err := models.GetAllProducts(models.DB, categoryFilter, productFilter, categoryID, page, limit)
+	products, pagination, err := models.GetAllProducts(models.DB, tenantID, categoryFilter, productFilter, categoryID, page, limit)
 
 	// Check if database query failed
 	if err != nil {
 		// Return error response with detailed information
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to retrieve products",
@@ -73,14 +75,14 @@ func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Return successful response with products and pagination metadata
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "All products retrieved successfully",
@@ -93,7 +95,7 @@ func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "All products",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -134,21 +136,21 @@ func parsePagination(pageStr, sizeStr string) (int, int) {
 // @Failure      404         {object}  dtos.ErrorResponse
 // @Failure      500         {object}  dtos.ErrorResponse
 // @Router       /api/products/{product_id} [get]
-func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
+func GetProductByIDHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract product ID from URL path parameters
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 
 	// Fetch product details from database
 	product, err := models.GetProductByID(models.DB, productID)
 	if err != nil {
 		// Log error and return response
 		log.Printf("error fetching product with ID %s: %v", productID, err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error fetching product with ID " + productID,
@@ -157,17 +159,17 @@ func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Error fetching product",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 
 		return
 	}
 
 	// Check if user is authenticated and update product with wishlist status
-	ApplyUserWishlist(r, product.ID, product)
+	ApplyUserWishlist(c.Request, product.ID, product)
 
 	// Respond with product details
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product with ID " + product.ID + " fetched successfully",
@@ -177,7 +179,7 @@ func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -201,23 +203,23 @@ func GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500         {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/product/image [post]
-func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
+func UploadProductImageHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify user has admin privileges (required for media uploads)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 
 	// Parse and validate upload request parameters (product_id, is_primary, video_link)
-	productID, isPrimary, videoLink, err := parseUploadRequest(r)
+	productID, isPrimary, videoLink, err := parseUploadRequest(c.Request)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: err.Error(),
@@ -226,15 +228,15 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Parse multipart form
-	if err := r.ParseMultipartForm(20 << 20); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	if err := c.Request.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to parse multipart form" + err.Error(),
@@ -243,7 +245,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -256,7 +258,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	if videoLink != "" {
 		// Insert video link directly to database without upload
 		if err := models.InsertProductImage(models.DB, productID, videoLink, "video", isPrimary); err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Failed to insert video link for product ID " + productID,
@@ -265,7 +267,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -275,9 +277,9 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	fileTypes := []string{"gallery", "thumbnail", "video"}
 	// Check and upload files for each type
 	for _, fileType := range fileTypes {
-		results, err := handleFileUploads(models.DB, r, productID, fileType)
+		results, err := handleFileUploads(models.DB, c.Request, productID, fileType)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Failed to upload " + fileType + " for product ID " + productID,
@@ -286,7 +288,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -296,7 +298,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Ensure at least one file or link was processed
 	if len(uploadedResults) == 0 {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "No files uploaded for product ID " + productID,
@@ -305,7 +307,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "No files were received. Please upload at least one file using the keys: 'gallery', 'thumbnail', or 'video'.",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -315,7 +317,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	clearProductCache()
 
 	// Return success response with uploaded file details
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product media for product with ID " + productID + " uploaded successfully",
@@ -325,7 +327,7 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product media uploaded successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -350,21 +352,21 @@ func UploadProductImageHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500         {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/product/image [patch]
-func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateProductImageHandler(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure admin access
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.update")
 	if !ok {
 		return
 	}
 
 	// Parse upload request parameters
-	productID, isPrimary, videoLink, err := parseUploadRequest(r)
+	productID, isPrimary, videoLink, err := parseUploadRequest(c.Request)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: err.Error(),
@@ -373,15 +375,15 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Parse multipart form
-	if err := r.ParseMultipartForm(20 << 20); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	if err := c.Request.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to parse multipart form" + err.Error(),
@@ -390,7 +392,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -399,7 +401,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	// Fetch existing media to keep URLs that aren't being updated
 	existingMedia, err := models.GetProductImages(models.DB, productID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to fetch existing video links for product ID " + productID,
@@ -408,7 +410,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -419,7 +421,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	// Handle optional video link
 	if videoLink != "" {
 		if err := models.InsertProductImage(models.DB, productID, videoLink, "video", isPrimary); err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Failed to insert video link for product ID " + productID,
@@ -428,7 +430,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -445,10 +447,10 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	// Check and upload files for each type
 	for _, fileType := range fileTypes {
 		// Check if actual files were uploaded
-		if r.MultipartForm != nil && len(r.MultipartForm.File[fileType]) > 0 {
-			results, err := handleFileUploads(models.DB, r, productID, fileType)
+		if c.Request.MultipartForm != nil && len(c.Request.MultipartForm.File[fileType]) > 0 {
+			results, err := handleFileUploads(models.DB, c.Request, productID, fileType)
 			if err != nil {
-				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 					CollectiveInfo: utils.CollectiveInfo{
 						Module:      "Products",
 						Description: "Failed to upload " + fileType + " for product ID " + productID,
@@ -457,19 +459,14 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 					Message:   err.Error(),
 					TimeTaken: time.Since(start),
 					Function:  utils.GetCurrentFuncName(),
-					Request:   r,
+					Request:   c.Request,
 					RawBody:   requestSummary,
 				})
 				return
 			}
 			uploadedResults = append(uploadedResults, results...)
 			// Mark existing media of this type for deletion since new files uploaded
-			for _, media := range existingMedia {
-				if media.Type == fileType {
-					mediaToDelete[media.ImageID] = true
-				}
-			}
-		} else if len(r.Form[fileType]) > 0 {
+		} else if len(c.Request.Form[fileType]) > 0 {
 			// URL strings were passed as form values (not files) - keep existing media
 			log.Printf("URL values passed for %s, keeping existing media", fileType)
 			for _, media := range existingMedia {
@@ -495,7 +492,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Ensure at least one file or link was processed
 	if len(uploadedResults) == 0 {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "No files uploaded for product ID " + productID,
@@ -504,7 +501,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "No files were received. Please upload at least one file using the keys: 'gallery', 'thumbnail', or 'video'.",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -516,7 +513,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 		if mediaToDelete[media.ImageID] {
 			err := models.DeleteProductImage(models.DB, media.ImageID)
 			if err != nil {
-				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 					CollectiveInfo: utils.CollectiveInfo{
 						Module:      "Products",
 						Description: "Failed to delete existing media for product ID " + productID,
@@ -525,7 +522,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 					Message:   err.Error(),
 					TimeTaken: time.Since(start),
 					Function:  utils.GetCurrentFuncName(),
-					Request:   r,
+					Request:   c.Request,
 					RawBody:   requestSummary,
 				})
 				return
@@ -534,7 +531,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Respond with success
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product media for product with ID " + productID + " uploaded successfully",
@@ -544,7 +541,7 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product media uploaded successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -556,6 +553,9 @@ func UpdateProductImageHandler(w http.ResponseWriter, r *http.Request) {
 // It uploads files to Google Cloud Storage and inserts records into the database.
 // For gallery and thumbnail, it checks for is_primary flags per file using form values like gallery_is_primary[0], thumbnail_is_primary[0], etc.
 func handleFileUploads(db models.DBExecutor, r *http.Request, productID, fileType string) ([]map[string]string, error) {
+	if r.MultipartForm == nil {
+		return nil, nil
+	}
 	formFiles := r.MultipartForm.File[fileType]
 	if len(formFiles) == 0 {
 		return nil, nil
@@ -640,18 +640,18 @@ func parseUploadRequest(r *http.Request) (string, bool, string, error) {
 // @Failure      400         {object}  dtos.ErrorResponse
 // @Failure      404         {object}  dtos.ErrorResponse
 // @Router       /api/products/related [get]
-func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
+func GetRelatedProductsHandler(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
-	ctx := r.Context()
+	requestSummary := utils.GetRequestSummary(c.Request)
+	ctx := c.Request.Context()
 
 	// Parse query parameters
-	productID := r.URL.Query().Get("product_id")
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	productID := c.Query("product_id")
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 
 	if productID == "" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: productIdRequired,
@@ -660,7 +660,7 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   productIdRequired,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -675,7 +675,7 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 		var cachedProducts []dtos.Product
 		if err := json.Unmarshal([]byte(cachedVal), &cachedProducts); err == nil {
 			// Successfully retrieved from cache, return immediately
-			utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+			utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Related Products for product ID " + productID + " fetched from cache successfully",
@@ -685,7 +685,7 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   "Related Products",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -696,7 +696,7 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 	// Cache miss - get the product
 	product, err := models.GetProductByID(models.DB, productID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: productWithID + productID + " not found",
@@ -705,7 +705,7 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   productNotFound,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -714,7 +714,7 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 	relatedProducts, pagination, err := models.GetRelatedProducts(models.DB, product.CategoryID, product.ID, limit, page)
 	if err != nil {
 		log.Printf("error getting related products %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "No related products for product with ID " + productID,
@@ -723,7 +723,7 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "No related products found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -736,7 +736,7 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Respond with related products
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Related Products for product ID " + productID + " fetched successfully",
@@ -749,7 +749,7 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Related Products",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -765,21 +765,21 @@ func GetRelatedProductsHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200             {object}  map[string]interface{}
 // @Failure      404             {object}  dtos.ErrorResponse
 // @Router       /api/products/subcategories/{subcategory_id} [get]
-func GetProductsHandlerBySubCategoryID(w http.ResponseWriter, r *http.Request) {
+func GetProductsHandlerBySubCategoryID(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse pagination parameters from query string
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 	// Extract subcategory ID from URL path
-	subCategoryID := mux.Vars(r)["subcategory_id"]
+	subCategoryID := c.Param("subcategory_id")
 
 	// Fetch products belonging to this subcategory from database
 	products, pagination, err := models.FetchSubcategoryProducts(models.DB, subCategoryID, page, limit)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error fetch products for subcategory ID " + subCategoryID,
@@ -788,13 +788,13 @@ func GetProductsHandlerBySubCategoryID(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Respond with products
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Subcategory products fetched successfully for subcategory ID " + subCategoryID,
@@ -807,7 +807,7 @@ func GetProductsHandlerBySubCategoryID(w http.ResponseWriter, r *http.Request) {
 		Message:   "Subcategory products",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -824,22 +824,22 @@ func GetProductsHandlerBySubCategoryID(w http.ResponseWriter, r *http.Request) {
 // @Success      200          {object}  map[string]interface{}
 // @Failure      404          {object}  dtos.ErrorResponse
 // @Router       /api/products/categories-products/{category_id} [get]
-func GetCategoryProductsHandlerByCategoryID(w http.ResponseWriter, r *http.Request) {
+func GetCategoryProductsHandlerByCategoryID(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse search parameters
-	searchParams, ok := ParseSearchParams(r, start, requestSummary, w)
+	searchParams, ok := ParseSearchParams(c, start, requestSummary)
 	if !ok {
 		return // Error response already sent
 	}
-	categoryID := mux.Vars(r)["category_id"]
+	categoryID := c.Param("category_id")
 
 	// Fetch from DB
 	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(models.DB, *searchParams, categoryID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error fetch products for category ID " + categoryID,
@@ -848,13 +848,13 @@ func GetCategoryProductsHandlerByCategoryID(w http.ResponseWriter, r *http.Reque
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Respond with products
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Category products fetched successfully for category ID " + categoryID,
@@ -867,7 +867,7 @@ func GetCategoryProductsHandlerByCategoryID(w http.ResponseWriter, r *http.Reque
 		Message:   "category products",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -910,20 +910,20 @@ func ApplyUserWishlist(r *http.Request, productID string, product *dtos.Product)
 // @Success      200          {object}  map[string]interface{}
 // @Failure      404          {object}  dtos.ErrorResponse
 // @Router       /api/products/categories-products [get]
-func GetCategoryProductsHandler(w http.ResponseWriter, r *http.Request) {
+func GetCategoryProductsHandler(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse search parameters
-	searchParams, ok := ParseSearchParams(r, start, requestSummary, w)
+	searchParams, ok := ParseSearchParams(c, start, requestSummary)
 	if !ok {
 		return // Error response already sent
 	}
 	// Fetch from DB
 	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(models.DB, *searchParams, "")
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error fetch category products",
@@ -932,13 +932,13 @@ func GetCategoryProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Respond with products
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Category products fetched successfully",
@@ -951,7 +951,7 @@ func GetCategoryProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "category products",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -969,9 +969,9 @@ const (
 
 // ParseSearchParams extracts and validates search query parameters from an HTTP request.
 // It handles complex parameters like variants (color---red, size---L), price ranges, sorting, and pagination.
-func ParseSearchParams(r *http.Request, start time.Time, requestSummary string, w http.ResponseWriter) (*dtos.SearchParams, bool) {
+func ParseSearchParams(c *gin.Context, start time.Time, requestSummary string) (*dtos.SearchParams, bool) {
 	// Extract all query parameters
-	query := r.URL.Query()
+	query := c.Request.URL.Query()
 
 	// Parse variants (e.g., variant=color---red&variant=size---L)
 	var variants []dtos.VariantFilter
@@ -1007,7 +1007,7 @@ func ParseSearchParams(r *http.Request, start time.Time, requestSummary string, 
 	searchParams.Page, searchParams.Limit = parsePagination(query.Get("page"), query.Get("size"))
 
 	// Validate sort parameter (returns error response if invalid)
-	if !validateSortParam(searchParams.SortBy, r, w, start, requestSummary) {
+	if !validateSortParam(searchParams.SortBy, c, start, requestSummary) {
 		return nil, false
 	}
 
@@ -1018,7 +1018,7 @@ func ParseSearchParams(r *http.Request, start time.Time, requestSummary string, 
 
 // validateSortParam checks if the provided sort parameter is valid.
 // It returns true if valid or empty, false if invalid (with error response sent).
-func validateSortParam(sortBy string, r *http.Request, w http.ResponseWriter, start time.Time, requestSummary string) bool {
+func validateSortParam(sortBy string, c *gin.Context, start time.Time, requestSummary string) bool {
 	// Empty sort parameter is valid (no sorting applied)
 	if sortBy == "" {
 		return true
@@ -1039,7 +1039,7 @@ func validateSortParam(sortBy string, r *http.Request, w http.ResponseWriter, st
 	// Check if the provided sort parameter is valid
 	if !validSorts[sortBy] {
 		// Return error for invalid sort parameter
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: fmt.Sprintf("Invalid sort parameter: %s", sortBy),
@@ -1048,7 +1048,7 @@ func validateSortParam(sortBy string, r *http.Request, w http.ResponseWriter, st
 			Message:   fmt.Sprintf("Invalid sort parameter: %s", sortBy),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return false
@@ -1078,14 +1078,14 @@ func validateSortParam(sortBy string, r *http.Request, w http.ResponseWriter, st
 // @Failure      400          {object}  dtos.ErrorResponse
 // @Failure      500          {object}  dtos.ErrorResponse
 // @Router       /api/products/search [get]
-func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
+func SearchProductsHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse and validate all search parameters from query string
-	searchParams, ok := ParseSearchParams(r, start, requestSummary, w)
+	searchParams, ok := ParseSearchParams(c, start, requestSummary)
 	if !ok {
 		// Parsing failed, error response already sent by ParseSearchParams
 		return
@@ -1094,7 +1094,7 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 	// Execute product search with all filters applied (false = include out of stock)
 	products, pagination, err := models.SearchProducts(models.DB, *searchParams, false)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to search products",
@@ -1103,14 +1103,14 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to search products: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Respond with search results
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Products fetched successfully",
@@ -1134,7 +1134,7 @@ func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Products fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -1180,17 +1180,17 @@ func getFloatQueryParam(query url.Values, key string) float64 {
 // @Failure      500                     {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/products/{product_id}/features [post]
-func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
+func AddProductFeatures(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify admin permissions
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create"); !ok {
 		return
 	}
 
-	productID := mux.Vars(r)["product_id"]
-	if err := r.ParseMultipartForm(50 << 20); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	productID := c.Param("product_id")
+	if err := c.Request.ParseMultipartForm(50 << 20); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to parse data: " + err.Error(),
@@ -1199,25 +1199,25 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
-	mainImageURL, imageURLs, err := parseFeatureImages(r, w, start)
+	mainImageURL, imageURLs, err := parseFeatureImages(c, start)
 	if err != nil {
 		return
 	}
 
-	topSections, productSpecs, err := parseFeatureJSONFields(r, w, start)
+	topSections, productSpecs, err := parseFeatureJSONFields(c, start)
 	if err != nil {
 		return
 	}
 
-	designType := r.FormValue("design_type")
-	imagePosition := r.FormValue("image_position")
-	header := r.FormValue("header")
-	description := r.FormValue("description")
+	designType := c.Request.FormValue("design_type")
+	imagePosition := c.Request.FormValue("image_position")
+	header := c.Request.FormValue("header")
+	description := c.Request.FormValue("description")
 
 	//default image position to left if not provided
 	if imagePosition == "" {
@@ -1236,13 +1236,13 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		DesignType:            &designType,
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 
 	feature, err := models.AddProductFeature(models.DB, req, productID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product feature: " + err.Error(),
@@ -1251,12 +1251,12 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product feature added successfully",
@@ -1266,19 +1266,19 @@ func AddProductFeatures(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product feature added successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
 
-func parseFeatureImages(r *http.Request, w http.ResponseWriter, start time.Time) (string, []string, error) {
+func parseFeatureImages(c *gin.Context, start time.Time) (string, []string, error) {
 	var mainImageURL string
-	file, header, err := r.FormFile("image")
+	file, header, err := c.Request.FormFile("image")
 	if err == nil {
 		defer file.Close()
 		mainImageURL, err = utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: err.Error(),
@@ -1287,7 +1287,7 @@ func parseFeatureImages(r *http.Request, w http.ResponseWriter, start time.Time)
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 			})
 			return "", nil, err
 		}
@@ -1296,11 +1296,11 @@ func parseFeatureImages(r *http.Request, w http.ResponseWriter, start time.Time)
 	}
 
 	var imageURLs []string
-	if r.MultipartForm != nil && r.MultipartForm.File["images"] != nil {
-		for _, fh := range r.MultipartForm.File["images"] {
+	if c.Request.MultipartForm != nil && c.Request.MultipartForm.File["images"] != nil {
+		for _, fh := range c.Request.MultipartForm.File["images"] {
 			url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fh})
 			if err != nil {
-				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 					CollectiveInfo: utils.CollectiveInfo{
 						Module:      "Products",
 						Description: "Failed uploading images: " + err.Error(),
@@ -1309,7 +1309,7 @@ func parseFeatureImages(r *http.Request, w http.ResponseWriter, start time.Time)
 					Message:   err.Error(),
 					TimeTaken: time.Since(start),
 					Function:  utils.GetCurrentFuncName(),
-					Request:   r,
+					Request:   c.Request,
 				})
 				return "", nil, err
 			}
@@ -1321,13 +1321,13 @@ func parseFeatureImages(r *http.Request, w http.ResponseWriter, start time.Time)
 	return mainImageURL, imageURLs, nil
 }
 
-func parseFeatureJSONFields(r *http.Request, w http.ResponseWriter, start time.Time) ([]dtos.Section, []string, error) {
+func parseFeatureJSONFields(c *gin.Context, start time.Time) ([]dtos.Section, []string, error) {
 	var topSections []dtos.Section
-	topSectionStr := r.FormValue("top_section")
+	topSectionStr := c.Request.FormValue("top_section")
 
 	if topSectionStr != "" {
 		if err := json.Unmarshal([]byte(topSectionStr), &topSections); err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: invalidTopSectionJSON + err.Error(),
@@ -1336,7 +1336,7 @@ func parseFeatureJSONFields(r *http.Request, w http.ResponseWriter, start time.T
 				Message:   "Invalid top_section format",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 			})
 			return nil, nil, err
 		}
@@ -1345,11 +1345,11 @@ func parseFeatureJSONFields(r *http.Request, w http.ResponseWriter, start time.T
 	}
 
 	var productSpecs []string
-	specStr := r.FormValue("product_specifications")
+	specStr := c.Request.FormValue("product_specifications")
 
 	if specStr != "" {
 		if err := json.Unmarshal([]byte(specStr), &productSpecs); err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Invalid product_specifications JSON: " + err.Error(),
@@ -1358,7 +1358,7 @@ func parseFeatureJSONFields(r *http.Request, w http.ResponseWriter, start time.T
 				Message:   "Invalid product_specifications format",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 			})
 			return nil, nil, err
 		}
@@ -1391,18 +1391,18 @@ func parseFeatureJSONFields(r *http.Request, w http.ResponseWriter, start time.T
 // @Failure      500                     {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/products/features/{feature_id} [patch]
-func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateProductFeatureHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.update"); !ok {
 		return
 	}
 
-	featureID := mux.Vars(r)["feature_id"]
+	featureID := c.Param("feature_id")
 
-	if err := r.ParseMultipartForm(20 << 20); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	if err := c.Request.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to parse request data: " + err.Error(),
@@ -1411,31 +1411,31 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
-	mainImageURL, imageURLs, err := parseFeatureImages(r, w, start)
+	mainImageURL, imageURLs, err := parseFeatureImages(c, start)
 	if err != nil {
 		return
 	}
 
-	topSections, productSpecs, err := parseFeatureJSONFields(r, w, start)
+	topSections, productSpecs, err := parseFeatureJSONFields(c, start)
 	if err != nil {
 		return
 	}
 
-	designType := r.FormValue("design_type")
-	imagePosition := r.FormValue("image_position")
+	designType := c.Request.FormValue("design_type")
+	imagePosition := c.Request.FormValue("image_position")
 	//default image position to left if not provided
 	if imagePosition == "" {
 		imagePosition = "left"
 	}
 	req := dtos.ProductFeature{
 		Image:                 &mainImageURL,
-		Header:                r.FormValue("header"),
-		Description:           r.FormValue("description"),
+		Header:                c.Request.FormValue("header"),
+		Description:           c.Request.FormValue("description"),
 		ImagePosition:         imagePosition,
 		Images:                &imageURLs,
 		TopSection:            &topSections,
@@ -1443,13 +1443,13 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		DesignType:            &designType,
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 
 	feature, err := models.UpdateProductFeature(models.DB, req, featureID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update product feature: " + err.Error(),
@@ -1458,12 +1458,12 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product feature updated successfully for feature ID " + featureID,
@@ -1473,7 +1473,7 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product feature updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -1500,18 +1500,18 @@ func UpdateProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500                     {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/products/{product_id}/features [patch]
-func UpdateAllProductFeaturesHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateAllProductFeaturesHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.update"); !ok {
 		return
 	}
 
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 
-	if err := r.ParseMultipartForm(20 << 20); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	if err := c.Request.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to parse request data: " + err.Error(),
@@ -1520,31 +1520,31 @@ func UpdateAllProductFeaturesHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
-	mainImageURL, imageURLs, err := parseFeatureImages(r, w, start)
+	mainImageURL, imageURLs, err := parseFeatureImages(c, start)
 	if err != nil {
 		return
 	}
 
-	topSections, productSpecs, err := parseFeatureJSONFields(r, w, start)
+	topSections, productSpecs, err := parseFeatureJSONFields(c, start)
 	if err != nil {
 		return
 	}
 
-	designType := r.FormValue("design_type")
-	imagePosition := r.FormValue("image_position")
+	designType := c.Request.FormValue("design_type")
+	imagePosition := c.Request.FormValue("image_position")
 	//default image position to left if not provided
 	if imagePosition == "" {
 		imagePosition = "left"
 	}
 	req := dtos.ProductFeature{
 		Image:                 &mainImageURL,
-		Header:                r.FormValue("header"),
-		Description:           r.FormValue("description"),
+		Header:                c.Request.FormValue("header"),
+		Description:           c.Request.FormValue("description"),
 		ImagePosition:         imagePosition,
 		Images:                &imageURLs,
 		TopSection:            &topSections,
@@ -1552,13 +1552,13 @@ func UpdateAllProductFeaturesHandler(w http.ResponseWriter, r *http.Request) {
 		DesignType:            &designType,
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 
 	feature, err := models.UpdateProductFeatures(models.DB, req, productID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product feature: " + err.Error(),
@@ -1567,12 +1567,12 @@ func UpdateAllProductFeaturesHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product features updated successfully",
@@ -1582,7 +1582,7 @@ func UpdateAllProductFeaturesHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product features updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -1597,14 +1597,14 @@ func UpdateAllProductFeaturesHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200         {object}  []dtos.ProductFeature
 // @Failure      500         {object}  dtos.ErrorResponse
 // @Router       /api/products/{product_id}/features [get]
-func GetFeaturesByProductHandler(w http.ResponseWriter, r *http.Request) {
+func GetFeaturesByProductHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 	features, err := models.GetProductFeaturesByProductID(models.DB, productID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to fetch product features: " + err.Error(),
@@ -1613,12 +1613,12 @@ func GetFeaturesByProductHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product features fetched successfully",
@@ -1628,7 +1628,7 @@ func GetFeaturesByProductHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product features fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -1645,19 +1645,19 @@ func GetFeaturesByProductHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500         {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/products/features/{feature_id} [delete]
-func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteProductFeatureHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.delete"); !ok {
 		return
 	}
 
-	featureID := mux.Vars(r)["feature_id"]
+	featureID := c.Param("feature_id")
 
 	err := models.DeleteProductFeature(models.DB, featureID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to delete product feature: " + err.Error(),
@@ -1666,12 +1666,12 @@ func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to delete feature: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product feature deleted successfully",
@@ -1681,7 +1681,7 @@ func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product feature deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -1700,28 +1700,28 @@ func DeleteProductFeatureHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500             {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/products/specifications [post]
-func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
+func HandleProductSpecifications(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure the user has the required permissions
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		return
 	}
 	state := "add"
-	req, ok := DecodeRequestBody[dtos.ProductSpecification](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.ProductSpecification](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 
 	//handle products specifications
 	err := handleProductSpecs(models.DB, *req, state)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product specifications: " + err.Error(),
@@ -1730,7 +1730,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -1739,7 +1739,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	log.Printf("handleProductsVariants ***** %s", err)
 
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product variants: " + err.Error(),
@@ -1748,7 +1748,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -1756,7 +1756,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 	err = handleProductsWarranty(models.DB, *req)
 
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product warranty: " + err.Error(),
@@ -1765,12 +1765,12 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product specifications added successfully",
@@ -1780,7 +1780,7 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product specifications added successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -1799,29 +1799,29 @@ func HandleProductSpecifications(w http.ResponseWriter, r *http.Request) {
 // @Failure      500             {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/products/specifications [patch]
-func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
+func HandleProductSpecificationsUpdate(c *gin.Context) {
 	state := "update"
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure the user is an admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.update")
 	if !ok {
 		return
 	}
 
-	req, ok := DecodeRequestBody[dtos.ProductSpecification](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.ProductSpecification](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 
 	//handle products specifications
 	err := handleProductSpecs(models.DB, *req, state)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update product specifications: " + err.Error(),
@@ -1830,7 +1830,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -1838,7 +1838,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 	err = handleProductsVariants(models.DB, *req, state)
 
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update product variants: " + err.Error(),
@@ -1847,7 +1847,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -1855,7 +1855,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 	err = handleProductsWarranty(models.DB, *req)
 
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update product warranty: " + err.Error(),
@@ -1864,12 +1864,12 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product specifications updated successfully",
@@ -1879,7 +1879,7 @@ func HandleProductSpecificationsUpdate(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product specifications updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -2048,11 +2048,11 @@ func updateProductDiscount(productID string, data dtos.AddPromotionToProductRequ
 // @Success      200         {object}  dtos.ExpensiveCheapProduct
 // @Failure      500         {object}  dtos.ErrorResponse
 // @Router       /api/products/expensive-cheap [get]
-func GetExpensiveAndCheapProducts(w http.ResponseWriter, r *http.Request) {
+func GetExpensiveAndCheapProducts(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Define cache key for expensive/cheap products
 	cacheKey := "expensiveandcheapproducts"
@@ -2067,7 +2067,7 @@ func GetExpensiveAndCheapProducts(w http.ResponseWriter, r *http.Request) {
 		products, err = models.GetExpensiveAndCheapProducts(models.DB)
 		if err != nil {
 			// Database query failed, return error response
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Failed to fetch expensive and cheapest products",
@@ -2076,7 +2076,7 @@ func GetExpensiveAndCheapProducts(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 			})
 			return
 		}
@@ -2088,7 +2088,7 @@ func GetExpensiveAndCheapProducts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return successful response with expensive and cheap products
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Expensive and cheapest products fetched successfully",
@@ -2098,7 +2098,7 @@ func GetExpensiveAndCheapProducts(w http.ResponseWriter, r *http.Request) {
 		Message:   "Expensive and cheapest products fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }

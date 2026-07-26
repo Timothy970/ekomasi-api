@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo e-commerce platform.
+// Package models provides data access functions for the Ekomasi e-commerce platform.
 //
 // This file contains functions for managing vouchers (gift certificates):
 //   - Voucher CRUD operations (create, retrieve, update, delete)
@@ -11,7 +11,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"

@@ -1,6 +1,6 @@
 package utils
 
-import "adenzo_backend/dtos"
+import "ekomasi_backend/dtos"
 
 // supportedPermissions defines the complete permission hierarchy for the application.
 // Organized by functional categories for granular access control.

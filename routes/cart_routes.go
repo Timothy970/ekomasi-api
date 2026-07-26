@@ -1,25 +1,25 @@
 package routes
 
 import (
-	"github.com/gorilla/mux"
-
-	"adenzo_backend/handlers"
-	"adenzo_backend/middleware"
-	"net/http"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/handlers"
+	"ekomasi_backend/middleware"
 )
 
-// SetupCartRoutes configures all cart-related routes
-func SetupCartRoutes(api *mux.Router) {
-	cart := api.PathPrefix("/cart").Subrouter()
+// SetupCartGinRoutes configures all cart-related routes using native Gin router groups
+func SetupCartGinRoutes(api *gin.RouterGroup) {
+	cart := api.Group("/cart")
 
 	// Cart operations
-	cart.HandleFunc("", handlers.CreateCartHandler).Methods("POST")
-	cart.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetUserCartHandler))).Methods("GET")
-	cart.HandleFunc("/add", handlers.AddToCartHandler).Methods("POST")
-	cart.HandleFunc("/view/{cart_id}", handlers.ViewCartHandler).Methods("GET")
-	cart.HandleFunc("/update/{cart_id}", handlers.UpdateCartItemHandler).Methods("PATCH")
-	cart.HandleFunc("/remove/{cart_id}", handlers.RemoveFromCartHandler).Methods("DELETE")
+	cart.POST("", handlers.CreateCartHandler)
+	cart.GET("", middleware.GinAuthenticateToken(), handlers.GetUserCartHandler)
+	cart.POST("/add", handlers.AddToCartHandler)
+	cart.GET("/view/:cart_id", handlers.ViewCartHandler)
+	cart.PATCH("/update/:cart_id", handlers.UpdateCartItemHandler)
+	cart.DELETE("/remove/:cart_id", handlers.RemoveFromCartHandler)
 
 	// Cart discount
-	api.HandleFunc("/cart/apply-discount", handlers.ApplyDiscountHandler).Methods("POST")
+	api.POST("/cart/apply-discount", handlers.ApplyDiscountHandler)
 }
+
+// SetupCartRoutes configures all cart-related routes

@@ -1,4 +1,4 @@
-// Package notification provides SMS notification services for the Adenzo e-commerce platform.
+// Package notification provides SMS notification services for the Ekomasi e-commerce platform.
 //
 // This file handles:
 //   - SMS sending via external API (V2 SMS service)

@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo e-commerce backend.
+// Package models provides data access functions for the Ekomasi e-commerce backend.
 //
 // reviews.go handles product review management including:
 //   - Review submission with purchase verification
@@ -9,7 +9,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"fmt"
 	"strings"

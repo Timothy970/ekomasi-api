@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo e-commerce platform.
+// Package models provides data access functions for the Ekomasi e-commerce platform.
 //
 // This file contains functions for managing users and related data:
 //   - User CRUD operations (activate, deactivate, delete)
@@ -11,7 +11,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"fmt"
 	"math"
@@ -343,20 +343,20 @@ func DeleteUserAddress(db DBExecutor, addressID, userID string) error {
 //   - []dtos.Users: Array of users with addresses, roles, and status
 //   - *dtos.PaginationMeta: Pagination info (page, size, totals, navigation flags)
 //   - error: Database error or nil on success
-func GetAllUsersWithPagination(db DBExecutor, limit, offset int, q, role string, isAdmin string) ([]dtos.Users, *dtos.PaginationMeta, error) {
+func GetAllUsersWithPagination(db DBExecutor, limit, offset int, q, role string, isAdmin string, tenantID int) ([]dtos.Users, *dtos.PaginationMeta, error) {
 	// Set default limit
 	if limit <= 0 {
 		limit = 10
 	}
 
 	// Step 1: Count total users matching filters
-	totalItems, err := countUsers(db, q, role, isAdmin)
+	totalItems, err := countUsers(db, q, role, isAdmin, tenantID)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Step 2: Fetch paginated users
-	users, err := fetchUsers(db, limit, offset, q, role, isAdmin)
+	users, err := fetchUsers(db, limit, offset, q, role, isAdmin, tenantID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -380,10 +380,14 @@ func GetAllUsersWithPagination(db DBExecutor, limit, offset int, q, role string,
 // Returns:
 //   - int: Total count of matching users
 //   - error: Database error or nil on success
-func countUsers(db DBExecutor, q, role, isAdmin string) (int, error) {
+func countUsers(db DBExecutor, q, role, isAdmin string, tenantID int) (int, error) {
 	query := "SELECT COUNT(*) FROM users"
 	var args []interface{}
 	var conditions []string
+
+	// Scope by tenant ID
+	conditions = append(conditions, "tenant_id = ?")
+	args = append(args, tenantID)
 
 	// Add search filter (multi-field case-insensitive partial match)
 	if q != "" {
@@ -432,7 +436,7 @@ func countUsers(db DBExecutor, q, role, isAdmin string) (int, error) {
 // Returns:
 //   - []dtos.Users: Array of users (without addresses populated)
 //   - error: Database error or nil on success
-func fetchUsers(db DBExecutor, limit, offset int, q, role, isAdmin string) ([]dtos.Users, error) {
+func fetchUsers(db DBExecutor, limit, offset int, q, role, isAdmin string, tenantID int) ([]dtos.Users, error) {
 	query := `
 		SELECT user_id, first_name, last_name, email, role, phone_number, last_login, created_at, status
 		FROM users
@@ -440,6 +444,10 @@ func fetchUsers(db DBExecutor, limit, offset int, q, role, isAdmin string) ([]dt
 
 	var args []interface{}
 	var conditions []string
+
+	// Scope by tenant ID
+	conditions = append(conditions, "tenant_id = ?")
+	args = append(args, tenantID)
 
 	// Add search filter
 	if q != "" {

@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo backend application.
+// Package models provides data access functions for the Ekomasi backend application.
 //
 // This file contains promotion and promo code management functionality including:
 //   - Promotion effectiveness tracking and analytics
@@ -10,7 +10,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"errors"
 	"log"

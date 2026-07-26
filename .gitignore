@@ -1,6 +1,6 @@
 .env
-# Ignore only files named adenzo.* inside storage/logs/
-storage/logs/adenzo.*
+# Ignore only files named ekomasi.* inside storage/logs/
+storage/logs/ekomasi.*
 
 # But explicitly do NOT ignore the folders
 !storage/
@@ -9,5 +9,6 @@ storage/logs/adenzo.*
 service.json
 /.idea
 docker
+data/
 go.mod
 go.sum

@@ -5,9 +5,10 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"encoding/csv"
 	"net/http"
 	"strconv"
@@ -38,13 +39,13 @@ var (
 // @Success      200         {object}  map[string]interface{}    "Sales trends summary"
 // @Failure      404         {object}  dtos.ErrorResponse         "Failed to generate report"
 // @Router       /api/reports/sales/trends/summary [get]
-func GetSalesTrendsSummary(w http.ResponseWriter, r *http.Request) {
+func GetSalesTrendsSummary(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Parse date range from query parameters (start_date, end_date)
-	startTime, endTime, err := ParseDateRange(r)
+	startTime, endTime, err := ParseDateRange(c.Request)
 	// Calculate previous period range for comparison metrics
 	// Previous period has the same duration as current period
 	diff := endTime.Sub(startTime)
@@ -55,7 +56,7 @@ func GetSalesTrendsSummary(w http.ResponseWriter, r *http.Request) {
 	report, err := models.GetSalesTrendsSummary(startTime, endTime, prevStart, prevEnd)
 	if err != nil {
 		// Database query failed or no data available for the period
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get sales trends summary report :" + err.Error(),
@@ -64,7 +65,7 @@ func GetSalesTrendsSummary(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -72,7 +73,7 @@ func GetSalesTrendsSummary(w http.ResponseWriter, r *http.Request) {
 
 	// Return summary report with period-over-period metrics
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Sales trend summary report generated successfully",
@@ -82,7 +83,7 @@ func GetSalesTrendsSummary(w http.ResponseWriter, r *http.Request) {
 		Message:   "Sales trend summary report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -101,17 +102,17 @@ func GetSalesTrendsSummary(w http.ResponseWriter, r *http.Request) {
 // @Success      200         {object}  map[string]interface{}    "Sales trends over time"
 // @Failure      500         {object}  dtos.ErrorResponse         "Failed to generate report"
 // @Router       /api/reports/sales/trends/overtime [get]
-func GetSalesTrendsOverTime(w http.ResponseWriter, r *http.Request) {
+func GetSalesTrendsOverTime(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Parse date range from query parameters
-	startTime, endTime, err := ParseDateRange(r)
+	startTime, endTime, err := ParseDateRange(c.Request)
 	// Set default period granularity to daily
 	period := "daily"
 	// Override with query parameter if provided (daily, weekly, monthly)
-	periodStr := r.URL.Query().Get("period")
+	periodStr := c.Query("period")
 	if periodStr != "" {
 		period = periodStr
 	}
@@ -119,7 +120,7 @@ func GetSalesTrendsOverTime(w http.ResponseWriter, r *http.Request) {
 	report, err := models.GetSalesTrendsOverTime(period, startTime, endTime)
 	if err != nil {
 		// Database query failed or invalid period specified
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get sales trends over time report",
@@ -128,7 +129,7 @@ func GetSalesTrendsOverTime(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -136,7 +137,7 @@ func GetSalesTrendsOverTime(w http.ResponseWriter, r *http.Request) {
 
 	// Return time-series data for chart visualization
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Sales trend report generated successfully",
@@ -146,7 +147,7 @@ func GetSalesTrendsOverTime(w http.ResponseWriter, r *http.Request) {
 		Message:   "Sales trend report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -164,19 +165,19 @@ func GetSalesTrendsOverTime(w http.ResponseWriter, r *http.Request) {
 // @Success      200         {object}  map[string]interface{}             "Customer segmentation data"
 // @Failure      404         {object}  dtos.ErrorResponse                  "Failed to generate report"
 // @Router       /api/reports/sales/customer-segmentation [get]
-func GetCustomerSegmentation(w http.ResponseWriter, r *http.Request) {
+func GetCustomerSegmentation(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Parse date range from query parameters
-	start, end, _ := ParseDateRange(r)
+	startDate, endDate, _ := ParseDateRange(c.Request)
 
 	// Fetch customer segmentation data from database
-	data, err := models.GetCustomerSegmentation(start, end)
+	data, err := models.GetCustomerSegmentation(startDate, endDate)
 	if err != nil {
 		// Database query failed or no customer data available
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get customer segmentation report",
@@ -185,7 +186,7 @@ func GetCustomerSegmentation(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -195,11 +196,11 @@ func GetCustomerSegmentation(w http.ResponseWriter, r *http.Request) {
 		Period: struct {
 			Start time.Time `json:"start"`
 			End   time.Time `json:"end"`
-		}{Start: start, End: end},
+		}{Start: startDate, End: endDate},
 		Segments: data,
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Customer segmentation report",
@@ -209,7 +210,7 @@ func GetCustomerSegmentation(w http.ResponseWriter, r *http.Request) {
 		Message:   "Customer segmentation report",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -224,16 +225,16 @@ func GetCustomerSegmentation(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  map[string]interface{}     "Sales overview data"
 // @Failure      404  {object}  dtos.ErrorResponse     "Failed to retrieve overview"
 // @Router       /api/reports/sales/overview [get]
-func GetSalesOverview(w http.ResponseWriter, r *http.Request) {
+func GetSalesOverview(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Fetch overall sales summary metrics from database
 	data, err := models.GetSalesOverview()
 	if err != nil {
 		// Database query failed or insufficient data
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get sales overview",
@@ -242,12 +243,12 @@ func GetSalesOverview(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Return sales overview with key performance indicators
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Sales overview retrieved successfully",
@@ -257,7 +258,7 @@ func GetSalesOverview(w http.ResponseWriter, r *http.Request) {
 		Message:   "Sales overview retrieved successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -275,21 +276,21 @@ func GetSalesOverview(w http.ResponseWriter, r *http.Request) {
 // @Success      200         {object}  map[string]interface{}        "Sales by region data"
 // @Failure      404         {object}  dtos.ErrorResponse            "Failed to generate report"
 // @Router       /api/reports/sales/by-region [get]
-func GetSalesByRegion(w http.ResponseWriter, r *http.Request) {
+func GetSalesByRegion(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Check if user requested specific export format (csv, xlsx, pdf)
-	export := r.URL.Query().Get("export")
+	export := c.Query("export")
 	// Parse date range from query parameters
-	start, end, _ := ParseDateRange(r)
+	startDate, endDate, _ := ParseDateRange(c.Request)
 
 	// Fetch regional sales data from database
-	data, err := models.GetSalesByRegion(start, end)
+	data, err := models.GetSalesByRegion(startDate, endDate)
 	if err != nil {
 		// Database query failed or no regional data available
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get sales by region report",
@@ -298,7 +299,7 @@ func GetSalesByRegion(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -308,7 +309,7 @@ func GetSalesByRegion(w http.ResponseWriter, r *http.Request) {
 		Period: struct {
 			Start time.Time `json:"start"`
 			End   time.Time `json:"end"`
-		}{Start: start, End: end},
+		}{Start: startDate, End: endDate},
 		Regions: data,
 	}
 
@@ -316,21 +317,21 @@ func GetSalesByRegion(w http.ResponseWriter, r *http.Request) {
 	switch export {
 	case "csv":
 		// Export as CSV file for spreadsheet import
-		exportCSV(w, data)
+		exportCSV(c, data)
 		return
 	case "xlsx":
 		// Export as Excel file for advanced analysis
-		exportExcel(w, data)
+		exportExcel(c, data)
 		return
 	case "pdf":
 		// Export as PDF file for printing/sharing
-		exportPDF(w, data)
+		exportPDF(c, data)
 		return
 	}
 
 	// Default: return JSON response
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Sales segmentation report",
@@ -340,20 +341,20 @@ func GetSalesByRegion(w http.ResponseWriter, r *http.Request) {
 		Message:   "Sales segmentation report",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
 // ---------------- CSV Export ----------------
 // exportCSV generates a CSV file of regional sales data.
 // Creates a downloadable CSV file with headers and data rows.
-func exportCSV(w http.ResponseWriter, data []dtos.RegionSales) {
+func exportCSV(c *gin.Context, data []dtos.RegionSales) {
 	// Set response headers for CSV file download
-	w.Header().Set(contentType, "text/csv")
-	w.Header().Set(contentDisposition, "attachment;filename=sales_by_region.csv")
+	c.Header(contentType, "text/csv")
+	c.Header(contentDisposition, "attachment;filename=sales_by_region.csv")
 
 	// Initialize CSV writer
-	writer := csv.NewWriter(w)
+	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()
 
 	// Write header row with column names
@@ -372,7 +373,7 @@ func exportCSV(w http.ResponseWriter, data []dtos.RegionSales) {
 // ---------------- Excel Export ----------------
 // exportExcel generates an Excel (.xlsx) file of regional sales data.
 // Creates a formatted Excel spreadsheet with headers and numeric data.
-func exportExcel(w http.ResponseWriter, data []dtos.RegionSales) {
+func exportExcel(c *gin.Context, data []dtos.RegionSales) {
 	// Create new Excel file
 	f := excelize.NewFile()
 	sheet := "Sheet1"
@@ -395,16 +396,16 @@ func exportExcel(w http.ResponseWriter, data []dtos.RegionSales) {
 	}
 
 	// Set response headers for Excel file download
-	w.Header().Set(contentType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set(contentDisposition, "attachment;filename=sales_by_region.xlsx")
+	c.Header(contentType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Header(contentDisposition, "attachment;filename=sales_by_region.xlsx")
 	// Write Excel file to response
-	_ = f.Write(w)
+	_ = f.Write(c.Writer)
 }
 
 // ---------------- PDF Export ----------------
 // exportPDF generates a PDF document of regional sales data.
 // Creates a formatted PDF report with title and data table.
-func exportPDF(w http.ResponseWriter, data []dtos.RegionSales) {
+func exportPDF(c *gin.Context, data []dtos.RegionSales) {
 	// Initialize PDF with portrait orientation, millimeters, A4 size
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.AddPage()
@@ -434,9 +435,9 @@ func exportPDF(w http.ResponseWriter, data []dtos.RegionSales) {
 		pdf.Ln(-1)
 	}
 
-	w.Header().Set(contentType, "application/pdf")
-	w.Header().Set(contentDisposition, "attachment;filename=sales_by_region.pdf")
-	_ = pdf.Output(w)
+	c.Header(contentType, "application/pdf")
+	c.Header(contentDisposition, "attachment;filename=sales_by_region.pdf")
+	_ = pdf.Output(c.Writer)
 }
 
 // GetSalesVsOrdersPerMonth provides monthly sales and order volume comparison for a year.
@@ -452,18 +453,18 @@ func exportPDF(w http.ResponseWriter, data []dtos.RegionSales) {
 // @Failure      400   {object}  map[string]interface{}         "Invalid year parameter"
 // @Failure      404   {object}  dtos.ErrorResponse           "Failed to generate report"
 // @Router       /api/reports/sales/monthly-comparison [get]
-func GetSalesVsOrdersPerMonth(w http.ResponseWriter, r *http.Request) {
+func GetSalesVsOrdersPerMonth(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract year parameter from query string
-	yearStr := r.URL.Query().Get("year")
+	yearStr := c.Query("year")
 	// Convert year string to integer
 	year, err := strconv.Atoi(yearStr)
 	if err != nil {
 		// Year parameter is missing or not a valid integer
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Invalid year parameter: " + err.Error(),
@@ -472,7 +473,7 @@ func GetSalesVsOrdersPerMonth(w http.ResponseWriter, r *http.Request) {
 			Message:   "Invalid Year Parameter",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -481,7 +482,7 @@ func GetSalesVsOrdersPerMonth(w http.ResponseWriter, r *http.Request) {
 	report, err := models.GetSalesVsOrdersPerMonth(year)
 	if err != nil {
 		// Database query failed or no data for specified year
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get sales vs orders per month report :" + err.Error(),
@@ -490,13 +491,13 @@ func GetSalesVsOrdersPerMonth(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return monthly breakdown for trend analysis
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Sales vs orders per month report generated successfully",
@@ -506,7 +507,7 @@ func GetSalesVsOrdersPerMonth(w http.ResponseWriter, r *http.Request) {
 		Message:   "Sales vs orders per month report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -523,13 +524,13 @@ func GetSalesVsOrdersPerMonth(w http.ResponseWriter, r *http.Request) {
 // @Success      200     {object}  map[string]interface{}       "Revenue and expenses data"
 // @Failure      404     {object}  dtos.ErrorResponse           "Failed to generate report"
 // @Router       /api/reports/sales/revenue-vs-expenses [get]
-func GetRevenueVsExpenses(w http.ResponseWriter, r *http.Request) {
+func GetRevenueVsExpenses(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract filter parameter from query string
-	filterType := r.URL.Query().Get("filter")
+	filterType := c.Query("filter")
 	// Set default filter to week if not specified
 	filter := "week"
 	if filterType != "" {
@@ -540,7 +541,7 @@ func GetRevenueVsExpenses(w http.ResponseWriter, r *http.Request) {
 	report, err := models.GetRevenueVsExpenses(filter)
 	if err != nil {
 		// Database query failed or insufficient financial data
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get revenue vs expenses report :" + err.Error(),
@@ -550,13 +551,13 @@ func GetRevenueVsExpenses(w http.ResponseWriter, r *http.Request) {
 
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return profitability analysis data
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Revenue vs expenses report generated successfully",
@@ -566,7 +567,7 @@ func GetRevenueVsExpenses(w http.ResponseWriter, r *http.Request) {
 		Message:   "Revenue vs expenses report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -582,16 +583,16 @@ func GetRevenueVsExpenses(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  map[string]interface{}     "Business overview data"
 // @Failure      404  {object}  dtos.ErrorResponse        "Failed to generate overview"
 // @Router       /api/reports/sales/business-overview [get]
-func GetRevenueCustomersOrdersOverview(w http.ResponseWriter, r *http.Request) {
+func GetRevenueCustomersOrdersOverview(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Fetch comprehensive business metrics from database
 	report, err := models.GetRevenueCustomersOrdersOverview()
 	if err != nil {
 		// Database query failed or insufficient data for comprehensive overview
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get revenue, customers and orders overview :" + err.Error(),
@@ -600,13 +601,13 @@ func GetRevenueCustomersOrdersOverview(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	// Return combined business metrics for dashboard display
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Revenue, customers and orders overview generated successfully",
@@ -616,7 +617,7 @@ func GetRevenueCustomersOrdersOverview(w http.ResponseWriter, r *http.Request) {
 		Message:   "Revenue, customers and orders overview generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }

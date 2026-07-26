@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var tracer = otel.Tracer("adenzo-backend")
+var tracer = otel.Tracer("ekomasi-backend")
 
 // DatabaseTracing wraps database operations with OpenTelemetry tracing
 func DatabaseTracing(ctx context.Context, operation string, query string, fn func() error) error {

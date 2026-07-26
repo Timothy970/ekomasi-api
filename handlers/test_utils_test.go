@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"adenzo_backend/models"
+	"ekomasi_backend/models"
 	"database/sql"
 	"testing"
 

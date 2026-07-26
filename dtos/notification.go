@@ -34,3 +34,14 @@ type LogListResponse struct {
 	Logs []Log          `json:"logs"`
 	Meta PaginationMeta `json:"meta"`
 }
+
+type SendTemplateRequest struct {
+	ChatID      string         `json:"chatId"`
+	TemplateName string        `json:"templateName"`
+	Vars        map[string]any `json:"vars"`
+}
+
+type SendTextRequest struct {
+	ChatID string `json:"chatId"`
+	Text   string `json:"text"`
+}

@@ -1,4 +1,4 @@
-// Package utils provides utility functions for the Adenzo e-commerce platform.
+// Package utils provides utility functions for the Ekomasi e-commerce platform.
 //
 // This file contains CSV processing utilities:
 //   - Product bulk upload CSV parsing
@@ -22,7 +22,7 @@
 package utils
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -90,6 +90,12 @@ var BulkUploadHeaders = []BulkUploadHeader{
 	{Name: "brand", Required: true},
 	{Name: "manufacturer", Required: false},
 	{Name: "warranty_period", Required: true},
+	{Name: "combination_name", Required: false},
+	{Name: "combination_sku", Required: false},
+	{Name: "additional_price", Required: false},
+	{Name: "option_1", Required: false},
+	{Name: "option_2", Required: false},
+	{Name: "option_3", Required: false},
 }
 
 // ParseProductsCSV reads and parses a CSV file into bulk upload products.
@@ -121,21 +127,15 @@ func ParseProductsCSV(file multipart.File) ([]dtos.BulkUploadProduct, error) {
 	// Define expected header columns
 	expectedHeaders := BulkUploadHeaders
 
-	// Validate minimum column count
-	if len(headers) < len(expectedHeaders) {
-		return nil, fmt.Errorf("invalid CSV: missing columns. Expected %d, got %d", len(expectedHeaders), len(headers))
+	// Validate minimum required column count (first 16 mandatory fields)
+	minRequiredCount := 16
+	if len(headers) < minRequiredCount {
+		return nil, fmt.Errorf("invalid CSV: missing required columns. Expected at least %d, got %d", minRequiredCount, len(headers))
 	}
 
 	// Normalize headers to lowercase for case-insensitive comparison
 	for i := range headers {
 		headers[i] = strings.ToLower(strings.TrimSpace(headers[i]))
-	}
-
-	// Validate each header name matches expected
-	for i, header := range expectedHeaders {
-		if headers[i] != header.Name {
-			return nil, fmt.Errorf("invalid CSV: expected header '%s', got '%s'", header.Name, headers[i])
-		}
 	}
 
 	var products []dtos.BulkUploadProduct
@@ -157,10 +157,6 @@ func ParseProductsCSV(file multipart.File) ([]dtos.BulkUploadProduct, error) {
 		for i := range record {
 			record[i] = sanitize(record[i])
 		}
-		// Trim extra columns if CSV has more than expected
-		if len(record) > len(expectedHeaders) {
-			record = record[:len(expectedHeaders)]
-		}
 
 		// Skip completely empty rows
 		allEmpty := true
@@ -171,54 +167,69 @@ func ParseProductsCSV(file multipart.File) ([]dtos.BulkUploadProduct, error) {
 			}
 		}
 		if allEmpty {
-			log.Printf("Row %d skipped: empty line", rowNumber)
 			continue
 		}
 
-		log.Printf("Processing row %d: %+v", rowNumber, record)
-
-		// Validate required fields
+		// Validate required fields (first 16 columns)
 		skipRow := false
-		for i, header := range expectedHeaders {
-			if err := required(record[i], header.Name, !header.Required); err != nil {
-				log.Printf("Row %d skipped: %v", rowNumber, err)
-				skipRow = true
-				break
+		for i := 0; i < minRequiredCount; i++ {
+			header := expectedHeaders[i]
+			if i < len(record) {
+				if err := required(record[i], header.Name, !header.Required); err != nil {
+					log.Printf("Row %d skipped: %v", rowNumber, err)
+					skipRow = true
+					break
+				}
 			}
 		}
 		if skipRow {
-			continue // Skip row if validation failed
+			continue
+		}
+
+		// Safe field accessor
+		getField := func(idx int) string {
+			if idx < len(record) {
+				return record[idx]
+			}
+			return ""
 		}
 
 		// Convert string values to appropriate data types
-		price, _ := strconv.ParseFloat(record[3], 64)        // price
-		stockQty, _ := strconv.Atoi(record[5])               // stock_quantity
-		lowStockWarn, _ := strconv.Atoi(record[7])           // low_stock_quantity_warning
-		barcode := record[8]                                 // barcode
-		buyingPrice, _ := strconv.ParseFloat(record[9], 64)  // buying_price
-		weight, _ := strconv.ParseFloat(record[10], 64)      // weight
-		weightLimit, _ := strconv.ParseFloat(record[11], 64) // weight_limit
-		warrantyType, _ := strconv.Atoi(record[15])          // warranty_period
+		price, _ := strconv.ParseFloat(getField(3), 64)
+		stockQty, _ := strconv.Atoi(getField(5))
+		lowStockWarn, _ := strconv.Atoi(getField(7))
+		barcode := getField(8)
+		buyingPrice, _ := strconv.ParseFloat(getField(9), 64)
+		weight, _ := strconv.ParseFloat(getField(10), 64)
+		weightLimit, _ := strconv.ParseFloat(getField(11), 64)
+		warrantyType, _ := strconv.Atoi(getField(15))
+		additionalPrice, _ := strconv.ParseFloat(getField(18), 64)
 
 		// Construct product struct from parsed values
 		product := dtos.BulkUploadProduct{
-			Name:                    record[0],            // name
-			Description:             record[1],            // description
-			SKU:                     record[2],            // sku
-			Price:                   price,                // converted price
-			CategoryID:              record[4],            // category_id
-			StockQuantity:           stockQty,             // converted stock_quantity
-			Tag:                     strToPtr(record[6]),  // tag (optional)
-			SearchVector:            record[0],            // use name for search indexing
-			LowStockQuantityWarning: lowStockWarn,         // converted low_stock_quantity_warning
-			Barcode:                 barcode,              // barcode
-			BuyingPrice:             buyingPrice,          // converted buying_price
-			Weight:                  &weight,              // converted weight
-			WeightLimit:             &weightLimit,         // converted weight_limit
-			Dimensions:              strToPtr(record[12]), // dimensions (optional)
-			Brand:                   strToPtr(record[13]), // brand (optional)
-			Manufacturer:            strToPtr(record[14]), // manufacturer (optional)
-			WarrantyPeriod:          &warrantyType,        // warranty_period (optional)
+			Name:                    getField(0),
+			Description:             getField(1),
+			SKU:                     getField(2),
+			Price:                   price,
+			CategoryID:              getField(4),
+			StockQuantity:           stockQty,
+			Tag:                     strToPtr(getField(6)),
+			SearchVector:            getField(0),
+			LowStockQuantityWarning: lowStockWarn,
+			Barcode:                 barcode,
+			BuyingPrice:             buyingPrice,
+			Weight:                  &weight,
+			WeightLimit:             &weightLimit,
+			Dimensions:              strToPtr(getField(12)),
+			Brand:                   strToPtr(getField(13)),
+			Manufacturer:            strToPtr(getField(14)),
+			WarrantyPeriod:          &warrantyType,
+			CombinationName:         getField(16),
+			CombinationSKU:          getField(17),
+			AdditionalPrice:         additionalPrice,
+			Option1:                 getField(19),
+			Option2:                 getField(20),
+			Option3:                 getField(21),
 		}
 
 		// Log successful parsing

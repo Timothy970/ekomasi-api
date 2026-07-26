@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo backend application.
+// Package models provides data access functions for the Ekomasi backend application.
 //
 // This file contains comprehensive product management functionality including:
 //   - Product CRUD operations (create, read, update, delete)
@@ -12,7 +12,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -57,7 +57,7 @@ var lowerVariantTypeName = "(LOWER(v.variant_type) = ? AND LOWER(v.name) = ?)" /
 //   - Timestamps: CreatedAt, LastUpdated
 //   - *dtos.PaginationMeta: Pagination metadata (Page, Size, TotalItems, TotalPages, HasPrev, HasNext)
 //   - error: Category not found, database error, or nil on success
-func GetAllProducts(db DBExecutor, categoryFilter, productFilter, categoryID string, page, limit int) ([]dtos.Product, *dtos.PaginationMeta, error) {
+func GetAllProducts(db DBExecutor, tenantID int, categoryFilter, productFilter, categoryID string, page, limit int) ([]dtos.Product, *dtos.PaginationMeta, error) {
 	// Validate category exists if filtering by category ID
 	if categoryID != "" {
 		if err := CategoryExists(db, categoryID); err != nil {
@@ -66,8 +66,8 @@ func GetAllProducts(db DBExecutor, categoryFilter, productFilter, categoryID str
 	}
 
 	// Build queries with filters and pagination
-	query, args := buildProductQuery(categoryFilter, productFilter, categoryID, page, limit)
-	countQuery, countArgs := buildCountQuery(categoryFilter, productFilter, categoryID)
+	query, args := buildProductQuery(tenantID, categoryFilter, productFilter, categoryID, page, limit)
+	countQuery, countArgs := buildCountQuery(tenantID, categoryFilter, productFilter, categoryID)
 
 	// Execute main product query
 	rows, err := db.Query(query, args...)
@@ -104,6 +104,7 @@ func GetAllProducts(db DBExecutor, categoryFilter, productFilter, categoryID str
 // specified category and all its ancestors and descendants.
 //
 // Parameters:
+//   - tenantID: int - Tenant identifier
 //   - categoryFilter: string - Optional category name filter (case-insensitive partial match)
 //   - productFilter: string - Optional product name filter (case-insensitive partial match)
 //   - categoryID: string - Optional category ID (includes parent and child categories via recursive CTE)
@@ -111,14 +112,14 @@ func GetAllProducts(db DBExecutor, categoryFilter, productFilter, categoryID str
 // Returns:
 //   - string: SQL COUNT query
 //   - []interface{}: Query parameters for prepared statement
-func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, []interface{}) {
+func buildCountQuery(tenantID int, categoryFilter, productFilter, categoryID string) (string, []interface{}) {
 	// Base query for simple filtering (no category hierarchy)
 	query := `
         SELECT COUNT(DISTINCT p.product_id)
         FROM products p
         JOIN categories c ON p.category_id = c.category_id
-        WHERE p.product_type = 'single'`
-	var args []interface{}
+        WHERE p.product_type = 'single' AND p.tenant_id = ?`
+	args := []interface{}{tenantID}
 
 	// Add category name filter
 	if categoryFilter != "" {
@@ -138,7 +139,7 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
         WITH RECURSIVE ancestors AS (
             SELECT category_id, parent_category_id
             FROM categories
-            WHERE category_id = ?
+            WHERE category_id = ? AND tenant_id = ?
             UNION ALL
             SELECT c.category_id, c.parent_category_id
             FROM categories c
@@ -147,7 +148,7 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
         descendants AS (
             SELECT category_id, parent_category_id
             FROM categories
-            WHERE category_id = ?
+            WHERE category_id = ? AND tenant_id = ?
             UNION ALL
             SELECT c.category_id, c.parent_category_id
             FROM categories c
@@ -156,13 +157,13 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
         SELECT COUNT(DISTINCT p.product_id)
         FROM products p
         JOIN categories c ON p.category_id = c.category_id
-        WHERE p.product_type = 'single'
+        WHERE p.product_type = 'single' AND p.tenant_id = ?
           AND c.category_id IN (
               SELECT category_id FROM ancestors
               UNION
               SELECT category_id FROM descendants
           )`
-		args = append(args, categoryID, categoryID) // categoryID used twice for both CTEs
+		args = []interface{}{categoryID, tenantID, categoryID, tenantID, tenantID}
 	}
 
 	return query, args
@@ -174,6 +175,7 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
 // specification information using LEFT JOINs for optional data.
 //
 // Parameters:
+//   - tenantID: int - Tenant identifier
 //   - categoryFilter: string - Optional category name filter (case-insensitive partial match)
 //   - productFilter: string - Optional product name filter (case-insensitive partial match)
 //   - categoryID: string - Optional category ID (includes parent/child via hierarchy)
@@ -183,7 +185,7 @@ func buildCountQuery(categoryFilter, productFilter, categoryID string) (string, 
 // Returns:
 //   - string: SQL SELECT query with JOINs and filters
 //   - []interface{}: Query parameters for prepared statement
-func buildProductQuery(categoryFilter, productFilter, categoryID string, page, limit int) (string, []interface{}) {
+func buildProductQuery(tenantID int, categoryFilter, productFilter, categoryID string, page, limit int) (string, []interface{}) {
 	// Base query with LEFT JOINs for optional data
 	query := `
         SELECT 
@@ -194,8 +196,8 @@ func buildProductQuery(categoryFilter, productFilter, categoryID string, page, l
         JOIN products p ON c.category_id = p.category_id
 		LEFT JOIN deal_products dp ON p.product_id = dp.product_id
 		LEFT JOIN product_specifications ps ON p.product_id = ps.product_id
-        WHERE p.product_type = 'single'`
-	var args []interface{}
+        WHERE p.product_type = 'single' AND p.tenant_id = ?`
+	args := []interface{}{tenantID}
 
 	// Add category name filter (case-insensitive partial match)
 	if categoryFilter != "" {
@@ -820,7 +822,7 @@ func IsCategoryParent(db DBExecutor, categoryID string) error {
 // Returns:
 //   - *dtos.CreateProduct: Created product with generated ID
 //   - error: "duplicate SKU", category validation error, database error, or nil on success
-func AddNewProduct(db DBExecutor, input dtos.CreateProduct, userID string) (*dtos.CreateProduct, error) {
+func AddNewProduct(db DBExecutor, input dtos.CreateProduct, userID string, tenantID int) (*dtos.CreateProduct, error) {
 	// Validate SKU uniqueness
 	skuExists, err := RecordExists(db, "products", "sku = ?", input.SKU)
 	if err != nil {
@@ -859,9 +861,9 @@ func AddNewProduct(db DBExecutor, input dtos.CreateProduct, userID string) (*dto
 	// Insert product record
 	//The price is set to 0 by default and will be updated later when
 	_, err = db.Exec(`
-		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, created_by_id, buying_price, details, barcode)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		productID, input.Name, input.Description, input.SKU, 0, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, userID, input.BuyingPrice, detailsJSON, input.Barcode,
+		INSERT INTO products (product_id, name, description, sku, price, category_id, stock_quantity, search_vector, tag, low_stock_quantity_warning, created_by_id, buying_price, details, barcode, tenant_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		productID, input.Name, input.Description, input.SKU, 0, input.CategoryID, input.StockQuantity, input.SearchVector, input.Tag, input.LowStockAlert, userID, input.BuyingPrice, detailsJSON, input.Barcode, tenantID,
 	)
 	if err != nil {
 		return nil, err

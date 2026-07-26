@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // ListInventory retrieves a paginated list of inventories.
@@ -32,22 +32,22 @@ import (
 // @Failure      409          {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/inventories [get]
-func ListInventory(w http.ResponseWriter, r *http.Request) {
+func ListInventory(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", ""); !ok {
 		return
 	}
-	categoryID := r.URL.Query().Get("category_id")
-	stock := r.URL.Query().Get("stock")
-	storeID := r.URL.Query().Get("store_id")
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	q := r.URL.Query().Get("q")
+	categoryID := c.Query("category_id")
+	stock := c.Query("stock")
+	storeID := c.Query("store_id")
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
+	q := c.Query("q")
 	inventories, pagination, err := models.ListInventory(models.DB, page, size, categoryID, stock, storeID, q)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to list inventory",
@@ -56,12 +56,12 @@ func ListInventory(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Inventory",
 			Description: "Inventories fetched successfully",
@@ -74,7 +74,7 @@ func ListInventory(w http.ResponseWriter, r *http.Request) {
 		Message:   "Inventories",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -92,26 +92,26 @@ func ListInventory(w http.ResponseWriter, r *http.Request) {
 // @Failure      409        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/inventories [post]
-func CreateInventory(w http.ResponseWriter, r *http.Request) {
+func CreateInventory(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", "inventory.create")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.CreateInventoryRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CreateInventoryRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Inventory") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Inventory") {
 		return
 	}
 
 	if err := models.CreateInventory(models.DB, *req); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to create inventory",
@@ -120,13 +120,13 @@ func CreateInventory(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	utils.DeleteCacheByPrefix("inventories_")
 	utils.DeleteCacheByPrefix("inventories_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Inventory",
 			Description: "Inventory saved successfully",
@@ -136,7 +136,7 @@ func CreateInventory(w http.ResponseWriter, r *http.Request) {
 		Message:   "Inventory created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -153,19 +153,19 @@ func CreateInventory(w http.ResponseWriter, r *http.Request) {
 // @Failure      409           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/inventories/{inventory_id} [get]
-func GetInventory(w http.ResponseWriter, r *http.Request) {
+func GetInventory(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", ""); !ok {
 		return
 	}
-	id := mux.Vars(r)["inventory_id"]
+	id := c.Param("inventory_id")
 
 	inv, err := models.GetInventory(models.DB, id)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to get inventory : " + err.Error(),
@@ -174,12 +174,12 @@ func GetInventory(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Inventory",
 			Description: "Inventory fetched successfully",
@@ -189,7 +189,7 @@ func GetInventory(w http.ResponseWriter, r *http.Request) {
 		Message:   "Inventory fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -205,19 +205,19 @@ func GetInventory(w http.ResponseWriter, r *http.Request) {
 // @Failure      404           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/inventories/{inventory_id}/csv [get]
-func DownloadInventoryCSV(w http.ResponseWriter, r *http.Request) {
+func DownloadInventoryCSV(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", ""); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", ""); !ok {
 		return
 	}
-	id := mux.Vars(r)["inventory_id"]
+	id := c.Param("inventory_id")
 
 	inv, err := models.GetInventory(models.DB, id)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to get inventory",
@@ -226,16 +226,16 @@ func DownloadInventoryCSV(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment; filename=inventory.csv")
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", "attachment; filename=inventory.csv")
 
-	if err := utils.ExportInventoryCSV(w, *inv); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	if err := utils.ExportInventoryCSV(c.Writer, *inv); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to export inventory CSV",
@@ -244,7 +244,7 @@ func DownloadInventoryCSV(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 
@@ -263,19 +263,19 @@ func DownloadInventoryCSV(w http.ResponseWriter, r *http.Request) {
 // @Failure      404           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/inventories/{inventory_id}/pdf [get]
-func DownloadInventoryPDF(w http.ResponseWriter, r *http.Request) {
+func DownloadInventoryPDF(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.view"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", "inventory.view"); !ok {
 		return
 	}
-	id := mux.Vars(r)["inventory_id"]
+	id := c.Param("inventory_id")
 
 	inv, err := models.GetInventory(models.DB, id)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to get inventory",
@@ -284,14 +284,14 @@ func DownloadInventoryPDF(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	pdfBytes, err := utils.GenerateInventoryPDF(*inv)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to generate inventory PDF",
@@ -300,7 +300,7 @@ func DownloadInventoryPDF(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 
@@ -308,9 +308,9 @@ func DownloadInventoryPDF(w http.ResponseWriter, r *http.Request) {
 
 	filename := fmt.Sprintf("inventory_%s.pdf", inv.InventoryID)
 
-	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
-	w.Write(pdfBytes)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", "attachment; filename="+filename)
+	c.Writer.Write(pdfBytes)
 }
 
 // UpdateInventory updates an existing inventory item.
@@ -328,21 +328,21 @@ func DownloadInventoryPDF(w http.ResponseWriter, r *http.Request) {
 // @Failure      409           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/inventories/{inventory_id} [patch]
-func UpdateInventory(w http.ResponseWriter, r *http.Request) {
+func UpdateInventory(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", "inventory.update")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.UpdateInventoryRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.UpdateInventoryRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 	if req.LowStockThreshold == nil && req.Quantity == nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "LowStockThreshold or Quantity must be provided",
@@ -351,17 +351,17 @@ func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 			Message:   "Request cannot be empty",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Inventory") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Inventory") {
 		return
 	}
-	id := mux.Vars(r)["inventory_id"]
+	id := c.Param("inventory_id")
 
 	if err := models.UpdateInventory(models.DB, id, req.Quantity, req.LowStockThreshold); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to update inventory with ID " + id,
@@ -370,13 +370,13 @@ func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	utils.DeleteCacheByPrefix("inventories_")
 	utils.DeleteCacheByPrefix("inventories_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Inventory",
 			Description: "Inventory with ID " + id + " updated successfully",
@@ -386,7 +386,7 @@ func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 		Message:   "Inventory updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -403,19 +403,19 @@ func UpdateInventory(w http.ResponseWriter, r *http.Request) {
 // @Failure      409           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/inventories/{inventory_id} [delete]
-func DeleteInventory(w http.ResponseWriter, r *http.Request) {
+func DeleteInventory(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", "inventory.delete")
 	if !ok {
 		return
 	}
-	id := mux.Vars(r)["inventory_id"]
+	id := c.Param("inventory_id")
 
 	if err := models.DeleteInventory(models.DB, id); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to delete inventory with ID " + id,
@@ -424,13 +424,13 @@ func DeleteInventory(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	utils.DeleteCacheByPrefix("inventories_")
 	utils.DeleteCacheByPrefix("inventories_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Inventory",
 			Description: "Inventory with ID " + id + " deleted successfully",
@@ -440,7 +440,7 @@ func DeleteInventory(w http.ResponseWriter, r *http.Request) {
 		Message:   "Inventory deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -456,18 +456,18 @@ func DeleteInventory(w http.ResponseWriter, r *http.Request) {
 // @Success      200     {object}  dtos.InventoryTurnoverResponse
 // @Failure      404     {object}  dtos.ErrorResponse
 // @Router       /api/reports/inventory/turnover [get]
-func GetInventoryTurnover(w http.ResponseWriter, r *http.Request) {
+func GetInventoryTurnover(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	groupBy := "weekly"
-	periodStr := r.URL.Query().Get("period")
+	periodStr := c.Query("period")
 	if periodStr != "" {
 		groupBy = periodStr
 	}
-	start, end, _ := ParseDateRange(r)
-	data, err := models.GetInventoryTurnover(models.DB, start, end, groupBy)
+	startDate, endDate, _ := ParseDateRange(c.Request)
+	data, err := models.GetInventoryTurnover(models.DB, startDate, endDate, groupBy)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get inventory turnover report",
@@ -476,7 +476,7 @@ func GetInventoryTurnover(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -486,11 +486,11 @@ func GetInventoryTurnover(w http.ResponseWriter, r *http.Request) {
 			Start time.Time `json:"start"`
 			End   time.Time `json:"end"`
 			Type  string    `json:"type"`
-		}{Start: start, End: end, Type: groupBy},
+		}{Start: startDate, End: endDate, Type: groupBy},
 		Data: data,
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Summary inventory turnover report generated successfully",
@@ -500,7 +500,7 @@ func GetInventoryTurnover(w http.ResponseWriter, r *http.Request) {
 		Message:   "Summary inventory turnover report",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -517,21 +517,21 @@ func GetInventoryTurnover(w http.ResponseWriter, r *http.Request) {
 // @Success      200         {object}  dtos.InventoryTurnoverResponse
 // @Failure      404         {object}  dtos.ErrorResponse
 // @Router       /api/reports/inventory/turnover/{product_id} [get]
-func GetInventoryTurnoverByProduct(w http.ResponseWriter, r *http.Request) {
+func GetInventoryTurnoverByProduct(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	productID := mux.Vars(r)["product_id"]
+	requestSummary := utils.GetRequestSummary(c.Request)
+	productID := c.Param("product_id")
 	groupBy := "weekly"
-	periodStr := r.URL.Query().Get("period")
+	periodStr := c.Query("period")
 	if periodStr != "" {
 		groupBy = periodStr
 	}
-	start, end, _ := ParseDateRange(r)
+	startDate, endDate, _ := ParseDateRange(c.Request)
 
-	data, err := models.GetInventoryTurnoverByProduct(models.DB, productID, start, end, groupBy)
+	data, err := models.GetInventoryTurnoverByProduct(models.DB, productID, startDate, endDate, groupBy)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to get inventory turnover report for product " + productID,
@@ -540,7 +540,7 @@ func GetInventoryTurnoverByProduct(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -550,11 +550,11 @@ func GetInventoryTurnoverByProduct(w http.ResponseWriter, r *http.Request) {
 			Start time.Time `json:"start"`
 			End   time.Time `json:"end"`
 			Type  string    `json:"type"`
-		}{Start: start, End: end, Type: groupBy},
+		}{Start: startDate, End: endDate, Type: groupBy},
 		Data: data,
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Product inventory turnover report generated successfully for product " + productID,
@@ -564,7 +564,7 @@ func GetInventoryTurnoverByProduct(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product inventory turnover report",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -600,18 +600,18 @@ func GetInventoryTurnoverByProduct(w http.ResponseWriter, r *http.Request) {
 // @Failure      500                  {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/inventory/stock-entry [post]
-func StockEntry(w http.ResponseWriter, r *http.Request) {
+func StockEntry(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Check if user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.create"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", "inventory.create"); !ok {
 		return
 	}
 
 	// Parse multipart form (100 MB limit for high-quality images)
-	if err := r.ParseMultipartForm(100 << 20); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	if err := c.Request.ParseMultipartForm(100 << 20); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to parse multipart form when creating stock entry",
@@ -620,15 +620,15 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Upload images
-	batchImageUrls, err := handleImageUpload(r, "batch_images")
+	batchImageUrls, err := handleImageUpload(c.Request, "batch_images")
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to upload batch images when creating stock entry",
@@ -637,14 +637,14 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	inspectionImageUrls, err := handleImageUpload(r, "inspection_images")
+	inspectionImageUrls, err := handleImageUpload(c.Request, "inspection_images")
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to upload inspection images when creating stock entry",
@@ -653,45 +653,45 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Build stock entry request
 	var supplierID *string
-	if supplierIDValue := r.FormValue("supplier_id"); supplierIDValue != "" {
+	if supplierIDValue := c.Request.FormValue("supplier_id"); supplierIDValue != "" {
 		supplierID = &supplierIDValue
 	}
-	inspectionNotes := r.FormValue("inspection_notes")
-	handlingNotes := r.FormValue("handling_notes")
+	inspectionNotes := c.Request.FormValue("inspection_notes")
+	handlingNotes := c.Request.FormValue("handling_notes")
 	req := &dtos.StockEntryRequest{
-		ProductID:         r.FormValue("product_id"),
+		ProductID:         c.Request.FormValue("product_id"),
 		BatchImages:       &batchImageUrls,
-		BatchNumber:       r.FormValue("batch_number"),
-		ExpiryDate:        r.FormValue("expiry_date"),
-		ManufacturingDate: r.FormValue("manufacturing_date"),
-		InspectionDate:    r.FormValue("inspection_date"),
+		BatchNumber:       c.Request.FormValue("batch_number"),
+		ExpiryDate:        c.Request.FormValue("expiry_date"),
+		ManufacturingDate: c.Request.FormValue("manufacturing_date"),
+		InspectionDate:    c.Request.FormValue("inspection_date"),
 		InspectionImage:   &inspectionImageUrls,
-		InspectorID:       r.FormValue("inspector_id"),
+		InspectorID:       c.Request.FormValue("inspector_id"),
 		InspectionNotes:   &inspectionNotes,
-		QuantityReceived:  parseInt(r.FormValue("quantity_received")),
-		MinimumStockLevel: parseInt(r.FormValue("minimum_stock_level")),
-		StoreQuantity:     ParseStoreInfoArray(r.FormValue("store_quantity")),
+		QuantityReceived:  parseInt(c.Request.FormValue("quantity_received")),
+		MinimumStockLevel: parseInt(c.Request.FormValue("minimum_stock_level")),
+		StoreQuantity:     ParseStoreInfoArray(c.Request.FormValue("store_quantity")),
 		SupplierID:        supplierID,
-		BuyingPrice:       parseFloat(r.FormValue("buying_price")),
+		BuyingPrice:       parseFloat(c.Request.FormValue("buying_price")),
 		HandlingNotes:     &handlingNotes,
-		SellingPrice:      parseFloat(r.FormValue("selling_price")),
-		VariantQuantity:   ParseVariantQuantityArray(r.FormValue("variant_quantity")),
+		SellingPrice:      parseFloat(c.Request.FormValue("selling_price")),
+		VariantQuantity:   ParseVariantQuantityArray(c.Request.FormValue("variant_quantity")),
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Inventory") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Inventory") {
 		return
 	}
 	// Parse dates for comparison
 	expiryDate, err := time.Parse("2006-01-02", req.ExpiryDate)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Invalid expiry date format when creating stock entry",
@@ -700,14 +700,14 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   "Invalid expiry date format. Expected YYYY-MM-DD",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	mfgDate, err := time.Parse("2006-01-02", req.ManufacturingDate)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Invalid manufacturing date format when creating stock entry",
@@ -716,14 +716,14 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   "Invalid manufacturing date format. Expected YYYY-MM-DD",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	inspectionDate, err := time.Parse("2006-01-02", req.InspectionDate)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Invalid inspection date format when creating stock entry",
@@ -732,13 +732,13 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   "Invalid inspection date format. Expected YYYY-MM-DD",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	//inspection date cannot be in the future
 	if inspectionDate.After(time.Now()) {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Inspection date cannot be in the future when creating stock entry",
@@ -747,13 +747,13 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   "Inspection date cannot be in the future",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	if expiryDate.Before(mfgDate) || expiryDate.Equal(mfgDate) {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Expiry date must be after manufacturing date when creating stock entry",
@@ -762,7 +762,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   "Expiry date must be after manufacturing date",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -773,7 +773,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		totalStoreQuantity += store.Quantity
 	}
 	if totalStoreQuantity != req.QuantityReceived {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: fmt.Sprintf("Store quantities sum (%d) does not match quantity received (%d)", totalStoreQuantity, req.QuantityReceived),
@@ -782,7 +782,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("The sum of store quantities (%d) must equal the total quantity received (%d)", totalStoreQuantity, req.QuantityReceived),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -790,7 +790,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 	// Start Transaction
 	tx, err := models.DB.Begin()
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to start transaction when creating stock entry",
@@ -799,7 +799,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   "Internal Server Error",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -818,7 +818,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		inventoryID, err := handleInventoryTracking(tx, req, storeID, quantity)
 		if err != nil {
 			tx.Rollback()
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Inventory",
 					Description: "Failed to store inventory tracking when creating stock entry",
@@ -827,7 +827,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -835,7 +835,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		batchID, err := handleBatch(tx, req, inventoryID)
 		if err != nil {
 			tx.Rollback()
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Inventory",
 					Description: "Failed to store batch details when creating stock entry",
@@ -844,14 +844,14 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
 		err = handleInspection(tx, req, batchID)
 		if err != nil {
 			tx.Rollback()
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Inventory",
 					Description: "Failed to store inspection details when creating stock entry",
@@ -860,14 +860,14 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
 		err = handleStoreConditonsAndNotes(tx, req, batchID)
 		if err != nil {
 			tx.Rollback()
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Inventory",
 					Description: "Failed to store handling notes when creating stock entry",
@@ -876,7 +876,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -884,7 +884,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 	//update product buying price and selling price
 	if err := models.UpdateProductPrices(tx, req.ProductID, req.BuyingPrice, req.SellingPrice); err != nil {
 		tx.Rollback()
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to update product prices when creating stock entry",
@@ -893,7 +893,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -902,7 +902,7 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 	if len(req.VariantQuantity) > 0 {
 		if err := models.UpdateVariantQuantities(tx, req.VariantQuantity); err != nil {
 			tx.Rollback()
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Inventory",
 					Description: "Failed to update variant quantities when creating stock entry",
@@ -911,14 +911,14 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
 	}
 	// Commit Transaction
 	if err := tx.Commit(); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to commit transaction when creating stock entry",
@@ -927,12 +927,12 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 			Message:   "Internal Server Error",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Inventory",
 			Description: "Inventory(stock entry) created successfully with inventory IDs " + fmt.Sprint(invetoryIDS),
@@ -942,11 +942,14 @@ func StockEntry(w http.ResponseWriter, r *http.Request) {
 		Message:   "Inventory created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
 func handleImageUpload(r *http.Request, field string) ([]string, error) {
+	if r.MultipartForm == nil {
+		return nil, nil
+	}
 	files := r.MultipartForm.File[field]
 	if len(files) == 0 {
 		return nil, nil
@@ -1080,20 +1083,20 @@ func ParseVariantQuantityArray(s string) []dtos.VariantQuantity {
 	return variants
 }
 
-func GetInventoryStockSummary(w http.ResponseWriter, r *http.Request) {
+func GetInventoryStockSummary(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.view"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", "inventory.view"); !ok {
 		return
 	}
-	id := mux.Vars(r)["inventory_id"]
+	id := c.Param("inventory_id")
 	//add filter by store id
-	storeID := r.URL.Query().Get("store_id")
+	storeID := c.Query("store_id")
 	inv, err := models.GetInventoryStockSummary(models.DB, id, storeID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to get inventory stock summary for inventory with ID " + id,
@@ -1102,12 +1105,12 @@ func GetInventoryStockSummary(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Inventory",
 			Description: "Successfully fetched inventory stock summary for inventory with ID " + id,
@@ -1117,24 +1120,24 @@ func GetInventoryStockSummary(w http.ResponseWriter, r *http.Request) {
 		Message:   "Inventory stock summary fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
-func GetInventoryStockHistory(w http.ResponseWriter, r *http.Request) {
+func GetInventoryStockHistory(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Inventory", "inventory.view"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", "inventory.view"); !ok {
 		return
 	}
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	id := mux.Vars(r)["inventory_id"]
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
+	id := c.Param("inventory_id")
 	//add filter by store id
 	inv, pagination, err := models.GetInventoryStockHistory(models.DB, id, page, size)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
 				Description: "Failed to get inventory stock history for inventory with ID " + id,
@@ -1143,12 +1146,12 @@ func GetInventoryStockHistory(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Inventory",
 			Description: "Successfully fetched inventory stock history for inventory with ID " + id,
@@ -1158,6 +1161,6 @@ func GetInventoryStockHistory(w http.ResponseWriter, r *http.Request) {
 		Message:   "Inventory stock history fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

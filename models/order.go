@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo backend.
+// Package models provides data access functions for the Ekomasi backend.
 //
 // This file (order.go) contains order management functions including:
 //   - Order creation with guest support (CreateOrder, CreateOrderItem, CreateDeliveries)
@@ -12,7 +12,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -43,7 +43,7 @@ import (
 //   - string: Generated order_id
 //   - string: Generated delivery_id
 //   - error: Database error or nil on success
-func CreateOrder(db DBExecutor, req dtos.OrderRequest, totalAmount, totalDiscount string) (string, string, error) {
+func CreateOrder(db DBExecutor, req dtos.OrderRequest, totalAmount, totalDiscount string, tenantID int) (string, string, error) {
 	// Generate unique IDs for order and delivery
 	orderID, _ := shortid.Generate()
 	deliveryID, _ := shortid.Generate()
@@ -60,10 +60,10 @@ func CreateOrder(db DBExecutor, req dtos.OrderRequest, totalAmount, totalDiscoun
 	_, err := db.Exec(`
 	INSERT INTO orders (
 		order_id, user_id, is_guest_order, status,
-		total_amount, total_discount, delivery_id, guest_personal_details, guest_delivery_address, source
-	) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+		total_amount, total_discount, delivery_id, guest_personal_details, guest_delivery_address, source, tenant_id
+	) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)
 `, orderID, req.UserID, isGuest, totalAmount, totalDiscount, deliveryID,
-		guestPersonalDetailsJSON, guestDeliveryAddressJSON, req.OrderSource)
+		guestPersonalDetailsJSON, guestDeliveryAddressJSON, req.OrderSource, tenantID)
 
 	if err != nil {
 		return "", "", err
@@ -307,7 +307,7 @@ func GetOrderByUser(db DBExecutor, orderID, userID string) (*dtos.Order, error) 
 //   - Guest personal and delivery details (for guest orders)
 //   - Calculated tax and subtotal
 //   - error: Database error or nil on success
-func GetAllOrders(db DBExecutor, status *string) ([]dtos.Order, error) {
+func GetAllOrders(db DBExecutor, tenantID int, status *string) ([]dtos.Order, error) {
 	var (
 		query string
 		rows  *sql.Rows
@@ -337,11 +337,11 @@ func GetAllOrders(db DBExecutor, status *string) ([]dtos.Order, error) {
 
 	// Apply status filter if provided
 	if status != nil {
-		query = baseQuery + " WHERE o.status = ? ORDER BY o.order_id"
-		rows, err = db.Query(query, *status)
+		query = baseQuery + " WHERE o.status = ? AND o.tenant_id = ? ORDER BY o.order_id"
+		rows, err = db.Query(query, *status, tenantID)
 	} else {
-		query = baseQuery + " ORDER BY o.order_id"
-		rows, err = db.Query(query)
+		query = baseQuery + " WHERE o.tenant_id = ? ORDER BY o.order_id"
+		rows, err = db.Query(query, tenantID)
 	}
 
 	if err != nil {
@@ -430,13 +430,13 @@ func GetAllOrders(db DBExecutor, status *string) ([]dtos.Order, error) {
 //   - Guest details (if applicable)
 //   - *dtos.PaginationMeta: Pagination metadata (Page, Size, TotalItems, TotalPages, HasPrev, HasNext)
 //   - error: Database error or nil on success
-func ListOrdersByUser(db DBExecutor, userID string, page, limit int) ([]dtos.Order, *dtos.PaginationMeta, error) {
+func ListOrdersByUser(db DBExecutor, userID string, tenantID int, page, limit int) ([]dtos.Order, *dtos.PaginationMeta, error) {
 	// Calculate pagination offset
 	offset := (page - 1) * limit
 
-	// Count total orders for this user
+	// Count total orders for this user and tenant
 	var total int
-	err := db.QueryRow(`SELECT COUNT(*) FROM orders WHERE user_id = ?`, userID).Scan(&total)
+	err := db.QueryRow(`SELECT COUNT(*) FROM orders WHERE user_id = ? AND tenant_id = ?`, userID, tenantID).Scan(&total)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -461,10 +461,10 @@ func ListOrdersByUser(db DBExecutor, userID string, page, limit int) ([]dtos.Ord
 			o.source
         FROM orders o
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
-        WHERE o.user_id = ?
+        WHERE o.user_id = ? AND o.tenant_id = ?
         ORDER BY o.created_at DESC LIMIT ? OFFSET ?`
 
-	rows, err := db.Query(query, userID, limit, offset)
+	rows, err := db.Query(query, userID, tenantID, limit, offset)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -577,7 +577,7 @@ func ptrToFloat(v *float64) float64 {
 // Security:
 //   - Uses LIKE queries on JSON guest_personal_details to verify both email and phone
 //   - Returns nil (not found) if credentials don't match
-func ListGuestOrders(db DBExecutor, orderID, email, phone string) (*dtos.Order, error) {
+func ListGuestOrders(db DBExecutor, orderID, email, phone string, tenantID int) (*dtos.Order, error) {
 	// Query with email and phone verification
 	query := `
         SELECT 
@@ -600,14 +600,15 @@ func ListGuestOrders(db DBExecutor, orderID, email, phone string) (*dtos.Order, 
         LEFT JOIN deliveries d ON o.delivery_id = d.delivery_id
         WHERE o.order_id = ?
           AND o.guest_personal_details LIKE ?
-          AND o.guest_personal_details LIKE ?`
+          AND o.guest_personal_details LIKE ?
+          AND o.tenant_id = ?`
 
 	var ord dtos.Order
 	var guestAddrStr, guestDetailsStr, paymentStatusStr string
 	var totalAmount float64
 
 	// Search for email and phone in JSON guest details
-	err := db.QueryRow(query, orderID, "%"+email+"%", "%"+phone+"%").Scan(
+	err := db.QueryRow(query, orderID, "%"+email+"%", "%"+phone+"%", tenantID).Scan(
 		&ord.OrderID,
 		&totalAmount,
 		&ord.TotalDiscount,

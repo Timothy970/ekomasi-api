@@ -1,10 +1,10 @@
-// Package utils provides utility functions for the Adenzo backend API.
+// Package utils provides utility functions for the Ekomasi backend API.
 // This file contains utilities for generating and managing account codes
 // for the chart of accounts system.
 package utils
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"errors"
 	"fmt"
 	"strings"

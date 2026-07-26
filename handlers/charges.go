@@ -1,13 +1,13 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 var chargeWithID = "Charge with ID "
@@ -27,26 +27,26 @@ var chargeWithID = "Charge with ID "
 // @Failure      500     {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/charges [post]
-func AddChargeHandler(w http.ResponseWriter, r *http.Request) {
+func AddChargeHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Charges", "charges.create"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Charges", "charges.create"); !ok {
 		return
 	}
 
-	req, ok := DecodeRequestBody[dtos.Charge](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.Charge](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Charges") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Charges") {
 		return
 	}
 
 	charge, err := models.AddCharge(models.DB, *req)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Charges",
 				Description: "Failed to add charge",
@@ -55,12 +55,12 @@ func AddChargeHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Charges",
 			Description: "Charge added successfully",
@@ -68,7 +68,7 @@ func AddChargeHandler(w http.ResponseWriter, r *http.Request) {
 		},
 		Payload: charge, Message: "Charge added successfully", TimeTaken: time.Since(start),
 		Function: utils.GetCurrentFuncName(),
-		Request:  r,
+		Request:  c.Request,
 		RawBody:  requestSummary})
 }
 
@@ -88,26 +88,26 @@ func AddChargeHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/charges/{charge_id} [patch]
-func UpdateChargeHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateChargeHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Charges", "charges.update"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Charges", "charges.update"); !ok {
 		return
 	}
 
-	id := mux.Vars(r)["charge_id"]
+	id := c.Param("charge_id")
 
-	req, ok := DecodeRequestBody[dtos.Charge](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.Charge](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Charges") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Charges") {
 		return
 	}
 	charge, err := models.UpdateCharge(models.DB, id, *req)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Charges",
 				Description: "Failed to update charge with ID " + id,
@@ -115,13 +115,13 @@ func UpdateChargeHandler(w http.ResponseWriter, r *http.Request) {
 			},
 			Message: err.Error(), TimeTaken: time.Since(start),
 			Function: utils.GetCurrentFuncName(),
-			Request:  r,
+			Request:  c.Request,
 			RawBody:  requestSummary,
 		})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Charges",
 			Description: chargeWithID + id + " updated successfully",
@@ -129,7 +129,7 @@ func UpdateChargeHandler(w http.ResponseWriter, r *http.Request) {
 		},
 		Payload: charge, Message: "Charge updated successfully", TimeTaken: time.Since(start),
 		Function: utils.GetCurrentFuncName(),
-		Request:  r,
+		Request:  c.Request,
 		RawBody:  requestSummary,
 	})
 }
@@ -145,13 +145,13 @@ func UpdateChargeHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200        {object}  dtos.Charge
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Router       /api/charges/{charge_id} [get]
-func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
+func GetChargeByIDHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
-	id := mux.Vars(r)["charge_id"]
+	requestSummary := utils.GetRequestSummary(c.Request)
+	id := c.Param("charge_id")
 	charge, err := models.GetChargeByID(models.DB, id)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Charges",
 			Description: "Failed to get charge with ID " + id,
 			Code:        http.StatusInternalServerError,
@@ -159,12 +159,12 @@ func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 		Module:      "Charges",
 		Description: chargeWithID + id + " retrieved successfully",
 		Code:        http.StatusOK,
@@ -172,7 +172,7 @@ func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 		Payload: charge, Message: "Charge retrieved successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -186,12 +186,12 @@ func GetChargeByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  []dtos.Charge
 // @Failure      500  {object}  dtos.ErrorResponse
 // @Router       /api/charges [get]
-func GetAllChargesHandler(w http.ResponseWriter, r *http.Request) {
+func GetAllChargesHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	charges, err := models.GetAllCharges(models.DB)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Charges",
 			Description: "Failed to get all charges",
 			Code:        http.StatusInternalServerError,
@@ -199,18 +199,18 @@ func GetAllChargesHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 		Module:      "Charges",
 		Description: "All charges retrieved successfully",
 		Code:        http.StatusOK,
 	},
 		Payload: charges, Message: "Charges retrieved successfully", TimeTaken: time.Since(start),
 		Function: utils.GetCurrentFuncName(),
-		Request:  r,
+		Request:  c.Request,
 		RawBody:  requestSummary})
 }
 
@@ -227,16 +227,16 @@ func GetAllChargesHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/charges/{charge_id} [delete]
-func DeleteChargeHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteChargeHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Charges", "charges.delete"); !ok {
+	requestSummary := utils.GetRequestSummary(c.Request)
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Charges", "charges.delete"); !ok {
 		return
 	}
 
-	id := mux.Vars(r)["charge_id"]
+	id := c.Param("charge_id")
 	if err := models.DeleteCharge(models.DB, id); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Charges",
 			Description: "Failed to delete charge with ID " + id,
 			Code:        http.StatusInternalServerError,
@@ -244,11 +244,11 @@ func DeleteChargeHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 		Module:      "Charges",
 		Description: chargeWithID + id + " deleted successfully",
 		Code:        http.StatusOK,
@@ -257,7 +257,7 @@ func DeleteChargeHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Charge deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -276,22 +276,22 @@ func DeleteChargeHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500      {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/products/charges [post]
-func AddChargeToProductHandler(w http.ResponseWriter, r *http.Request) {
+func AddChargeToProductHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Charges", "products.create"); !ok {
+	requestSummary := utils.GetRequestSummary(c.Request)
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Charges", "products.create"); !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.AddChargeToProductRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.AddChargeToProductRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Charges") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Charges") {
 		return
 	}
 	err := models.AddChargeToProduct(models.DB, *req)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Charges",
 			Description: "Failed to add charge to product",
 			Code:        http.StatusInternalServerError,
@@ -299,11 +299,11 @@ func AddChargeToProductHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{CollectiveInfo: utils.CollectiveInfo{
 		Module:      "Charges",
 		Description: "Charge with charge ID " + req.ChargeID + " added to product with product ID " + req.ProductID + " successfully",
 		Code:        http.StatusOK,
@@ -312,6 +312,6 @@ func AddChargeToProductHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Charge added to product successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

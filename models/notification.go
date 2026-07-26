@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo backend.
+// Package models provides data access functions for the Ekomasi backend.
 //
 // This file (notification.go) contains notification and logging management functions including:
 //   - Notification CRUD operations (create, read, update, delete)
@@ -9,7 +9,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"fmt"
 	"math"
 )

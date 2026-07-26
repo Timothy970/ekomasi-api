@@ -5,16 +5,15 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"fmt"
 	"math"
 	"net/http"
 	"strconv"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 // Date format constants for error messages
@@ -38,20 +37,20 @@ var date = "2006-01-02"
 // @Failure      500    {object}  dtos.ErrorResponse            "Internal server error"
 // @Security     BearerAuth
 // @Router       /reports/balance-sheet [get]
-func BalanceSheet(w http.ResponseWriter, r *http.Request) {
+func BalanceSheet(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for viewing financial reports)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 
 	// Extract 'as_of' date parameter from query string
-	asOfStr := r.URL.Query().Get("as_of")
+	asOfStr := c.Query("as_of")
 	var asOf time.Time
 	var err error
 
@@ -62,7 +61,7 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 		// Parse date string into time.Time object
 		asOf, err = time.Parse(date, asOfStr)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Reports",
 					Description: "Invalid as of date for balance sheet report",
@@ -71,20 +70,20 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 				Message:   "Invalid as of date",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 			return
 		}
 	}
 
 	// Extract 'compare_with' date parameter
-	compareWithStr := r.URL.Query().Get("compare_with")
+	compareWithStr := c.Query("compare_with")
 	var compareWith *time.Time
 
 	if compareWithStr != "" {
 		t, err := time.Parse(date, compareWithStr)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Reports",
 					Description: "Invalid comparison date for balance sheet report",
@@ -93,7 +92,7 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 				Message:   "Invalid comparison date",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -104,7 +103,7 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 	sections, err := models.BalanceSheet(asOf, compareWith)
 	if err != nil {
 		// Database query failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to generate balance sheet report",
@@ -113,7 +112,7 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -140,7 +139,7 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 
 	resp.BalanceCheck = totalAssets - (totalLiabilities + totalEquity)
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: fmt.Sprintf("Balance sheet as of %s generated successfully", asOfStr),
@@ -150,7 +149,7 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 		Message:   fmt.Sprintf("Balance sheet as of %s", asOfStr),
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -169,23 +168,23 @@ func BalanceSheet(w http.ResponseWriter, r *http.Request) {
 // @Failure      500   {object}  dtos.ErrorResponse              "Internal server error"
 // @Security     BearerAuth
 // @Router       /reports/income-statement [get]
-func IncomeStatement(w http.ResponseWriter, r *http.Request) {
+func IncomeStatement(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for viewing financial reports)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract date range parameters from query string
-	fromStr := r.URL.Query().Get("from")
-	toStr := r.URL.Query().Get("to")
+	fromStr := c.Query("from")
+	toStr := c.Query("to")
 	// Validate that both date parameters are provided
 	if fromStr == "" || toStr == "" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "from and to are required and must be in YYYY-MM-DD format",
@@ -194,7 +193,7 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 			Message:   "from and to are required and must be in YYYY-MM-DD format",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -202,7 +201,7 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 	from, err := time.Parse(date, fromStr)
 	if err != nil {
 		// Invalid start date format, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Invalid from date for income statement report",
@@ -211,7 +210,7 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 			Message:   invalidfrom,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -219,7 +218,7 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 	to, err := time.Parse(date, toStr)
 	if err != nil {
 		// Invalid end date format, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Invalid to date for income statement report",
@@ -228,7 +227,7 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 			Message:   invalidto,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -237,7 +236,7 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 	revenue, expenses, tr, te, err := models.IncomeStatement(from, to)
 	if err != nil {
 		// Database query failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to generate income statement report",
@@ -246,7 +245,7 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -276,7 +275,7 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 		TotalExpenses: te,                // Sum of all expenses
 		NetIncome:     tr - te,           // Profit or loss (revenue - expenses)
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: fmt.Sprintf("Income statement from %s to %s generated successfully", fromStr, toStr),
@@ -286,7 +285,7 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 		Message:   "Income statement",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -305,25 +304,25 @@ func IncomeStatement(w http.ResponseWriter, r *http.Request) {
 // @Failure      500      {object}  dtos.ErrorResponse        "Internal server error"
 // @Security     BearerAuth
 // @Router       /reports/cash-flow [post]
-func CashFlow(w http.ResponseWriter, r *http.Request) {
+func CashFlow(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for viewing financial reports)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.CashFlowRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CashFlowRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields in the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Reports") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Reports") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -332,7 +331,7 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 	from, err := time.Parse(date, req.From)
 	if err != nil {
 		// Invalid start date format, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Invalid from date for cash flow report",
@@ -341,7 +340,7 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 			Message:   invalidfrom,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -349,7 +348,7 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 	to, err := time.Parse(date, req.To)
 	if err != nil {
 		// Invalid end date format, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Invalid to date for cash flow report",
@@ -358,7 +357,7 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 			Message:   invalidto,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -366,7 +365,7 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 	inflows, outflows, begin, end, err := models.CashFlow(from, to, req.CashAccountIDs)
 	if err != nil {
 		// Database query failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to generate cash flow report",
@@ -375,7 +374,7 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -389,7 +388,7 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 		BeginningCash: begin,              // Cash balance at start
 		EndingCash:    end,                // Cash balance at end
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Cash flow report generated successfully",
@@ -399,7 +398,7 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 		Message:   "Cash flow",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -421,25 +420,25 @@ func CashFlow(w http.ResponseWriter, r *http.Request) {
 // @Failure      500         {object}  dtos.ErrorResponse    "Internal server error"
 // @Security     BearerAuth
 // @Router       /reports/ledger/{account_id} [get]
-func Ledger(w http.ResponseWriter, r *http.Request) {
+func Ledger(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for viewing ledger reports)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract account ID from URL path parameters
-	accountID := mux.Vars(r)["account_id"]
+	accountID := c.Param("account_id")
 
 	// Extract date range parameters from query string
-	fromStr := r.URL.Query().Get("from")
-	toStr := r.URL.Query().Get("to")
+	fromStr := c.Query("from")
+	toStr := c.Query("to")
 	if fromStr == "" || toStr == "" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "from and to are required and in YYYY-MM-DD format",
@@ -448,7 +447,7 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 			Message:   "from and to are required YYYY-MM-DD",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -456,7 +455,7 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 	from, err := time.Parse(date, fromStr)
 	if err != nil {
 		// Invalid start date format, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Invalid from date for ledger report",
@@ -465,7 +464,7 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 			Message:   invalidfrom,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -473,7 +472,7 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 	to, err := time.Parse(date, toStr)
 	if err != nil {
 		// Invalid end date format, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Invalid to date for ledger report",
@@ -482,13 +481,13 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 			Message:   invalidto,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Parse pagination parameters from query string
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
+	page, _ := strconv.Atoi(c.Query("page"))
+	size, _ := strconv.Atoi(c.Query("size"))
 	// Apply default pagination values if not provided or invalid
 	if page < 1 {
 		page = 1 // Default to first page
@@ -501,7 +500,7 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 	acct, opening, rows, total, err := models.Ledger(accountID, from, to, page, size)
 	if err != nil {
 		// Database query failed, return error response
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to generate ledger report",
@@ -510,7 +509,7 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -571,7 +570,7 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 		Meta:           meta,      // Pagination metadata
 	}
 	// Return successful response with ledger data
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Ledger report generated successfully",
@@ -581,7 +580,7 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 		Message:   "Ledger",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -598,29 +597,29 @@ func Ledger(w http.ResponseWriter, r *http.Request) {
 // @Failure      500           {object}  dtos.ErrorResponse  "Internal server error"
 // @Security     BearerAuth
 // @Router       /reports/export/accounts [get]
-func ExportAccountsCSVHandler(w http.ResponseWriter, r *http.Request) {
+func ExportAccountsCSVHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for exporting accounts)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract optional filter parameters from query string
-	accountType := r.URL.Query().Get("account_type")
-	codePrefix := r.URL.Query().Get("code_prefix")
-	q := r.URL.Query().Get("q")
+	accountType := c.Query("account_type")
+	codePrefix := c.Query("code_prefix")
+	q := c.Query("q")
 
 	// Set response headers for CSV file download
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment;filename=chart_of_accounts.csv")
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", "attachment;filename=chart_of_accounts.csv")
 
 	// Generate and stream CSV data directly to response writer
-	if err := models.ExportAccountsToCSV(w, accountType, codePrefix, q); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	if err := models.ExportAccountsToCSV(c.Writer, accountType, codePrefix, q); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to export chart of accounts to CSV",
@@ -629,7 +628,7 @@ func ExportAccountsCSVHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 	}
 }
@@ -646,19 +645,19 @@ func ExportAccountsCSVHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500           {object}  dtos.ErrorResponse  "Internal server error"
 // @Security     BearerAuth
 // @Router       /reports/export/balance-sheet [get]
-func ExportBalanceSheetCSVHandler(w http.ResponseWriter, r *http.Request) {
+func ExportBalanceSheetCSVHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
 	if !ok {
 		return
 	}
 
 	// Extract 'as_of' date parameter
-	asOfStr := r.URL.Query().Get("as_of")
+	asOfStr := c.Query("as_of")
 	var asOf time.Time
 	var err error
 
@@ -667,7 +666,7 @@ func ExportBalanceSheetCSVHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		asOf, err = time.Parse(date, asOfStr)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Reports",
 					Description: "Invalid as of date for balance sheet export",
@@ -676,20 +675,20 @@ func ExportBalanceSheetCSVHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   "Invalid as of date",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 			return
 		}
 	}
 
 	// Extract 'compare_with' date parameter
-	compareWithStr := r.URL.Query().Get("compare_with")
+	compareWithStr := c.Query("compare_with")
 	var compareWith *time.Time
 
 	if compareWithStr != "" {
 		t, err := time.Parse(date, compareWithStr)
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Reports",
 					Description: "Invalid comparison date for balance sheet export",
@@ -698,7 +697,7 @@ func ExportBalanceSheetCSVHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   "Invalid comparison date",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -706,12 +705,12 @@ func ExportBalanceSheetCSVHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set response headers for CSV file download
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment;filename=balance_sheet.csv")
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", "attachment;filename=balance_sheet.csv")
 
 	// Generate and stream CSV data directly to response writer
-	if err := models.ExportBalanceSheetToCSV(w, asOf, compareWith); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	if err := models.ExportBalanceSheetToCSV(c.Writer, asOf, compareWith); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to export balance sheet to CSV",
@@ -720,7 +719,7 @@ func ExportBalanceSheetCSVHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 	}
 }
@@ -739,30 +738,30 @@ func ExportBalanceSheetCSVHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500         {object}  dtos.ErrorResponse  "Internal server error"
 // @Security     BearerAuth
 // @Router       /reports/export/journal-entries [get]
-func ExportJournalEntriesCSVHandler(w http.ResponseWriter, r *http.Request) {
+func ExportJournalEntriesCSVHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for exporting journal entries)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract optional filter parameters from query string
-	startDate := r.URL.Query().Get("start_date")
-	endDate := r.URL.Query().Get("end_date")
-	accountID := r.URL.Query().Get("account_id")
-	q := r.URL.Query().Get("q")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+	accountID := c.Query("account_id")
+	q := c.Query("q")
 
 	// Set response headers for CSV file download
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment;filename=journal_entries.csv")
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", "attachment;filename=journal_entries.csv")
 
 	// Generate and stream CSV data directly to response writer
-	if err := models.ExportJournalEntriesToCSV(w, startDate, endDate, accountID, q); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	if err := models.ExportJournalEntriesToCSV(c.Writer, startDate, endDate, accountID, q); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to export journal entries to CSV",
@@ -771,7 +770,7 @@ func ExportJournalEntriesCSVHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 	}
 }
@@ -791,26 +790,26 @@ func ExportJournalEntriesCSVHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500         {object}  dtos.ErrorResponse      "Internal server error"
 // @Security     BearerAuth
 // @Router       /reports/top-selling-products [get]
-func TopSellingProductsReport(w http.ResponseWriter, r *http.Request) {
+func TopSellingProductsReport(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for viewing sales reports)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Reports", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract time range filter (e.g., "last_7_days", "last_30_days", "this_month")
-	timeRange := r.URL.Query().Get("time_range")
+	timeRange := c.Query("time_range")
 	// Parse pagination parameters from query string
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 
 	// Fetch top selling products from database
 	products, pagination, err := models.GetTopSellingProducts(timeRange, page, limit)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Reports",
 				Description: "Failed to generate top selling products report",
@@ -819,11 +818,11 @@ func TopSellingProductsReport(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Reports",
 			Description: "Top selling products report generated successfully",
@@ -836,7 +835,7 @@ func TopSellingProductsReport(w http.ResponseWriter, r *http.Request) {
 		Message:   "Top selling products report",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 

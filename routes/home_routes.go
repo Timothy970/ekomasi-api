@@ -1,22 +1,23 @@
 package routes
 
 import (
-	"github.com/gorilla/mux"
-
-	"adenzo_backend/handlers"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/handlers"
 )
 
-// SetupHomeRoutes configures all homepage-related routes
-func SetupHomeRoutes(api *mux.Router) {
-	home := api.PathPrefix("/home/").Subrouter()
+// SetupHomeGinRoutes configures all homepage-related routes using native Gin router groups
+func SetupHomeGinRoutes(api *gin.RouterGroup) {
+	home := api.Group("/home")
 
 	// Homepage data
-	home.HandleFunc("/data", handlers.HomePageData).Methods("GET")
-	home.HandleFunc("/sliders", handlers.GetSliderData).Methods("GET")
-	home.HandleFunc("/banners", handlers.GetHomeBannersData).Methods("GET")
-	home.HandleFunc("/promotions", handlers.GetPromotionsHandler).Methods("GET")
-	home.HandleFunc("/promotions/types", handlers.GetPromotionsTypesHandler).Methods("GET")
+	home.GET("/data", handlers.HomePageData)
+	home.GET("/sliders", handlers.GetSliderData)
+	home.GET("/banners", handlers.GetHomeBannersData)
+	home.GET("/promotions", handlers.GetPromotionsHandler)
+	home.GET("/promotions/types", handlers.GetPromotionsTypesHandler)
 
 	// Categories and subcategories
-	api.HandleFunc("/admin/categories-subcategories", handlers.GetCategoriesWithSubCategoriesHandler).Methods("GET")
+	api.GET("/admin/categories-subcategories", handlers.GetCategoriesWithSubCategoriesHandler)
 }
+
+// SetupHomeRoutes configures all homepage-related routes

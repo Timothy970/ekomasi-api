@@ -1,30 +1,28 @@
 package routes
 
 import (
-	"net/http"
-
-	"github.com/gorilla/mux"
-
-	"adenzo_backend/handlers"
-	"adenzo_backend/middleware"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/handlers"
+	"ekomasi_backend/middleware"
 )
 
-// SetupWishlistRoutes configures all wishlist-related routes
-func SetupWishlistRoutes(api *mux.Router) {
-	wishlist := api.PathPrefix("/wishlist").Subrouter()
-
+// SetupWishlistGinRoutes configures all wishlist-related routes using native Gin router groups
+func SetupWishlistGinRoutes(api *gin.RouterGroup) {
+	wishlist := api.Group("/wishlist")
 	const productPath = "/product"
 
 	// Wishlist operations
-	wishlist.Handle("", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetAllUserWishList))).Methods("GET")
-	wishlist.Handle("/me", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetMyWishList))).Methods("GET")
-	wishlist.Handle("delete/{wishlist_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.DeleteWishList))).Methods("DELETE")
+	wishlist.GET("", middleware.GinAuthenticateToken(), handlers.GetAllUserWishList)
+	wishlist.GET("/me", middleware.GinAuthenticateToken(), handlers.GetMyWishList)
+	wishlist.DELETE("/delete/:wishlist_id", middleware.GinAuthenticateToken(), handlers.DeleteWishList)
 
 	// Wishlist items
-	wishlist.Handle(productPath, middleware.AuthenticateToken(http.HandlerFunc(handlers.AddToWishList))).Methods("POST")
-	wishlist.Handle("/product/{product_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.RemoveFromWishList))).Methods("DELETE")
+	wishlist.POST(productPath, middleware.GinAuthenticateToken(), handlers.AddToWishList)
+	wishlist.DELETE("/product/:product_id", middleware.GinAuthenticateToken(), handlers.RemoveFromWishList)
 
 	// Wishlist sharing
-	wishlist.Handle("/share", middleware.AuthenticateToken(http.HandlerFunc(handlers.SendWishlistToShare))).Methods("POST")
-	wishlist.HandleFunc("/share/{wishlist_id}", handlers.ReceiceWishlistShared).Methods("GET")
+	wishlist.POST("/share", middleware.GinAuthenticateToken(), handlers.SendWishlistToShare)
+	wishlist.GET("/share/:wishlist_id", handlers.ReceiceWishlistShared)
 }
+
+// SetupWishlistRoutes configures all wishlist-related routes

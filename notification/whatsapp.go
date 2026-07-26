@@ -1,4 +1,4 @@
-// Package notification provides WhatsApp notification services for the Adenzo e-commerce platform.
+// Package notification provides WhatsApp notification services for the Ekomasi e-commerce platform.
 //
 // This file handles:
 //   - WhatsApp message sending via external API

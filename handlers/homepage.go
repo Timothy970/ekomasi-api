@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
 	"database/sql"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"fmt"
 	"log"
 	"mime/multipart"
@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 var (
@@ -29,16 +29,27 @@ var (
 // @Success      200  {object}  map[string]interface{}
 // @Failure      404  {object}  dtos.ErrorResponse
 // @Router       /api/home/data [get]
-func HomePageData(w http.ResponseWriter, r *http.Request) {
+func HomePageData(c *gin.Context) {
 	start := time.Now()
-	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
+
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	cacheKey := fmt.Sprintf("home_data:tenant_%d", tenantID)
+
+	if utils.RedisClient != nil {
+		cached, err := utils.RedisClient.Get(c.Request.Context(), cacheKey).Result()
+		if err == nil && cached != "" {
+			c.Data(http.StatusOK, "application/json", []byte(cached))
+			return
+		}
+	}
+
 	footer, _ := models.GetFooterData(models.DB)
 	socials, _ := models.GetSocialsData(models.DB)
 	menu, _ := models.GetMenuData(models.DB)
 
 	var copyrightText, companyAddress, contactEmail, phoneNumber string
-	if footer != nil && len(footer) > 0 {
+	if len(footer) > 0 {
 		if footer[0].CopyrightText != nil {
 			copyrightText = *footer[0].CopyrightText
 		}
@@ -80,7 +91,7 @@ func HomePageData(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Homepage data fetched successfully",
@@ -90,7 +101,7 @@ func HomePageData(w http.ResponseWriter, r *http.Request) {
 		Message:   "Sucess",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -102,10 +113,10 @@ func HomePageData(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Success      200  {object}  map[string]interface{}
 // @Router       /api/home/banners [get]
-func GetHomeBannersData(w http.ResponseWriter, r *http.Request) {
+func GetHomeBannersData(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	banners, _ := models.GetBannersData(models.DB, "homebanner")
 	var data []map[string]interface{}
 	for _, b := range banners {
@@ -121,7 +132,7 @@ func GetHomeBannersData(w http.ResponseWriter, r *http.Request) {
 			"type":          b.Type,
 		})
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Home",
 			Description: "Homepage banners fetched successfully",
@@ -131,7 +142,7 @@ func GetHomeBannersData(w http.ResponseWriter, r *http.Request) {
 		Message:   "Success",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -143,10 +154,10 @@ func GetHomeBannersData(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Success      200  {object}  map[string]interface{}
 // @Router       /api/home/sliders [get]
-func GetSliderData(w http.ResponseWriter, r *http.Request) {
+func GetSliderData(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	banners, _ := models.GetBannersData(models.DB, "banner")
 	var data []map[string]interface{}
 	for _, b := range banners {
@@ -159,7 +170,7 @@ func GetSliderData(w http.ResponseWriter, r *http.Request) {
 			"button_url":  b.ButtonURL,
 		})
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Homepage sliders fetched successfully",
@@ -169,7 +180,7 @@ func GetSliderData(w http.ResponseWriter, r *http.Request) {
 		Message:   "Success",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -181,10 +192,10 @@ func GetSliderData(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Success      200  {object}  map[string]interface{}
 // @Router       /api/home/sliders [get]
-func AdminGetSliderData(w http.ResponseWriter, r *http.Request) {
+func AdminGetSliderData(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	banners, _ := models.AdminGetBannersData(models.DB, "banner")
 	var data []map[string]interface{}
 	for _, b := range banners {
@@ -199,7 +210,7 @@ func AdminGetSliderData(w http.ResponseWriter, r *http.Request) {
 			"type":        b.Type,
 		})
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Homepage sliders fetched successfully",
@@ -209,7 +220,7 @@ func AdminGetSliderData(w http.ResponseWriter, r *http.Request) {
 		Message:   "Success",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -220,29 +231,29 @@ func AdminGetSliderData(w http.ResponseWriter, r *http.Request) {
 // // @Produce json
 // // @Success 200 {object} map[string]interface{}
 // // @Router /api/home/categories [get]
-// func GetCategories(w http.ResponseWriter, r *http.Request) {
+// func GetCategories(c *gin.Context) {
 // 	start := time.Now()
 // 	// Read and restore body FIRST
-// 	requestSummary := utils.GetRequestSummary(r)
+// 	requestSummary := utils.GetRequestSummary(c.Request)
 // 	categories, err := models.GetCategoriesWithProducts()
 // 	if err != nil {
-// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+// 		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 // 			Code:      http.StatusInternalServerError,
 // 			Message:   "Failed to fetch categories",
 // 			TimeTaken: time.Since(start),
 // 			Function:  utils.GetCurrentFuncName(),
-// 			Request:   r,
+// 			Request: c.Request,
 // 			RawBody:   requestSummary})
 // 		return
 // 	}
 
-// 	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+// 	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 // 		Code:      http.StatusOK,
 // 		Payload:   categories,
 // 		Message:   "Categories",
 // 		TimeTaken: time.Since(start),
 // 		Function:  utils.GetCurrentFuncName(),
-// 		Request:   r,
+// 		Request: c.Request,
 // 		RawBody:   requestSummary})
 // }
 
@@ -255,10 +266,10 @@ func AdminGetSliderData(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  map[string]interface{}
 // @Failure      500  {object}  dtos.ErrorResponse
 // @Router       /api/home/promotions [get]
-func GetPromotionsHandler(w http.ResponseWriter, r *http.Request) {
+func GetPromotionsHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	var promotions []dtos.Promotion
 	var cachedPromotions []dtos.Promotion
 	// first try using cache
@@ -269,7 +280,7 @@ func GetPromotionsHandler(w http.ResponseWriter, r *http.Request) {
 		promotions, err = models.GetPromotions(models.DB)
 		if err != nil {
 			log.Printf("promotiones error::%s", err)
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Promotions",
 					Description: "Failed to fetch promotions",
@@ -278,7 +289,7 @@ func GetPromotionsHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -286,7 +297,7 @@ func GetPromotionsHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		promotions = cachedPromotions
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Promotions fetched successfully",
@@ -296,7 +307,7 @@ func GetPromotionsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promotions fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -321,14 +332,14 @@ func GetPromotionsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500            {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/banners [post]
-func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
+func AddBannerInfo(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse the multipart form
-	err := r.ParseMultipartForm(20 << 20) // 20 MB
+	err := c.Request.ParseMultipartForm(20 << 20) // 20 MB
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to parse form: " + err.Error(),
@@ -337,15 +348,15 @@ func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
 	// Get the image
-	file, header, err := r.FormFile("banner_image")
+	file, header, err := c.Request.FormFile("banner_image")
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "No banner_image uploaded",
@@ -354,7 +365,7 @@ func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 			Message:   "No banner_image uploaded",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
@@ -363,7 +374,7 @@ func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 	// Upload the image to GCS
 	url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to upload file: " + err.Error(),
@@ -372,30 +383,30 @@ func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
 	// Build the request DTO
-	displayOrder, _ := strconv.Atoi(r.FormValue("display_order"))
-	isActive := r.FormValue("is_active") == "true"
+	displayOrder, _ := strconv.Atoi(c.Request.FormValue("display_order"))
+	isActive := c.Request.FormValue("is_active") == "true"
 	req := dtos.BannerInfo{
 		Image:        &url,
-		Text:         utils.StringPtr(r.FormValue("text")),
-		Heading:      utils.StringPtr(r.FormValue("heading")),
-		ButtonText:   utils.StringPtr(r.FormValue("button_text")),
-		ButtonURL:    utils.StringPtr(r.FormValue("button_url")),
+		Text:         utils.StringPtr(c.Request.FormValue("text")),
+		Heading:      utils.StringPtr(c.Request.FormValue("heading")),
+		ButtonText:   utils.StringPtr(c.Request.FormValue("button_text")),
+		ButtonURL:    utils.StringPtr(c.Request.FormValue("button_url")),
 		DisplayOrder: utils.IntPtr(displayOrder),
 		IsActive:     utils.BoolPtr(isActive),
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Homepage") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Homepage") {
 		return
 	}
 	// Insert banner info into DB
 	if err := models.InsertBannerDetails(models.DB, url, req); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to insert image into DB: " + err.Error(),
@@ -404,12 +415,12 @@ func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Banner with url " + url + " uploaded successfully",
@@ -421,7 +432,7 @@ func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 		Message:   "Banner uploaded successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 	})
 }
 
@@ -440,20 +451,20 @@ func AddBannerInfo(w http.ResponseWriter, r *http.Request) {
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/banners/{banner_id} [patch]
-func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
+func UpdateBannerInfo(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "promotions.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "promotions.update")
 	if !ok {
 		return
 	}
-	bannerID := mux.Vars(r)["banner_id"]
+	bannerID := c.Param("banner_id")
 	// Parse the multipart form
-	err := r.ParseMultipartForm(20 << 20) // 20 MB
+	err := c.Request.ParseMultipartForm(20 << 20) // 20 MB
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to parse form: " + err.Error(),
@@ -462,13 +473,13 @@ func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
 
 	// Try to get the image (optional)
-	file, header, err := r.FormFile("banner_image")
+	file, header, err := c.Request.FormFile("banner_image")
 
 	var imageURL *string
 
@@ -478,7 +489,7 @@ func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
 		// Upload only if file exists
 		url, uploadErr := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 		if uploadErr != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Homepage",
 					Description: "Failed to upload file: " + uploadErr.Error(),
@@ -487,7 +498,7 @@ func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
 				Message:   uploadErr.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 			})
 			return
 		}
@@ -496,25 +507,25 @@ func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build the request DTO
-	displayOrder, _ := strconv.Atoi(r.FormValue("display_order"))
-	isActive := r.FormValue("is_active") == "true"
+	displayOrder, _ := strconv.Atoi(c.Request.FormValue("display_order"))
+	isActive := c.Request.FormValue("is_active") == "true"
 	//decode request body
 	req := dtos.BannerInfo{
 		Image:        imageURL,
-		Text:         utils.StringPtr(r.FormValue("text")),
-		Heading:      utils.StringPtr(r.FormValue("heading")),
-		ButtonText:   utils.StringPtr(r.FormValue("button_text")),
-		ButtonURL:    utils.StringPtr(r.FormValue("button_url")),
+		Text:         utils.StringPtr(c.Request.FormValue("text")),
+		Heading:      utils.StringPtr(c.Request.FormValue("heading")),
+		ButtonText:   utils.StringPtr(c.Request.FormValue("button_text")),
+		ButtonURL:    utils.StringPtr(c.Request.FormValue("button_url")),
 		DisplayOrder: utils.IntPtr(displayOrder),
 		IsActive:     utils.BoolPtr(isActive),
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Homepage") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Homepage") {
 		return
 	}
 	if err := models.UpdateBannerDetails(models.DB, req, bannerID); err != nil {
 		log.Printf("Error updating banner: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to update banner with ID " + bannerID,
@@ -523,12 +534,12 @@ func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Banner with ID " + bannerID + " has been updated successfully",
@@ -538,7 +549,7 @@ func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
 		Message:   "Banner updated succesfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -555,20 +566,20 @@ func UpdateBannerInfo(w http.ResponseWriter, r *http.Request) {
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/banners/{banner_id} [delete]
-func DeleteBannerInfo(w http.ResponseWriter, r *http.Request) {
+func DeleteBannerInfo(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "promotions.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "promotions.delete")
 	if !ok {
 		return
 	}
-	bannerID := mux.Vars(r)["banner_id"]
+	bannerID := c.Param("banner_id")
 	err := models.DeleteBanner(bannerID)
 	if err != nil {
 		log.Printf("Error deleting banner: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to delete banner with ID " + bannerID,
@@ -577,12 +588,12 @@ func DeleteBannerInfo(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Banner with ID " + bannerID + " has been deleted successfully",
@@ -592,7 +603,7 @@ func DeleteBannerInfo(w http.ResponseWriter, r *http.Request) {
 		Message:   "Banner deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -605,16 +616,16 @@ func DeleteBannerInfo(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  map[string]interface{}
 // @Failure      500  {object}  dtos.ErrorResponse
 // @Router       /api/home/promotions/types [get]
-func GetPromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
+func GetPromotionsTypesHandler(c *gin.Context) {
 	start := time.Now()
 
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	promotions, err := models.GetPromotionsTypes()
 	if err != nil {
 		log.Printf("promotion types error::%s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to fetch promotion types",
@@ -623,14 +634,14 @@ func GetPromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to fetch promotion types",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Respond
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Promotion types fetched successfully",
@@ -640,7 +651,7 @@ func GetPromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promotion types fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -654,29 +665,29 @@ func GetPromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  map[string]interface{}
 // @Failure      500  {object}  dtos.ErrorResponse
 // @Router       /api/home/promotions/types [post]
-func CreatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
+func CreatePromotionsTypesHandler(c *gin.Context) {
 	start := time.Now()
 
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify user has admin privileges (required for media uploads)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", "promotions.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.PromotionType](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.PromotionType](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Promotions") {
 		return
 	}
 	err := models.CreatePromotionType(models.DB, *req)
 	if err != nil {
 		log.Printf("promotion types error::%s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to create promotion type",
@@ -685,14 +696,14 @@ func CreatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Respond
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Promotion type created successfully",
@@ -702,7 +713,7 @@ func CreatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promotion type created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -716,30 +727,30 @@ func CreatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  map[string]interface{}
 // @Failure      500  {object}  dtos.ErrorResponse
 // @Router       /api/home/promotions/types/{id} [patch]
-func UpdatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
+func UpdatePromotionsTypesHandler(c *gin.Context) {
 	start := time.Now()
 
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify user has admin privileges (required for media uploads)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", "promotions.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.PromotionType](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.PromotionType](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Promotions") {
 		return
 	}
-	typeID := mux.Vars(r)["id"]
+	typeID := c.Param("id")
 	err := models.UpdatePromotionType(models.DB, typeID, *req)
 	if err != nil {
 		log.Printf("promotion types error::%s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to update promotion type",
@@ -748,14 +759,14 @@ func UpdatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Respond
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Promotion type updated successfully",
@@ -765,7 +776,7 @@ func UpdatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promotion type updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -779,24 +790,24 @@ func UpdatePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  map[string]interface{}
 // @Failure      500  {object}  dtos.ErrorResponse
 // @Router       /api/home/promotions/types/{id} [delete]
-func DeletePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
+func DeletePromotionsTypesHandler(c *gin.Context) {
 	start := time.Now()
 
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify user has admin privileges (required for media uploads)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", "promotions.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 
-	typeID := mux.Vars(r)["id"]
+	typeID := c.Param("id")
 	err := models.DeletePromotionType(typeID)
 	if err != nil {
 		log.Printf("promotion types error::%s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to delete promotion type",
@@ -805,14 +816,14 @@ func DeletePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to delete promotion type",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Respond
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Promotion type deleted successfully",
@@ -822,7 +833,7 @@ func DeletePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promotion type deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -841,26 +852,26 @@ func DeletePromotionsTypesHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/promotions [post]
-func NewPromotionHandler(w http.ResponseWriter, r *http.Request) {
+func NewPromotionHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", "promotions.create")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.NewPromotion](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.NewPromotion](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Promotions") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Promotions") {
 		return
 	}
 	if !req.StartDate.Before(req.EndDate) {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Invalid validity period when creating promotion",
@@ -869,14 +880,14 @@ func NewPromotionHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Invalid validity period",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	_, err := models.CreateNewPromotion(*req)
 	if err != nil {
 		log.Printf("Error creating promotion: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to add promotion",
@@ -885,12 +896,12 @@ func NewPromotionHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	_ = utils.DeleteCache("promotions")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Promotion created successfully",
@@ -900,7 +911,7 @@ func NewPromotionHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promotion created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -919,19 +930,19 @@ func NewPromotionHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/promotions/{promotion_id} [delete]
-func DeletePromotionHandler(w http.ResponseWriter, r *http.Request) {
+func DeletePromotionHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.delete")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", "promotions.delete")
 	if !ok {
 		return
 	}
-	promotionID := mux.Vars(r)["promotion_id"]
+	promotionID := c.Param("promotion_id")
 	err := models.DeletePromotion(promotionID)
 	if err != nil {
 		log.Printf("Error deleting promotion: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to delete promotion with ID " + promotionID,
@@ -940,12 +951,12 @@ func DeletePromotionHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	_ = utils.DeleteCache("promotions")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Promotion with ID " + promotionID + " has been deleted successfully",
@@ -955,7 +966,7 @@ func DeletePromotionHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promotion deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -975,23 +986,23 @@ func DeletePromotionHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/promotions/{promotion_id} [patch]
-func EditPromotionHandler(w http.ResponseWriter, r *http.Request) {
+func EditPromotionHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "promotions.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", "promotions.update")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.EditPromotion](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.EditPromotion](c, requestSummary, start)
 	if !ok {
 		return
 	}
 	err := models.EditPromotion(*req)
 	if err != nil {
 		log.Printf("Error editing promotion: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to edit promotion",
@@ -1000,12 +1011,12 @@ func EditPromotionHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	_ = utils.DeleteCache("promotions")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Promotion edited successfully",
@@ -1015,7 +1026,7 @@ func EditPromotionHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Promotion edited successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1035,28 +1046,28 @@ func EditPromotionHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/promotions/{promotion_id} [post]
-func AttachProductToPromotionHandler(w http.ResponseWriter, r *http.Request) {
+func AttachProductToPromotionHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Promotions", "products.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Promotions", "products.create")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.AttachProductToPromotion](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.AttachProductToPromotion](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	//check if promotion exists
-	ok = checkIfPromotionExists(req.PromotionID, r, w, start)
+	ok = checkIfPromotionExists(req.PromotionID, c, start)
 	if !ok {
 		return
 	}
 	err := models.AttachProductsToPromotion(*req)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to add products to promotion with ID " + req.PromotionID,
@@ -1065,12 +1076,12 @@ func AttachProductToPromotionHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	_ = utils.DeleteCache("promotions")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Products added to promotion with ID " + req.PromotionID + " successfully",
@@ -1080,7 +1091,7 @@ func AttachProductToPromotionHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Products added to promotion successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1099,33 +1110,33 @@ func AttachProductToPromotionHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/promotions/{promotion_id}/products [delete]
-func RemoveProductFromPromotionHandler(w http.ResponseWriter, r *http.Request) {
+func RemoveProductFromPromotionHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	req, ok := DecodeRequestBody[dtos.AttachProductToPromotion](r, w, requestSummary, start)
+	requestSummary := utils.GetRequestSummary(c.Request)
+	req, ok := DecodeRequestBody[dtos.AttachProductToPromotion](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	// user, ok := middleware.UserFromContext(r.Context())
+	// user, ok := middleware.UserFromContext(c.Request.Context())
 	// if !ok {
-	// 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	// 	utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 	// 		Code:      http.StatusInternalServerError,
 	// 		Message:   noUser,
 	// 		TimeTaken: time.Since(start),
 	// 		Function:  utils.GetCurrentFuncName(),
-	// 		Request:   r,
+	// 		Request: c.Request,
 	// 		RawBody:   requestSummary})
 	// 	return
 	// }
 	//check if promotion exists
-	ok = checkIfPromotionExists(req.PromotionID, r, w, start)
+	ok = checkIfPromotionExists(req.PromotionID, c, start)
 	if !ok {
 		return
 	}
 	err := models.RemoveProductFromPromotion(*req)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to remove product from promotion with ID " + req.PromotionID,
@@ -1134,12 +1145,12 @@ func RemoveProductFromPromotionHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	_ = utils.DeleteCache("promotions")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Products added to promotion with ID " + req.PromotionID + " successfully",
@@ -1149,13 +1160,13 @@ func RemoveProductFromPromotionHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Products added to promotion successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
-func checkIfPromotionExists(promotionID string, r *http.Request, w http.ResponseWriter, start time.Time) bool {
+func checkIfPromotionExists(promotionID string, c *gin.Context, start time.Time) bool {
 	promotionExists, err := models.CheckPromotionExists(promotionID)
 	if err != nil || !promotionExists {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Promotion does not exist",
@@ -1164,7 +1175,7 @@ func checkIfPromotionExists(promotionID string, r *http.Request, w http.Response
 			Message:   "Promotion does not exist",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return false
 	}
@@ -1184,17 +1195,17 @@ func checkIfPromotionExists(promotionID string, r *http.Request, w http.Response
 // @Failure      500   {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/blogs [post]
-func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
+func CreateBlogHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "promotions.create")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "promotions.create")
 	if !ok {
 		return
 	}
-	authUser, userOk := middleware.UserFromContext(r.Context())
+	authUser, userOk := middleware.UserFromContext(c.Request.Context())
 	if !userOk || authUser.Role != "admin" {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "User is not authorized to create blog",
@@ -1203,13 +1214,13 @@ func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "User is not authorized",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 		})
 		return
 	}
-	// url, err := utils.ParseAndUploadFile(r, "image", 20)
+	// url, err := utils.ParseAndUploadFile(c.Request, "image", 20)
 	// if err != nil {
-	// 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	// 	utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 	// 		CollectiveInfo: utils.CollectiveInfo{
 	// 			Module:      "Homepage",
 	// 			Description: "Failed to upload file when creating blog: " + err.Error(),
@@ -1218,19 +1229,19 @@ func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 	// 		Message:   "Failed to upload file: " + err.Error(),
 	// 		TimeTaken: time.Since(start),
 	// 		Function:  utils.GetCurrentFuncName(),
-	// 		Request:   r,
+	// 		Request: c.Request,
 	// 	})
 	// 	return
 	// }
-	// author := r.FormValue("author")
+	// author := c.Request.FormValue("author")
 	// blog := &dtos.Blog{
 	// 	ImageURL: &url,
-	// 	Title:    r.FormValue("title"),
-	// 	Content:  r.FormValue("content"),
+	// 	Title:    c.Request.FormValue("title"),
+	// 	Content:  c.Request.FormValue("content"),
 	// 	Author:   &author,
 	// 	AuthorID: authUser.ID,
 	// }
-	blog, ok := DecodeRequestBody[dtos.BlogRequest](r, w, requestSummary, start)
+	blog, ok := DecodeRequestBody[dtos.BlogRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
@@ -1239,11 +1250,11 @@ func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 		blog.ReadTimeMinutes = 5 //default read time
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(blog, w, r, requestSummary, start, "Homepage") {
+	if !utils.ValidateGinStructAndRespond(blog, c, requestSummary, start, "Homepage") {
 		return
 	}
 	if err := models.CreateBlog(*blog, authUser.ID); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to create blog: " + err.Error(),
@@ -1252,11 +1263,11 @@ func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Blog created successfully",
@@ -1266,7 +1277,7 @@ func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Blog created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1280,14 +1291,14 @@ func CreateBlogHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200      {object}  dtos.Blog
 // @Failure      500      {object}  dtos.ErrorResponse
 // @Router       /api/admin/blogs/{blog_id} [get]
-func GetBlogHandler(w http.ResponseWriter, r *http.Request) {
+func GetBlogHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	blogID := mux.Vars(r)["blog_id"]
+	requestSummary := utils.GetRequestSummary(c.Request)
+	blogID := c.Param("blog_id")
 	blog, err := models.GetBlogByID(blogID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to get blog by ID: " + err.Error(),
@@ -1296,11 +1307,11 @@ func GetBlogHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: blogWithID + blogID + " fetched successfully",
@@ -1310,7 +1321,7 @@ func GetBlogHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Blog fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1328,16 +1339,16 @@ func GetBlogHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500      {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/blogs/{blog_id} [patch]
-func UpdateBlogHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateBlogHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "promotions.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "promotions.update")
 	if !ok {
 		return
 	}
-	blog, ok := DecodeRequestBody[dtos.BlogRequest](r, w, requestSummary, start)
+	blog, ok := DecodeRequestBody[dtos.BlogRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
@@ -1347,12 +1358,12 @@ func UpdateBlogHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Validate the request
-	if !utils.ValidateStructAndRespond(blog, w, r, requestSummary, start, "Homepage") {
+	if !utils.ValidateGinStructAndRespond(blog, c, requestSummary, start, "Homepage") {
 		return
 	}
-	blogID := mux.Vars(r)["blog_id"]
+	blogID := c.Param("blog_id")
 	if err := models.UpdateBlog(*blog, blogID); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to update blog with ID " + blogID + ": " + err.Error(),
@@ -1361,11 +1372,11 @@ func UpdateBlogHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: blogWithID + blogID + " has been updated successfully",
@@ -1375,7 +1386,7 @@ func UpdateBlogHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Blog updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1391,17 +1402,17 @@ func UpdateBlogHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500      {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/blogs/{blog_id} [delete]
-func DeleteBlogHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteBlogHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "promotions.delete")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "promotions.delete")
 	if !ok {
 		return
 	}
-	blogID := mux.Vars(r)["blog_id"]
+	blogID := c.Param("blog_id")
 	if err := models.DeleteBlog(blogID); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to delete blog with ID " + blogID + ": " + err.Error(),
@@ -1410,11 +1421,11 @@ func DeleteBlogHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: blogWithID + blogID + " was deleted successfully",
@@ -1424,7 +1435,7 @@ func DeleteBlogHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Blog deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1440,21 +1451,21 @@ func DeleteBlogHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200     {object}  map[string]interface{}
 // @Failure      500     {object}  dtos.ErrorResponse
 // @Router       /api/admin/blogs [get]
-func ListBlogsHandler(w http.ResponseWriter, r *http.Request) {
+func ListBlogsHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	title := r.URL.Query().Get("title")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
+	title := c.Query("title")
 	isAdmin := false
-	admin := r.URL.Query().Get("isAdmin")
+	admin := c.Query("isAdmin")
 	if admin != "" {
 		isAdmin = true
 	}
 	blogs, pagination, err := models.ListBlogs(page, limit, title, isAdmin)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Homepage",
 					Description: "No blogs found",
@@ -1463,10 +1474,10 @@ func ListBlogsHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   "Blogs not found",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 		} else {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Homepage",
 					Description: "Failed to list blogs: " + err.Error(),
@@ -1475,7 +1486,7 @@ func ListBlogsHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 		}
 		return
@@ -1484,7 +1495,7 @@ func ListBlogsHandler(w http.ResponseWriter, r *http.Request) {
 		"blogs":      blogs,
 		"pagination": pagination,
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Blogs fetched successfully",
@@ -1494,7 +1505,7 @@ func ListBlogsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Blogs fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1511,27 +1522,27 @@ func ListBlogsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/menu-links [post]
-func CreateMenuLink(w http.ResponseWriter, r *http.Request) {
+func CreateMenuLink(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.MenuLinkRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.MenuLinkRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Homepage") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Homepage") {
 		return
 	}
 
 	err := models.CreateMenuLink(*req)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to create menu link: " + err.Error(),
@@ -1540,12 +1551,12 @@ func CreateMenuLink(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Menu link created successfully",
@@ -1555,7 +1566,7 @@ func CreateMenuLink(w http.ResponseWriter, r *http.Request) {
 		Message:   "Menu link created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1573,27 +1584,26 @@ func CreateMenuLink(w http.ResponseWriter, r *http.Request) {
 // @Failure      500          {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/menu-links/{menulink_id} [patch]
-func UpdateMenuLink(w http.ResponseWriter, r *http.Request) {
+func UpdateMenuLink(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.MenuLinkRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.MenuLinkRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Homepage") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Homepage") {
 		return
 	}
-	params := mux.Vars(r)
-	menulinkID, _ := strconv.Atoi(params["id"])
+	menulinkID, _ := strconv.Atoi(c.Param("menulink_id"))
 	err := models.UpdateMenuLink(*req, menulinkID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to update menu link with ID " + strconv.Itoa(menulinkID) + ": " + err.Error(),
@@ -1602,11 +1612,11 @@ func UpdateMenuLink(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Menu link with ID " + strconv.Itoa(menulinkID) + " updated successfully",
@@ -1616,7 +1626,7 @@ func UpdateMenuLink(w http.ResponseWriter, r *http.Request) {
 		Message:   "Menu link updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1632,19 +1642,18 @@ func UpdateMenuLink(w http.ResponseWriter, r *http.Request) {
 // @Failure      500          {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/menu-links/{menulink_id} [delete]
-func DeleteMenuLink(w http.ResponseWriter, r *http.Request) {
+func DeleteMenuLink(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "")
 	if !ok {
 		return
 	}
-	params := mux.Vars(r)
-	id, _ := strconv.Atoi(params["menulink_id"])
+	id, _ := strconv.Atoi(c.Param("menulink_id"))
 	err := models.DeleteMenuLink(id)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to delete menu link with ID " + strconv.Itoa(id) + ": " + err.Error(),
@@ -1653,11 +1662,11 @@ func DeleteMenuLink(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Menu link with ID " + strconv.Itoa(id) + " deleted successfully",
@@ -1667,7 +1676,7 @@ func DeleteMenuLink(w http.ResponseWriter, r *http.Request) {
 		Message:   "Menu link deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1684,24 +1693,24 @@ func DeleteMenuLink(w http.ResponseWriter, r *http.Request) {
 // @Failure      500          {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/socials [post]
-func CreateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
+func CreateSocialLinkHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.SocialLinkRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.SocialLinkRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Homepage") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Homepage") {
 		return
 	}
 	if err := models.CreateSocialLink(req); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to create social link: " + err.Error(),
@@ -1710,11 +1719,11 @@ func CreateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Social link created successfully",
@@ -1724,17 +1733,17 @@ func CreateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Social added successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
-func ListSocialLinksHandler(w http.ResponseWriter, r *http.Request) {
+func ListSocialLinksHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	socialLinks, err := models.ListSocialLinks()
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to list social links: " + err.Error(),
@@ -1743,11 +1752,11 @@ func ListSocialLinksHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Social links fetched successfully",
@@ -1757,7 +1766,7 @@ func ListSocialLinksHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Social links fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1775,28 +1784,28 @@ func ListSocialLinksHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500          {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/socials/{social_id} [patch]
-func UpdateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateSocialLinkHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.SocialLinkRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.SocialLinkRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 	//Validate the request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Homepage") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Homepage") {
 		return
 	}
 
-	idParam := mux.Vars(r)["social_id"]
+	idParam := c.Param("social_id")
 	socialID, _ := strconv.Atoi(idParam)
 
 	if err := models.UpdateSocialLink(socialID, *req); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to update social link with ID " + strconv.Itoa(socialID) + ": " + err.Error(),
@@ -1805,12 +1814,12 @@ func UpdateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Social link with ID " + strconv.Itoa(socialID) + " updated successfully",
@@ -1820,7 +1829,7 @@ func UpdateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Social updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1836,19 +1845,19 @@ func UpdateSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/socials/{social_id} [delete]
-func DeleteSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteSocialLinkHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "")
 	if !ok {
 		return
 	}
-	idParam := mux.Vars(r)["social_id"]
+	idParam := c.Param("social_id")
 	socialID, _ := strconv.Atoi(idParam)
 
 	if err := models.DeleteSocialLink(socialID); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to delete social link with ID " + strconv.Itoa(socialID) + ": " + err.Error(),
@@ -1857,12 +1866,12 @@ func DeleteSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Social link with ID " + strconv.Itoa(socialID) + " deleted successfully",
@@ -1872,7 +1881,7 @@ func DeleteSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Social deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1888,19 +1897,19 @@ func DeleteSocialLinkHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500         {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/products/featured/{product_id} [post]
-func AddFeaturedProduct(w http.ResponseWriter, r *http.Request) {
+func AddFeaturedProduct(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "products.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "products.create")
 	if !ok {
 		return
 	}
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 
 	if err := models.AddFeaturedProduct(productID); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to add product with ID " + productID + " to featured: " + err.Error(),
@@ -1909,12 +1918,12 @@ func AddFeaturedProduct(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	_ = utils.DeleteCache("featured_products")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Product with ID " + productID + " added to featured successfully",
@@ -1924,7 +1933,7 @@ func AddFeaturedProduct(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product added successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1940,19 +1949,19 @@ func AddFeaturedProduct(w http.ResponseWriter, r *http.Request) {
 // @Failure      500         {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/products/featured/{product_id} [delete]
-func RemoveFeatured(w http.ResponseWriter, r *http.Request) {
+func RemoveFeatured(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Homepage", "products.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Homepage", "products.delete")
 	if !ok {
 		return
 	}
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 
 	if err := models.RemoveFeaturedProduct(productID); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Homepage",
 				Description: "Failed to remove product with ID " + productID + " from featured: " + err.Error(),
@@ -1961,12 +1970,12 @@ func RemoveFeatured(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	_ = utils.DeleteCache("featured_products")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Product with ID " + productID + " removed from featured successfully",
@@ -1976,7 +1985,7 @@ func RemoveFeatured(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product removed successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1987,10 +1996,10 @@ func RemoveFeatured(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} map[string]interface{}
 // @Router /api/products/featured [get]
-func GetFeatured(w http.ResponseWriter, r *http.Request) {
+func GetFeatured(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	var featured []dtos.Product
 	var cachedFeatured []dtos.Product
 	_ = utils.GetCache("featured_products", &cachedFeatured)
@@ -1998,7 +2007,7 @@ func GetFeatured(w http.ResponseWriter, r *http.Request) {
 		var err error
 		featured, err = models.GetFeaturedProducts()
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Homepage",
 					Description: "Failed to get featured products: " + err.Error(),
@@ -2007,7 +2016,7 @@ func GetFeatured(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -2015,7 +2024,7 @@ func GetFeatured(w http.ResponseWriter, r *http.Request) {
 	} else {
 		featured = cachedFeatured
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Homepage",
 			Description: "Featured products retrieved successfully",
@@ -2025,6 +2034,6 @@ func GetFeatured(w http.ResponseWriter, r *http.Request) {
 		Message:   "Featured products",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

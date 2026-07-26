@@ -1,10 +1,11 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/notification"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/notification"
+	"ekomasi_backend/utils"
 	"fmt"
 	"log"
 	"net/http"
@@ -33,29 +34,29 @@ import (
 // @Failure      500              {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /rider/orders [get]
-func RiderListOrders(w http.ResponseWriter, r *http.Request) {
+func RiderListOrders(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure the user has permission to view orders
-	user, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "")
+	user, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", "")
 	if !ok {
 		return
 	}
 
 	// Parse pagination and filter parameters
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	orderStatus := r.URL.Query().Get("order_status")
-	paymentStatus := r.URL.Query().Get("payment_status")
-	deliveryStatus := r.URL.Query().Get("delivery_status")
-	paymentMethod := r.URL.Query().Get("payment_method")
-	startDate := r.URL.Query().Get("start_date")
-	endDate := r.URL.Query().Get("end_date")
-	timeRange := r.URL.Query().Get("time_range")
-	orderID := r.URL.Query().Get("order_id")
-	q := r.URL.Query().Get("q")
-	past := r.URL.Query().Get("past")
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
+	orderStatus := c.Query("order_status")
+	paymentStatus := c.Query("payment_status")
+	deliveryStatus := c.Query("delivery_status")
+	paymentMethod := c.Query("payment_method")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+	timeRange := c.Query("time_range")
+	orderID := c.Query("order_id")
+	q := c.Query("q")
+	past := c.Query("past")
 
 	params := models.AdminOrderParameters{
 		OrderStatus:    orderStatus,
@@ -77,7 +78,7 @@ func RiderListOrders(w http.ResponseWriter, r *http.Request) {
 	orders, pagination, err := models.ListOrdersByAdmin(models.DB, params)
 	if err != nil {
 		log.Printf("%s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to list orders for rider",
@@ -86,13 +87,13 @@ func RiderListOrders(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Respond with filtered orders
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Orders fetched successfully for rider",
@@ -102,7 +103,7 @@ func RiderListOrders(w http.ResponseWriter, r *http.Request) {
 		Message:   "All Rider Orders",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -119,29 +120,29 @@ func RiderListOrders(w http.ResponseWriter, r *http.Request) {
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /admin/orders/assign-rider [post]
-func RiderAssignOrder(w http.ResponseWriter, r *http.Request) {
+func RiderAssignOrder(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure the user has permission to view orders
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", "orders.update")
 	if !ok {
 		return
 	}
 
-	req, ok := DecodeRequestBody[dtos.AssignOrderToRiderRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.AssignOrderToRiderRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Orders") {
 		return
 	}
 
 	if err := models.AssignOrderToRider(models.DB, *req); err != nil {
 		log.Printf("Error assigning order to rider: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to assign order to rider",
@@ -150,14 +151,14 @@ func RiderAssignOrder(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	//send notification to rider about new order assignment
 	handleSendOrderAssignmentNotification(*req)
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Order has been assigned to rider successfully",
@@ -167,7 +168,7 @@ func RiderAssignOrder(w http.ResponseWriter, r *http.Request) {
 		Message:   "Order assigned to rider successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -241,28 +242,28 @@ func handleSendOrderAssignmentNotification(req dtos.AssignOrderToRiderRequest) {
 // @Failure      500          {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /order/rider/status [patch]
-func RiderUpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
+func RiderUpdateOrderStatus(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure the user has permission to update orders
-	user, ok := utils.RequirePermissions(r, w, start, requestSummary, "Orders", "orders.update")
+	user, ok := utils.RequireGinPermissions(c, start, requestSummary, "Orders", "orders.update")
 	if !ok {
 		return
 	}
 
-	req, ok := DecodeRequestBody[dtos.UpdateOrderDeliveryStatusRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.UpdateOrderDeliveryStatusRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Orders") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Orders") {
 		return
 	}
 
 	if err := models.UpdateOrderByRider(models.DB, *req, user.ID); err != nil {
 		log.Printf("Error updating order status by rider: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Orders",
 				Description: "Failed to update order status by rider",
@@ -271,12 +272,12 @@ func RiderUpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Orders",
 			Description: "Order status has been updated by rider successfully",
@@ -286,6 +287,6 @@ func RiderUpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
 		Message:   "Order status updated by rider successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }

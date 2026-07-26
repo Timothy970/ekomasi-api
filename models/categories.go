@@ -1,4 +1,4 @@
-// Package models provides the category management functionality for the Adenzo e-commerce platform.
+// Package models provides the category management functionality for the Ekomasi e-commerce platform.
 //
 // This package handles core category operations including:
 //   - Hierarchical category structure (parent categories and subcategories)
@@ -29,7 +29,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -57,9 +57,9 @@ import (
 //   - Each parent category contains an array of subcategories
 //   - Each subcategory contains an array of up to 6 products
 //   - Products include ID, name, price, and image URL
-func GetAllCategories(db DBExecutor) ([]dtos.CategoryData, error) {
+func GetAllCategories(db DBExecutor, tenantID int) ([]dtos.CategoryData, error) {
 	// Step 1: Get top-level categories (parent categories with no parent_category_id)
-	rows, err := db.Query("SELECT category_id, name, parent_category_id, image, description FROM categories WHERE parent_category_id IS NULL")
+	rows, err := db.Query("SELECT category_id, name, parent_category_id, image, description FROM categories WHERE parent_category_id IS NULL AND tenant_id = ?", tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func GetAllCategories(db DBExecutor) ([]dtos.CategoryData, error) {
 		}
 
 		// Step 2: Get subcategories for this parent category
-		subcategories, err := getSubcategories(db, cat.ID)
+		subcategories, err := getSubcategories(db, cat.ID, tenantID)
 		if err != nil {
 			return nil, err
 		}
@@ -102,9 +102,9 @@ func GetAllCategories(db DBExecutor) ([]dtos.CategoryData, error) {
 // Product Limit:
 //   - Each subcategory includes up to 6 products for preview purposes
 //   - Products include basic info (ID, name, price, image URL)
-func getSubcategories(db DBExecutor, parentID string) ([]dtos.CategoryData, error) {
+func getSubcategories(db DBExecutor, parentID string, tenantID int) ([]dtos.CategoryData, error) {
 	// Query subcategories with this parent_category_id
-	rows, err := db.Query("SELECT category_id, name, parent_category_id, image,description FROM categories WHERE parent_category_id = ?", parentID)
+	rows, err := db.Query("SELECT category_id, name, parent_category_id, image,description FROM categories WHERE parent_category_id = ? AND tenant_id = ?", parentID, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -214,15 +214,15 @@ func isCategoryThere(db DBExecutor, value string) error {
 // Validation:
 //   - Category name must be unique across all categories
 //   - If ParentID provided, parent category must exist
-func AddNewCategory(db DBExecutor, input dtos.CreateCategory) (*dtos.Category, error) {
+func AddNewCategory(db DBExecutor, input dtos.CreateCategory, tenantID int) (*dtos.Category, error) {
 
-	// Check if the category name already exists (must be unique)
+	// Check if the category name already exists (must be unique for this tenant)
 	var exists bool
 	err := db.QueryRow(`
 		SELECT EXISTS(
-			SELECT 1 FROM categories WHERE name = ?
+			SELECT 1 FROM categories WHERE name = ? AND tenant_id = ?
 		)
-	`, input.Name).Scan(&exists)
+	`, input.Name, tenantID).Scan(&exists)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to check if category exists: %w", err)
@@ -239,9 +239,9 @@ func AddNewCategory(db DBExecutor, input dtos.CreateCategory) (*dtos.Category, e
 	if input.ParentID == nil {
 		// Insert parent category without parent_category_id
 		_, err := db.Exec(`
-		INSERT INTO categories (category_id, name, description, image)
-		VALUES (?, ?, ?, ?)`,
-			categoryID, input.Name, input.Description, input.Image,
+		INSERT INTO categories (category_id, name, description, image, tenant_id)
+		VALUES (?, ?, ?, ?, ?)`,
+			categoryID, input.Name, input.Description, input.Image, tenantID,
 		)
 
 		if err != nil {
@@ -256,9 +256,9 @@ func AddNewCategory(db DBExecutor, input dtos.CreateCategory) (*dtos.Category, e
 		}
 		// Insert subcategory with parent_category_id
 		_, err = db.Exec(`
-		INSERT INTO categories (category_id, name, parent_category_id, description, image)
-		VALUES (?, ?, ?, ?, ?)`,
-			categoryID, input.Name, input.ParentID, input.Description, input.Image,
+		INSERT INTO categories (category_id, name, parent_category_id, description, image, tenant_id)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+			categoryID, input.Name, input.ParentID, input.Description, input.Image, tenantID,
 		)
 		if err != nil {
 			return nil, err
@@ -521,11 +521,11 @@ func CategoryExists(db DBExecutor, id string) error {
 //
 // Ordering:
 //   - Results ordered by updated_at DESC (most recently updated first)
-func GetAdminCategories(db DBExecutor, page, limit int, categoryName, categoryType string) ([]dtos.AdminCategoryData, *dtos.PaginationMeta, error) {
+func GetAdminCategories(db DBExecutor, tenantID int, page, limit int, categoryName, categoryType string) ([]dtos.AdminCategoryData, *dtos.PaginationMeta, error) {
 	// Step 1: Get total count for pagination
 	var total int
-	args := []any{}
-	countQuery := "SELECT COUNT(*) FROM categories"
+	args := []any{tenantID}
+	countQuery := "SELECT COUNT(*) FROM categories WHERE tenant_id = ?"
 	whereClauses := []string{}
 
 	// Add search filter if category name provided
@@ -543,7 +543,7 @@ func GetAdminCategories(db DBExecutor, page, limit int, categoryName, categoryTy
 	}
 
 	if len(whereClauses) > 0 {
-		countQuery += " WHERE " + strings.Join(whereClauses, " AND ")
+		countQuery += " AND " + strings.Join(whereClauses, " AND ")
 	}
 
 	err := db.QueryRow(countQuery, args...).Scan(&total)
@@ -568,21 +568,21 @@ func GetAdminCategories(db DBExecutor, page, limit int, categoryName, categoryTy
 					       SELECT COUNT(*) 
 					       FROM products p 
 					       JOIN categories sc ON sc.category_id = p.category_id
-					       WHERE sc.parent_category_id = c.category_id
+					       WHERE sc.parent_category_id = c.category_id AND sc.tenant_id = c.tenant_id
 				       )
 			       ELSE (
 				       SELECT COUNT(*) 
 				       FROM products p 
-				       WHERE p.category_id = c.category_id
+				       WHERE p.category_id = c.category_id AND p.tenant_id = c.tenant_id
 			       )
 		       END AS items,
-		       (SELECT COUNT(*) FROM categories sc WHERE sc.parent_category_id = c.category_id) AS subcategories,
+		       (SELECT COUNT(*) FROM categories sc WHERE sc.parent_category_id = c.category_id AND sc.tenant_id = c.tenant_id) AS subcategories,
 		       c.description,
-		       CASE WHEN c.parent_category_id IS NOT NULL THEN (SELECT name FROM categories pc WHERE pc.category_id = c.parent_category_id) ELSE NULL END AS parent_name
+		       CASE WHEN c.parent_category_id IS NOT NULL THEN (SELECT name FROM categories pc WHERE pc.category_id = c.parent_category_id AND pc.tenant_id = c.tenant_id) ELSE NULL END AS parent_name
 	       FROM categories c`
 
 	mainWhereClauses := []string{}
-	queryArgs := []any{}
+	queryArgs := []any{tenantID}
 
 	if categoryName != "" {
 		mainWhereClauses = append(mainWhereClauses, "c.name LIKE ?")
@@ -597,8 +597,9 @@ func GetAdminCategories(db DBExecutor, page, limit int, categoryName, categoryTy
 		}
 	}
 
+	mainQuery += " WHERE c.tenant_id = ?"
 	if len(mainWhereClauses) > 0 {
-		mainQuery += " WHERE " + strings.Join(mainWhereClauses, " AND ")
+		mainQuery += " AND " + strings.Join(mainWhereClauses, " AND ")
 	}
 
 	mainQuery += " ORDER BY c.updated_at DESC LIMIT ? OFFSET ?"
@@ -635,31 +636,15 @@ func GetAdminCategories(db DBExecutor, page, limit int, categoryName, categoryTy
 }
 
 // GetCategoriesWithSubCategories retrieves all parent categories with their subcategories.
-//
-// This function builds a simple two-level category tree without product details.
-// It's optimized for dropdown menus and category navigation where product info isn't needed.
-//
-// Parameters:
-//   - None
-//
-// Returns:
-//   - []dtos.CategoryWithSubCategories: Array of parent categories with nested subcategory arrays
-//   - error: Database error if queries fail
-//
-// Structure:
-//   - Each parent category (parent_category_id IS NULL) contains:
-//   - CategoryID: Parent category ID
-//   - Category: Parent category name
-//   - SubCategory: Array of subcategories with ID and name
-func GetCategoriesWithSubCategories(db DBExecutor) ([]dtos.CategoryWithSubCategories, error) {
+func GetCategoriesWithSubCategories(db DBExecutor, tenantID int) ([]dtos.CategoryWithSubCategories, error) {
 	// Step 1: Fetch all parent categories (no parent_category_id)
 	parentQuery := `
 		SELECT category_id, name 
 		FROM categories
-		WHERE parent_category_id IS NULL		
+		WHERE parent_category_id IS NULL AND tenant_id = ?
 	`
 
-	rows, err := db.Query(parentQuery)
+	rows, err := db.Query(parentQuery, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch parent categories: %w", err)
 	}
@@ -678,25 +663,25 @@ func GetCategoriesWithSubCategories(db DBExecutor) ([]dtos.CategoryWithSubCatego
 		subQuery := `
 			SELECT category_id, name 
 			FROM categories
-			WHERE parent_category_id = ?
+			WHERE parent_category_id = ? AND tenant_id = ?
 		`
 
-		subRows, err := db.Query(subQuery, cat.CategoryID)
+		subRows, err := db.Query(subQuery, cat.CategoryID, tenantID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch subcategories for %s: %w", cat.CategoryID, err)
 		}
-
-		defer subRows.Close()
 
 		var subcategories []dtos.SubCategory
 		// Collect subcategories for this parent
 		for subRows.Next() {
 			var sub dtos.SubCategory
 			if err := subRows.Scan(&sub.CategoryID, &sub.Category); err != nil {
+				subRows.Close()
 				return nil, fmt.Errorf("failed to scan subcategory: %w", err)
 			}
 			subcategories = append(subcategories, sub)
 		}
+		subRows.Close()
 
 		// Assign subcategories to parent
 		cat.SubCategory = subcategories

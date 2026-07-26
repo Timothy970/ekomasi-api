@@ -1,4 +1,4 @@
-// Package models provides data access layer for the Adenzo e-commerce platform.
+// Package models provides data access layer for the Ekomasi e-commerce platform.
 //
 // This file handles deals/promotions management including:
 //   - Deal CRUD operations (time-limited promotional campaigns)
@@ -15,7 +15,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"fmt"
 	"os"

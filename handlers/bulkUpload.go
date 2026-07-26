@@ -1,45 +1,58 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/services"
+	"ekomasi_backend/utils"
 	"encoding/csv"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
-// BulkUploadProductsHandler handles the bulk upload of products via CSV file.
-// This endpoint is restricted to authenticated users.
+// BulkUploadProductsHandler handles the bulk upload and validation of products via CSV file.
+// Supports query params:
+// - validate_only: 'true' to run a dry-run validation without DB writes
+// - mode: 'upsert' (default), 'create_only', 'update_stock'
 //
-// @Summary      Bulk upload products
-// @Description  Upload multiple products using a CSV file
+// @Summary      Bulk upload and validate products
+// @Description  Upload multiple products via CSV with dry-run pre-validation and row-by-row error diagnostics
 // @Tags         Products
 // @Accept       multipart/form-data
 // @Produce      json
-// @Param        file  formData  file  true  "CSV File"
-// @Success      200   {object}  map[string]interface{}
+// @Param        file           formData  file    true  "CSV File"
+// @Param        validate_only  query     bool    false "If true, run dry-run pre-validation without DB writes"
+// @Param        mode           query     string  false "Import mode: 'upsert', 'create_only', 'update_stock'"
+// @Success      200   {object}  dtos.BulkImportDiagnosticResult
 // @Failure      400   {object}  dtos.ErrorResponse
 // @Failure      401   {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/products/bulk-upload [post]
-func BulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
+func BulkUploadProductsHandler(c *gin.Context) {
 	start := time.Now()
-	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	// Verify user has admin privileges (required for media uploads)
-	authuser, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	requestSummary := utils.GetRequestSummary(c.Request)
+
+	authuser, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
-		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
-	err := r.ParseMultipartForm(10 << 20) // 10MB limit
+
+	validateOnlyStr := c.Query("validate_only")
+	validateOnly, _ := strconv.ParseBool(validateOnlyStr)
+	mode := c.Query("mode")
+	if mode == "" {
+		mode = "upsert"
+	}
+
+	err := c.Request.ParseMultipartForm(10 << 20) // 10MB limit
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error parsing form: " + err.Error(),
@@ -48,15 +61,15 @@ func BulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
-	file, _, err := r.FormFile("file")
+	file, _, err := c.Request.FormFile("file")
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Csv file error: " + err.Error(),
@@ -65,7 +78,7 @@ func BulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -74,70 +87,57 @@ func BulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 
 	products, err := utils.ParseProductsCSV(file)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
-				Description: "Invalid CSV: " + err.Error(),
+				Description: "Invalid CSV format: " + err.Error(),
 				Code:        http.StatusBadRequest,
 			},
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
-			RawBody:   requestSummary,
-		})
-		return
-	}
-	if err := validateUniqueSKUs(products); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Products",
-				Description: err.Error(),
-				Code:        http.StatusBadRequest,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
-	for _, product := range products {
-		if err := validateAndCreateProduct(product, authuser.ID); err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Products",
-					Description: err.Error(),
-					Code:        http.StatusBadRequest,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
-				RawBody:   requestSummary,
-			})
-			return
-		}
+	tenantID := fmt.Sprintf("%d", middleware.TenantIDFromContext(c.Request.Context()))
+	diagnostic, err := services.ValidateAndProcessBulkImport(models.DB, tenantID, products, mode, validateOnly, authuser.ID)
+	if err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Products",
+				Description: "Bulk import execution failed: " + err.Error(),
+				Code:        http.StatusInternalServerError,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   c.Request,
+			RawBody:   requestSummary,
+		})
+		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+
+	msg := "Bulk product import processed successfully"
+	if validateOnly {
+		msg = "Bulk product pre-validation complete (Dry-Run)"
+	}
+
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
-			Description: "Products uploaded successfully",
+			Description: msg,
 			Code:        http.StatusOK,
 		},
-		Payload: map[string]any{
-			"message": "Products uploaded successfully",
-			"count":   len(products),
-		},
-		Message:   "Products upload successfully",
+		Payload:   diagnostic,
+		Message:   msg,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
-
 }
 
 // DownloadSampleCSVHandler generates and serves a sample CSV file for bulk product uploads.
@@ -149,11 +149,11 @@ func BulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {file}  file
 // @Failure      500  {string} string "Error generating sample CSV"
 // @Router       /api/products/sample-csv [get]
-func DownloadSampleCSVHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment;filename=sample_products.csv")
+func DownloadSampleCSVHandler(c *gin.Context) {
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", "attachment;filename=sample_products.csv")
 
-	writer := csv.NewWriter(w)
+	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()
 
 	headers := utils.BulkUploadHeaders
@@ -163,14 +163,14 @@ func DownloadSampleCSVHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	writer.Write(headerNames)
 
-	// 2 sample product rows
+	// Sample products: 1 simple product & 1 parent-child variant combination product
 	sampleData := [][]string{
 		{
 			"Organic Soap",
 			"Natural handmade soap with essential oils",
 			"SOAP001",
 			"3.50",
-			"cat-001",
+			"Beauty",
 			"100",
 			"",
 			"5",
@@ -182,24 +182,60 @@ func DownloadSampleCSVHandler(w http.ResponseWriter, r *http.Request) {
 			"Nature's Best",
 			"Nature's Best Co.",
 			"12",
+			"",
+			"",
+			"0.00",
+			"",
+			"",
+			"",
 		},
 		{
-			"Herbal Shampoo",
-			"Moisturizing herbal shampoo for daily use",
-			"SHAMP001",
-			"6.99",
-			"cat-002",
-			"75",
-			"beauty",
-			"10",
+			"Cotton Crewneck Tee",
+			"Premium heavyweight organic cotton t-shirt",
+			"TEE001",
+			"25.00",
+			"Fashion",
+			"50",
+			"apparel",
+			"5",
 			"987654321",
-			"4.50",
-			"6",
-			"2",
-			"6x6x2",
-			"Nature's Best",
-			"Nature's Best Co.",
+			"12.50",
+			"0.35",
+			"1",
+			"10x12x1",
+			"UrbanWear",
+			"Urban Apparel Ltd",
 			"12",
+			"Blue / Medium",
+			"TEE001-BL-M",
+			"0.00",
+			"Color: Blue",
+			"Size: Medium",
+			"",
+		},
+		{
+			"Cotton Crewneck Tee",
+			"Premium heavyweight organic cotton t-shirt",
+			"TEE001",
+			"25.00",
+			"Fashion",
+			"30",
+			"apparel",
+			"5",
+			"987654321",
+			"12.50",
+			"0.35",
+			"1",
+			"10x12x1",
+			"UrbanWear",
+			"Urban Apparel Ltd",
+			"12",
+			"Blue / XL",
+			"TEE001-BL-XL",
+			"5.00",
+			"Color: Blue",
+			"Size: XL",
+			"",
 		},
 	}
 
@@ -210,11 +246,11 @@ func DownloadSampleCSVHandler(w http.ResponseWriter, r *http.Request) {
 	writer.Flush()
 
 	if err := writer.Error(); err != nil {
-		http.Error(w, "Error generating sample CSV", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "Error generating sample CSV")
 		return
 	}
 
-	w.Header().Set("X-Generated-At", time.Now().Format(time.RFC3339))
+	c.Header("X-Generated-At", time.Now().Format(time.RFC3339))
 }
 
 // validateUniqueSKUs checks if all SKUs in the products slice are unique
@@ -279,23 +315,23 @@ func convertDateFormat(date string) string {
 // @Failure      401   {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/products/bulk-upload [get]
-func GetBulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
+func GetBulkUploadProductsHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for media uploads)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Parse pagination parameters from query string
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	startDate := r.URL.Query().Get("start_date")
-	endDate := r.URL.Query().Get("end_date")
-	q := r.URL.Query().Get("q")
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+	q := c.Query("q")
 	products, pagination, err := models.GetBulkUploadProducts(models.DB, startDate, endDate, q, page, limit)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error fetching bulk upload products: " + err.Error(),
@@ -304,12 +340,12 @@ func GetBulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Bulk upload products fetched successfully",
@@ -322,7 +358,7 @@ func GetBulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Bulk upload products fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -339,11 +375,11 @@ func GetBulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      401   {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/products/bulk-upload/publish [post]
-func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) {
+func PublishBulkUploadedProductsHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for media uploads)
-	authuser, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	authuser, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
@@ -352,7 +388,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	// Start transaction for atomic operations
 	tx, err := models.DB.Begin()
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to start transaction: " + err.Error(),
@@ -361,26 +397,26 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 	defer tx.Rollback() // Rollback if not committed
 
-	// req, ok := DecodeRequestBody[dtos.PublishBulkProduct](r, w, requestSummary, start)
+	// req, ok := DecodeRequestBody[dtos.PublishBulkProduct](c, requestSummary, start)
 	// if !ok {
 	// 	return
 	// }
-	// if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	// if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 	// 	return
 	// }
-	productID := r.FormValue("product_id")
-	videoLink := r.FormValue("video_link")
-	productDetails := r.Form["details"]
+	productID := c.Request.FormValue("product_id")
+	videoLink := c.Request.FormValue("video_link")
+	productDetails := c.Request.Form["details"]
 	bulkProduct, err := models.GetBulkProductByID(tx, productID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error fetching bulk product: " + err.Error(),
@@ -389,7 +425,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -407,10 +443,11 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		BuyingPrice:   &bulkProduct.BuyingPrice,
 		Details:       productDetails,
 	}
-	product, err := models.AddNewProduct(tx, createRequest, authuser.ID)
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	product, err := models.AddNewProduct(tx, createRequest, authuser.ID, tenantID)
 	if err != nil {
 		log.Printf("Error for adding new product %s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add new product",
@@ -419,14 +456,14 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	warrantyType, err := models.GetDefaultWarrantyType(tx)
 	if err != nil {
 		log.Printf("Error fetching default warranty type: %s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to fetch default warranty type",
@@ -435,7 +472,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -455,7 +492,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	state := "add"
 	err = handleProductSpecs(tx, specificationsRequest, state)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product specifications: " + err.Error(),
@@ -464,7 +501,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -472,7 +509,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	err = handleProductsVariants(tx, specificationsRequest, state)
 
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product variants: " + err.Error(),
@@ -481,7 +518,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -489,7 +526,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	err = handleProductsWarranty(tx, specificationsRequest)
 
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product warranty: " + err.Error(),
@@ -498,7 +535,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -506,7 +543,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	//first video link if any
 	if videoLink != "" {
 		if err := models.InsertProductImage(tx, product.ID, videoLink, "video", false); err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Failed to insert video link for product ID " + product.ID,
@@ -515,7 +552,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -525,10 +562,10 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	fileTypes := []string{"gallery", "thumbnail", "video"}
 	// Check and upload files for each type
 	for _, fileType := range fileTypes {
-		results, err := handleFileUploads(tx, r, product.ID, fileType)
+		results, err := handleFileUploads(tx, c.Request, product.ID, fileType)
 		if err != nil {
 			log.Printf("Error::::%s adding image to product:::::%s", err.Error(), product.ID)
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Failed to upload " + fileType + " for product ID " + product.ID,
@@ -537,7 +574,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -548,7 +585,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	err = models.DeleteBulkProductByID(tx, bulkProduct.ProductID)
 	if err != nil {
 		log.Printf("Error deleting bulk product ID %s: %s", bulkProduct.ProductID, err.Error())
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to delete bulk product: " + err.Error(),
@@ -557,7 +594,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -565,7 +602,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 
 	// Commit transaction - all operations succeeded
 	if err := tx.Commit(); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to commit transaction: " + err.Error(),
@@ -574,7 +611,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -586,7 +623,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 	_ = utils.DeleteCacheByPrefix("categories_products")
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	_ = utils.DeleteCache("expensiveandcheapproducts")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product created successfully",
@@ -596,7 +633,7 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 		Message:   "Product published successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -613,21 +650,21 @@ func PublishBulkUploadedProductsHandler(w http.ResponseWriter, r *http.Request) 
 // @Failure      401   {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/products/bulk-upload/{bulk_product_id} [delete]
-func DeleteBulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteBulkUploadProductsHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (required for media uploads)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Get bulk product ID from URL path
-	bulkProductID := mux.Vars(r)["bulk_product_id"]
+	bulkProductID := c.Param("bulk_product_id")
 	err := models.DeleteBulkProductByID(models.DB, bulkProductID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Error deleting bulk product: " + err.Error(),
@@ -636,13 +673,13 @@ func DeleteBulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product deleted successfully",
@@ -655,7 +692,7 @@ func DeleteBulkUploadProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 

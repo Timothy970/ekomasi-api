@@ -17,7 +17,7 @@ var (
 
 // InitLogger initializes the structured logger with OpenTelemetry integration
 func InitLogger() {
-	Logger = otelslog.NewLogger("adenzo-backend")
+	Logger = otelslog.NewLogger("ekomasi-backend")
 	slog.SetDefault(Logger)
 }
 
@@ -111,7 +111,7 @@ func LogWithSpan(ctx context.Context, spanName string, fn func(context.Context))
 		fn(spanCtx)
 	} else {
 		// Create a new span if none exists
-		tracer := otel.Tracer("adenzo-backend")
+		tracer := otel.Tracer("ekomasi-backend")
 		spanCtx, newSpan := tracer.Start(ctx, spanName)
 		defer newSpan.End()
 		fn(spanCtx)

@@ -1,4 +1,4 @@
-// Package models provides the shopping cart management functionality for the Adenzo e-commerce platform.
+// Package models provides the shopping cart management functionality for the Ekomasi e-commerce platform.
 //
 // This package handles core cart operations including:
 //   - Cart creation and retrieval for authenticated and guest users
@@ -34,7 +34,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -52,9 +52,9 @@ import (
 //
 // Returns:
 //   - error: nil if cart exists, "cart not found" error if not found, or database error
-func isCartThere(db DBExecutor, id string) error {
+func isCartThere(db DBExecutor, id string, tenantID int) error {
 	// Check if cart record exists in cart table
-	exists, err := RecordExists(db, "cart", "cart_id = ?", id)
+	exists, err := RecordExists(db, "cart", "cart_id = ? AND tenant_id = ?", id, tenantID)
 	if err != nil {
 		return err
 	}
@@ -99,9 +99,9 @@ func UpdateCartTimestamp(db DBExecutor, cartID string) error {
 //
 // Returns:
 //   - error: Validation error, stock error, or database error if insert fails
-func InsertCartItem(db DBExecutor, cartID string, productID string, quantity int, variationSKU *string) error {
+func InsertCartItem(db DBExecutor, cartID string, productID string, quantity int, variationSKU *string, tenantID int) error {
 	// Validate cart exists
-	err := isCartThere(db, cartID)
+	err := isCartThere(db, cartID, tenantID)
 	if err != nil {
 		return err
 	}
@@ -185,13 +185,13 @@ func isStockAvailable(db DBExecutor, productID string, quantity int) error {
 // Returns:
 //   - string: The cart_id (existing or newly created)
 //   - error: Database error if creation fails, nil on success
-func CreateCart(db DBExecutor, req dtos.CreateCartRequest) (string, error) {
+func CreateCart(db DBExecutor, req dtos.CreateCartRequest, tenantID int) (string, error) {
 	// Generate unique cart ID
 	cartID, _ := shortid.Generate()
 
 	// For authenticated users, check if cart already exists
 	if req.UserID != nil {
-		cartID, err := GetUserCart(db, *req.UserID)
+		cartID, err := GetUserCart(db, *req.UserID, tenantID)
 		if err != nil {
 			return "", err
 		}
@@ -202,9 +202,9 @@ func CreateCart(db DBExecutor, req dtos.CreateCartRequest) (string, error) {
 	}
 	// Create new cart record
 	_, err := db.Exec(`
-        INSERT INTO cart(cart_id, user_id)
-        VALUES (?, ?)
-    `, cartID, req.UserID)
+        INSERT INTO cart(cart_id, user_id, tenant_id)
+        VALUES (?, ?, ?)
+    `, cartID, req.UserID, tenantID)
 	return cartID, err
 }
 
@@ -219,12 +219,12 @@ func CreateCart(db DBExecutor, req dtos.CreateCartRequest) (string, error) {
 // Returns:
 //   - string: The cart_id if found, empty string if no cart exists
 //   - error: Database error if query fails (sql.ErrNoRows returns empty string, not error)
-func GetUserCart(db DBExecutor, userID string) (string, error) {
+func GetUserCart(db DBExecutor, userID string, tenantID int) (string, error) {
 	var cartID string
 	// Query for existing cart by user_id
 	err := db.QueryRow(`
-        SELECT cart_id FROM cart WHERE user_id = ?
-    `, userID).Scan(&cartID)
+        SELECT cart_id FROM cart WHERE user_id = ? AND tenant_id = ?
+    `, userID, tenantID).Scan(&cartID)
 
 	if err == sql.ErrNoRows {
 		// No cart yet for this user - not an error
@@ -249,9 +249,9 @@ func GetUserCart(db DBExecutor, userID string) (string, error) {
 // CartItem Structure:
 //   - Product: Full product object with details, pricing, images
 //   - Quantity: Number of units in cart
-func GetCartItems(db DBExecutor, cartID string) ([]dtos.CartItem, error) {
+func GetCartItems(db DBExecutor, cartID string, tenantID int) ([]dtos.CartItem, error) {
 	// Validate cart exists before retrieving items
-	err := isCartThere(db, cartID)
+	err := isCartThere(db, cartID, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -335,9 +335,9 @@ func GetVariationPrice(db DBExecutor, variationSKU string) (float64, string, err
 //
 // Returns:
 //   - error: Validation error or database error if update fails
-func UpdateCartItem(db DBExecutor, cartID string, productID string, quantity int) error {
+func UpdateCartItem(db DBExecutor, cartID string, productID string, quantity int, tenantID int) error {
 	// Validate cart exists
-	err := isCartThere(db, cartID)
+	err := isCartThere(db, cartID, tenantID)
 	if err != nil {
 		return err
 	}
@@ -367,9 +367,9 @@ func UpdateCartItem(db DBExecutor, cartID string, productID string, quantity int
 //
 // Returns:
 //   - error: Validation error or database error if deletion fails
-func DeleteCartItem(db DBExecutor, cartID, productID string) error {
+func DeleteCartItem(db DBExecutor, cartID, productID string, tenantID int) error {
 	// Validate cart exists
-	err := isCartThere(db, cartID)
+	err := isCartThere(db, cartID, tenantID)
 	if err != nil {
 		return err
 	}

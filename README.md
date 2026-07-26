@@ -1,13 +1,13 @@
 
-# 🚀 Adenzo E-Commerce Backend
+# 🚀 Ekomasi E-Commerce Backend
 
-Welcome to the **Adenzo E-Commerce Backend**, a high-performance, scalable server-side application built with **Go (Golang)**. This system provides a robust API foundation for a complete e-commerce ecosystem, featuring sophisticated order management, real-time inventory tracking, and seamless payment integrations.
+Welcome to the **Ekomasi E-Commerce Backend**, a high-performance, scalable server-side application built with **Go (Golang)**. This system provides a robust API foundation for a complete e-commerce ecosystem, featuring sophisticated order management, real-time inventory tracking, and seamless payment integrations.
 
 ---
 
 ## 🏗 System Architecture
 
-Adenzo is architected for modularity and performance:
+Ekomasi is architected for modularity and performance:
 - **Framework:** `gorilla/mux` for efficient routing.
 - **Database:** MySQL for relational data persistence.
 - **Caching:** Redis for high-speed data access and session management.
@@ -53,8 +53,8 @@ Adenzo is architected for modularity and performance:
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/Roamtech-Solutions/adenzo-be.git
-   cd adenzo-be
+   git clone https://github.com/Roamtech-Solutions/ekomasi-be.git
+   cd ekomasi-be
    ```
 
 2. **Setup Environment Variables**
@@ -82,15 +82,15 @@ Adenzo is architected for modularity and performance:
 
 ## 📖 API Documentation
 
-Adenzo uses Swagger for interactive API documentation. Once the server is running, navigate to:
+Ekomasi uses Swagger for interactive API documentation. Once the server is running, navigate to:
 `http://localhost:8000/swagger/`
 
 ---
 
 ## 🧪 Documentation & Resources
 
-- [Technical Deep Dive](file:///c:/Users/Timothy/adenzo-backend/TECHNICAL_DOCUMENTATION.md)
-- [Migrations Guide](file:///c:/Users/Timothy/adenzo-backend/migrations/)
+- [Technical Deep Dive](file:///c:/Users/Timothy/ekomasi-backend/TECHNICAL_DOCUMENTATION.md)
+- [Migrations Guide](file:///c:/Users/Timothy/ekomasi-backend/migrations/)
 
 ---
 

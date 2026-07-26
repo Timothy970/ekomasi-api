@@ -1,15 +1,17 @@
-// Package handlers provides HTTP request handlers for the Adenzo backend API.
+// Package handlers provides HTTP request handlers for the Ekomasi backend API.
 // This file contains admin-specific product search and management handlers.
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // AdminSearchProductsHandler provides advanced product search functionality for admin users.
@@ -38,15 +40,15 @@ import (
 // @Failure 500 {object} map[string]interface{} "Internal server error during search"
 // @Router /api/admin/products/search [get]
 // @Security BearerAuth
-func AdminSearchProductsHandler(w http.ResponseWriter, r *http.Request) {
+func AdminSearchProductsHandler(c *gin.Context) {
 	// Track request execution time for performance monitoring
 	start := time.Now()
 
 	// Extract request summary for logging and error reporting
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract all query parameters from the URL
-	query := r.URL.Query()
+	query := c.Request.URL.Query()
 
 	// Parse variant filters (supports multiple variant parameters)
 	// Variants are specified as "type---value" format (e.g., "color---red", "size---large")
@@ -107,7 +109,7 @@ func AdminSearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Return error if sort parameter is invalid
 		if !validSorts[searchParams.SortBy] {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Invalid sort parameter provided for product search",
@@ -116,7 +118,7 @@ func AdminSearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   "Invalid sort parameter",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -128,7 +130,7 @@ func AdminSearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 	products, pagination, err := models.SearchProducts(models.DB, searchParams, true)
 	if err != nil {
 		// Return error response if search operation fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to search products",
@@ -137,14 +139,14 @@ func AdminSearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to search products: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Return success response with products, pagination, and applied filters
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Products fetched successfully",
@@ -167,7 +169,7 @@ func AdminSearchProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Products fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }

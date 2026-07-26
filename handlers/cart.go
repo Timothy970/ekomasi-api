@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"adenzo_backend/dtos"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"github.com/gin-gonic/gin"
 
-	"github.com/gorilla/mux"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 )
 
 var (
@@ -36,24 +36,25 @@ var (
 // @Failure      500   {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/cart [post]
-func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
+func CreateCartHandler(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Decode request body
-	req, ok := DecodeRequestBody[dtos.CreateCartRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CreateCartRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	// if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start) {
+	// if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start) {
 	// 	return
 	// }
 
 	// Create cart in database
-	cartID, err := models.CreateCart(models.DB, *req)
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	cartID, err := models.CreateCart(models.DB, *req, tenantID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: "Failed to create cart",
@@ -62,13 +63,13 @@ func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Respond with created cart ID
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
 			Description: "Cart created successfully",
@@ -78,7 +79,7 @@ func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Cart created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -95,15 +96,15 @@ func CreateCartHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500  {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/cart [get]
-func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
+func GetUserCartHandler(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Get authenticated user from context
-	user, ok := middleware.UserFromContext(r.Context())
+	user, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: "User not authenticated to fetch cart",
@@ -112,15 +113,16 @@ func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   notAuthenticated,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Fetch user's cart ID
-	cartID, err := models.GetUserCart(models.DB, user.ID)
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	cartID, err := models.GetUserCart(models.DB, user.ID, tenantID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: "Failed to fetch user cart with user ID" + user.ID,
@@ -129,13 +131,13 @@ func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Respond with cart ID
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
 			Description: "Cart with ID " + cartID + " fetched successfully",
@@ -145,7 +147,7 @@ func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Cart fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -163,25 +165,26 @@ func GetUserCartHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500   {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/cart/add [post]
-func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
+func AddToCartHandler(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Decode request body
-	req, ok := DecodeRequestBody[dtos.AddToCartRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.AddToCartRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the request payload
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Cart") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Cart") {
 		return
 	}
 
 	// Insert item into cart
-	if err := models.InsertCartItem(models.DB, req.CartID, req.ProductID, req.Quantity, req.VariationSKU); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	if err := models.InsertCartItem(models.DB, req.CartID, req.ProductID, req.Quantity, req.VariationSKU, tenantID); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: "Failed to add item to cart with Cart ID " + req.CartID,
@@ -190,15 +193,15 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Fetch updated cart items
-	res, err := getCartItemsByCartID(req.CartID)
+	res, err := getCartItemsByCartID(req.CartID, tenantID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: failedToGetCartItems + req.CartID,
@@ -207,13 +210,13 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Respond with updated cart items
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
 			Description: "Product with ID " + req.ProductID + " added to cart successfully with Cart ID " + req.CartID,
@@ -223,7 +226,7 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product added to cart successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -240,19 +243,20 @@ func AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500          {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/cart/view/{cart_id} [get]
-func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
+func ViewCartHandler(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract cart ID from path variables
-	cartID := mux.Vars(r)["cart_id"]
-	locationID := r.URL.Query().Get("location_id")
+	cartID := c.Param("cart_id")
+	locationID := c.Query("location_id")
 
 	// Fetch cart items
-	res, err := getCartItemsByCartID(cartID)
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	res, err := getCartItemsByCartID(cartID, tenantID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: failedToGetCartItems + cartID,
@@ -261,7 +265,7 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -272,7 +276,7 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 		if locationIDInt != 0 {
 			loc, err := models.GetLocationByID(models.DB, locationIDInt)
 			if err != nil {
-				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 					CollectiveInfo: utils.CollectiveInfo{
 						Module:      "Cart",
 						Description: "Failed to fetch location with ID " + locationID,
@@ -281,7 +285,7 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 					Message:   err.Error(),
 					TimeTaken: time.Since(start),
 					Function:  utils.GetCurrentFuncName(),
-					Request:   r,
+					Request:   c.Request,
 					RawBody:   requestSummary})
 				return
 			}
@@ -292,7 +296,7 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Respond with cart items
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
 			Description: "Cart Items fetched successfully",
@@ -302,11 +306,11 @@ func ViewCartHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Cart Items fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
-func getCartItemsByCartID(cartID string) (dtos.ViewCartResponse, error) {
-	items, err := models.GetCartItems(models.DB, cartID)
+func getCartItemsByCartID(cartID string, tenantID int) (dtos.ViewCartResponse, error) {
+	items, err := models.GetCartItems(models.DB, cartID, tenantID)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
 	}
@@ -441,23 +445,24 @@ func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartIt
 // @Failure      500      {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/cart/update/{cart_id} [patch]
-func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateCartItemHandler(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract cart ID from path variables
-	cartID := mux.Vars(r)["cart_id"]
+	cartID := c.Param("cart_id")
 
 	// Decode request body
-	req, ok := DecodeRequestBody[dtos.UpdateCartItemRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.UpdateCartItemRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Update cart item in database
-	if err := models.UpdateCartItem(models.DB, cartID, req.ProductID, req.Quantity); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	if err := models.UpdateCartItem(models.DB, cartID, req.ProductID, req.Quantity, tenantID); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: "Failed to update cart item with Cart ID " + cartID,
@@ -466,15 +471,15 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Fetch updated cart items
-	res, err := getCartItemsByCartID(cartID)
+	res, err := getCartItemsByCartID(cartID, tenantID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: failedToGetCartItems + cartID,
@@ -483,13 +488,13 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Respond with updated cart items
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
 			Description: "Cart item updated successfully with Cart ID " + cartID,
@@ -499,7 +504,7 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Cart item updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -517,23 +522,24 @@ func UpdateCartItemHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500      {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/cart/remove/{cart_id} [delete]
-func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
+func RemoveFromCartHandler(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Decode request body
-	req, ok := DecodeRequestBody[dtos.RemoveFromCartRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.RemoveFromCartRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Extract cart ID from path variables
-	cartID := mux.Vars(r)["cart_id"]
+	cartID := c.Param("cart_id")
 
 	// Delete cart item from database
-	if err := models.DeleteCartItem(models.DB, cartID, req.ProductID); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	if err := models.DeleteCartItem(models.DB, cartID, req.ProductID, tenantID); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: "Failed to remove cart item with Cart ID " + cartID,
@@ -542,15 +548,15 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Fetch updated cart items
-	res, err := getCartItemsByCartID(cartID)
+	res, err := getCartItemsByCartID(cartID, tenantID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: failedToGetCartItems + cartID,
@@ -559,13 +565,13 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Respond with updated cart items
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
 			Description: "Product removed from cart successfully",
@@ -575,7 +581,7 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product removed from cart successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -591,22 +597,22 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 // @Security BearerAuth
 // @Router /api/cart/apply-coupon [post]
 // to do: refine this
-// func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
+// func ApplyDiscountHandler(c *gin.Context) {
 // 	start := time.Now()
 // 	// Read and restore body FIRST
-// 	requestSummary := utils.GetRequestSummary(r)
-// 	req, ok := DecodeRequestBody[dtos.CouponRequest](r, w, requestSummary, start)
+// 	requestSummary := utils.GetRequestSummary(c.Request)
+// 	req, ok := DecodeRequestBody[dtos.CouponRequest](c, requestSummary, start)
 // 	if !ok {
 // 		return
 // 	}
-// 	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Cart") {
+// 	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Cart") {
 // 		return
 // 	}
 // 	//validate coupon/promc code/voucher
 // 	items, err := validateCodeVoucher(*req)
 // 	if err != nil {
 // 		log.Printf("Error fetching cart items: %v", err)
-// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+// 		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 // 			CollectiveInfo: utils.CollectiveInfo{
 // 				Module:      "Cart",
 // 				Description: "Failed to apply discount to order ID " + req.OrderID,
@@ -615,14 +621,14 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 // 			Message:   err.Error(),
 // 			TimeTaken: time.Since(start),
 // 			Function:  utils.GetCurrentFuncName(),
-// 			Request:   r,
+// 			Request: c.Request,
 // 			RawBody:   requestSummary})
 // 		return
 // 	}
 // 	//update order with new totals in the database
 // 	if err := models.UpdateOrderTotals(items); err != nil {
 // 		log.Printf("Error updating order totals: %v", err)
-// 		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+// 		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 // 			CollectiveInfo: utils.CollectiveInfo{
 // 				Module:      "Cart",
 // 				Description: "Failed to update order totals for Order ID " + req.OrderID,
@@ -631,12 +637,12 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 // 			Message:   err.Error(),
 // 			TimeTaken: time.Since(start),
 // 			Function:  utils.GetCurrentFuncName(),
-// 			Request:   r,
+// 			Request: c.Request,
 // 			RawBody:   requestSummary})
 // 		return
 // 	}
 
-//		utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+//		utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 //			CollectiveInfo: utils.CollectiveInfo{
 //				Module:      "Cart",
 //				Description: "Discount applied successfully to Order ID " + req.OrderID,
@@ -646,7 +652,7 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 //			Message:   "Discount applied successfully",
 //			TimeTaken: time.Since(start),
 //			Function:  utils.GetCurrentFuncName(),
-//			Request:   r,
+//			Request: c.Request,
 //			RawBody:   requestSummary})
 //	}
 //
@@ -663,13 +669,13 @@ func RemoveFromCartHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500     {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/cart/apply-coupon [post]
-func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
+func ApplyDiscountHandler(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Decode request body
-	req, ok := DecodeRequestBody[dtos.CouponRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CouponRequest](c, requestSummary, start)
 	if !ok {
 		return
 	}
@@ -681,15 +687,16 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate the request payload
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Cart") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Cart") {
 		return
 	}
 
 	// Validate and apply the discount code
-	items, err := validateCodeVoucher(*req)
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	items, err := validateCodeVoucher(*req, tenantID)
 	if err != nil {
 		log.Printf("Error fetching cart items: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: "Failed to apply discount to cart ID " + req.CartID,
@@ -698,7 +705,7 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -715,7 +722,7 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 		if locationIDInt != 0 {
 			loc, err := models.GetLocationByID(models.DB, locationIDInt)
 			if err != nil {
-				utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+				utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 					CollectiveInfo: utils.CollectiveInfo{
 						Module:      "Cart",
 						Description: "Failed to fetch location with ID " + strconv.Itoa(locationIDInt),
@@ -724,7 +731,7 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 					Message:   err.Error(),
 					TimeTaken: time.Since(start),
 					Function:  utils.GetCurrentFuncName(),
-					Request:   r,
+					Request:   c.Request,
 					RawBody:   requestSummary})
 				return
 			}
@@ -735,7 +742,7 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Respond with updated cart details
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
 			Description: "Discount applied successfully to Cart ID " + req.CartID,
@@ -745,11 +752,11 @@ func ApplyDiscountHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Discount applied successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
-func validateCodeVoucher(req dtos.CouponRequest) (dtos.ViewCartResponse, error) {
-	cartData, err := getCartItemsByCartID(req.CartID)
+func validateCodeVoucher(req dtos.CouponRequest, tenantID int) (dtos.ViewCartResponse, error) {
+	cartData, err := getCartItemsByCartID(req.CartID, tenantID)
 	if err != nil {
 		return dtos.ViewCartResponse{}, err
 	}
@@ -780,23 +787,23 @@ func applyCoupon(cart dtos.ViewCartResponse, code string) (dtos.ViewCartResponse
 }
 
 // http handler to just validate the code without applying it, this is for the frontend to check if the code is valid before applying it
-func ValidateVoucherCodeHandler(w http.ResponseWriter, r *http.Request) {
+func ValidateVoucherCodeHandler(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Decode request body
-	req, ok := DecodeRequestBody[dtos.VoucherCode](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.VoucherCode](c, requestSummary, start)
 	if !ok {
 		return
 	}
 	// Validate the request payload
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Cart") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Cart") {
 		return
 	}
 	// Validate the voucher code
 	voucherBalance, err := models.ValidateVoucher(models.DB, req.Code)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: "Failed to validate voucher code: " + err.Error(),
@@ -805,13 +812,13 @@ func ValidateVoucherCodeHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// voucher balance should always be greater than amount passed from frontend, if not return error
 	if voucherBalance < req.Amount {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Cart",
 				Description: "Voucher balance is less than the amount to be applied",
@@ -820,12 +827,12 @@ func ValidateVoucherCodeHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "Voucher balance is less than the amount to be applied",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Respond with voucher balance
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Cart",
 			Description: "Voucher code validated successfully",
@@ -835,7 +842,7 @@ func ValidateVoucherCodeHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher code validated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 

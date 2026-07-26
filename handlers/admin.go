@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"encoding/csv"
 	"fmt"
 	"log"
@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 var uploadImageError = "Failed to upload image"
@@ -38,19 +38,19 @@ var uploadImageError = "Failed to upload image"
 // @Failure      500          {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/products/categories [post]
-func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
+func CreateCategoryHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Categories", "categories.create"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Categories", "categories.create"); !ok {
 		return
 	}
 
 	// Upload image if present
-	url, err := utils.ParseAndUploadFile(r, "image", 20)
+	url, err := utils.ParseAndUploadFile(c.Request, "image", 20)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Categories",
 				Description: "Failed to upload image : " + err.Error(),
@@ -59,7 +59,7 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   uploadImageError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 		})
 		return
 	}
@@ -67,20 +67,20 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	// Build DTO
 	req := dtos.CreateCategory{
 		Image:       url,
-		Name:        r.FormValue("name"),
-		Description: r.FormValue("description"),
-		ParentID:    utils.StringPtr(r.FormValue("parent_id")),
+		Name:        c.Request.FormValue("name"),
+		Description: c.Request.FormValue("description"),
+		ParentID:    utils.StringPtr(c.Request.FormValue("parent_id")),
 	}
 	// Validate request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Categories") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Categories") {
 		return
 	}
 
-	// Insert category into DB
-	category, err := models.AddNewCategory(models.DB, req)
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	category, err := models.AddNewCategory(models.DB, req, tenantID)
 	if err != nil {
 		log.Printf("Error adding new category: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Categories",
 				Description: "Failed to add new category",
@@ -89,7 +89,7 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -100,7 +100,7 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCacheByPrefix("categories_products")
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	// Respond success
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Categories",
 			Description: "Category created successfully",
@@ -110,7 +110,7 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Category created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -135,18 +135,18 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      500          {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/products/categories/{category_id} [patch]
-func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateCategoryHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Categories", "categories.update"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Categories", "categories.update"); !ok {
 		return
 	}
 
 	// Parse multipart form (20 MB max)
-	if err := r.ParseMultipartForm(20 << 20); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	if err := c.Request.ParseMultipartForm(20 << 20); err != nil {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Categories",
 				Description: "Failed to parse form: " + err.Error(),
@@ -155,18 +155,18 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   uploadImageError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 		})
 		return
 	}
 
 	// Handle optional image upload
 	var imageURL string
-	if file, header, err := r.FormFile("image"); err == nil {
+	if file, header, err := c.Request.FormFile("image"); err == nil {
 		defer file.Close()
 		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{header})
 		if err != nil {
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Categories",
 					Description: err.Error(),
@@ -175,7 +175,7 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   uploadImageError,
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 			})
 			return
 		}
@@ -185,23 +185,23 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	// Build DTO (image is optional)
 	req := dtos.UpdateCategoryPayload{
 		Image:       &imageURL,
-		Name:        r.FormValue("name"),
-		Description: r.FormValue("description"),
-		ParentID:    utils.StringPtr(r.FormValue("parent_id")),
+		Name:        c.Request.FormValue("name"),
+		Description: c.Request.FormValue("description"),
+		ParentID:    utils.StringPtr(c.Request.FormValue("parent_id")),
 	}
 
 	// Validate request
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Categories") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Categories") {
 		return
 	}
 
 	// Get category ID from URL
-	id := mux.Vars(r)["category_id"]
+	id := c.Param("category_id")
 	// Update category
 	category, err := models.UpdateCategory(models.DB, id, req)
 	if err != nil {
 		log.Printf("Error updating category: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Categories",
 				Description: "Failed to update category with id " + id,
@@ -210,7 +210,7 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -222,7 +222,7 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 
 	// Respond success
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Categories",
 			Description: "Category with ID " + id + " updated successfully",
@@ -232,7 +232,7 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Category updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -250,20 +250,20 @@ func UpdateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      409          {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/products/category/{category_id} [delete]
-func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteCategoryHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Categories", "categories.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Categories", "categories.delete")
 	if !ok {
 		return
 	}
-	id := mux.Vars(r)["category_id"]
+	id := c.Param("category_id")
 	err := models.DeleteCategory(models.DB, id)
 	if err != nil {
 		log.Printf("Error deleting product %s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Categories",
 				Description: "Failed to delete category with id " + id,
@@ -272,7 +272,7 @@ func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -281,7 +281,7 @@ func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCache("category_data")
 	_ = utils.DeleteCacheByPrefix("categories_products")
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Categories",
 			Description: "Category with ID " + id + " deleted successfully",
@@ -291,7 +291,7 @@ func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Category deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -310,17 +310,17 @@ func DeleteCategoryHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      409      {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/products [post]
-func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
+func CreateProductHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		return
 	}
-	authuser, ok := middleware.UserFromContext(r.Context())
+	authuser, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "User not validated or authenticated",
@@ -329,23 +329,24 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   "User not validated",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.CreateProduct](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CreateProduct](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		return
 	}
 	//when adding a new product, stock quantity is always 0
 	req.StockQuantity = 0
-	product, err := models.AddNewProduct(models.DB, *req, authuser.ID)
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	product, err := models.AddNewProduct(models.DB, *req, authuser.ID, tenantID)
 	if err != nil {
 		log.Printf("Error for adding new product %s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add new product",
@@ -354,7 +355,7 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -365,7 +366,7 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCacheByPrefix("categories_products")
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
 	_ = utils.DeleteCache("expensiveandcheapproducts")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product created successfully",
@@ -375,7 +376,7 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -394,26 +395,26 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      409         {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/products/{product_id} [patch]
-func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateProductHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.update")
 	if !ok {
 		return
 	}
-	req, ok := DecodeRequestBody[dtos.CreateProduct](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CreateProduct](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 	// update the product
 	updatedProduct, err := models.UpdateProductByID(models.DB, productID, *req)
 
 	if err != nil {
 		log.Printf("Error for updating new product %s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update product with id " + productID,
@@ -422,7 +423,7 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -431,7 +432,7 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCacheByPrefix("pagination_page_")
 	_ = utils.DeleteCacheByPrefix("categories_products")
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product with ID " + productID + " updated successfully",
@@ -441,7 +442,7 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -458,21 +459,21 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      409         {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/products/{product_id} [delete]
-func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteProductHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	//check if user is admin
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		return
 	}
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 	//delete product
 	err := models.DeleteProductByID(models.DB, productID)
 	if err != nil {
 		log.Printf("Error for deleting product %s", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to delete product with id " + productID,
@@ -481,7 +482,7 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -490,7 +491,7 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 	_ = utils.DeleteCacheByPrefix("pagination_page_")
 	_ = utils.DeleteCacheByPrefix("categories_products")
 	_ = utils.DeleteCacheByPrefix("categories_products_pagination")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product with ID " + productID + " deleted successfully",
@@ -500,7 +501,7 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -517,28 +518,28 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      400     {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/coupons [post]
-func AddCoupon(w http.ResponseWriter, r *http.Request) {
+func AddCoupon(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	req, ok := DecodeRequestBody[dtos.PromoCode](r, w, requestSummary, start)
+	requestSummary := utils.GetRequestSummary(c.Request)
+	req, ok := DecodeRequestBody[dtos.PromoCode](c, requestSummary, start)
 	if !ok {
 		return
 	}
-	// user, ok := middleware.UserFromContext(r.Context())
+	// user, ok := middleware.UserFromContext(c.Request.Context())
 	// if !ok {
-	// 	utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+	// 	utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 	// 		Code:      http.StatusUnauthorized,
 	// 		Message:   notAuthenticated,
 	// 		TimeTaken: time.Since(start),
 	// 		Function:  utils.GetCurrentFuncName(),
-	// 		Request:   r,
+	// 		Request: c.Request,
 	// 		RawBody:   requestSummary})
 	// 	return
 	// }
 	if err := models.CreateCoupon(models.DB, *req); err != nil {
 		log.Printf("Error adding item to cart: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Promotions",
 				Description: "Failed to create coupon",
@@ -547,12 +548,12 @@ func AddCoupon(w http.ResponseWriter, r *http.Request) {
 			Message:   "Failed to create coupon",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Promotions",
 			Description: "Coupon created successfully",
@@ -562,7 +563,7 @@ func AddCoupon(w http.ResponseWriter, r *http.Request) {
 		Message:   "Coupon created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -579,17 +580,17 @@ func AddCoupon(w http.ResponseWriter, r *http.Request) {
 // @Failure      400    {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/upload [post]
-func UploadImageHandler(w http.ResponseWriter, r *http.Request) {
+func UploadImageHandler(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		return
 	}
-	url, err := utils.ParseAndUploadFile(r, "image", 10)
+	url, err := utils.ParseAndUploadFile(c.Request, "image", 10)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to upload image: " + err.Error(),
@@ -598,11 +599,11 @@ func UploadImageHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   uploadImageError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 		})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Image with URL " + url + " uploaded successfully",
@@ -612,7 +613,7 @@ func UploadImageHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Image uploaded successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -631,17 +632,17 @@ func UploadImageHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure      400    {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/upload2 [post]
-func UploadImageHandler2(w http.ResponseWriter, r *http.Request) {
+func UploadImageHandler2(c *gin.Context) {
 	start := time.Now()
 	// Read and restore body FIRST
-	requestSummary := utils.GetRequestSummary(r)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	requestSummary := utils.GetRequestSummary(c.Request)
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		return
 	}
-	url, err := utils.ParseAndUploadFile(r, "image", 10)
+	url, err := utils.ParseAndUploadFile(c.Request, "image", 10)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to upload image: " + err.Error(),
@@ -650,11 +651,11 @@ func UploadImageHandler2(w http.ResponseWriter, r *http.Request) {
 			Message:   uploadImageError,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 		})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Image with URL " + url + " uploaded successfully",
@@ -664,7 +665,7 @@ func UploadImageHandler2(w http.ResponseWriter, r *http.Request) {
 		Message:   "Image uploaded successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -685,20 +686,20 @@ func UploadImageHandler2(w http.ResponseWriter, r *http.Request) {
 // @Failure      500         {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/subscribers [get]
-func GetAllSubscribersHandler(w http.ResponseWriter, r *http.Request) {
+func GetAllSubscribersHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Subscribers", "subscribers.view"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Subscribers", "subscribers.view"); !ok {
 		return
 	}
 
 	// Parse pagination and filters
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	q := r.URL.Query().Get("q")
-	startDate := r.URL.Query().Get("start_date")
-	endDate := r.URL.Query().Get("end_date")
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
+	q := c.Query("q")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
 
 	offset := (page - 1) * size
 
@@ -706,7 +707,7 @@ func GetAllSubscribersHandler(w http.ResponseWriter, r *http.Request) {
 	subscribers, meta, err := models.GetAllSubscribers(models.DB, size, offset, q, startDate, endDate)
 	if err != nil {
 		log.Printf("Error fetching subscribers: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Subscribers",
 				Description: "Failed to fetch subscribers",
@@ -715,14 +716,14 @@ func GetAllSubscribersHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Respond with data
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Subscribers",
 			Description: "Subscribers fetched successfully",
@@ -735,7 +736,7 @@ func GetAllSubscribersHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Subscribers fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -752,25 +753,25 @@ func GetAllSubscribersHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200         {file}    file
 // @Security     BearerAuth
 // @Router       /api/admin/subscribers/csv [get]
-func DownloadSubscribersCSVHandler(w http.ResponseWriter, r *http.Request) {
+func DownloadSubscribersCSVHandler(c *gin.Context) {
 	start := time.Now()
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Ensure user is admin
-	if _, ok := utils.RequirePermissions(r, w, start, requestSummary, "Subscribers", "subscribers.view"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Subscribers", "subscribers.view"); !ok {
 		return
 	}
 
 	// Parse filters (ignore pagination for CSV export)
-	q := r.URL.Query().Get("q")
-	startDate := r.URL.Query().Get("start_date")
-	endDate := r.URL.Query().Get("end_date")
+	q := c.Query("q")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
 
 	// Fetch subscribers - using a large limit for export
 	subscribers, _, err := models.GetAllSubscribers(models.DB, 1000000, 0, q, startDate, endDate)
 	if err != nil {
 		log.Printf("Error fetching subscribers for CSV: %v", err)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Subscribers",
 				Description: "Failed to fetch subscribers for CSV",
@@ -779,18 +780,18 @@ func DownloadSubscribersCSVHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary,
 		})
 		return
 	}
 
 	// Set headers for CSV download
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment; filename=subscribers.csv")
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", "attachment; filename=subscribers.csv")
 
 	// Initialize CSV writer
-	writer := csv.NewWriter(w)
+	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()
 
 	// Write header row

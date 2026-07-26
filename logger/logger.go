@@ -1,7 +1,7 @@
 package logger
 
 import (
-	"adenzo_backend/models"
+	"ekomasi_backend/models"
 	"encoding/json"
 	"log"
 

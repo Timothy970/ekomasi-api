@@ -1,4 +1,4 @@
-// Package utils provides general utility functions for the Adenzo e-commerce platform.
+// Package utils provides general utility functions for the Ekomasi e-commerce platform.
 //
 // This file contains a wide range of utilities:
 //   - Pagination helpers for category listings
@@ -29,7 +29,7 @@
 package utils
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
@@ -238,7 +238,7 @@ func GenerateOTP() (string, error) {
 //   - Large, bold OTP display
 //   - 5-minute expiry notice
 //   - Security warning message
-//   - Adenzo branding
+//   - Ekomasi branding
 //
 // Parameters:
 //   - otp: string - 4-digit OTP to display
@@ -265,7 +265,7 @@ func GenerateOTPEmailHTML(otp string) string {
         If you didn’t request this, please ignore this email or contact support immediately.
       </p>
       <hr style="margin: 30px 0;">
-      <p style="font-size: 14px; color: #aaa;">— The Adenzo Team</p>
+      <p style="font-size: 14px; color: #aaa;">— The Ekomasi Team</p>
     </div>
   </body>
 </html>
@@ -501,10 +501,10 @@ func CartReminderEmail(cartLink, supportEmail, phone string) string {
 	      <p>Ready to make them yours?</p>
 	      <a href="` + cartLink + `" class="cta">Complete Your Order</a>
 	      <p>If you have any questions or ran into an issue, don't hesitate to contact our support team at <a href="mailto:` + supportEmail + `">` + supportEmail + `</a> or call us at <strong>` + phone + `</strong>.</p>
-	      <p>Thanks,<br>The Adenzo Team</p>
+	      <p>Thanks,<br>The Ekomasi Team</p>
 	    </div>
 	    <div class="footer">
-	      &copy; 2025 Adenzo. All rights reserved.
+	      &copy; 2025 Ekomasi. All rights reserved.
 	    </div>
 	  </div>
 	</body>
@@ -602,10 +602,10 @@ func WishlistReminderEmail(customerName, wishlistLink, supportEmail, phone strin
 	      <p>Why not treat yourself today?</p>
 	      <a href="` + wishlistLink + `" class="cta">View My Wishlist</a>
 	      <p>If you need any assistance, reach out to our support team at <a href="mailto:` + supportEmail + `">` + supportEmail + `</a> or call us at <strong>` + phone + `</strong>.</p>
-	      <p>Happy Shopping,<br>The Adenzo Team</p>
+	      <p>Happy Shopping,<br>The Ekomasi Team</p>
 	    </div>
 	    <div class="footer">
-	      &copy; 2025 Adenzo. All rights reserved.
+	      &copy; 2025 Ekomasi. All rights reserved.
 	    </div>
 	  </div>
 	</body>
@@ -628,7 +628,7 @@ func WishlistReminderEmail(customerName, wishlistLink, supportEmail, phone strin
 //   - string: Plain text SMS message
 func WishlistReminderSMS(customerName, wishlistLink string) string {
 	return fmt.Sprintf(
-		"Hi %s, your wishlist is waiting 💜. Don’t miss out on your favorite items! Check it here 👉 %s. – The Adenzo Team",
+		"Hi %s, your wishlist is waiting 💜. Don’t miss out on your favorite items! Check it here 👉 %s. – The Ekomasi Team",
 		customerName, wishlistLink,
 	)
 }
@@ -1416,7 +1416,7 @@ const emailTemplate = `<!DOCTYPE html>
 
 		<div class="footer">
 			<p>Shared on {{.GeneratedAt}} • <a href="{{.ShareURL}}" target="_blank">Open in browser</a></p>
-			<p>© {{.CurrentYear}} Adenzo. All rights reserved.</p>
+			<p>© {{.CurrentYear}} Ekomasi. All rights reserved.</p>
 		</div>
 	</div>
 </body>
@@ -1440,7 +1440,7 @@ const emailTemplate = `<!DOCTYPE html>
 func GenerateOrderAssignmentEmailContent(orderID, riderName, customerName, deliveryAddress, orderDate string) string {
 	frontEndUrl := os.Getenv("FRONT_END_BASE_URL")
 	if frontEndUrl == "" {
-		frontEndUrl = "https://adenzo.com" // fallback
+		frontEndUrl = "https://ekomasi.com" // fallback
 	}
 	orderDetailsURL := fmt.Sprintf("%s/orders/details/%s", frontEndUrl, orderID)
 
@@ -1604,8 +1604,8 @@ func GenerateOrderAssignmentEmailContent(orderID, riderName, customerName, deliv
 		</div>
 
 		<div class="footer">
-			<p>Need help? <a href="mailto:support@adenzo.com">Contact Support</a></p>
-			<p>© 2026 Adenzo. All rights reserved.</p>
+			<p>Need help? <a href="mailto:support@ekomasi.com">Contact Support</a></p>
+			<p>© 2026 Ekomasi. All rights reserved.</p>
 		</div>
 	</div>
 </body>

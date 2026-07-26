@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo e-commerce logging system.
+// Package models provides data access functions for the Ekomasi e-commerce logging system.
 //
 // This file handles audit logging and activity tracking including:
 //   - User activity log retrieval with advanced filtering (module, status, role, date range, search)
@@ -10,7 +10,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"encoding/json"
 	"fmt"

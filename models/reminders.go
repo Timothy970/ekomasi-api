@@ -10,7 +10,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 )
 
 // GetUsersWithStaleCart retrieves users with abandoned cart items.

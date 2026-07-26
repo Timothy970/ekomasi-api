@@ -5,9 +5,9 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Adenzo Implementation API',
+      title: 'Ekomasi Implementation API',
       version: '1.0.0',
-      description: 'API documentation for Adenzo implementation project',
+      description: 'API documentation for Ekomasi implementation project',
     },
     servers: [
       {

@@ -5,15 +5,15 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // variantWithID is a constant prefix for variant-related log messages
@@ -34,25 +34,25 @@ var variantWithID = "Variant with ID "
 // @Failure      401      {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/products/variants [post]
-func CreateVariant(w http.ResponseWriter, r *http.Request) {
+func CreateVariant(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can create variants)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body with variant details
-	req, ok := DecodeRequestBody[dtos.VariantRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.VariantRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields (name, type, etc.)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -61,7 +61,7 @@ func CreateVariant(w http.ResponseWriter, r *http.Request) {
 	_, err := models.CreateVariant(models.DB, *req)
 	if err != nil {
 		// Variant creation failed (duplicate, constraint violation, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to create variant",
@@ -70,13 +70,13 @@ func CreateVariant(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate variants cache to ensure fresh data
 	_ = utils.DeleteCache("all_variants")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Variant created successfully",
@@ -86,7 +86,7 @@ func CreateVariant(w http.ResponseWriter, r *http.Request) {
 		Message:   "Variant created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -104,30 +104,30 @@ func CreateVariant(w http.ResponseWriter, r *http.Request) {
 // @Success      200       {object}  map[string]interface{}   "Products matching variants with pagination"
 // @Failure      400       {object}  dtos.ErrorResponse       "Invalid variant JSON or query failed"
 // @Router       /api/products/variants-products [get]
-func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
+func GetVariantProductsHandler(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract variant filter parameters from query string
-	variantParams := r.URL.Query()["variants"]
+	variantParams := c.Request.URL.Query()["variants"]
 	var variants []dtos.Variant
 	// Parse each variant JSON string into structured objects
 	for _, v := range variantParams {
 		var variant dtos.Variant
 		if err := json.Unmarshal([]byte(v), &variant); err != nil {
 			// Invalid variant JSON format
-			http.Error(w, "invalid variant JSON", http.StatusBadRequest)
+			c.String(http.StatusBadRequest, "invalid variant JSON")
 			return
 		}
 		variants = append(variants, variant)
 	}
 	// Parse pagination parameters with defaults
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	page, _ := strconv.Atoi(c.Query("page"))
 	if page < 1 {
 		page = 1 // Default to first page
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, _ := strconv.Atoi(c.Query("limit"))
 	if limit < 1 {
 		limit = 10 // Default to 10 items per page
 	}
@@ -136,7 +136,7 @@ func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
 	variant, pagination, err := models.GetVariantsWithProductsPaginated(models.DB, variants, page, limit)
 	if err != nil {
 		// Database query failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to get products variants",
@@ -145,7 +145,7 @@ func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -159,7 +159,7 @@ func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Pagination: pagination,
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Products variants fetched successfully",
@@ -169,7 +169,7 @@ func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Products variants",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -185,19 +185,19 @@ func GetVariantProductsHandler(w http.ResponseWriter, r *http.Request) {
 // @Success      200         {object}  dtos.Variant         "Variant details"
 // @Failure      404         {object}  dtos.ErrorResponse   "Variant not found"
 // @Router       /api/products/variants/{variant_id} [get]
-func GetVariant(w http.ResponseWriter, r *http.Request) {
+func GetVariant(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract variant ID from URL path parameters
-	id := mux.Vars(r)["variant_id"]
+	id := c.Param("variant_id")
 
 	// Fetch specific variant details from database
 	variant, err := models.GetVariant(models.DB, id)
 	if err != nil {
 		// Variant not found or database error
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to fetch variant with ID " + id,
@@ -206,11 +206,11 @@ func GetVariant(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: variantWithID + id + " fetched successfully",
@@ -220,7 +220,7 @@ func GetVariant(w http.ResponseWriter, r *http.Request) {
 		Message:   "Variant fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -235,11 +235,11 @@ func GetVariant(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  []dtos.GroupedVariants   "Grouped variants list"
 // @Failure      400  {object}  dtos.ErrorResponse       "Failed to list variants"
 // @Router       /api/products/variants [get]
-func ListVariants(w http.ResponseWriter, r *http.Request) {
+func ListVariants(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	var variants []dtos.GroupedVariants
 	var cachedVariants []dtos.GroupedVariants
 	// Attempt to retrieve variants from Redis cache
@@ -251,7 +251,7 @@ func ListVariants(w http.ResponseWriter, r *http.Request) {
 		variants, err = models.ListVariants(models.DB)
 		if err != nil {
 			// Database query failed
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Products",
 					Description: "Failed to list variants",
@@ -260,7 +260,7 @@ func ListVariants(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -270,7 +270,7 @@ func ListVariants(w http.ResponseWriter, r *http.Request) {
 		// Cache hit - use cached data
 		variants = cachedVariants
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Variants fetched successfully",
@@ -280,7 +280,7 @@ func ListVariants(w http.ResponseWriter, r *http.Request) {
 		Message:   "Variants fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -300,35 +300,35 @@ func ListVariants(w http.ResponseWriter, r *http.Request) {
 // @Failure      401         {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/products/variants/{variant_id} [patch]
-func UpdateVariant(w http.ResponseWriter, r *http.Request) {
+func UpdateVariant(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can update variants)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body with updated variant data
-	req, ok := DecodeRequestBody[dtos.VariantRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.VariantRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Extract variant ID from URL path parameters
-	id := mux.Vars(r)["variant_id"]
+	id := c.Param("variant_id")
 
 	// Update variant information in database
 	if err := models.UpdateVariantByID(models.DB, id, *req); err != nil {
 		// Variant update failed (not found, constraint violation, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to update variant with ID " + id,
@@ -337,13 +337,13 @@ func UpdateVariant(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate variants cache to ensure fresh data
 	_ = utils.DeleteCache("all_variants")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: variantWithID + id + " updated successfully",
@@ -353,7 +353,7 @@ func UpdateVariant(w http.ResponseWriter, r *http.Request) {
 		Message:   "Variants updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -371,23 +371,23 @@ func UpdateVariant(w http.ResponseWriter, r *http.Request) {
 // @Failure      401         {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/products/variants/{variant_id} [delete]
-func DeleteVariant(w http.ResponseWriter, r *http.Request) {
+func DeleteVariant(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can delete variants)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract variant ID from URL path parameters
-	id := mux.Vars(r)["variant_id"]
+	id := c.Param("variant_id")
 	// Delete variant from database (may be soft delete)
 	if err := models.DeleteVariantByID(models.DB, id); err != nil {
 		// Variant deletion failed (not found, has dependencies, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to delete variant with ID " + id,
@@ -396,13 +396,13 @@ func DeleteVariant(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate variants cache to ensure fresh data
 	_ = utils.DeleteCache("all_variants")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: variantWithID + id + " deleted successfully",
@@ -412,7 +412,7 @@ func DeleteVariant(w http.ResponseWriter, r *http.Request) {
 		Message:   "Variants deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -432,35 +432,35 @@ func DeleteVariant(w http.ResponseWriter, r *http.Request) {
 // @Failure      401         {object}  dtos.ErrorResponse           "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/add-products/variants/{variant_id} [post]
-func AddProductVariant(w http.ResponseWriter, r *http.Request) {
+func AddProductVariant(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can add product variants)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body with product-variant association details
-	req, ok := DecodeRequestBody[dtos.ProductVariantRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.ProductVariantRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields (product_id, variant_value, etc.)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Products") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Products") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Extract variant ID from URL path parameters
-	id := mux.Vars(r)["variant_id"]
+	id := c.Param("variant_id")
 
 	// Create product-variant association in database
 	if err := models.AddProductVariant(models.DB, id, *req); err != nil {
 		// Association failed (duplicate, invalid IDs, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to add product to variant with ID " + id,
@@ -469,14 +469,14 @@ func AddProductVariant(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate product caches to reflect new variant associations
 	_ = utils.DeleteCacheByPrefix("products_page_")
 	_ = utils.DeleteCacheByPrefix("pagination_page_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product added to variant successfully",
@@ -486,7 +486,7 @@ func AddProductVariant(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product added to variant successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -505,25 +505,25 @@ func AddProductVariant(w http.ResponseWriter, r *http.Request) {
 // @Failure      401         {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/remove-products/variants/{variant_id}/{product_id} [post]
-func RemoveProductVariant(w http.ResponseWriter, r *http.Request) {
+func RemoveProductVariant(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can remove product variants)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Products", "products.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Products", "products.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 
 	// Extract product and variant IDs from URL path parameters
-	productID := mux.Vars(r)["product_id"]
-	variantID := mux.Vars(r)["variant_id"]
+	productID := c.Param("product_id")
+	variantID := c.Param("variant_id")
 	// Remove product-variant association from database
 	if err := models.RemoveProductVariant(models.DB, productID, variantID); err != nil {
 		// Remove operation failed (association not found or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to remove product with ID " + productID + " from variant with ID " + variantID,
@@ -532,11 +532,11 @@ func RemoveProductVariant(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product with ID " + productID + " removed from variant with ID " + variantID + " successfully",
@@ -546,7 +546,7 @@ func RemoveProductVariant(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product removed from variant successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -562,18 +562,18 @@ func RemoveProductVariant(w http.ResponseWriter, r *http.Request) {
 // @Success      200         {object}  map[string]interface{}    "Product variant options"
 // @Failure      400         {object}  dtos.ErrorResponse        "Failed to list variants"
 // @Router       /api/products/{product_id}/variants [get]
-func ListProductVariants(w http.ResponseWriter, r *http.Request) {
+func ListProductVariants(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract product ID from URL path parameters
-	productID := mux.Vars(r)["product_id"]
+	productID := c.Param("product_id")
 	// Fetch all variant options for the specified product from database
 	pv, err := models.ListProductVariants(models.DB, productID)
 	if err != nil {
 		// Database query failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Products",
 				Description: "Failed to list variants for product with ID " + productID,
@@ -582,11 +582,11 @@ func ListProductVariants(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Products",
 			Description: "Product variants retrieved successfully",
@@ -596,7 +596,7 @@ func ListProductVariants(w http.ResponseWriter, r *http.Request) {
 		Message:   "Product variants",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -611,12 +611,12 @@ func ListProductVariants(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  map[string]interface{}   "Migration completed with rows affected count"
 // @Failure      500  {object}  string                   "Migration failed"
 // @Router       /api/admin/migrate-image-urls [post]
-func MigrateImageURLs(w http.ResponseWriter, r *http.Request) {
+func MigrateImageURLs(c *gin.Context) {
 	// Execute image URL migration service
 	rows, err := MigrateImageURLsService()
 	if err != nil {
 		// Migration failed
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -626,8 +626,7 @@ func MigrateImageURLs(w http.ResponseWriter, r *http.Request) {
 		"rows_affected": rows,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusOK, resp)
 }
 
 // MigrateImageURLsService handles the business logic for image URL migration.

@@ -1,7 +1,8 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
 	"bytes"
 	"encoding/json"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/gin-gonic/gin"
 )
 
 func TestProcessSplitPaymentHandler(t *testing.T) {
@@ -37,12 +39,13 @@ func TestProcessSplitPaymentHandler(t *testing.T) {
 		orderRows := sqlmock.NewRows([]string{
 			"order_id", "total_amount", "total_discount", "delivery_id", "status",
 			"delivery_status", "payment_method", "delivery_charge", "delivery_address",
-			"guest_delivery_address", "guest_personal_details", "created_at", "user_id", "is_guest_order",
+			"guest_delivery_address", "guest_personal_details", "created_at", "user_id", "is_guest_order", "source",
 		}).AddRow(
 			"ord-1", amount, 0.0, "del-1", "pending",
 			"pending", "", 0.0, "Addr",
-			"", "", time.Now(), nil, true,
+			"", "", time.Now(), nil, true, "POS",
 		)
+
 		mock.ExpectQuery("SELECT .* FROM orders o .* WHERE o.order_id = ?").
 			WithArgs("ord-1").
 			WillReturnRows(orderRows)
@@ -75,7 +78,7 @@ func TestProcessSplitPaymentHandler(t *testing.T) {
 		// UPDATE orders
 		// Arguments: status, payment_method, payment_status, order_id
 		mock.ExpectExec("UPDATE orders SET status = \\?, payment_method = \\?, payment_status = \\? WHERE order_id = \\?").
-			WithArgs("SUCCESS", "CASH", "SUCCESS", "ord-1").
+			WithArgs("COMPLETED", "CASH", "SUCCESS", "ord-1").
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		// InsertTransaction
@@ -94,9 +97,16 @@ func TestProcessSplitPaymentHandler(t *testing.T) {
 		body, _ := json.Marshal(validPayload)
 		req, _ := http.NewRequest("POST", "/api/pos/split-payment", bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(middleware.ContextWithUser(req.Context(), middleware.AuthenticatedUser{
+			Role:  "admin",
+			Email: "admin@ekomasi.shop",
+		}))
 
 		rr := httptest.NewRecorder()
-		ProcessSplitPaymentHandler(rr, req)
+		c, _ := gin.CreateTestContext(rr)
+		c.Request = req
+		ProcessSplitPaymentHandler(c)
+
 
 		// --- Assertions ---
 		if status := rr.Code; status != http.StatusOK {

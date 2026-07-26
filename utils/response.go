@@ -1,4 +1,4 @@
-// Package utils provides HTTP response utilities for the Adenzo e-commerce platform.
+// Package utils provides HTTP response utilities for the Ekomasi e-commerce platform.
 //
 // This file contains HTTP response handling functionality:
 //   - Standardized JSON response formatting
@@ -24,9 +24,9 @@
 package utils
 
 import (
-	"adenzo_backend/logger"
-	"adenzo_backend/middleware"
 	"bytes"
+	"ekomasi_backend/logger"
+	"ekomasi_backend/middleware"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -35,6 +35,8 @@ import (
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // CollectiveInfo contains metadata about the response.
@@ -96,6 +98,78 @@ var RespondWithError = func(w http.ResponseWriter, erropts ErrorJSONResponseOpti
 		RawBody:        erropts.RawBody,
 	})
 
+}
+
+// RespondWithGinError sends a standardized error JSON response using a Gin context.
+// Preserves structured logging, execution metrics, and response formatting.
+func RespondWithGinError(c *gin.Context, erropts ErrorJSONResponseOptions) {
+	if erropts.Request == nil {
+		erropts.Request = c.Request
+	}
+	RespondWithGinJSON(c, SuccessJSONResponseOptions{
+		CollectiveInfo: erropts.CollectiveInfo,
+		Payload:        nil,
+		Message:        erropts.Message,
+		TimeTaken:      erropts.TimeTaken,
+		Function:       erropts.Function,
+		Request:        erropts.Request,
+		RawBody:        erropts.RawBody,
+	})
+}
+
+// RespondWithGinJSON sends a standardized JSON response using a Gin context.
+// Fully compatible with Gin framework while preserving file/database logging and timing.
+func RespondWithGinJSON(c *gin.Context, opts SuccessJSONResponseOptions) {
+	if opts.Request == nil {
+		opts.Request = c.Request
+	}
+
+	ctx := opts.Request.Context()
+	userID := "unknown"
+	userRole := "customer"
+	user, ok := middleware.UserFromContext(ctx)
+	if ok {
+		userID = user.ID
+		userRole = user.Role
+	}
+
+	log.Printf(
+		`[%s] [%s] User: %s | Request Info: %s | Function: %s | Time Taken: %s | Status Code: %d | Message: %s`,
+		http.StatusText(opts.CollectiveInfo.Code),
+		time.Now().Format("2006-01-02 15:04:05"),
+		userID,
+		opts.RawBody,
+		opts.Function,
+		opts.TimeTaken,
+		opts.CollectiveInfo.Code,
+		opts.Message,
+	)
+
+	logger.Log(logger.LogEntry{
+		Level:   levelFromStatus(opts.CollectiveInfo.Code),
+		Message: opts.Message,
+		UserID:  &userID,
+		Metadata: map[string]interface{}{
+			"Request Info": opts.RawBody,
+			"Function":     opts.Function,
+			"Time Taken":   opts.TimeTaken.String(),
+			"Module":       opts.CollectiveInfo.Module,
+			"Description":  opts.CollectiveInfo.Description,
+		},
+		Module: &opts.CollectiveInfo.Module,
+		Role:   &userRole,
+	})
+
+	response := map[string]interface{}{
+		"status_code": opts.CollectiveInfo.Code,
+		"message":     opts.Message,
+	}
+
+	if opts.CollectiveInfo.Code < 400 || (opts.Payload != nil && !isEmpty(opts.Payload)) {
+		response["data"] = opts.Payload
+	}
+
+	c.JSON(opts.CollectiveInfo.Code, response)
 }
 
 // RespondWithJSON sends a standardized JSON response with logging.

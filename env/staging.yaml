@@ -5,7 +5,7 @@ ingress: true
 health_check_path: "/api/health"
 
 allowed_networks:
-  adenzo:
+  ekomasi:
     - 197.248.216.187/32
     - 197.254.97.46/32
     - 197.248.201.151/32
@@ -18,9 +18,9 @@ env:
   - name: APP_ENV
     value: development
   - name: BASE_URL
-    value: https://api.uat.adenzo.shop/api/
+    value: https://api.uat.ekomasi.shop/api/
   - name: FRONT_END_BASE_URL
-    value: https://adenzo-app.uat.adenzo.shop/
+    value: https://ekomasi-app.uat.ekomasi.shop/
   - name: ENVIRONMENT
     value: staging
   - name: PORT
@@ -28,7 +28,7 @@ env:
   - name: V2_URL
     value: https://api.v2.emalify.com/api
   - name: DB_NAME
-    value: adenzo
+    value: ekomasi
   - name: SHORTCODE
     value: Emalify
 

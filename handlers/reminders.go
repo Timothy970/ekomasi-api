@@ -5,9 +5,9 @@
 package handlers
 
 import (
-	"adenzo_backend/models"
-	"adenzo_backend/notification"
-	"adenzo_backend/utils"
+	"ekomasi_backend/models"
+	"ekomasi_backend/notification"
+	"ekomasi_backend/utils"
 	"fmt"
 	"log"
 	"time"
@@ -80,7 +80,7 @@ func sendCartReminders(days int) {
 		if u.Email != "" {
 			log.Printf("Sending cart reminder to %s", u.Email)
 			// Generate HTML email body with cart recovery link
-			htmlBody := utils.CartReminderEmail("app.uat.adenzo.co.ke/login", "timothy.kimani@gmial.com", "254746166343")
+			htmlBody := utils.CartReminderEmail("app.uat.ekomasi.co.ke/login", "timothy.kimani@gmial.com", "254746166343")
 			// Send email notification
 			notification.SendEmail(u.Email, "Did you forget something?", htmlBody)
 		}
@@ -88,7 +88,7 @@ func sendCartReminders(days int) {
 		if u.Phone != "" {
 			log.Printf("Sending cart reminder to %s", u.Phone)
 			// Generate SMS message with cart link and support contact
-			reminder := CartReminderSMS("app.uat.adenzo.co.ke", "gmail@gmial.com", "2324542")
+			reminder := CartReminderSMS("app.uat.ekomasi.co.ke", "gmail@gmial.com", "2324542")
 			// Send SMS notification
 			notification.SendSmsMessages(u.Phone, reminder)
 		}
@@ -125,14 +125,14 @@ func sendWishlistReminders(days int) {
 		if u.Email != "" {
 			log.Printf("Sending wishlist reminder to %s", u.Email)
 			// TODO1: Uncomment when wishlist email template is ready
-			// htmlBody := utils.WishlistReminderEmail("app.uat.adenzo.co.ke/login", "timothy.kimani@gmial.com", "254746166343")
+			// htmlBody := utils.WishlistReminderEmail("app.uat.ekomasi.co.ke/login", "timothy.kimani@gmial.com", "254746166343")
 			// notification.SendEmail(u.Email, "Did you forget something?", htmlBody)
 		}
 		// Send SMS reminder if user has a valid phone number
 		if u.Phone != "" {
 			log.Printf("Sending wishlist reminder to %s", u.Phone)
 			// TODO1: Uncomment when wishlist SMS is ready
-			// reminder := WishlistReminderSMS("app.uat.adenzo.co.ke")
+			// reminder := WishlistReminderSMS("app.uat.ekomasi.co.ke")
 			// notification.SendSmsMessages(u.Phone, reminder)
 		}
 		// TODO1: Implement in-app push notification
@@ -156,7 +156,7 @@ func sendWishlistReminders(days int) {
 func CartReminderSMS(cartLink, supportEmail, phone string) string {
 	// Format and return personalized SMS message with cart link and support contact
 	return fmt.Sprintf(
-		"Hi, you left items in your Adenzo cart. Complete your order here %s. Need help? Contact us at %s or %s. – The Adenzo Team",
+		"Hi, you left items in your Ekomasi cart. Complete your order here %s. Need help? Contact us at %s or %s. – The Ekomasi Team",
 		cartLink, supportEmail, phone,
 	)
 }
@@ -172,6 +172,6 @@ func CartReminderSMS(cartLink, supportEmail, phone string) string {
 func WishlistReminderSMS(wishlistLink string) string {
 	// Format and return personalized SMS message with wishlist link
 	return fmt.Sprintf(
-		"Hi, your wishlist is waiting . Don’t miss out on your favorite items! Check it here  %s. – The Adenzo Team", wishlistLink,
+		"Hi, your wishlist is waiting . Don’t miss out on your favorite items! Check it here  %s. – The Ekomasi Team", wishlistLink,
 	)
 }

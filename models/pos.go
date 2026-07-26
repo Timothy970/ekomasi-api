@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo backend application.
+// Package models provides data access functions for the Ekomasi backend application.
 //
 // This file contains Point of Sale (POS) specific functionality including:
 //   - Product scanning and lookup by SKU (barcode scanning)
@@ -8,7 +8,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"fmt"
 
 	"github.com/jung-kurt/gofpdf"

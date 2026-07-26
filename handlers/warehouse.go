@@ -5,14 +5,14 @@
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // warehouseWithID is a constant prefix for warehouse-related log messages
@@ -33,25 +33,25 @@ var warehouseWithID = "Warehouse with ID "
 // @Failure      401        {object}  dtos.ErrorResponse           "Admin authorization required"
 // @Security     BearerAuth
 // @Router       /api/admin/warehouses [post]
-func CreateWarehouse(w http.ResponseWriter, r *http.Request) {
+func CreateWarehouse(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can create warehouses)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Warehouse", "warehouse.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Warehouse", "warehouse.create")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body with warehouse details
-	req, ok := DecodeRequestBody[dtos.CreateWarehouseRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.CreateWarehouseRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields (name, address, capacity, etc.)
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Warehouse") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Warehouse") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
@@ -60,7 +60,7 @@ func CreateWarehouse(w http.ResponseWriter, r *http.Request) {
 	_, err := models.CreateWarehouse(*req)
 	if err != nil {
 		// Warehouse creation failed (duplicate name, invalid data, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Warehouse",
 				Description: "Failed to create warehouse: " + err.Error(),
@@ -69,14 +69,14 @@ func CreateWarehouse(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate warehouse caches to ensure fresh data
 	utils.DeleteCacheByPrefix("warehouses_")
 	utils.DeleteCacheByPrefix("warehouses_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Warehouse",
 			Description: "Warehouse created successfully",
@@ -86,7 +86,7 @@ func CreateWarehouse(w http.ResponseWriter, r *http.Request) {
 		Message:   "Warehouse created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -103,13 +103,13 @@ func CreateWarehouse(w http.ResponseWriter, r *http.Request) {
 // @Success      200   {object}  dtos.ListWarehousesResponse    "Warehouses with pagination metadata"
 // @Failure      500   {object}  dtos.ErrorResponse             "Failed to list warehouses"
 // @Router       /api/warehouses [get]
-func ListWarehouses(w http.ResponseWriter, r *http.Request) {
+func ListWarehouses(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Parse pagination parameters from query string
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
 	// Generate unique cache keys for warehouses data and pagination metadata
 	cacheKeyWarehouses := fmt.Sprintf("warehouses_%d_size_%d", page, size)
 	cacheKeyPagination := fmt.Sprintf("warehouses_pagination_%d_size_%d", page, size)
@@ -127,7 +127,7 @@ func ListWarehouses(w http.ResponseWriter, r *http.Request) {
 		warehouses, meta, err = models.ListWarehouses(page, size)
 		if err != nil {
 			// Database query failed
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Warehouse",
 					Description: "Failed to list warehouses",
@@ -136,7 +136,7 @@ func ListWarehouses(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request: c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -154,7 +154,7 @@ func ListWarehouses(w http.ResponseWriter, r *http.Request) {
 		Data: warehouses,
 		Meta: meta,
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Warehouse",
 			Description: "Warehouses fetched successfully",
@@ -164,7 +164,7 @@ func ListWarehouses(w http.ResponseWriter, r *http.Request) {
 		Message:   "Warehouses fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -180,18 +180,18 @@ func ListWarehouses(w http.ResponseWriter, r *http.Request) {
 // @Success      200           {object}  dtos.Warehouse       "Warehouse details"
 // @Failure      404           {object}  dtos.ErrorResponse   "Warehouse not found"
 // @Router       /api/warehouses/{warehouse_id} [get]
-func GetWarehouse(w http.ResponseWriter, r *http.Request) {
+func GetWarehouse(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Extract warehouse ID from URL path parameters
-	id := mux.Vars(r)["warehouse_id"]
+	id := c.Param("warehouse_id")
 	// Fetch specific warehouse details from database
 	warehouse, err := models.GetWarehouseByID(id)
 	if err != nil {
 		// Database query failed
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Warehouse",
 				Description: "Failed to fetch warehouse with ID " + id,
@@ -200,14 +200,14 @@ func GetWarehouse(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Verify warehouse exists (additional null check)
 	if warehouse == nil {
 		// Warehouse not found in database
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Warehouse",
 				Description: warehouseWithID + id + " not found",
@@ -216,11 +216,11 @@ func GetWarehouse(w http.ResponseWriter, r *http.Request) {
 			Message:   "Warehouse not found",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Warehouse",
 			Description: warehouseWithID + id + " fetched successfully",
@@ -230,7 +230,7 @@ func GetWarehouse(w http.ResponseWriter, r *http.Request) {
 		Message:   "Warehouse fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -251,35 +251,35 @@ func GetWarehouse(w http.ResponseWriter, r *http.Request) {
 // @Failure      404           {object}  dtos.ErrorResponse            "Warehouse not found"
 // @Security     BearerAuth
 // @Router       /api/admin/warehouses/{warehouse_id} [patch]
-func UpdateWarehouse(w http.ResponseWriter, r *http.Request) {
+func UpdateWarehouse(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can update warehouses)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Warehouse", "warehouse.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Warehouse", "warehouse.update")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Decode and parse JSON request body with updated warehouse data
-	req, ok := DecodeRequestBody[dtos.UpdateWarehouseRequest](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.UpdateWarehouseRequest](c, requestSummary, start)
 	if !ok {
 		// Request body parsing failed, DecodeRequestBody already sent error response
 		return
 	}
 	// Validate all required fields
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Warehouse") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Warehouse") {
 		// Validation failed, ValidateStructAndRespond already sent error response
 		return
 	}
 	// Extract warehouse ID from URL path parameters
-	id := mux.Vars(r)["warehouse_id"]
+	id := c.Param("warehouse_id")
 	// Update warehouse information in database
 	err := models.UpdateWarehouse(id, *req)
 	if err != nil {
 		// Update failed (warehouse not found, invalid data, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Warehouse",
 				Description: "Failed to update warehouse with ID " + id,
@@ -288,14 +288,14 @@ func UpdateWarehouse(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate warehouse caches to ensure fresh data
 	utils.DeleteCacheByPrefix("warehouses_")
 	utils.DeleteCacheByPrefix("warehouses_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Warehouse",
 			Description: warehouseWithID + id + " updated successfully",
@@ -305,7 +305,7 @@ func UpdateWarehouse(w http.ResponseWriter, r *http.Request) {
 		Message:   "Warehouse updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -321,24 +321,24 @@ func UpdateWarehouse(w http.ResponseWriter, r *http.Request) {
 // @Failure      404           {object}  dtos.ErrorResponse      "Warehouse not found"
 // @Security     BearerAuth
 // @Router       /api/admin/warehouses/{warehouse_id} [delete]
-func DeleteWarehouse(w http.ResponseWriter, r *http.Request) {
+func DeleteWarehouse(c *gin.Context) {
 	// Start performance tracking for this request
 	start := time.Now()
 	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 	// Verify user has admin privileges (only admins can delete warehouses)
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Warehouse", "warehouse.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Warehouse", "warehouse.delete")
 	if !ok {
 		// Authorization failed, RequireAdmin already sent error response
 		return
 	}
 	// Extract warehouse ID from URL path parameters
-	id := mux.Vars(r)["warehouse_id"]
+	id := c.Param("warehouse_id")
 	// Delete warehouse from database (may be soft delete)
 	err := models.DeleteWarehouse(id)
 	if err != nil {
 		// Deletion failed (warehouse not found, has dependencies, or database error)
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Warehouse",
 				Description: "Failed to delete warehouse with ID " + id,
@@ -347,14 +347,14 @@ func DeleteWarehouse(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request: c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 	// Invalidate warehouse caches to ensure fresh data
 	utils.DeleteCacheByPrefix("warehouses_")
 	utils.DeleteCacheByPrefix("warehouses_pagination_")
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Warehouse",
 			Description: warehouseWithID + id + " deleted successfully",
@@ -364,6 +364,6 @@ func DeleteWarehouse(w http.ResponseWriter, r *http.Request) {
 		Message:   "Warehouse deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request: c.Request,
 		RawBody:   requestSummary})
 }

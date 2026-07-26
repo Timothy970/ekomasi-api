@@ -1,19 +1,19 @@
-// Package handlers provides HTTP request handlers for the Adenzo backend API.
+// Package handlers provides HTTP request handlers for the Ekomasi backend API.
 // This file contains payment processing, refund management, voucher handling,
 // and payment option configuration handlers.
 package handlers
 
 import (
-	"adenzo_backend/dtos"
-	"adenzo_backend/middleware"
-	"adenzo_backend/models"
-	"adenzo_backend/utils"
+	"ekomasi_backend/dtos"
+	"ekomasi_backend/middleware"
+	"ekomasi_backend/models"
+	"ekomasi_backend/utils"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // Global message template variable for consistent response formatting
@@ -35,34 +35,34 @@ var paymentWithID = "Payment with ID "
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/payments [post]
 // @Security BearerAuth
-func CreatePaymentHandler(w http.ResponseWriter, r *http.Request) {
+func CreatePaymentHandler(c *gin.Context) {
 	// Track request execution time for performance monitoring
 	start := time.Now()
 
 	// Extract request summary for logging and error reporting
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Payments", "payments.create")
 	if !ok {
 		return
 	}
 
 	// Decode and validate the request body into Payment DTO
-	req, ok := DecodeRequestBody[dtos.Payment](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.Payment](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Payments") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Payments") {
 		return
 	}
 
 	// Attempt to create the payment record in the database
 	if err := models.CreatePayment(models.DB, *req); err != nil {
 		// Return error response if payment creation fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to create payment",
@@ -71,7 +71,7 @@ func CreatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -81,7 +81,7 @@ func CreatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("payments_pagination_")
 
 	// Return success response confirming payment creation
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Payment created successfully",
@@ -91,7 +91,7 @@ func CreatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Payment created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -108,20 +108,20 @@ func CreatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/payments/{payment_id} [get]
 // @Security BearerAuth
-func GetPaymentByIDHandler(w http.ResponseWriter, r *http.Request) {
+func GetPaymentByIDHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract payment ID from URL path parameters
-	id := mux.Vars(r)["payment_id"]
+	id := c.Param("payment_id")
 
 	// Retrieve payment record from database by ID
 	payment, err := models.GetPaymentByID(models.DB, id)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to get payment by ID " + id,
@@ -130,11 +130,11 @@ func GetPaymentByIDHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: paymentWithID + id + " has been fetched successfully",
@@ -144,7 +144,7 @@ func GetPaymentByIDHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Payment fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -162,15 +162,15 @@ func GetPaymentByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/payments [get]
 // @Security BearerAuth
-func ListPaymentsHandler(w http.ResponseWriter, r *http.Request) {
+func ListPaymentsHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse pagination parameters from query string
-	page, limit := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, limit := parsePagination(c.Query("page"), c.Query("size"))
 
 	// Generate cache keys for payments data and pagination metadata
 	cacheKeyPayments := fmt.Sprintf("payments_%d_size_%d", page, limit)
@@ -193,7 +193,7 @@ func ListPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 		payments, pagination, err = models.ListPayments(models.DB, page, limit)
 		if err != nil {
 			// Return error response if database query fails
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Payments",
 					Description: "Failed to list payments",
@@ -202,7 +202,7 @@ func ListPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -222,7 +222,7 @@ func ListPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return success response with payment data
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Payments fetched successfully",
@@ -232,7 +232,7 @@ func ListPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Payments fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -254,37 +254,37 @@ func ListPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/payments/{payment_id} [patch]
 // @Security BearerAuth
-func UpdatePaymentHandler(w http.ResponseWriter, r *http.Request) {
+func UpdatePaymentHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Payments", "payments.update")
 	if !ok {
 		return
 	}
 
 	// Decode and validate the request body
-	req, ok := DecodeRequestBody[dtos.PaymentUpdate](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.PaymentUpdate](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Payments") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Payments") {
 		return
 	}
 
 	// Extract payment ID from URL path parameters
-	paymentID := mux.Vars(r)["payment_id"]
+	paymentID := c.Param("payment_id")
 
 	// Attempt to update the payment in the database
 	if err := models.UpdatePayment(models.DB, *req, paymentID); err != nil {
 		// Return error response if update fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to update payment with ID " + paymentID,
@@ -293,7 +293,7 @@ func UpdatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -303,7 +303,7 @@ func UpdatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("payments_pagination_")
 
 	// Return success response confirming payment update
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: paymentWithID + paymentID + " updated successfully",
@@ -313,7 +313,7 @@ func UpdatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Payment updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -331,26 +331,26 @@ func UpdatePaymentHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/payments/{payment_id} [delete]
 // @Security BearerAuth
-func DeletePaymentHandler(w http.ResponseWriter, r *http.Request) {
+func DeletePaymentHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Payments", "payments.delete")
 	if !ok {
 		return
 	}
 
 	// Extract payment ID from URL path parameters
-	paymentID := mux.Vars(r)["payment_id"]
+	paymentID := c.Param("payment_id")
 
 	// Attempt to delete the payment from the database
 	if err := models.DeletePayment(models.DB, paymentID); err != nil {
 		// Return error response if deletion fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to delete payment with ID " + paymentID,
@@ -359,7 +359,7 @@ func DeletePaymentHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -369,7 +369,7 @@ func DeletePaymentHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("payments_pagination_")
 
 	// Return success response confirming payment deletion
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: paymentWithID + paymentID + " deleted successfully",
@@ -379,7 +379,7 @@ func DeletePaymentHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Payment deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -399,18 +399,18 @@ func DeletePaymentHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/payments/refund [post]
 // @Security BearerAuth
-func RequestRefund(w http.ResponseWriter, r *http.Request) {
+func RequestRefund(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Retrieve authenticated user from context
-	user, ok := middleware.UserFromContext(r.Context())
+	user, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// Return error if user is not authenticated
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "User not found in context",
@@ -419,19 +419,19 @@ func RequestRefund(w http.ResponseWriter, r *http.Request) {
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Decode and validate the request body
-	req, ok := DecodeRequestBody[dtos.Refund](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.Refund](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Payments") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Payments") {
 		return
 	}
 
@@ -441,7 +441,7 @@ func RequestRefund(w http.ResponseWriter, r *http.Request) {
 	// Create refund request in database associated with user
 	if err := models.AddRefundRequest(models.DB, *req, user.ID); err != nil {
 		// Return error response if refund request creation fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to request refund from user ID " + user.ID,
@@ -450,7 +450,7 @@ func RequestRefund(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -460,7 +460,7 @@ func RequestRefund(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("refunds_pagination_")
 
 	// Return success response confirming refund request submission
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Refund requested successfully For user ID " + user.ID,
@@ -470,7 +470,7 @@ func RequestRefund(w http.ResponseWriter, r *http.Request) {
 		Message:   "Refund requested successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -492,32 +492,32 @@ func RequestRefund(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/payments/refund/{refund_id} [patch]
 // @Security BearerAuth
-func ProcessRefund(w http.ResponseWriter, r *http.Request) {
+func ProcessRefund(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.refund")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Payments", "payments.refund")
 	if !ok {
 		return
 	}
 
 	// Decode and validate the request body
-	req, ok := DecodeRequestBody[dtos.RefundPayload](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.RefundPayload](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Extract refund ID from URL path parameters
-	refundID := mux.Vars(r)["refund_id"]
+	refundID := c.Param("refund_id")
 
 	// Validate status field - only approved, rejected, or processed are allowed
 	if req.Status != "approved" && req.Status != "rejected" && req.Status != "processed" {
 		// Return error if status is not one of the allowed values
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Invalid status passed",
@@ -526,7 +526,7 @@ func ProcessRefund(w http.ResponseWriter, r *http.Request) {
 			Message:   "Invalid status passed",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -535,7 +535,7 @@ func ProcessRefund(w http.ResponseWriter, r *http.Request) {
 	err := models.ProcessRefund(models.DB, *req, refundID)
 	if err != nil {
 		// Return error response if refund processing fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to process refund with ID " + refundID,
@@ -544,13 +544,13 @@ func ProcessRefund(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Return success response confirming refund status update
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Refund with ID " + refundID + " processed successfully",
@@ -560,7 +560,7 @@ func ProcessRefund(w http.ResponseWriter, r *http.Request) {
 		Message:   "Refund status updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -577,15 +577,15 @@ func ProcessRefund(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/refunds [get]
 // @Security BearerAuth
-func ListRefundsHandler(w http.ResponseWriter, r *http.Request) {
+func ListRefundsHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse pagination parameters from query string
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
 
 	// Generate cache keys for refunds data and pagination metadata
 	cacheKeyRefunds := fmt.Sprintf("refunds_%d_size_%d", page, size)
@@ -608,7 +608,7 @@ func ListRefundsHandler(w http.ResponseWriter, r *http.Request) {
 		refunds, pagination, err = models.ListRefunds(models.DB, page, size)
 		if err != nil {
 			// Return error response if database query fails
-			utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 				CollectiveInfo: utils.CollectiveInfo{
 					Module:      "Payments",
 					Description: "Failed to list refunds",
@@ -617,7 +617,7 @@ func ListRefundsHandler(w http.ResponseWriter, r *http.Request) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request:   r,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -637,7 +637,7 @@ func ListRefundsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return success response with refund data
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Refunds fetched successfully",
@@ -647,7 +647,7 @@ func ListRefundsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Refunds fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -664,21 +664,21 @@ func ListRefundsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/refunds/{refund_id} [get]
 // @Security BearerAuth
-func GetRefundByIDHandler(w http.ResponseWriter, r *http.Request) {
+func GetRefundByIDHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract refund ID from URL path parameters and convert to integer
-	idStr := mux.Vars(r)["refund_id"]
+	idStr := c.Param("refund_id")
 	id, _ := strconv.Atoi(idStr)
 
 	// Retrieve refund record from database by ID
 	refund, err := models.GetRefundByID(models.DB, id)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to get refund by ID " + idStr,
@@ -687,12 +687,12 @@ func GetRefundByIDHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Refund with ID " + idStr + " fetched successfully",
@@ -702,7 +702,7 @@ func GetRefundByIDHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Refund fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -719,21 +719,21 @@ func GetRefundByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/refunds/user/{user_id} [get]
 // @Security BearerAuth
-func GetRefundByUserIDHandler(w http.ResponseWriter, r *http.Request) {
+func GetRefundByUserIDHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract user ID from URL path parameters and convert to integer
-	idStr := mux.Vars(r)["user_id"]
+	idStr := c.Param("user_id")
 	id, _ := strconv.Atoi(idStr)
 
 	// Retrieve refund records from database by user ID
 	refund, err := models.GetRefundByID(models.DB, id)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to get refund by User ID " + idStr,
@@ -742,12 +742,12 @@ func GetRefundByUserIDHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Refund with User ID " + idStr + " fetched successfully",
@@ -757,7 +757,7 @@ func GetRefundByUserIDHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Refund fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -777,24 +777,24 @@ func GetRefundByUserIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/vouchers [post]
 // @Security BearerAuth
-func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
+func CreateVoucherHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Vouchers", "promotions.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Vouchers", "promotions.create")
 	if !ok {
 		return
 	}
 
 	// Retrieve authenticated admin user from context
-	authuser, ok := middleware.UserFromContext(r.Context())
+	authuser, ok := middleware.UserFromContext(c.Request.Context())
 	if !ok {
 		// Return error if user is not found in context
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "User not found in context while creating voucher",
@@ -803,19 +803,19 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   noUser,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
 	// Decode and validate the request body
-	req, ok := DecodeRequestBody[dtos.Voucher](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.Voucher](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Vouchers") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Vouchers") {
 		return
 	}
 
@@ -823,7 +823,7 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	_, err := models.AddNewVoucher(models.DB, *req, authuser.ID)
 	if err != nil {
 		// Return error response if voucher creation fails
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Vouchers",
 				Description: "Failed to create voucher",
@@ -832,7 +832,7 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -842,7 +842,7 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	utils.DeleteCacheByPrefix("vouchers_pagination_")
 
 	// Return success response confirming voucher creation
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Vouchers",
 			Description: "Voucher created successfully",
@@ -852,7 +852,7 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Voucher created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -872,34 +872,34 @@ func CreateVoucherHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/payment-options [post]
 // @Security BearerAuth
-func CreatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
+func CreatePaymentOptionHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.create")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Payments", "payments.create")
 	if !ok {
 		return
 	}
 
 	// Decode and validate the request body
-	req, ok := DecodeRequestBody[dtos.PaymentOption](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.PaymentOption](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Payments") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Payments") {
 		return
 	}
 
 	// Create payment option in database
 	err := models.CreatePaymentOption(models.DB, *req)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to create payment option",
@@ -908,11 +908,11 @@ func CreatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Payment option created successfully",
@@ -922,7 +922,7 @@ func CreatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Payment option created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -941,22 +941,22 @@ func CreatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/payment-options [get]
 // @Security BearerAuth
-func ListPaymentOptionsHandler(w http.ResponseWriter, r *http.Request) {
+func ListPaymentOptionsHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Parse pagination and filter parameters from query string
-	page, size := parsePagination(r.URL.Query().Get("page"), r.URL.Query().Get("size"))
-	q := r.URL.Query().Get("q")           // Search query for payment option name
-	status := r.URL.Query().Get("status") // Status filter
+	page, size := parsePagination(c.Query("page"), c.Query("size"))
+	q := c.Query("q")           // Search query for payment option name
+	status := c.Query("status") // Status filter
 
 	// Retrieve filtered payment options from database
 	paymentOptions, pagination, err := models.ListPaymentOptions(models.DB, q, status, page, size)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to list pay bills",
@@ -965,12 +965,12 @@ func ListPaymentOptionsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Pay bills fetched successfully",
@@ -980,7 +980,7 @@ func ListPaymentOptionsHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Payment options fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -997,20 +997,20 @@ func ListPaymentOptionsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/payment-options/{payment_option_id} [get]
 // @Security BearerAuth
-func GetPaymentOptionByIDHandler(w http.ResponseWriter, r *http.Request) {
+func GetPaymentOptionByIDHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Extract payment option ID from URL path parameters
-	paymentOptionID := mux.Vars(r)["payment_option_id"]
+	paymentOptionID := c.Param("payment_option_id")
 
 	// Retrieve payment option from database by ID
 	paymentOption, err := models.GetPaymentOptionByID(models.DB, paymentOptionID)
 	if err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to get payment option by ID " + paymentOptionID,
@@ -1019,12 +1019,12 @@ func GetPaymentOptionByIDHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "Payment option with ID " + paymentOptionID + " got successfully",
@@ -1034,7 +1034,7 @@ func GetPaymentOptionByIDHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Payment option fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1056,36 +1056,36 @@ func GetPaymentOptionByIDHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/payment-options/{payment_option_id} [patch]
 // @Security BearerAuth
-func UpdatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
+func UpdatePaymentOptionHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.update")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Payments", "payments.update")
 	if !ok {
 		return
 	}
 
 	// Decode and validate the request body
-	req, ok := DecodeRequestBody[dtos.PaymentOptionUpdate](r, w, requestSummary, start)
+	req, ok := DecodeRequestBody[dtos.PaymentOptionUpdate](c, requestSummary, start)
 	if !ok {
 		return
 	}
 
 	// Validate the struct fields according to validation tags
-	if !utils.ValidateStructAndRespond(req, w, r, requestSummary, start, "Payments") {
+	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Payments") {
 		return
 	}
 
 	// Extract payment option ID from URL path parameters
-	paymentOptionID := mux.Vars(r)["payment_option_id"]
+	paymentOptionID := c.Param("payment_option_id")
 
 	// Attempt to update the payment option in the database
 	if err := models.UpdatePaymentOption(models.DB, paymentOptionID, *req); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to update payment option with ID " + paymentOptionID,
@@ -1094,12 +1094,12 @@ func UpdatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "payment option With ID" + paymentOptionID + " was updated successfully",
@@ -1109,7 +1109,7 @@ func UpdatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Payment option updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -1128,25 +1128,25 @@ func UpdatePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/admin/payment-options/{payment_option_id} [delete]
 // @Security BearerAuth
-func DeletePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
+func DeletePaymentOptionHandler(c *gin.Context) {
 	// Track request execution time
 	start := time.Now()
 
 	// Extract request summary for logging
-	requestSummary := utils.GetRequestSummary(r)
+	requestSummary := utils.GetRequestSummary(c.Request)
 
 	// Verify that the requesting user has admin privileges
-	_, ok := utils.RequirePermissions(r, w, start, requestSummary, "Payments", "payments.delete")
+	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Payments", "payments.delete")
 	if !ok {
 		return
 	}
 
 	// Extract payment option ID from URL path parameters
-	paymentOptionID := mux.Vars(r)["payment_option_id"]
+	paymentOptionID := c.Param("payment_option_id")
 
 	// Attempt to delete the payment option from the database
 	if err := models.DeletePaymentOption(models.DB, paymentOptionID); err != nil {
-		utils.RespondWithError(w, utils.ErrorJSONResponseOptions{
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Payments",
 				Description: "Failed to delete payment option with ID " + paymentOptionID,
@@ -1155,12 +1155,12 @@ func DeletePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request:   r,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
 
-	utils.RespondWithJSON(w, utils.SuccessJSONResponseOptions{
+	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Payments",
 			Description: "payment option With ID" + paymentOptionID + " was deleted successfully",
@@ -1170,6 +1170,6 @@ func DeletePaymentOptionHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   "Payment option deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request:   r,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

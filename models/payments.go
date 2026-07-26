@@ -1,4 +1,4 @@
-// Package models provides data access functions for the Adenzo backend.
+// Package models provides data access functions for the Ekomasi backend.
 //
 // This file (payments.go) contains payment processing and management functions including:
 //   - M-Pesa STK Push integration (StoreStkResponse, UpdateStkResponse)
@@ -11,7 +11,7 @@
 package models
 
 import (
-	"adenzo_backend/dtos"
+	"ekomasi_backend/dtos"
 	"database/sql"
 	"encoding/json"
 	"errors"

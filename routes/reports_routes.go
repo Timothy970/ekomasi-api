@@ -1,55 +1,54 @@
 package routes
 
 import (
-	"net/http"
-
-	"github.com/gorilla/mux"
-
-	"adenzo_backend/handlers"
-	"adenzo_backend/middleware"
+	"github.com/gin-gonic/gin"
+	"ekomasi_backend/handlers"
+	"ekomasi_backend/middleware"
 )
 
-// SetupReportsRoutes configures all reporting and analytics routes
-func SetupReportsRoutes(api *mux.Router) {
-	reports := api.PathPrefix("/reports").Subrouter()
+// SetupReportsGinRoutes configures all reporting and analytics routes using native Gin router groups
+func SetupReportsGinRoutes(api *gin.RouterGroup) {
+	reports := api.Group("/reports")
 
 	// Financial reports
-	api.Handle("/reports/balance-sheet", middleware.AuthenticateToken(http.HandlerFunc(handlers.BalanceSheet))).Methods("GET")
-	api.Handle("/reports/balance-sheet/csv", middleware.AuthenticateToken(http.HandlerFunc(handlers.ExportBalanceSheetCSVHandler))).Methods("GET")
-	api.Handle("/reports/income-statement", middleware.AuthenticateToken(http.HandlerFunc(handlers.IncomeStatement))).Methods("GET")
-	api.Handle("/reports/cash-flow", middleware.AuthenticateToken(http.HandlerFunc(handlers.CashFlow))).Methods("POST")
-	api.Handle("/reports/ledger/{account_id}", middleware.AuthenticateToken(http.HandlerFunc(handlers.Ledger))).Methods("GET")
+	api.GET("/reports/balance-sheet", middleware.GinAuthenticateToken(), handlers.BalanceSheet)
+	api.GET("/reports/balance-sheet/csv", middleware.GinAuthenticateToken(), handlers.ExportBalanceSheetCSVHandler)
+	api.GET("/reports/income-statement", middleware.GinAuthenticateToken(), handlers.IncomeStatement)
+	api.POST("/reports/cash-flow", middleware.GinAuthenticateToken(), handlers.CashFlow)
+	api.GET("/reports/ledger/:account_id", middleware.GinAuthenticateToken(), handlers.Ledger)
 
 	// Analytics reports
-	reports.HandleFunc("/analytics/cart-abandonment", handlers.CartAbandonmentReport).Methods("GET")
-	reports.HandleFunc("/analytics/cart-abandonment/trend", handlers.CartAbandonmentTrendReport).Methods("GET")
-	reports.HandleFunc("/analytics/product-performance", handlers.GetProductPerformanceSummary).Methods("GET")
-	reports.HandleFunc("/analytics/product-performance/{product_id}", handlers.GetIndividualProductPerformanceSummary).Methods("GET")
-	reports.HandleFunc("/analytics/sales-trends", handlers.GetSalesTrendsSummary).Methods("GET")
-	reports.HandleFunc("/analytics/sales-trends/trend", handlers.GetSalesTrendsOverTime).Methods("GET")
+	reports.GET("/analytics/cart-abandonment", handlers.CartAbandonmentReport)
+	reports.GET("/analytics/cart-abandonment/trend", handlers.CartAbandonmentTrendReport)
+	reports.GET("/analytics/product-performance", handlers.GetProductPerformanceSummary)
+	reports.GET("/analytics/product-performance/:product_id", handlers.GetIndividualProductPerformanceSummary)
+	reports.GET("/analytics/sales-trends", handlers.GetSalesTrendsSummary)
+	reports.GET("/analytics/sales-trends/trend", handlers.GetSalesTrendsOverTime)
 
 	// Promotion reports
-	reports.HandleFunc("/promotions/effectiveness/{promotion_id}", handlers.GetEffectiveness).Methods("GET")
-	reports.HandleFunc("/promotions/comparison/{promotion_id}", handlers.GetComparison).Methods("GET")
-	reports.HandleFunc("/promotions/summary", handlers.GetSummary).Methods("GET")
+	reports.GET("/promotions/effectiveness/:promotion_id", handlers.GetEffectiveness)
+	reports.GET("/promotions/comparison/:promotion_id", handlers.GetComparison)
+	reports.GET("/promotions/summary", handlers.GetSummary)
 
 	// Customer reports
-	reports.HandleFunc("/customers/retention", handlers.GetCustomerRetention).Methods("GET")
-	reports.HandleFunc("/customers/retention/trend", handlers.GetCustomerRetentionTrends).Methods("GET")
-	reports.HandleFunc("/customers/retention/summary", handlers.GetCustomerRetentionSummary).Methods("GET")
+	reports.GET("/customers/retention", handlers.GetCustomerRetention)
+	reports.GET("/customers/retention/trend", handlers.GetCustomerRetentionTrends)
+	reports.GET("/customers/retention/summary", handlers.GetCustomerRetentionSummary)
 
 	// Inventory reports
-	reports.HandleFunc("/inventory/turnover", handlers.GetInventoryTurnover).Methods("GET")
-	reports.HandleFunc("/inventory/turnover/{product_id}", handlers.GetInventoryTurnoverByProduct).Methods("GET")
+	reports.GET("/inventory/turnover", handlers.GetInventoryTurnover)
+	reports.GET("/inventory/turnover/:product_id", handlers.GetInventoryTurnoverByProduct)
 
 	// Segmentation reports
-	reports.HandleFunc("/customer/segmentation", handlers.GetCustomerSegmentation).Methods("GET")
-	reports.HandleFunc("/sales/segmentation", handlers.GetSalesByRegion).Methods("GET")
+	reports.GET("/customer/segmentation", handlers.GetCustomerSegmentation)
+	reports.GET("/sales/segmentation", handlers.GetSalesByRegion)
 
 	// Sales reports
-	reports.Handle("/products/top-selling", middleware.AuthenticateToken(http.HandlerFunc(handlers.TopSellingProductsReport))).Methods("GET")
-	reports.Handle("/sales/overview", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetSalesOverview))).Methods("GET")
-	reports.Handle("/sales/orders-vs-sales", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetSalesVsOrdersPerMonth))).Methods("GET")
-	reports.Handle("/sales/revenue-vs-expenses", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetRevenueVsExpenses))).Methods("GET")
-	reports.Handle("/sales/revenue-customers-orders", middleware.AuthenticateToken(http.HandlerFunc(handlers.GetRevenueCustomersOrdersOverview))).Methods("GET")
+	reports.GET("/products/top-selling", middleware.GinAuthenticateToken(), handlers.TopSellingProductsReport)
+	reports.GET("/sales/overview", middleware.GinAuthenticateToken(), handlers.GetSalesOverview)
+	reports.GET("/sales/orders-vs-sales", middleware.GinAuthenticateToken(), handlers.GetSalesVsOrdersPerMonth)
+	reports.GET("/sales/revenue-vs-expenses", middleware.GinAuthenticateToken(), handlers.GetRevenueVsExpenses)
+	reports.GET("/sales/revenue-customers-orders", middleware.GinAuthenticateToken(), handlers.GetRevenueCustomersOrdersOverview)
 }
+
+// SetupReportsRoutes configures all reporting and analytics routes

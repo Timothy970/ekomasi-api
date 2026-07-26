@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"adenzo_backend/models"
+	"ekomasi_backend/models"
 	"log"
 	"net/http"
 	"os"

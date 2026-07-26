@@ -1,4 +1,4 @@
-// Package utils provides WebSocket utilities for real-time communication in the Adenzo e-commerce platform.
+// Package utils provides WebSocket utilities for real-time communication in the Ekomasi e-commerce platform.
 package utils
 
 import (

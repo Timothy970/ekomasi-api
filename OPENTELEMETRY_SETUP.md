@@ -1,6 +1,6 @@
-# OpenTelemetry Setup for AdEnzo Backend
+# OpenTelemetry Setup for Ekomasi Backend
 
-This document explains how OpenTelemetry is configured in the AdEnzo backend to export spans, logs, and metrics to Uptrace.
+This document explains how OpenTelemetry is configured in the Ekomasi backend to export spans, logs, and metrics to Uptrace.
 
 ## Overview
 
