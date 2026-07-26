@@ -1,0 +1,45 @@
+{
+  "version": "3.0",
+  "screens": [
+    {
+      "id": "FEEDBACK_SCREEN",
+      "title": "Rate Your Experience",
+      "terminal": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "RadioButtonsGroup",
+            "name": "rating",
+            "label": "Overall Rating",
+            "required": true,
+            "data-source": [
+              { "id": "5", "title": "⭐⭐⭐⭐⭐ Excellent" },
+              { "id": "4", "title": "⭐⭐⭐⭐ Good" },
+              { "id": "3", "title": "⭐⭐⭐ Average" },
+              { "id": "2", "title": "⭐⭐ Poor" },
+              { "id": "1", "title": "⭐ Terrible" }
+            ]
+          },
+          {
+            "type": "TextArea",
+            "name": "feedback",
+            "label": "Your Review",
+            "required": false
+          },
+          {
+            "type": "Footer",
+            "label": "Submit & Claim 10% Voucher",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "rating": "${form.rating}",
+                "feedback": "${form.feedback}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

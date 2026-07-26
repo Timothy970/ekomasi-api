@@ -1,0 +1,54 @@
+{
+  "version": "3.0",
+  "screens": [
+    {
+      "id": "CHECKOUT_SUMMARY",
+      "title": "Order Checkout",
+      "terminal": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Review Your Order"
+          },
+          {
+            "type": "TextInput",
+            "name": "mpesa_phone",
+            "label": "M-Pesa Express Phone Number",
+            "required": true,
+            "input-type": "phone"
+          },
+          {
+            "type": "TextInput",
+            "name": "shipping_address",
+            "label": "Delivery Address",
+            "required": true
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "name": "payment_method",
+            "label": "Payment Method",
+            "required": true,
+            "data-source": [
+              { "id": "MPESA", "title": "M-Pesa Express (STK Push Prompt)" },
+              { "id": "CARD", "title": "Credit / Debit Card Link" }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Place Order & Pay",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "mpesa_phone": "${form.mpesa_phone}",
+                "shipping_address": "${form.shipping_address}",
+                "payment_method": "${form.payment_method}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

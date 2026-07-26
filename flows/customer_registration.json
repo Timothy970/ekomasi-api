@@ -1,0 +1,55 @@
+{
+  "version": "3.0",
+  "screens": [
+    {
+      "id": "REGISTER_SCREEN",
+      "title": "Customer Registration",
+      "terminal": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Welcome to Ekomasi Store!"
+          },
+          {
+            "type": "TextBody",
+            "text": "Please complete your profile to enjoy personalized recommendations and instant tracking."
+          },
+          {
+            "type": "TextInput",
+            "name": "full_name",
+            "label": "Full Name",
+            "required": true,
+            "input-type": "text"
+          },
+          {
+            "type": "TextInput",
+            "name": "email",
+            "label": "Email Address",
+            "required": true,
+            "input-type": "email"
+          },
+          {
+            "type": "TextInput",
+            "name": "delivery_address",
+            "label": "Default Delivery Location / City",
+            "required": true
+          },
+          {
+            "type": "Footer",
+            "label": "Register Profile",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "full_name": "${form.full_name}",
+                "email": "${form.email}",
+                "delivery_address": "${form.delivery_address}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

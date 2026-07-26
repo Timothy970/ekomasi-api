@@ -1,0 +1,51 @@
+{
+  "version": "3.0",
+  "screens": [
+    {
+      "id": "RETURN_INIT_SCREEN",
+      "title": "Submit Return Request",
+      "terminal": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Dropdown",
+            "name": "order_id",
+            "label": "Select Delivered Order",
+            "required": true,
+            "data-source": "${data.delivered_orders}"
+          },
+          {
+            "type": "Dropdown",
+            "name": "reason",
+            "label": "Reason for Return",
+            "required": true,
+            "data-source": [
+              { "id": "DEFECTIVE", "title": "Item is defective / broken" },
+              { "id": "WRONG_SIZE", "title": "Incorrect size received" },
+              { "id": "NOT_MATCH", "title": "Does not match description" }
+            ]
+          },
+          {
+            "type": "TextArea",
+            "name": "comments",
+            "label": "Additional Comments",
+            "required": false
+          },
+          {
+            "type": "Footer",
+            "label": "Submit & Credit In-App Wallet",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "order_id": "${form.order_id}",
+                "reason": "${form.reason}",
+                "comments": "${form.comments}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

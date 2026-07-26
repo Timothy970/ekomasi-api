@@ -1,0 +1,5 @@
+ALTER TABLE orders 
+ADD COLUMN is_guest TINYINT(1) DEFAULT 0 AFTER user_id,
+ADD COLUMN guest_email VARCHAR(255) DEFAULT NULL AFTER is_guest,
+ADD COLUMN guest_phone VARCHAR(50) DEFAULT NULL AFTER guest_email,
+ADD COLUMN guest_tracking_token VARCHAR(64) DEFAULT NULL AFTER guest_phone;

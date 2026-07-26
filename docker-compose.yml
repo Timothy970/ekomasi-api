@@ -1,0 +1,45 @@
+services:
+
+  openwa:
+    image: ghcr.io/rmyndharis/openwa:latest
+    container_name: openwa
+
+    restart: unless-stopped
+
+    volumes:
+      - ./data:/app/data
+
+    ports:
+      - "${OPENWA_HOST_PORT:-8090}:2785"
+
+    networks:
+      - ecommerce-api-net
+
+  api:
+    build: .
+
+    restart: unless-stopped
+
+    ports:
+      - "${API_HOST_PORT:-8085}:8000"
+
+    depends_on:
+      - openwa
+
+    env_file:
+      - .env
+
+    environment:
+      PORT: "8000"
+      OPENWA_URL: http://openwa:2785
+      REDIS_HOST: host.docker.internal
+      MYSQL_HOST: host.docker.internal
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    networks:
+      - ecommerce-api-net
+
+networks:
+  ecommerce-api-net:
