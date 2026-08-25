@@ -16,9 +16,11 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	_ "ekomasi_backend/docs"
@@ -192,9 +194,47 @@ func main() {
 		Debug:            false,
 	}).Handler(ginEngine)
 
-	log.Printf("Server started on Gin Engine on port %s", port)
-	fmt.Printf("Server listening on port %s (Gin Framework)...\n", port)
-	log.Fatal(http.ListenAndServe(":"+port, corsHandler))
+	// Create HTTP server instance
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: corsHandler,
+	}
+
+	// Start server in background goroutine
+	go func() {
+		log.Printf("Server started on Gin Engine on port %s", port)
+		fmt.Printf("Server listening on port %s (Gin Framework)...\n", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server ListenAndServe error: %v\n", err)
+		}
+	}()
+
+	// Listen for OS signal (Ctrl+C, SIGINT, SIGTERM)
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutdown signal received. Shutting down server gracefully...")
+
+	// Create a context with timeout for server shutdown
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Server forced to shutdown: %v\n", err)
+	} else {
+		log.Println("HTTP server shut down cleanly.")
+	}
+
+	if redisClient != nil {
+		if err := redisClient.Close(); err != nil {
+			log.Printf("Error closing Redis client: %v\n", err)
+		} else {
+			log.Println("Redis client closed.")
+		}
+	}
+
+	log.Println("Server exiting gracefully.")
 }
 
 // Function to initialize a database connection with OpenTelemetry instrumentation

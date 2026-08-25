@@ -1339,7 +1339,7 @@ func handleFailedLogin(c *gin.Context, identifier string, start time.Time, r *ht
 func dispatchOTP(user *dtos.User, otp string, req dtos.LoginRequest) {
 	// message := fmt.Sprintf(message, otp)
 	// htmlBody := utils.GenerateOTPEmailHTML(otp)
-	log.Printf("Dispatching OTP to user with email/phone %s ", user.Email+user.Phone)
+	log.Printf("Dispatching OTP to user with email/phone %s |||||||||||||||||||||||||  OTP: %s ", user.Email+user.Phone, otp)
 	// if req.Email != "" {
 	// 	notification.SendEmail(user.Email, "Ekomasi, Here is your OTP", htmlBody)
 	// }

@@ -35,6 +35,8 @@ func DecryptFlowPayload(req FlowEncryptedRequest, privateKeyPEM string) (*FlowDe
 		return nil, nil, nil, fmt.Errorf("WHATSAPP_FLOW_PRIVATE_KEY is not configured")
 	}
 
+	privateKeyPEM = strings.ReplaceAll(privateKeyPEM, "\\n", "\n")
+
 	block, _ := pem.Decode([]byte(privateKeyPEM))
 	if block == nil {
 		return nil, nil, nil, fmt.Errorf("failed to parse RSA private key PEM block")
@@ -81,7 +83,7 @@ func DecryptFlowPayload(req FlowEncryptedRequest, privateKeyPEM string) (*FlowDe
 		return nil, nil, nil, fmt.Errorf("failed to create AES cipher: %v", err)
 	}
 
-	aesGCM, err := cipher.NewGCM(blockAes)
+	aesGCM, err := cipher.NewGCMWithNonceSize(blockAes, len(iv))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create GCM AEAD: %v", err)
 	}
@@ -117,7 +119,7 @@ func EncryptFlowResponse(responseObj interface{}, aesKey []byte, iv []byte) (str
 		return "", fmt.Errorf("create AES cipher: %w", err)
 	}
 
-	aesGCM, err := cipher.NewGCM(block)
+	aesGCM, err := cipher.NewGCMWithNonceSize(block, len(responseIV))
 	if err != nil {
 		return "", fmt.Errorf("create GCM AEAD: %w", err)
 	}

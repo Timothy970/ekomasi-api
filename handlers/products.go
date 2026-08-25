@@ -835,9 +835,10 @@ func GetCategoryProductsHandlerByCategoryID(c *gin.Context) {
 		return // Error response already sent
 	}
 	categoryID := c.Param("category_id")
-
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	log.Printf("Fetching categories with tenant id %d", tenantID)
 	// Fetch from DB
-	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(models.DB, *searchParams, categoryID)
+	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(models.DB, *searchParams, categoryID, tenantID)
 	if err != nil {
 		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -921,7 +922,9 @@ func GetCategoryProductsHandler(c *gin.Context) {
 		return // Error response already sent
 	}
 	// Fetch from DB
-	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(models.DB, *searchParams, "")
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	log.Printf("Fetching categories-products with tenant id %d", tenantID)
+	products, pagination, err := models.GetCategoriesWithSubcategoriesAndProducts(models.DB, *searchParams, "", tenantID)
 	if err != nil {
 		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{

@@ -35,7 +35,16 @@ func WhatsAppFlowDataEndpoint(c *gin.Context) {
 	// Action router according to Meta Flow Spec
 	switch decryptedReq.Action {
 	case "ping":
-		responsePayload = map[string]interface{}{"status": "active"}
+		version := decryptedReq.Version
+		if version == "" {
+			version = "3.0"
+		}
+		responsePayload = map[string]interface{}{
+			"version": version,
+			"data": map[string]interface{}{
+				"status": "active",
+			},
+		}
 	case "INIT":
 		responsePayload = handleFlowInit(decryptedReq)
 	case "data_exchange":

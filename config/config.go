@@ -89,6 +89,15 @@ type WhatsAppCloudConfig struct {
 	FlowPassphrase     string
 }
 
+type StorageConfig struct {
+	Bucket               string
+	FlociEndpoint        string
+	UseCloudinary        bool
+	CloudinaryCloudName  string
+	CloudinaryAPIKey     string
+	CloudinaryAPISecret string
+}
+
 type Config struct {
 	Server         ServerConfig
 	Database       DatabaseConfig
@@ -100,6 +109,7 @@ type Config struct {
 	SMS            SMSConfig
 	PaymentGateway PaymentGatewayConfig
 	OpenWA         OpenWAConfig
+	Storage        StorageConfig
 }
 
 var (
@@ -192,6 +202,14 @@ func LoadConfig(envFiles ...string) *Config {
 				FlowPrivateKey:     getEnv("WHATSAPP_FLOW_PRIVATE_KEY", ""),
 				FlowPassphrase:     getEnv("WHATSAPP_FLOW_PASSPHRASE", ""),
 			},
+			Storage: StorageConfig{
+				Bucket:               getEnv("STORAGE_BUCKET", getEnv("BUCKET_NAME", "development-ecommerce-api-images")),
+				FlociEndpoint:        getEnv("FLOCI_ENDPOINT", ""),
+				UseCloudinary:        getEnvAsBool("USE_CLOUDINARY", false),
+				CloudinaryCloudName:  getEnv("CLOUDINARY_CLOUD_NAME", ""),
+				CloudinaryAPIKey:     getEnv("CLOUDINARY_API_KEY", ""),
+				CloudinaryAPISecret: getEnv("CLOUDINARY_API_SECRET", ""),
+			},
 		}
 
 		log.Println("Configuration loaded successfully")
@@ -218,6 +236,14 @@ func getEnv(key string, defaultVal string) string {
 func getEnvAsInt(key string, defaultVal int) int {
 	valueStr := getEnv(key, "")
 	if value, err := strconv.Atoi(valueStr); err == nil {
+		return value
+	}
+	return defaultVal
+}
+
+func getEnvAsBool(key string, defaultVal bool) bool {
+	valueStr := getEnv(key, "")
+	if value, err := strconv.ParseBool(valueStr); err == nil {
 		return value
 	}
 	return defaultVal

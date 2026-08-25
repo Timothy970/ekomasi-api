@@ -57,6 +57,7 @@ func SendWhatsAppFlowMessage(toPhone string, flowID string, flowToken string, ct
 					"flow_action_payload": map[string]interface{}{
 						"screen": initialScreen,
 					},
+					"mode": "draft",
 				},
 			},
 		},

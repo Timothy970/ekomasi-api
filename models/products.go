@@ -1558,12 +1558,12 @@ func IsValidSubcategory(db DBExecutor, categoryID string) (bool, error) {
 	}
 	return true, nil
 }
-func IsValidCategory(db DBExecutor, categoryID string) (bool, error) {
+func IsValidCategory(db DBExecutor, categoryID string, tenantID int) (bool, error) {
 	var parentID sql.NullString
 	err := db.QueryRow(`
 		SELECT parent_category_id 
 		FROM categories 
-		WHERE category_id = ?`, categoryID).
+		WHERE category_id = ? AND (tenant_id = ? OR tenant_id IS NULL OR tenant_id = 0)`, categoryID, tenantID).
 		Scan(&parentID)
 
 	if err != nil {
@@ -1573,8 +1573,8 @@ func IsValidCategory(db DBExecutor, categoryID string) (bool, error) {
 		return false, err
 	}
 
-	// Only valid if it's a parent (i.e., has no parent itself)
-	if !parentID.Valid {
+	// Only valid if it's a parent (i.e., has no parent itself or parent_category_id is empty string)
+	if !parentID.Valid || parentID.String == "" {
 		return true, nil // main category
 	}
 	return false, nil // subcategory, not valid
@@ -1592,6 +1592,7 @@ func IsValidCategory(db DBExecutor, categoryID string) (bool, error) {
 //   - CategoryName: Category name filter (case-insensitive)
 //   - Additional filters: Price range, variants, etc.
 //   - filterCategoryID: string - Optional main category ID to filter (must be parent category, not subcategory)
+//   - tenantID: int - Authenticated/resolved tenant ID
 //
 // Returns:
 //   - []dtos.CategoryResponse: Array of categories containing:
@@ -1604,11 +1605,12 @@ func GetCategoriesWithSubcategoriesAndProducts(
 	db DBExecutor,
 	searchParams dtos.SearchParams,
 	filterCategoryID string,
+	tenantID int,
 ) ([]dtos.CategoryResponse, *dtos.PaginationMeta, error) {
 
 	// Validate category filter (must be main category, not subcategory)
 	if filterCategoryID != "" {
-		valid, err := IsValidCategory(db, filterCategoryID)
+		valid, err := IsValidCategory(db, filterCategoryID, tenantID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1618,7 +1620,7 @@ func GetCategoriesWithSubcategoriesAndProducts(
 	}
 
 	// Fetch main categories with optional filter
-	categories, err := getMainCategories(db, filterCategoryID, searchParams)
+	categories, err := getMainCategories(db, filterCategoryID, searchParams, tenantID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1628,16 +1630,20 @@ func GetCategoriesWithSubcategoriesAndProducts(
 	// For each category, attach subcategories and products
 	for i := range categories {
 		// Get subcategories for this main category
-		subs, subIDs, err := getSubcategoriesWithParentID(db, categories[i].ID)
+		subs, subIDs, err := getSubcategoriesWithParentID(db, categories[i].ID, tenantID)
 		if err != nil {
 			return nil, nil, err
 		}
 		categories[i].Subcategories = subs
 
-		// Get products for all subcategories
-		products, meta, err := getProductsForSubcategories(db, subIDs, searchParams.Page, searchParams.Limit, searchParams)
+		// Get products for main category and all subcategories
+		allIDs := append([]string{categories[i].ID}, subIDs...)
+		products, meta, err := getProductsForSubcategories(db, allIDs, searchParams.Page, searchParams.Limit, searchParams, tenantID)
 		if err != nil {
 			return nil, nil, err
+		}
+		if products == nil {
+			products = make([]dtos.CategoryProduct, 0)
 		}
 		categories[i].Products = products
 		paginationMeta = meta
@@ -1649,30 +1655,24 @@ func GetCategoriesWithSubcategoriesAndProducts(
 // getMainCategories fetches parent categories that have products in their subcategories.
 //
 // This internal function retrieves top-level categories with optional filters.
-// Only returns categories that have at least one product in their subcategories.
+// Only returns categories that have at least one product in their subcategories or directly.
 //
 // Parameters:
 //   - filterCategoryID: string - Optional category ID filter
 //   - params: dtos.SearchParams - Search parameters (Q, CategoryName)
+//   - tenantID: int - Tenant identifier
 //
 // Returns:
 //   - []dtos.CategoryResponse: Main categories
 //   - error: Database error or nil on success
-func getMainCategories(db DBExecutor, filterCategoryID string, params dtos.SearchParams) ([]dtos.CategoryResponse, error) {
+func getMainCategories(db DBExecutor, filterCategoryID string, params dtos.SearchParams, tenantID int) ([]dtos.CategoryResponse, error) {
 	var (
-		// Query main categories that have products in subcategories
 		query = `
             SELECT c.category_id, c.name, c.parent_category_id, c.image, c.description
             FROM categories c
-            WHERE c.parent_category_id IS NULL
-            AND EXISTS (
-                SELECT 1 FROM categories sub
-                LEFT JOIN products p ON sub.category_id = p.category_id
-                WHERE sub.parent_category_id = c.category_id
-                AND p.product_id IS NOT NULL
-				AND p.product_type = 'single'
-            )`
-		args []interface{}
+            WHERE (c.parent_category_id IS NULL OR c.parent_category_id = '')
+            AND (c.tenant_id = ? OR c.tenant_id IS NULL OR c.tenant_id = 0)`
+		args = []interface{}{tenantID}
 	)
 
 	// Add category ID filter
@@ -1700,11 +1700,17 @@ func getMainCategories(db DBExecutor, filterCategoryID string, params dtos.Searc
 	defer rows.Close()
 
 	// Scan category rows
-	var categories []dtos.CategoryResponse
+	categories := make([]dtos.CategoryResponse, 0)
 	for rows.Next() {
 		var cat dtos.CategoryResponse
 		if err := rows.Scan(&cat.ID, &cat.Name, &cat.ParentID, &cat.ImageURL, &cat.Description); err != nil {
 			return nil, err
+		}
+		if cat.Subcategories == nil {
+			cat.Subcategories = make([]dtos.SubcategoryResponse, 0)
+		}
+		if cat.Products == nil {
+			cat.Products = make([]dtos.CategoryProduct, 0)
 		}
 		categories = append(categories, cat)
 	}
@@ -1714,34 +1720,29 @@ func getMainCategories(db DBExecutor, filterCategoryID string, params dtos.Searc
 
 // getSubcategoriesWithParentID fetches subcategories for a parent category.
 //
-// This internal function retrieves child categories that have products.
+// This internal function retrieves child categories.
 //
 // Parameters:
 //   - parentID: string - The parent category_id
+//   - tenantID: int - Tenant identifier
 //
 // Returns:
 //   - []dtos.SubcategoryResponse: Subcategories
 //   - []string: Array of subcategory IDs (for product queries)
 //   - error: Database error or nil on success
-func getSubcategoriesWithParentID(db DBExecutor, parentID string) ([]dtos.SubcategoryResponse, []string, error) {
-	// Query subcategories that have products
+func getSubcategoriesWithParentID(db DBExecutor, parentID string, tenantID int) ([]dtos.SubcategoryResponse, []string, error) {
 	rows, err := db.Query(`
         SELECT c.category_id, c.name, c.parent_category_id, c.image, c.description
         FROM categories c
-        LEFT JOIN products p ON c.category_id = p.category_id
         WHERE c.parent_category_id = ?
-        AND p.product_id IS NOT NULL
-		AND p.product_type = 'single'
-        GROUP BY c.category_id, c.name, c.parent_category_id, c.image, c.description`, parentID)
+        AND (c.tenant_id = ? OR c.tenant_id IS NULL OR c.tenant_id = 0)`, parentID, tenantID)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
 
-	var (
-		subs []dtos.SubcategoryResponse
-		ids  []string
-	)
+	subs := make([]dtos.SubcategoryResponse, 0)
+	ids := make([]string, 0)
 
 	for rows.Next() {
 		var sub dtos.SubcategoryResponse
@@ -1775,6 +1776,7 @@ func getSubcategoriesWithParentID(db DBExecutor, parentID string) ([]dtos.Subcat
 //   - MinPrice, MaxPrice: Price range filter
 //   - Variants: Array of variant filters (type and value)
 //   - SortBy: Sort order specification
+//   - tenantID: int - Tenant identifier
 //
 // Returns:
 //   - []dtos.CategoryProduct: Array of products with:
@@ -1784,14 +1786,21 @@ func getSubcategoriesWithParentID(db DBExecutor, parentID string) ([]dtos.Subcat
 //   - Stock, timestamps, tax, variants, images, etc.
 //   - *dtos.PaginationMeta: Pagination metadata (Page, Size, TotalItems, TotalPages, HasPrev, HasNext)
 //   - error: Database error or nil on success
-func getProductsForSubcategories(db DBExecutor, subIDs []string, page, size int, params dtos.SearchParams) ([]dtos.CategoryProduct, *dtos.PaginationMeta, error) {
+func getProductsForSubcategories(db DBExecutor, subIDs []string, page, size int, params dtos.SearchParams, tenantID int) ([]dtos.CategoryProduct, *dtos.PaginationMeta, error) {
 	// Early return if no subcategories specified
 	if len(subIDs) == 0 {
-		return nil, nil, nil
+		return make([]dtos.CategoryProduct, 0), &dtos.PaginationMeta{
+			Page:       page,
+			Size:       size,
+			TotalItems: 0,
+			TotalPages: 0,
+			HasPrev:    false,
+			HasNext:    false,
+		}, nil
 	}
 
 	// Build query components
-	whereClause, args := buildSubcategoryWhereClause(subIDs, params)
+	whereClause, args := buildSubcategoryWhereClause(subIDs, params, tenantID)
 
 	// Get total count for pagination
 	totalItems, err := countSubcategoryProduct(db, whereClause, args)
@@ -1819,15 +1828,17 @@ func getProductsForSubcategories(db DBExecutor, subIDs []string, page, size int,
 }
 
 // buildSubcategoryWhereClause constructs the WHERE clause for subcategory product queries
-func buildSubcategoryWhereClause(subIDs []string, params dtos.SearchParams) (string, []interface{}) {
+func buildSubcategoryWhereClause(subIDs []string, params dtos.SearchParams, tenantID int) (string, []interface{}) {
 	placeholders := strings.Repeat(",?", len(subIDs)-1)
 	baseWhere := fmt.Sprintf(`WHERE p.category_id IN (?%s)
-		AND p.product_type = 'single'`, placeholders)
+		AND p.product_type = 'single'
+		AND (p.tenant_id = ? OR p.tenant_id IS NULL OR p.tenant_id = 0)`, placeholders)
 
-	args := make([]interface{}, len(subIDs))
+	args := make([]interface{}, len(subIDs)+1)
 	for i, id := range subIDs {
 		args[i] = id
 	}
+	args[len(subIDs)] = tenantID
 
 	filterQuery, filterArgs := buildProductFilters(params)
 	args = append(args, filterArgs...)
@@ -1837,7 +1848,7 @@ func buildSubcategoryWhereClause(subIDs []string, params dtos.SearchParams) (str
 // countSubcategoryProducts returns the total count of products matching the criteria
 func countSubcategoryProduct(db DBExecutor, whereClause string, args []interface{}) (int, error) {
 	joinClause := `FROM products p
-		JOIN categories c ON p.category_id = c.category_id`
+		LEFT JOIN categories c ON p.category_id = c.category_id`
 	countQuery := "SELECT COUNT(*) " + joinClause + " " + whereClause
 
 	var totalItems int
@@ -1871,7 +1882,7 @@ func fetchSubcategoryProducts(db DBExecutor, whereClause string, args []interfac
 	}
 	defer rows.Close()
 
-	var products []dtos.CategoryProduct
+	products := make([]dtos.CategoryProduct, 0)
 	for rows.Next() {
 		product, err := scanCategoryProduct(db, rows)
 		if err != nil {
@@ -1886,19 +1897,25 @@ func fetchSubcategoryProducts(db DBExecutor, whereClause string, args []interfac
 // scanCategoryProduct scans and enriches a single category product row
 func scanCategoryProduct(db DBExecutor, rows *sql.Rows) (dtos.CategoryProduct, error) {
 	var pr dtos.CategoryProduct
-	var subcategoryID, parentCategoryID string
+	var subcategoryID string
+	var parentCategoryNull sql.NullString
 	var detailsData []byte
 
 	if err := rows.Scan(
 		&pr.ID, &pr.Name, &pr.Description, &pr.SKU, &pr.Price,
-		&subcategoryID, &parentCategoryID, &pr.StockQuantity,
+		&subcategoryID, &parentCategoryNull, &pr.StockQuantity,
 		&pr.SearchVector, &pr.CreatedAt, &pr.LastUpdated, &pr.Tag, &detailsData, &pr.Discount, &pr.DiscountType, &pr.Weight, &pr.Dimensions, &pr.Manufacturer, &pr.WeightLimit,
 	); err != nil {
 		return pr, err
 	}
 
-	pr.CategoryID = parentCategoryID
-	pr.SubcategoryID = subcategoryID
+	if parentCategoryNull.Valid {
+		pr.CategoryID = parentCategoryNull.String
+		pr.SubcategoryID = subcategoryID
+	} else {
+		pr.CategoryID = subcategoryID
+		pr.SubcategoryID = ""
+	}
 
 	if len(detailsData) > 0 {
 		if err := json.Unmarshal(detailsData, &pr.Details); err != nil {

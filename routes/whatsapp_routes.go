@@ -13,6 +13,9 @@ func SetupWhatsAppGinRoutes(rg *gin.RouterGroup) {
 		// WhatsApp Flow Data Endpoint (Encrypted requests from Meta)
 		wa.POST("/flow-endpoint", handlers.WhatsAppFlowDataEndpoint)
 
+		// Upload Public Key to Meta Graph API for Flow Encryption
+		wa.POST("/register-public-key", handlers.RegisterWhatsAppPublicKeyHandler)
+
 		// WhatsApp Webhook Handlers
 		wa.GET("/webhook", handlers.VerifyWhatsAppWebhook)
 		wa.POST("/webhook", handlers.HandleWhatsAppWebhookEvent)
