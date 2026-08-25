@@ -1,0 +1,84 @@
+services:
+  # Web Service for Go Backend
+  - type: web
+    name: ekomasi-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    context: .
+    plan: starter
+    region: oregon
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: PORT
+        value: 10000
+
+      # Aiven MySQL Database Configuration
+      - key: MYSQL_HOST
+        sync: false # Set in Render Dashboard
+      - key: MYSQL_PORT
+        value: "3306"
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASS
+        sync: false
+      - key: DB_NAME
+        value: ekomasi
+
+      # Render Managed Redis Configuration (internal link)
+      - key: REDIS_HOST
+        fromKeyVal:
+          name: ekomasi-redis
+          property: host
+      - key: REDIS_PORT
+        fromKeyVal:
+          name: ekomasi-redis
+          property: port
+      - key: REDIS_PASS
+        sync: false
+      - key: REDIS_DB
+        value: "0"
+
+      # Cloudinary Storage Configuration
+      - key: USE_CLOUDINARY
+        value: "true"
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+      # Authentication
+      - key: JWT_SECRET
+        generateValue: true
+
+      # M-Pesa Configuration
+      - key: MPESA_CONSUMER_KEY
+        sync: false
+      - key: MPESA_CONSUMER_SECRET
+        sync: false
+      - key: MPESA_SHORTCODE
+        sync: false
+      - key: MPESA_PASSKEY
+        sync: false
+      - key: MPESA_CALLBACK_URL
+        sync: false
+      - key: MPESA_SEND_URL
+        value: https://api.safaricom.co.ke/
+
+      # Base URLs
+      - key: BASE_URL
+        sync: false
+      - key: FRONT_END_BASE_URL
+        sync: false
+
+  # Render Provisioned Redis Service
+  - type: redis
+    name: ekomasi-redis
+    plan: free
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: [] # Restrict access to internal Render services only
