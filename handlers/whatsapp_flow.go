@@ -291,21 +291,21 @@ func getFlowCategories() []map[string]string {
 	}
 }
 
-func getFlowProductsByCategory(catID string) []map[string]string {
+func getFlowProductsByCategory(_ string) []map[string]string {
 	return []map[string]string{
 		{"id": "p1", "title": "Smart Watch Pro (KES 4,500)"},
 		{"id": "p2", "title": "Wireless Earbuds (KES 3,200)"},
 	}
 }
 
-func getFlowRecentOrders(phone string) []map[string]string {
+func getFlowRecentOrders(_ string) []map[string]string {
 	return []map[string]string{
 		{"id": "ORD-1092", "title": "Order #1092 - KES 4,500"},
 		{"id": "ORD-1088", "title": "Order #1088 - KES 2,100"},
 	}
 }
 
-func getFlowDeliveredOrders(phone string) []map[string]string {
+func getFlowDeliveredOrders(_ string) []map[string]string {
 	return []map[string]string{
 		{"id": "ORD-1088", "title": "Order #1088 (Delivered 2 days ago)"},
 	}

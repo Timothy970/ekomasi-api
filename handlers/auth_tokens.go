@@ -54,7 +54,7 @@ func VerifySignupOTPHandler(c *gin.Context) {
 		log.Printf("Rate limit error: %v", err)
 	}
 	if !isAllowed {
-		respondTooManyAttempts(c, start, c.Request, requestSummary, retryAfter)
+		respondTooManyAttempts(c, start, requestSummary, retryAfter)
 		return
 	}
 	var user *dtos.User

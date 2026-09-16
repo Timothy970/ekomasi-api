@@ -69,7 +69,7 @@ func WhatsAppLoginHandler(c *gin.Context) {
 	}
 	if !isAllowed {
 		// User is temporarily blocked, send 429 Too Many Requests response
-		respondTooManyAttempts(c, start, c.Request, requestSummary, retryAfter)
+		respondTooManyAttempts(c, start, requestSummary, retryAfter)
 		return
 	}
 
@@ -79,7 +79,7 @@ func WhatsAppLoginHandler(c *gin.Context) {
 	if err != nil {
 		log.Printf("ERR:::::::::::%v", err)
 		// User fetch failed, increment failed login attempts
-		handleFailedLogin(c, req.Phone, start, c.Request, requestSummary)
+		handleFailedLogin(c, start, requestSummary)
 		return
 	}
 	// Prepare user registration data for auto-creation
@@ -111,7 +111,7 @@ func WhatsAppLoginHandler(c *gin.Context) {
 	if err != nil {
 		log.Println("Failed to generate verification token:", err)
 		// Token generation failed, return 500 error
-		respondInternalError(c, "Failed to generate verification token", start, c.Request, requestSummary)
+		respondInternalError(c, "Failed to generate verification token", start, requestSummary)
 		return
 	}
 
@@ -119,7 +119,7 @@ func WhatsAppLoginHandler(c *gin.Context) {
 	if err := StoreVerificationTokenInRedis(user.ID, verificationToken, 5*time.Minute); err != nil {
 		log.Println("Failed to store verification token:", err)
 		// Redis storage failed, return 500 error
-		respondInternalError(c, "Failed to store verification token", start, c.Request, requestSummary)
+		respondInternalError(c, "Failed to store verification token", start, requestSummary)
 		return
 	}
 
@@ -134,7 +134,7 @@ func WhatsAppLoginHandler(c *gin.Context) {
 	if err := notification.SendWhatsappMessages(phoneInt, verificationToken, "Auth"); err != nil {
 		log.Println("Failed to send WhatsApp message:", err)
 		// WhatsApp API call failed, return 500 error
-		respondInternalError(c, "Failed to send verification message", start, c.Request, requestSummary)
+		respondInternalError(c, "Failed to send verification message", start, requestSummary)
 		return
 	}
 

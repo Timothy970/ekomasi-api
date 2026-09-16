@@ -12,6 +12,8 @@ import (
 	"ekomasi_backend/utils"
 )
 
+const userAccountNotActive = "User account is not active"
+
 func LoginHandler(c *gin.Context) {
 	start := time.Now()
 	// Get request summary for logging
@@ -36,7 +38,7 @@ func LoginHandler(c *gin.Context) {
 		log.Printf("Rate limit error: %v", err)
 	}
 	if !isAllowed {
-		respondTooManyAttempts(c, start, c.Request, requestSummary, retryAfter)
+		respondTooManyAttempts(c, start, requestSummary, retryAfter)
 		return
 	}
 
@@ -45,7 +47,7 @@ func LoginHandler(c *gin.Context) {
 	user, err := fetchUser(req.Email, req.Phone, tenantID)
 	if err != nil {
 		log.Printf("%v", err)
-		handleFailedLogin(c, identifier, start, c.Request, requestSummary)
+		handleFailedLogin(c, start, requestSummary)
 		return
 	}
 	if user == nil {
@@ -66,10 +68,10 @@ func LoginHandler(c *gin.Context) {
 		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
-				Description: "User account is not active",
+				Description: userAccountNotActive,
 				Code:        http.StatusUnauthorized,
 			},
-			Message:   "User account is not active",
+			Message:   userAccountNotActive,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   c.Request,
@@ -87,7 +89,7 @@ func LoginHandler(c *gin.Context) {
 	// Store OTP in Redis
 	if err := StoreOTPInRedis(user.ID, otp, 5*time.Minute); err != nil {
 		log.Println("Failed to store:", err)
-		respondInternalError(c, "Failed to generate OTP", start, c.Request, requestSummary)
+		respondInternalError(c, "Failed to generate OTP", start, requestSummary)
 		return
 	}
 
@@ -149,7 +151,7 @@ func AdminLoginHandler(c *gin.Context) {
 		log.Printf("Rate limit error: %v", err)
 	}
 	if !isAllowed {
-		respondTooManyAttempts(c, start, c.Request, requestSummary, retryAfter)
+		respondTooManyAttempts(c, start, requestSummary, retryAfter)
 		return
 	}
 
@@ -158,7 +160,7 @@ func AdminLoginHandler(c *gin.Context) {
 	user, err := fetchUser(req.Email, req.Phone, tenantID)
 	if err != nil {
 		log.Printf("%v", err)
-		handleFailedLogin(c, identifier, start, c.Request, requestSummary)
+		handleFailedLogin(c, start, requestSummary)
 		return
 	}
 	if user == nil {
@@ -179,10 +181,10 @@ func AdminLoginHandler(c *gin.Context) {
 		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Auth",
-				Description: "User account is not active",
+				Description: userAccountNotActive,
 				Code:        http.StatusUnauthorized,
 			},
-			Message:   "User account is not active",
+			Message:   userAccountNotActive,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   c.Request,
@@ -218,7 +220,7 @@ func AdminLoginHandler(c *gin.Context) {
 	// Store OTP in Redis
 	if err := StoreOTPInRedis(user.ID, otp, 5*time.Minute); err != nil {
 		log.Println("Failed to store one time password:", err)
-		respondInternalError(c, "Failed to store OTP", start, c.Request, requestSummary)
+		respondInternalError(c, "Failed to store OTP", start, requestSummary)
 		return
 	}
 

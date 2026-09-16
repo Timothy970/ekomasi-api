@@ -118,6 +118,8 @@ func respondWithPaymentError(c *gin.Context, requestSummary string, start time.T
 		Message:   message,
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
+		Request:   c.Request,
+		RawBody:   requestSummary,
 	})
 }
 

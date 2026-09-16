@@ -50,7 +50,8 @@ func parseDealProductRequest(r *http.Request) (*dtos.FlashDealProducts, error) {
 }
 func parseProducts(productsStr string, brandID, dealType, brandDiscount, brandDiscountType string) ([]dtos.ProductsDeal, error) {
 	var products []dtos.ProductsDeal
-	if dealType == "product" {
+	switch dealType {
+	case "product":
 		if productsStr == "" {
 			return products, nil
 		}
@@ -61,13 +62,13 @@ func parseProducts(productsStr string, brandID, dealType, brandDiscount, brandDi
 		if len(products) == 0 {
 			return products, fmt.Errorf("products array cannot be empty for product deals")
 		}
-	} else if dealType == "brand" {
+	case "brand":
 		var err error
 		products, err = models.GetProductIDsByBrandID(models.DB, brandID, brandDiscount, brandDiscountType)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get products by brand ID: %w", err)
 		}
-	} else {
+	default:
 		return nil, fmt.Errorf("invalid deal type: %s", dealType)
 	}
 	return products, nil

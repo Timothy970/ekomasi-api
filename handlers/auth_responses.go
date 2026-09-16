@@ -203,7 +203,7 @@ func fetchUser(email, phone string, tenantID int) (*dtos.User, error) {
 }
 
 // Error handling helpers
-func handleFailedLogin(c *gin.Context, identifier string, start time.Time, r *http.Request, raw string) {
+func handleFailedLogin(c *gin.Context, start time.Time, raw string) {
 	// Logic moved to CheckRateLimit in handlers
 	utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -242,7 +242,7 @@ func dispatchOTP(user *dtos.User, otp string, req dtos.LoginRequest) {
 }
 
 // Response helpers
-func respondBadRequest(c *gin.Context, msg string, start time.Time, r *http.Request, raw string) {
+func respondBadRequest(c *gin.Context, msg string, start time.Time, _ *http.Request, raw string) {
 	utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Auth",
@@ -257,7 +257,7 @@ func respondBadRequest(c *gin.Context, msg string, start time.Time, r *http.Requ
 	})
 }
 
-func respondTooManyAttempts(c *gin.Context, start time.Time, r *http.Request, raw string, retryAfter int) {
+func respondTooManyAttempts(c *gin.Context, start time.Time, raw string, retryAfter int) {
 	utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Auth",
@@ -272,7 +272,7 @@ func respondTooManyAttempts(c *gin.Context, start time.Time, r *http.Request, ra
 	})
 }
 
-func respondInternalError(c *gin.Context, msg string, start time.Time, r *http.Request, raw string) {
+func respondInternalError(c *gin.Context, msg string, start time.Time, raw string) {
 	utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
 			Module:      "Auth",

@@ -41,7 +41,7 @@ func RefreshTokenHandler(c *gin.Context) {
 		log.Printf("Rate limit error: %v", err)
 	}
 	if !isAllowed {
-		respondTooManyAttempts(c, start, c.Request, requestSummary, retryAfter)
+		respondTooManyAttempts(c, start, requestSummary, retryAfter)
 		return
 	}
 
@@ -50,7 +50,7 @@ func RefreshTokenHandler(c *gin.Context) {
 	user, err := fetchUser(req.Email, req.Phone, tenantID)
 	if err != nil {
 		log.Printf("ERR:::::::::::%v", err)
-		handleFailedLogin(c, identifier, start, c.Request, requestSummary)
+		handleFailedLogin(c, start, requestSummary)
 		return
 	}
 	if user == nil {
@@ -267,14 +267,14 @@ func ResendOptHandler(c *gin.Context) {
 	otp, err := utils.GenerateOTP()
 	if err != nil {
 		log.Println("Failed to generate OTP:", err)
-		respondInternalError(c, "Failed to generate OTP", start, c.Request, requestSummary)
+		respondInternalError(c, "Failed to generate OTP", start, requestSummary)
 		return
 	}
 
 	// Store OTP in Redis (valid for 5 minutes)
 	if err := StoreOTPInRedis(user.ID, otp, 5*time.Minute); err != nil {
 		log.Println("Failed to store OTP:", err)
-		respondInternalError(c, "Failed to store OTP", start, c.Request, requestSummary)
+		respondInternalError(c, "Failed to store OTP", start, requestSummary)
 		return
 	}
 

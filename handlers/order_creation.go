@@ -53,7 +53,7 @@ func NewCreateOrderHandler(c *gin.Context) {
 		return
 	}
 
-	finalAmount, totalDiscount, err := calculateOrderTotals(order, req.PromoCode, module, models.DB)
+	finalAmount, totalDiscount, err := calculateOrderTotals(order, req.PromoCode, models.DB)
 	if err != nil {
 		log.Printf("[%s] Error calculating totals: %v", module, err)
 		respondInternalServerError(c, requestSummary, start, err.Error())
@@ -79,7 +79,7 @@ func NewCreateOrderHandler(c *gin.Context) {
 	defer tx.Rollback() // Rollback if not committed
 
 	tenantID := middleware.TenantIDFromContext(c.Request.Context())
-	orderID, deliveryID, err := createOrderAndDelivery(tx, order, req.StoreID, finalAmount, totalDiscount, module, tenantID)
+	orderID, deliveryID, err := createOrderAndDelivery(tx, order, req.StoreID, finalAmount, totalDiscount, tenantID)
 	if err != nil {
 		log.Printf("[%s] Error creating order: %v", module, err)
 		respondInternalServerError(c, requestSummary, start, err.Error())
@@ -189,7 +189,7 @@ func fetchDeliveryCharge(addressID *int64, c *gin.Context, requestSummary string
 	return charge, nil
 }
 
-func calculateOrderTotals(order *dtos.OrderRequest, promoCode *string, module string, db models.DBExecutor) (float64, float64, error) {
+func calculateOrderTotals(order *dtos.OrderRequest, promoCode *string, db models.DBExecutor) (float64, float64, error) {
 	totalAmount, totalDiscount, freeShipping, err := processOrderItems(db, order.OrderItems)
 	if err != nil {
 		return 0, 0, err
@@ -211,7 +211,7 @@ func calculateOrderTotals(order *dtos.OrderRequest, promoCode *string, module st
 	return totalAmount - totalDiscount, totalDiscount, nil
 }
 
-func createOrderAndDelivery(db models.DBExecutor, order *dtos.OrderRequest, storeID *string, finalAmount, totalDiscount float64, module string, tenantID int) (string, string, error) {
+func createOrderAndDelivery(db models.DBExecutor, order *dtos.OrderRequest, storeID *string, finalAmount, totalDiscount float64, tenantID int) (string, string, error) {
 	orderID, deliveryID, err := models.CreateOrder(db, *order, utils.ToString(finalAmount), utils.ToString(totalDiscount), tenantID)
 	if err != nil {
 		return "", "", err

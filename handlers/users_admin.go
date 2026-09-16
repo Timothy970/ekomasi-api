@@ -44,60 +44,16 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Validate mandatory fields: Email or Phone number must be present if provided
-	if input.Email == "" && input.Phonenumber == "" {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Users",
-				Description: "Missing mandatory fields email or phone number",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   mandatory,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-			RawBody:   requestSummary})
+	// Validate mandatory fields and phone number format
+	if !validateUpdateInput(c, input, start, requestSummary) {
 		return
 	}
 
-	// Validate Kenyan phone number format if provided
-	if input.Phonenumber != "" {
-		if !utils.IsValidKenyanPhone(input.Phonenumber) {
-			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Users",
-					Description: "Invalid phone number format",
-					Code:        http.StatusBadRequest,
-				},
-				Message:   "Invalid phone number",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   c.Request,
-				RawBody:   requestSummary})
-			return
-		}
-	}
 	// Rate limiting for OTP resend
-	identifier := authuser.ID
-	isAllowed, retryAfter, err := utils.CheckRateLimit(c.Request.Context(), "resend_otp:"+identifier, 3, 5*time.Minute)
-	if err != nil {
-		log.Printf("Rate limit error: %v", err)
-	}
-	if !isAllowed {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Auth",
-				Description: "OTP resend requested too soon for user with ID " + authuser.ID,
-				Code:        http.StatusTooManyRequests,
-			},
-			Message:   fmt.Sprintf("Please wait %d seconds before requesting a new OTP", retryAfter),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-			RawBody:   requestSummary,
-		})
+	if !checkUserUpdateRateLimit(c, authuser.ID, start, requestSummary) {
 		return
 	}
+
 	currentUser, err := models.GetUserByUserID(models.DB, authuser.ID)
 	if err != nil {
 		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
@@ -115,53 +71,14 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	emailChanged := input.Email != "" && input.Email != currentUser.Email
-	phoneChanged := input.Phonenumber != "" && input.Phonenumber != currentUser.Phone
-
-	// Validate uniqueness against other users first
-	tenantID := middleware.TenantIDFromContext(c.Request.Context())
-	if emailChanged {
-		if exists, _ := models.EmailExistsForOtherUser(models.DB, authuser.ID, input.Email, tenantID); exists {
-			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Users",
-					Description: "Email already exists for another user",
-					Code:        http.StatusConflict,
-				},
-				Message:   "Email already exists",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   c.Request,
-				RawBody:   requestSummary})
-			return
-		}
-	}
-	if phoneChanged {
-		if exists, _ := models.PhoneExistsForOtherUser(models.DB, authuser.ID, input.Phonenumber, tenantID); exists {
-			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Users",
-					Description: "Phone number already exists for another user",
-					Code:        http.StatusConflict,
-				},
-				Message:   "Phone number already exists",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   c.Request,
-				RawBody:   requestSummary})
-			return
-		}
+	// Validate uniqueness against other users
+	emailChanged, phoneChanged, valid := validateUserUpdateUniqueness(c, authuser.ID, input, currentUser, start, requestSummary)
+	if !valid {
+		return
 	}
 
-	// Generate OTP
-	// otp, err := utils.GenerateOTP()
-	// if err != nil {
-	// 	log.Printf("Failed to generate OTP for user update: %v", err)
-	// 	return
-	// }
-	//since we  are testing using a hardcoded OTP, we can skip the generation step and directly use the hardcoded value
+	// Generate and store OTP in Redis
 	otp := "2025"
-	// Store OTP in Redis
 	if err := StoreOTPInRedis(authuser.ID, otp, 10*time.Minute); err != nil {
 		log.Printf("Failed to store OTP in Redis for user update: %v", err)
 		return
@@ -176,30 +93,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Prepare a login request for dispatchOTP
-	dispatchReq := dtos.LoginRequest{}
-	if emailChanged {
-		dispatchReq.Email = input.Email
-	}
-	if phoneChanged {
-		dispatchReq.Phone = input.Phonenumber
-	}
-
-	// Create a temporary User object for dispatchOTP (using the NEW values)
-	dispatchUser := &dtos.User{
-		Email: input.Email,
-		Phone: input.Phonenumber,
-	}
-	if dispatchUser.Email == "" {
-		dispatchUser.Email = currentUser.Email
-	}
-	if dispatchUser.Phone == "" {
-		dispatchUser.Phone = currentUser.Phone
-	}
-
-	// Dispatch OTP to the NEW contact info
-	//commenting out the actual dispatch for now since we are using a hardcoded OTP for testing. In production, this should be enabled to send real OTPs.
-	// dispatchOTP(dispatchUser, otp, dispatchReq)
+	dispatchUserUpdateOTP(currentUser, input, emailChanged, phoneChanged, otp)
 
 	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
 		CollectiveInfo: utils.CollectiveInfo{
@@ -212,6 +106,126 @@ func UpdateUser(c *gin.Context) {
 		Function:  utils.GetCurrentFuncName(),
 		Request:   c.Request,
 		RawBody:   requestSummary})
+}
+
+func validateUpdateInput(c *gin.Context, input *dtos.RegisterRequest, start time.Time, requestSummary string) bool {
+	if input.Email == "" && input.Phonenumber == "" {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Missing mandatory fields email or phone number",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   mandatory,
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   c.Request,
+			RawBody:   requestSummary})
+		return false
+	}
+
+	if input.Phonenumber != "" && !utils.IsValidKenyanPhone(input.Phonenumber) {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Users",
+				Description: "Invalid phone number format",
+				Code:        http.StatusBadRequest,
+			},
+			Message:   "Invalid phone number",
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   c.Request,
+			RawBody:   requestSummary})
+		return false
+	}
+
+	return true
+}
+
+func checkUserUpdateRateLimit(c *gin.Context, userID string, start time.Time, requestSummary string) bool {
+	isAllowed, retryAfter, err := utils.CheckRateLimit(c.Request.Context(), "resend_otp:"+userID, 3, 5*time.Minute)
+	if err != nil {
+		log.Printf("Rate limit error: %v", err)
+	}
+	if !isAllowed {
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Auth",
+				Description: "OTP resend requested too soon for user with ID " + userID,
+				Code:        http.StatusTooManyRequests,
+			},
+			Message:   fmt.Sprintf("Please wait %d seconds before requesting a new OTP", retryAfter),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   c.Request,
+			RawBody:   requestSummary,
+		})
+		return false
+	}
+	return true
+}
+
+func validateUserUpdateUniqueness(c *gin.Context, userID string, input *dtos.RegisterRequest, currentUser *dtos.Users, start time.Time, requestSummary string) (emailChanged bool, phoneChanged bool, valid bool) {
+	emailChanged = input.Email != "" && input.Email != currentUser.Email
+	phoneChanged = input.Phonenumber != "" && input.Phonenumber != currentUser.Phone
+
+	tenantID := middleware.TenantIDFromContext(c.Request.Context())
+	if emailChanged {
+		if exists, _ := models.EmailExistsForOtherUser(models.DB, userID, input.Email, tenantID); exists {
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Users",
+					Description: "Email already exists for another user",
+					Code:        http.StatusConflict,
+				},
+				Message:   "Email already exists",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   c.Request,
+				RawBody:   requestSummary})
+			return emailChanged, phoneChanged, false
+		}
+	}
+	if phoneChanged {
+		if exists, _ := models.PhoneExistsForOtherUser(models.DB, userID, input.Phonenumber, tenantID); exists {
+			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
+				CollectiveInfo: utils.CollectiveInfo{
+					Module:      "Users",
+					Description: "Phone number already exists for another user",
+					Code:        http.StatusConflict,
+				},
+				Message:   "Phone number already exists",
+				TimeTaken: time.Since(start),
+				Function:  utils.GetCurrentFuncName(),
+				Request:   c.Request,
+				RawBody:   requestSummary})
+			return emailChanged, phoneChanged, false
+		}
+	}
+	return emailChanged, phoneChanged, true
+}
+
+func dispatchUserUpdateOTP(currentUser *dtos.Users, input *dtos.RegisterRequest, emailChanged, phoneChanged bool, otp string) {
+	dispatchReq := dtos.LoginRequest{}
+	if emailChanged {
+		dispatchReq.Email = input.Email
+	}
+	if phoneChanged {
+		dispatchReq.Phone = input.Phonenumber
+	}
+
+	dispatchUser := &dtos.User{
+		Email: input.Email,
+		Phone: input.Phonenumber,
+	}
+	if dispatchUser.Email == "" {
+		dispatchUser.Email = currentUser.Email
+	}
+	if dispatchUser.Phone == "" {
+		dispatchUser.Phone = currentUser.Phone
+	}
+
+	dispatchOTP(dispatchUser, otp, dispatchReq)
 }
 
 // DeleteUserByAdmin deletes a user by their ID.
