@@ -42,13 +42,13 @@ func GetWalletBalanceHandler(c *gin.Context) {
 	rows, _ := models.DB.Query(`SELECT id, type, amount, reference, description, created_at FROM wallet_transactions WHERE user_phone = ? ORDER BY id DESC LIMIT 20`, userPhone)
 	defer rows.Close()
 
-	var transactions []map[string]interface{}
+	var transactions []map[string]any
 	for rows.Next() {
 		var id int
 		var txType, ref, desc, createdAt string
 		var amount float64
 		rows.Scan(&id, &txType, &amount, &ref, &desc, &createdAt)
-		transactions = append(transactions, map[string]interface{}{
+		transactions = append(transactions, map[string]any{
 			"id":          id,
 			"type":        txType,
 			"amount":      amount,
@@ -64,7 +64,7 @@ func GetWalletBalanceHandler(c *gin.Context) {
 			Description: "Wallet balance fetched successfully",
 			Code:        http.StatusOK,
 		},
-		Payload: map[string]interface{}{
+		Payload: map[string]any{
 			"user_phone":   userPhone,
 			"balance":      balance,
 			"transactions": transactions,

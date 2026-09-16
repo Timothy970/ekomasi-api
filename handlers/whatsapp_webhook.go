@@ -145,7 +145,7 @@ func RegisterWhatsAppPublicKeyHandler(c *gin.Context) {
 		return
 	}
 
-	var jsonResult map[string]interface{}
+	var jsonResult map[string]any
 	if err := json.Unmarshal(respBody, &jsonResult); err != nil {
 		c.JSON(resp.StatusCode, gin.H{"raw_response": string(respBody)})
 		return

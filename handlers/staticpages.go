@@ -25,7 +25,7 @@ import (
 // @Accept       json
 // @Produce      json
 // @Param        page  body      dtos.StaticPageRequest   true  "Static page content"
-// @Success      201   {object}  map[string]interface{}     "Page created successfully"
+// @Success      201   {object}  map[string]any     "Page created successfully"
 // @Failure      400   {object}  dtos.ErrorResponse       "Invalid request or validation failed"
 // @Failure      401   {object}  dtos.ErrorResponse       "Admin authorization required"
 // @Failure      404   {object}  dtos.ErrorResponse       "Failed to create page"
@@ -99,7 +99,7 @@ func CreateStaticPage(c *gin.Context) {
 // @Tags         Static Pages
 // @Produce      json
 // @Param        q  query     string                 false  "Search query for filtering pages"
-// @Success      200         {array}   map[string]interface{}       "Static pages list"
+// @Success      200         {array}   map[string]any       "Static pages list"
 // @Failure      404         {object}  dtos.ErrorResponse    "Failed to fetch pages"
 // @Router       /api/static-pages [get]
 func GetStaticPages(c *gin.Context) {
@@ -153,7 +153,7 @@ func GetStaticPages(c *gin.Context) {
 // @Tags         Static Pages
 // @Produce      json
 // @Param        static_page_id  path      string              true  "Static page ID"
-// @Success      200             {object}  map[string]interface{}     "Static page details"
+// @Success      200             {object}  map[string]any     "Static page details"
 // @Failure      404             {object}  dtos.ErrorResponse  "Page not found"
 // @Router       /api/static-pages/{static_page_id} [get]
 func GetStaticPageByID(c *gin.Context) {
@@ -206,7 +206,7 @@ func GetStaticPageByID(c *gin.Context) {
 // @Tags         Static Pages
 // @Produce      json
 // @Param        static_page_id  path      string                true  "Static page ID"
-// @Success      200             {object}  map[string]interface{}  "Page deleted successfully"
+// @Success      200             {object}  map[string]any  "Page deleted successfully"
 // @Failure      401             {object}  dtos.ErrorResponse    "Admin authorization required"
 // @Failure      404             {object}  dtos.ErrorResponse    "Page not found or deletion failed"
 // @Security     BearerAuth
@@ -269,7 +269,7 @@ func DeleteStaticPage(c *gin.Context) {
 // @Produce      json
 // @Param        static_page_id  path      string                  true  "Static page ID"
 // @Param        page            body      dtos.StaticPageRequest  true  "Updated page content"
-// @Success      200             {object}  map[string]interface{}       "Updated page details"
+// @Success      200             {object}  map[string]any       "Updated page details"
 // @Failure      400             {object}  dtos.ErrorResponse      "Invalid request or validation failed"
 // @Failure      401             {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Failure      404             {object}  dtos.ErrorResponse      "Page not found or update failed"

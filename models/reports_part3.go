@@ -49,7 +49,7 @@ func ExportAccountsToCSV(w io.Writer, accountType, codePrefix, q string) error {
 		FROM chart_of_accounts
 		WHERE 1=1
 	`
-	var args []interface{}
+	var args []any
 
 	// Add account type filter if provided
 	if accountType != "" {
@@ -208,7 +208,7 @@ func ExportJournalEntriesToCSV(w io.Writer, startDate, endDate, accountID, q str
 		JOIN chart_of_accounts ca ON jel.account_id = ca.account_id
 		WHERE 1=1
 	`
-	var args []interface{}
+	var args []any
 
 	// Add start date filter if provided
 	if startDate != "" {

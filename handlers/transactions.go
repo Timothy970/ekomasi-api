@@ -26,7 +26,7 @@ import (
 // @Param        size    query     int                       false  "Page size (default: 10)"
 // @Param        status  query     string                    false  "Filter by transaction status (e.g., pending, completed, failed)"
 // @Param        q       query     string                    false  "Search query"
-// @Success      200     {object}  map[string]interface{}    "Transactions with pagination metadata"
+// @Success      200     {object}  map[string]any    "Transactions with pagination metadata"
 // @Failure      400     {object}  dtos.ErrorResponse        "Failed to fetch transactions"
 // @Failure      401     {object}  dtos.ErrorResponse        "Admin authorization required"
 // @Security     BearerAuth
@@ -91,7 +91,7 @@ func GetAllTransactionHandler(c *gin.Context) {
 // @Tags         Transactions
 // @Produce      json
 // @Param        transaction_id  path      string                 true  "Transaction ID"
-// @Success      200             {object}  map[string]interface{}       "Transaction details"
+// @Success      200             {object}  map[string]any       "Transaction details"
 // @Failure      400             {object}  dtos.ErrorResponse     "Failed to fetch transaction"
 // @Failure      401             {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Security     BearerAuth
@@ -154,7 +154,7 @@ func GetTransactionByIDHandler(c *gin.Context) {
 // @Produce      json
 // @Param        transaction_id  path      string                         true  "Transaction ID"
 // @Param        status          body      dtos.UpdateTransactionStatus   true  "New transaction status"
-// @Success      200             {object}  map[string]interface{}           "Transaction status updated successfully"
+// @Success      200             {object}  map[string]any           "Transaction status updated successfully"
 // @Failure      400             {object}  dtos.ErrorResponse             "Invalid request or update failed"
 // @Failure      401             {object}  dtos.ErrorResponse             "Admin authorization required"
 // @Security     BearerAuth

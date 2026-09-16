@@ -17,7 +17,7 @@ import (
 // @Tags         Products
 // @Produce      json
 // @Param        bulk_product_id  query  string  true  "Bulk Product ID"
-// @Success      200   {object}  map[string]interface{}
+// @Success      200   {object}  map[string]any
 // @Failure      400   {object}  dtos.ErrorResponse
 // @Failure      401   {object}  dtos.ErrorResponse
 // @Security     BearerAuth

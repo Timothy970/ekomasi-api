@@ -29,7 +29,7 @@ func (m *MockUtilsService) GetRequestSummary(r *http.Request) string {
 	return args.String(0)
 }
 
-func (m *MockUtilsService) ValidateStructAndRespond(req interface{}, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) bool {
+func (m *MockUtilsService) ValidateStructAndRespond(req any, w http.ResponseWriter, r *http.Request, requestSummary string, start time.Time) bool {
 	args := m.Called(req, w, r, requestSummary, start)
 	return args.Bool(0)
 }
@@ -89,7 +89,7 @@ func setupMockDB(t *testing.T) (sqlmock.Sqlmock, func()) {
 func TestRegisterHandler(t *testing.T) {
 	tests := []struct {
 		name           string
-		requestBody    interface{}
+		requestBody    any
 		setupMocks     func(dbMock sqlmock.Sqlmock, redisMock redismock.ClientMock)
 		expectedStatus int
 	}{
@@ -107,7 +107,7 @@ func TestRegisterHandler(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows([]string{"user_id", "first_name", "last_name", "email", "name", "role_id", "phone_number", "status"}))
 
 				// Expect Redis store for temporary registration data
-				expectedData, _ := json.Marshal(map[string]interface{}{
+				expectedData, _ := json.Marshal(map[string]any{
 					"email":     "test@example.com",
 					"phone":     "",
 					"firstname": "John",

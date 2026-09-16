@@ -88,7 +88,7 @@ func LogHTTPRequest(ctx context.Context, method, path, statusCode string, durati
 }
 
 // LogBusinessEvent logs business events with trace context
-func LogBusinessEvent(ctx context.Context, eventType, eventID string, data map[string]interface{}) {
+func LogBusinessEvent(ctx context.Context, eventType, eventID string, data map[string]any) {
 	args := []any{
 		"event_type", eventType,
 		"event_id", eventID,

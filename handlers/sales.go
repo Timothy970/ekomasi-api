@@ -32,7 +32,7 @@ var (
 // @Produce      json
 // @Param        start_date  query     string                     false  "Start date (YYYY-MM-DD)"
 // @Param        end_date    query     string                     false  "End date (YYYY-MM-DD)"
-// @Success      200         {object}  map[string]interface{}    "Sales trends summary"
+// @Success      200         {object}  map[string]any    "Sales trends summary"
 // @Failure      404         {object}  dtos.ErrorResponse         "Failed to generate report"
 // @Router       /api/reports/sales/trends/summary [get]
 func GetSalesTrendsSummary(c *gin.Context) {
@@ -95,7 +95,7 @@ func GetSalesTrendsSummary(c *gin.Context) {
 // @Param        start_date  query     string                     false  "Start date (YYYY-MM-DD)"
 // @Param        end_date    query     string                     false  "End date (YYYY-MM-DD)"
 // @Param        period      query     string                     false  "Time granularity (daily, weekly, monthly) default: daily"
-// @Success      200         {object}  map[string]interface{}    "Sales trends over time"
+// @Success      200         {object}  map[string]any    "Sales trends over time"
 // @Failure      500         {object}  dtos.ErrorResponse         "Failed to generate report"
 // @Router       /api/reports/sales/trends/overtime [get]
 func GetSalesTrendsOverTime(c *gin.Context) {
@@ -158,7 +158,7 @@ func GetSalesTrendsOverTime(c *gin.Context) {
 // @Produce      json
 // @Param        start_date  query     string                              false  "Start date (YYYY-MM-DD)"
 // @Param        end_date    query     string                              false  "End date (YYYY-MM-DD)"
-// @Success      200         {object}  map[string]interface{}             "Customer segmentation data"
+// @Success      200         {object}  map[string]any             "Customer segmentation data"
 // @Failure      404         {object}  dtos.ErrorResponse                  "Failed to generate report"
 // @Router       /api/reports/sales/customer-segmentation [get]
 func GetCustomerSegmentation(c *gin.Context) {
@@ -218,7 +218,7 @@ func GetCustomerSegmentation(c *gin.Context) {
 // @Description  Retrieve high-level sales performance summary with key metrics
 // @Tags         Sales
 // @Produce      json
-// @Success      200  {object}  map[string]interface{}     "Sales overview data"
+// @Success      200  {object}  map[string]any     "Sales overview data"
 // @Failure      404  {object}  dtos.ErrorResponse     "Failed to retrieve overview"
 // @Router       /api/reports/sales/overview [get]
 func GetSalesOverview(c *gin.Context) {

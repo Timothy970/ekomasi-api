@@ -236,7 +236,7 @@ func parseMetadata(log *dtos.UserLog, meta string) error {
 	}
 
 	// Unmarshal JSON to map
-	var metadata map[string]interface{}
+	var metadata map[string]any
 	if err := json.Unmarshal([]byte(meta), &metadata); err != nil {
 		return fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}

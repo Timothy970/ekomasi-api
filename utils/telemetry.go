@@ -83,7 +83,7 @@ func NewWrappedDB(db *sql.DB) *WrappedDB {
 }
 
 // Exec wraps sql.DB.Exec with tracing
-func (w *WrappedDB) Exec(query string, args ...interface{}) (sql.Result, error) {
+func (w *WrappedDB) Exec(query string, args ...any) (sql.Result, error) {
 	var result sql.Result
 	var err error
 	start := time.Now()
@@ -100,7 +100,7 @@ func (w *WrappedDB) Exec(query string, args ...interface{}) (sql.Result, error) 
 }
 
 // Query wraps sql.DB.Query with tracing
-func (w *WrappedDB) Query(query string, args ...interface{}) (*sql.Rows, error) {
+func (w *WrappedDB) Query(query string, args ...any) (*sql.Rows, error) {
 	var rows *sql.Rows
 	var err error
 	start := time.Now()
@@ -117,7 +117,7 @@ func (w *WrappedDB) Query(query string, args ...interface{}) (*sql.Rows, error) 
 }
 
 // QueryRow wraps sql.DB.QueryRow with tracing
-func (w *WrappedDB) QueryRow(query string, args ...interface{}) *sql.Row {
+func (w *WrappedDB) QueryRow(query string, args ...any) *sql.Row {
 	var row *sql.Row
 	start := time.Now()
 
@@ -167,7 +167,7 @@ func (w *WrappedDB) PrepareContext(ctx context.Context, query string) (*sql.Stmt
 }
 
 // ExecContext wraps sql.DB.ExecContext with tracing
-func (w *WrappedDB) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+func (w *WrappedDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	var result sql.Result
 	var err error
 	start := time.Now()
@@ -184,7 +184,7 @@ func (w *WrappedDB) ExecContext(ctx context.Context, query string, args ...inter
 }
 
 // QueryContext wraps sql.DB.QueryContext with tracing
-func (w *WrappedDB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+func (w *WrappedDB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	var rows *sql.Rows
 	var err error
 	start := time.Now()
@@ -201,7 +201,7 @@ func (w *WrappedDB) QueryContext(ctx context.Context, query string, args ...inte
 }
 
 // QueryRowContext wraps sql.DB.QueryRowContext with tracing
-func (w *WrappedDB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+func (w *WrappedDB) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
 	var row *sql.Row
 	start := time.Now()
 
@@ -237,7 +237,7 @@ func (w *WrappedRedis) Get(ctx context.Context, key string) *redis.StringCmd {
 }
 
 // Set wraps redis.Client.Set with tracing
-func (w *WrappedRedis) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd {
+func (w *WrappedRedis) Set(ctx context.Context, key string, value any, expiration time.Duration) *redis.StatusCmd {
 	cmd := w.Client.Set(ctx, key, value, expiration)
 	start := time.Now()
 
@@ -282,7 +282,7 @@ func (w *WrappedRedis) HGet(ctx context.Context, key, field string) *redis.Strin
 }
 
 // HSet wraps redis.Client.HSet with tracing
-func (w *WrappedRedis) HSet(ctx context.Context, key string, values ...interface{}) *redis.IntCmd {
+func (w *WrappedRedis) HSet(ctx context.Context, key string, values ...any) *redis.IntCmd {
 	cmd := w.Client.HSet(ctx, key, values...)
 	start := time.Now()
 

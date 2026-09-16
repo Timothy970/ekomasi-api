@@ -27,7 +27,7 @@ import (
 // @Produce      json
 // @Param        location_id  path      int                   true  "Location ID"
 // @Param        location     body      dtos.UpdateLocation   true  "Updated location details"
-// @Success      200          {object}  map[string]interface{}  "Location updated successfully"
+// @Success      200          {object}  map[string]any  "Location updated successfully"
 // @Failure      400          {object}  dtos.ErrorResponse    "Update failed"
 // @Failure      401          {object}  dtos.ErrorResponse    "Admin authorization required"
 // @Security     BearerAuth
@@ -99,7 +99,7 @@ func UpdateLocation(c *gin.Context) {
 // @Tags         Admin
 // @Produce      json
 // @Param        location_id  path      int                   true  "Location ID"
-// @Success      200          {object}  map[string]interface{}  "Location deleted successfully"
+// @Success      200          {object}  map[string]any  "Location deleted successfully"
 // @Failure      400          {object}  dtos.ErrorResponse    "Deletion failed"
 // @Failure      401          {object}  dtos.ErrorResponse    "Admin authorization required"
 // @Security     BearerAuth
@@ -160,7 +160,7 @@ func DeleteLocation(c *gin.Context) {
 // @Tags         Delivery Feedback
 // @Produce      json
 // @Param        feedback_id  path      string                true  "Feedback ID"
-// @Success      200          {object}  map[string]interface{}  "Feedback deleted successfully"
+// @Success      200          {object}  map[string]any  "Feedback deleted successfully"
 // @Failure      400          {object}  dtos.ErrorResponse    "Deletion failed"
 // @Router       /api/deliveries/feedback/{feedback_id} [delete]
 func DeleteFeedbackHandler(c *gin.Context) {

@@ -30,7 +30,7 @@ import (
 // @Param        time_range       query     string  false  "Time range (e.g., 'today', 'week')"
 // @Param        order_id         query     string  false  "Filter by Order ID"
 // @Param        q                query     string  false  "Search query"
-// @Success      200              {object}  map[string]interface{}
+// @Success      200              {object}  map[string]any
 // @Failure      401              {object}  dtos.ErrorResponse
 // @Failure      500              {object}  dtos.ErrorResponse
 // @Security     BearerAuth
@@ -115,7 +115,7 @@ func RiderListOrders(c *gin.Context) {
 // @Tags         Rider
 // @Produce      json
 // @Param        order_id   path      int     true  "Order ID"
-// @Success      200        {object}  map[string]interface{}
+// @Success      200        {object}  map[string]any
 // @Failure      400        {object}  dtos.ErrorResponse
 // @Failure      401        {object}  dtos.ErrorResponse
 // @Failure      500        {object}  dtos.ErrorResponse
@@ -237,7 +237,7 @@ func handleSendOrderAssignmentNotification(req dtos.AssignOrderToRiderRequest) {
 // @Produce      json
 // @Param        order_id     path      int     true  "Order ID"
 // @Param        order_status query     string  true  "New order status"
-// @Success      200          {object}  map[string]interface{}
+// @Success      200          {object}  map[string]any
 // @Failure      400          {object}  dtos.ErrorResponse
 // @Failure      401          {object}  dtos.ErrorResponse
 // @Failure      500          {object}  dtos.ErrorResponse

@@ -1,7 +1,3 @@
-// Package handlers provides HTTP request handlers for supplier management.
-// This file contains handlers for managing suppliers in the e-commerce platform,
-// including CRUD operations for supplier information, contact details, and business relationships.
-// Suppliers are critical for inventory management and purchase order fulfillment.
 package handlers
 
 import (
@@ -15,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// supplierWithID is a constant prefix for supplier-related log messages
 var supplierWithID = "Supplier with ID "
 
 // CreateSupplier creates a new supplier in the system.
@@ -28,7 +23,7 @@ var supplierWithID = "Supplier with ID "
 // @Accept       json
 // @Produce      json
 // @Param        supplier  body      dtos.Supplier           true  "Supplier details"
-// @Success      200       {object}  map[string]interface{}    "Supplier created successfully"
+// @Success      200       {object}  map[string]any    "Supplier created successfully"
 // @Failure      400       {object}  dtos.ErrorResponse      "Invalid request or validation failed"
 // @Failure      401       {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
@@ -99,7 +94,7 @@ func CreateSupplier(c *gin.Context) {
 // @Produce      json
 // @Param        page  query     int                       false  "Page number (default: 1)"
 // @Param        size  query     int                       false  "Page size (default: 10)"
-// @Success      200   {object}  map[string]interface{}    "Suppliers with pagination metadata"
+// @Success      200   {object}  map[string]any    "Suppliers with pagination metadata"
 // @Failure      401   {object}  dtos.ErrorResponse        "Admin authorization required"
 // @Failure      500   {object}  dtos.ErrorResponse        "Failed to list suppliers"
 // @Security     BearerAuth
@@ -155,7 +150,7 @@ func ListSuppliers(c *gin.Context) {
 		meta = cachedPagination
 	}
 	// Construct response with suppliers and pagination metadata
-	resp := map[string]interface{}{
+	resp := map[string]any{
 		"suppliers":  suppliers,
 		"pagination": meta,
 	}
@@ -243,7 +238,7 @@ func GetSupplierByID(c *gin.Context) {
 // @Produce      json
 // @Param        supplier_id  path      string                  true  "Supplier ID"
 // @Param        supplier     body      dtos.Supplier           true  "Updated supplier details"
-// @Success      200          {object}  map[string]interface{}    "Supplier updated successfully"
+// @Success      200          {object}  map[string]any    "Supplier updated successfully"
 // @Failure      400          {object}  dtos.ErrorResponse      "Invalid request or validation failed"
 // @Failure      401          {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Failure      404          {object}  dtos.ErrorResponse      "Supplier not found"
@@ -328,55 +323,8 @@ func UpdateSupplier(c *gin.Context) {
 // @Tags         Suppliers
 // @Produce      json
 // @Param        supplier_id  path      string                  true  "Supplier ID"
-// @Success      200          {object}  map[string]interface{}    "Supplier deleted successfully"
+// @Success      200          {object}  map[string]any    "Supplier deleted successfully"
 // @Failure      401          {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Failure      404          {object}  dtos.ErrorResponse      "Supplier not found"
 // @Security     BearerAuth
 // @Router       /api/suppliers/{supplier_id} [delete]
-func DeleteSupplier(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Verify user has admin privileges (only admins can delete suppliers)
-	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Suppliers", "suppliers.delete")
-	if !ok {
-		// Authorization failed, RequireAdmin already sent error response
-		return
-	}
-
-	// Extract supplier ID from URL path parameters
-	id := c.Param("supplier_id")
-
-	// Delete supplier from database (may be soft delete)
-	if err := models.DeleteSupplier(models.DB, id); err != nil {
-		// Supplier not found or database error
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Suppliers",
-				Description: "Failed to delete supplier with ID " + id,
-				Code:        http.StatusNotFound,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	// Invalidate supplier caches to ensure fresh data after deletion
-	utils.DeleteCacheByPrefix("suppliers_")
-	utils.DeleteCacheByPrefix("suppliers_pagination_")
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Suppliers",
-			Description: supplierWithID + id + " deleted successfully",
-			Code:        http.StatusOK,
-		},
-		Payload:   nil,
-		Message:   "Supplier deleted successfully",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request:   c.Request,
-		RawBody:   requestSummary})
-}

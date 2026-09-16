@@ -26,7 +26,7 @@ var paymentid = "payment_id = ?"
 // and merchant request IDs for both product orders and voucher purchases.
 //
 // Parameters:
-//   - response: map[string]interface{} containing M-Pesa API response with:
+//   - response: map[string]any containing M-Pesa API response with:
 //   - CheckoutRequestID: Unique checkout request identifier from M-Pesa
 //   - MerchantRequestID: Merchant's request identifier from M-Pesa
 //   - req: dtos.MpesaRequest containing:
@@ -42,7 +42,7 @@ var paymentid = "payment_id = ?"
 //   - Type "voucher": Stores without delivery_id, sets type="VOUCHER"
 //   - Type "product": Stores with delivery_id, sets type="PRODUCT"
 //   - Initial status: "PROCESSING"
-func StoreStkResponse(db DBExecutor, response map[string]interface{}, req dtos.MpesaRequest) error {
+func StoreStkResponse(db DBExecutor, response map[string]any, req dtos.MpesaRequest) error {
 	// Extract M-Pesa response IDs safely from interface map
 	checkoutRequestID, _ := response["CheckoutRequestID"].(string)
 	merchantRequestID, _ := response["MerchantRequestID"].(string)

@@ -24,7 +24,7 @@ import (
 // @Produce      json
 // @Param        Authorization  header    string                 true  "Bearer token"
 // @Param        wishlist_id    path      string                 true  "Wishlist ID to delete"
-// @Success      200            {object}  map[string]interface{}   "Wishlist deleted successfully"
+// @Success      200            {object}  map[string]any   "Wishlist deleted successfully"
 // @Failure      401            {object}  dtos.ErrorResponse     "User not authenticated"
 // @Failure      404            {object}  dtos.ErrorResponse     "Wishlist not found"
 // @Security     BearerAuth
@@ -95,7 +95,7 @@ func DeleteWishList(c *gin.Context) {
 // @Tags         Wishlist
 // @Produce      json
 // @Param        Authorization  header    string                 true  "Bearer token"
-// @Success      200            {object}  map[string]interface{}   "User's wishlist with products"
+// @Success      200            {object}  map[string]any   "User's wishlist with products"
 // @Failure      401            {object}  dtos.ErrorResponse     "User not authenticated"
 // @Failure      500            {object}  dtos.ErrorResponse     "Failed to retrieve wishlist"
 // @Security     BearerAuth

@@ -92,10 +92,10 @@ func SendGuestCheckoutAccountInvite(phone string, customerName string, orderID s
 */
 
 // SendTemplateMessage helps send a template message via OpenWA API
-// @param to: int
-// @param templateName: string
-// @param templateData: map[string]any
-// @return error
+// Param to: int
+// Param templateName: string
+// Param templateData: map[string]any
+// Return error
 func SendTemplateMessage(to string, templateName string, templateData map[string]any) error {
 	client := GetClient()
 
@@ -123,13 +123,14 @@ func SendTemplateMessage(to string, templateName string, templateData map[string
 }
 
 // SendTextMessage helps send a text message via OpenWA API
-// @param to: int
-// @param message: string
+// Param to: int
+// Param message: string
 // @return error
-// curl -X POST "$BASE/api/sessions/my-session/messages/send-text" \
-//   -H "X-API-Key: $API_KEY" \
-//   -H "Content-Type: application/json" \
-//   -d '{ "chatId": "628123456789@c.us", "text": "Hello from OpenWA!" }'
+//
+//	curl -X POST "$BASE/api/sessions/my-session/messages/send-text" \
+//	  -H "X-API-Key: $API_KEY" \
+//	  -H "Content-Type: application/json" \
+//	  -d '{ "chatId": "628123456789@c.us", "text": "Hello from OpenWA!" }'
 func SendTextMessage(to string, message string) error {
 	client := GetClient()
 	chatID := to + "@c.us"

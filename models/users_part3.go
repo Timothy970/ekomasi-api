@@ -152,7 +152,7 @@ func GetProductsByCategories(db DBExecutor, categories []string, page, size int)
 		LIMIT ? OFFSET ?`
 
 	// Build arguments array for query
-	args := make([]interface{}, len(categories)+2)
+	args := make([]any, len(categories)+2)
 	for i, v := range categories {
 		args[i] = v
 	}

@@ -63,7 +63,7 @@ func GetAllPromoCodesHandler(c *gin.Context) {
 // @Tags         Promotions
 // @Produce      json
 // @Param        promo_id  path      string  true  "Promo code ID"
-// @Success      200       {object}  map[string]interface{}  "Promo code deleted successfully"
+// @Success      200       {object}  map[string]any  "Promo code deleted successfully"
 // @Failure      404       {object}  dtos.ErrorResponse      "Promo code not found"
 // @Failure      500       {object}  dtos.ErrorResponse      "Internal server error"
 // @Security     BearerAuth
@@ -123,7 +123,7 @@ func DeletePromoCodeHandler(c *gin.Context) {
 // @Produce      json
 // @Param        promo_id   path      string                         true  "Promo code ID"
 // @Param        request    body      dtos.PromoCodeStatusRequest    true  "Status change request"
-// @Success      200        {object}  map[string]interface{}         "Status updated successfully"
+// @Success      200        {object}  map[string]any         "Status updated successfully"
 // @Failure      400        {object}  dtos.ErrorResponse             "Invalid request data"
 // @Failure      404        {object}  dtos.ErrorResponse             "Promo code not found"
 // @Failure      500        {object}  dtos.ErrorResponse             "Internal server error"
@@ -204,7 +204,7 @@ func TogglePromoCodeStatusHandler(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        request  body      dtos.AddPromotionToProductRequest  true  "Product-promotion association request"
-// @Success      200      {object}  map[string]interface{}             "Promotion added to product successfully"
+// @Success      200      {object}  map[string]any             "Promotion added to product successfully"
 // @Failure      400      {object}  dtos.ErrorResponse                 "Invalid request data"
 // @Failure      404      {object}  dtos.ErrorResponse                 "Product or promotion not found"
 // @Failure      500      {object}  dtos.ErrorResponse                 "Internal server error"

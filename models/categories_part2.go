@@ -1,31 +1,3 @@
-// Package models provides the category management functionality for the Ekomasi e-commerce platform.
-//
-// This package handles core category operations including:
-//   - Hierarchical category structure (parent categories and subcategories)
-//   - Category CRUD operations with validation
-//   - Product association with categories
-//   - Category existence validation
-//   - Admin category listing with pagination and search
-//   - Category tree retrieval with subcategories
-//
-// Category Features:
-//   - Two-level hierarchy: parent categories and subcategories
-//   - Name uniqueness validation
-//   - Optional parent category assignment
-//   - Product preview (up to 6 products per subcategory)
-//   - Dynamic query building for flexible updates
-//   - Pagination support for admin views
-//   - Search by category name
-//
-// Database Schema:
-//   - categories table: Stores category metadata (category_id, name, parent_category_id, image, description)
-//   - products table: Referenced for category-product associations
-//   - product_images table: Referenced for product image URLs
-//
-// Category Hierarchy:
-//   - Parent categories: parent_category_id IS NULL
-//   - Subcategories: parent_category_id references parent category
-//   - Products: Associated with subcategories via category_id
 package models
 
 import (
@@ -35,13 +7,6 @@ import (
 	"strings"
 )
 
-//   - Category must exist
-//   - New name (if provided) must be unique (excluding current category)
-//   - At least one field must be provided for update
-//
-// Dynamic Update:
-//   - Only non-empty fields in input are included in UPDATE query
-//   - Fields: Name, ParentID, Description, Image
 func UpdateCategory(db DBExecutor, id string, input dtos.UpdateCategoryPayload) (*dtos.Category, error) {
 	// Step 1: Validate category exists
 	if err := CategoryExists(db, id); err != nil {
@@ -66,7 +31,7 @@ func UpdateCategory(db DBExecutor, id string, input dtos.UpdateCategoryPayload) 
 
 	// Step 3: Build dynamic UPDATE query with only non-empty fields
 	setClauses := []string{}
-	args := []interface{}{}
+	args := []any{}
 
 	// Add Name field if provided
 	if input.Name != "" {
@@ -196,7 +161,7 @@ func GetCategoryByID(db DBExecutor, id string) (*dtos.Category, error) {
 // Returns:
 //   - bool: true if record exists, false if not found
 //   - error: Database error if query fails
-func RecordExists(db DBExecutor, table, clause string, args ...interface{}) (bool, error) {
+func RecordExists(db DBExecutor, table, clause string, args ...any) (bool, error) {
 	// Build dynamic EXISTS query
 	query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE %s)", table, clause)
 
@@ -268,116 +233,3 @@ func CategoryExists(db DBExecutor, id string) error {
 //
 // Ordering:
 //   - Results ordered by updated_at DESC (most recently updated first)
-func GetAdminCategories(db DBExecutor, tenantID int, page, limit int, categoryName, categoryType string) ([]dtos.AdminCategoryData, *dtos.PaginationMeta, error) {
-	// Step 1: Get total count for pagination
-	var total int
-	args := []any{tenantID}
-	countQuery := "SELECT COUNT(*) FROM categories WHERE tenant_id = ?"
-	whereClauses := []string{}
-
-	// Add search filter if category name provided
-	if categoryName != "" {
-		whereClauses = append(whereClauses, "name LIKE ?")
-		args = append(args, "%"+categoryName+"%")
-	}
-
-	if categoryType != "" {
-		if strings.ToLower(categoryType) == "parent" {
-			whereClauses = append(whereClauses, "parent_category_id IS NULL")
-		} else if strings.ToLower(categoryType) == "subcategory" {
-			whereClauses = append(whereClauses, "parent_category_id IS NOT NULL")
-		}
-	}
-
-	if len(whereClauses) > 0 {
-		countQuery += " AND " + strings.Join(whereClauses, " AND ")
-	}
-
-	err := db.QueryRow(countQuery, args...).Scan(&total)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Calculate pagination offset
-	offset := (page - 1) * limit
-
-	// Step 2: Build main query with category statistics
-	mainQuery := `
-	       SELECT 
-		       c.category_id,
-		       c.name,
-		       c.parent_category_id,
-		       c.image,
-		       IF(c.parent_category_id IS NULL, 'Parent', 'Subcategory') AS type,
-		       CASE 
-			       WHEN c.parent_category_id IS NULL 
-				       THEN (
-					       SELECT COUNT(*) 
-					       FROM products p 
-					       JOIN categories sc ON sc.category_id = p.category_id
-					       WHERE sc.parent_category_id = c.category_id AND sc.tenant_id = c.tenant_id
-				       )
-			       ELSE (
-				       SELECT COUNT(*) 
-				       FROM products p 
-				       WHERE p.category_id = c.category_id AND p.tenant_id = c.tenant_id
-			       )
-		       END AS items,
-		       (SELECT COUNT(*) FROM categories sc WHERE sc.parent_category_id = c.category_id AND sc.tenant_id = c.tenant_id) AS subcategories,
-		       c.description,
-		       CASE WHEN c.parent_category_id IS NOT NULL THEN (SELECT name FROM categories pc WHERE pc.category_id = c.parent_category_id AND pc.tenant_id = c.tenant_id) ELSE NULL END AS parent_name
-	       FROM categories c`
-
-	mainWhereClauses := []string{}
-	queryArgs := []any{tenantID}
-
-	if categoryName != "" {
-		mainWhereClauses = append(mainWhereClauses, "c.name LIKE ?")
-		queryArgs = append(queryArgs, "%"+categoryName+"%")
-	}
-
-	if categoryType != "" {
-		if strings.ToLower(categoryType) == "parent" {
-			mainWhereClauses = append(mainWhereClauses, "c.parent_category_id IS NULL")
-		} else if strings.ToLower(categoryType) == "subcategory" {
-			mainWhereClauses = append(mainWhereClauses, "c.parent_category_id IS NOT NULL")
-		}
-	}
-
-	mainQuery += " WHERE c.tenant_id = ?"
-	if len(mainWhereClauses) > 0 {
-		mainQuery += " AND " + strings.Join(mainWhereClauses, " AND ")
-	}
-
-	mainQuery += " ORDER BY c.updated_at DESC LIMIT ? OFFSET ?"
-	queryArgs = append(queryArgs, limit, offset)
-
-	rows, err := db.Query(mainQuery, queryArgs...)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer rows.Close()
-
-	var categories []dtos.AdminCategoryData
-	for rows.Next() {
-		var cat dtos.AdminCategoryData
-		var parentName sql.NullString
-		if err := rows.Scan(&cat.ID, &cat.Name, &cat.ParentID, &cat.Image, &cat.Type, &cat.Items, &cat.Subcategories, &cat.Description, &parentName); err != nil {
-			return nil, nil, err
-		}
-		if parentName.Valid {
-			cat.ParentName = &parentName.String
-		}
-		categories = append(categories, cat)
-	}
-
-	pagination := &dtos.PaginationMeta{
-		Page:       page,
-		Size:       limit,
-		TotalItems: total,
-		TotalPages: (total + limit - 1) / limit,
-		HasPrev:    page > 1,
-		HasNext:    offset+limit < total,
-	}
-	return categories, pagination, nil
-}

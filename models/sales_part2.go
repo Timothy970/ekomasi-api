@@ -251,7 +251,7 @@ type RevenueExpenseFilter struct {
 func GetRevenueVsExpenses(filterType string) ([]RevenueExpense, error) {
 	var (
 		query string
-		args  []interface{}
+		args  []any
 	)
 
 	now := time.Now()
@@ -287,7 +287,7 @@ func GetRevenueVsExpenses(filterType string) ([]RevenueExpense, error) {
         `
 
 		// CURRENT YEAR + CURRENT WEEK
-		args = []interface{}{yearWeek}
+		args = []any{yearWeek}
 
 	} else {
 
@@ -321,7 +321,7 @@ func GetRevenueVsExpenses(filterType string) ([]RevenueExpense, error) {
         `
 
 		// CURRENT YEAR for all parameters
-		args = []interface{}{currentYear, currentYear, currentYear}
+		args = []any{currentYear, currentYear, currentYear}
 	}
 
 	// Execute query and collect results

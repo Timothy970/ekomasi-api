@@ -30,7 +30,7 @@ func WhatsAppFlowDataEndpoint(c *gin.Context) {
 		return
 	}
 
-	var responsePayload interface{}
+	var responsePayload any
 
 	// Action router according to Meta Flow Spec
 	switch decryptedReq.Action {
@@ -39,9 +39,9 @@ func WhatsAppFlowDataEndpoint(c *gin.Context) {
 		if version == "" {
 			version = "3.0"
 		}
-		responsePayload = map[string]interface{}{
+		responsePayload = map[string]any{
 			"version": version,
-			"data": map[string]interface{}{
+			"data": map[string]any{
 				"status": "active",
 			},
 		}
@@ -64,57 +64,57 @@ func WhatsAppFlowDataEndpoint(c *gin.Context) {
 	c.String(http.StatusOK, encryptedResponse)
 }
 
-func handleFlowInit(req *utils.FlowDecryptedRequest) map[string]interface{} {
+func handleFlowInit(req *utils.FlowDecryptedRequest) map[string]any {
 	switch req.Screen {
 	case "CATEGORY_SELECT_SCREEN":
-		return map[string]interface{}{
+		return map[string]any{
 			"version": req.Version,
 			"screen":  req.Screen,
-			"data": map[string]interface{}{
+			"data": map[string]any{
 				"categories": getFlowCategories(),
 			},
 		}
 	case "TRACK_ORDER_SCREEN":
-		return map[string]interface{}{
+		return map[string]any{
 			"version": req.Version,
 			"screen":  req.Screen,
-			"data": map[string]interface{}{
+			"data": map[string]any{
 				"recent_orders": getFlowRecentOrders(req.FlowToken),
 			},
 		}
 	case "RETURN_INIT_SCREEN":
-		return map[string]interface{}{
+		return map[string]any{
 			"version": req.Version,
 			"screen":  req.Screen,
-			"data": map[string]interface{}{
+			"data": map[string]any{
 				"delivered_orders": getFlowDeliveredOrders(req.FlowToken),
 			},
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"version": req.Version,
 		"screen":  req.Screen,
-		"data":    map[string]interface{}{},
+		"data":    map[string]any{},
 	}
 }
 
-func handleFlowDataExchange(req *utils.FlowDecryptedRequest) map[string]interface{} {
+func handleFlowDataExchange(req *utils.FlowDecryptedRequest) map[string]any {
 	action, _ := req.Data["action"].(string)
 
 	switch action {
 	case "FETCH_PRODUCTS":
 		catID, _ := req.Data["category_id"].(string)
-		return map[string]interface{}{
+		return map[string]any{
 			"version": req.Version,
 			"screen":  "PRODUCT_DETAIL_SCREEN",
-			"data": map[string]interface{}{
+			"data": map[string]any{
 				"products": getFlowProductsByCategory(catID),
 			},
 		}
 	case "GET_ORDER_STATUS":
 		orderID, _ := req.Data["order_id"].(string)
-		return map[string]interface{}{
+		return map[string]any{
 			"version": req.Version,
 			"screen":  "TRACKING_STATUS_SCREEN",
 			"data":    getFlowOrderStatusDetails(orderID),
@@ -122,23 +122,23 @@ func handleFlowDataExchange(req *utils.FlowDecryptedRequest) map[string]interfac
 	case "GENERATE_RECOMMENDATIONS":
 		budget, _ := req.Data["budget"].(string)
 		occasion, _ := req.Data["occasion"].(string)
-		return map[string]interface{}{
+		return map[string]any{
 			"version": req.Version,
 			"screen":  "RECOMMENDATION_RESULTS_SCREEN",
-			"data": map[string]interface{}{
+			"data": map[string]any{
 				"recommended_products": queryMeilisearchRecommendations(budget, occasion),
 			},
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"version": req.Version,
 		"screen":  req.Screen,
-		"data":    map[string]interface{}{},
+		"data":    map[string]any{},
 	}
 }
 
-func handleFlowSubmission(req *utils.FlowDecryptedRequest) map[string]interface{} {
+func handleFlowSubmission(req *utils.FlowDecryptedRequest) map[string]any {
 	screen := req.Screen
 	payload := req.Data
 
@@ -157,9 +157,9 @@ func handleFlowSubmission(req *utils.FlowDecryptedRequest) map[string]interface{
 			phone, fullName, email, address,
 		)
 
-		return map[string]interface{}{
+		return map[string]any{
 			"screen": "SUCCESS_SCREEN",
-			"data": map[string]interface{}{
+			"data": map[string]any{
 				"message": fmt.Sprintf("Welcome %s! Your profile has been registered successfully.", fullName),
 			},
 		}
@@ -191,9 +191,9 @@ func handleFlowSubmission(req *utils.FlowDecryptedRequest) map[string]interface{
 			}(mpesaReq)
 		}
 
-		return map[string]interface{}{
+		return map[string]any{
 			"screen": "SUCCESS_SCREEN",
-			"data": map[string]interface{}{
+			"data": map[string]any{
 				"order_id": orderID,
 				"message":  fmt.Sprintf("Order #%s placed! M-Pesa STK Push initiated for %s.", orderID, mpesaPhone),
 			},
@@ -221,9 +221,9 @@ func handleFlowSubmission(req *utils.FlowDecryptedRequest) map[string]interface{
 			orderID, userPhone, reason, comments,
 		)
 
-		return map[string]interface{}{
+		return map[string]any{
 			"screen": "SUCCESS_SCREEN",
-			"data": map[string]interface{}{
+			"data": map[string]any{
 				"message": fmt.Sprintf("Return request approved for Order #%s! KES %.2f has been credited to your in-app wallet.", orderID, refundAmount),
 			},
 		}
@@ -243,9 +243,9 @@ func handleFlowSubmission(req *utils.FlowDecryptedRequest) map[string]interface{
 			orderID, rating, feedback, voucherCode,
 		)
 
-		return map[string]interface{}{
+		return map[string]any{
 			"screen": "SUCCESS_SCREEN",
-			"data": map[string]interface{}{
+			"data": map[string]any{
 				"voucher_code": voucherCode,
 				"message":      fmt.Sprintf("Thank you for your feedback! Here is your 10%% discount code: %s", voucherCode),
 			},
@@ -265,18 +265,18 @@ func handleFlowSubmission(req *utils.FlowDecryptedRequest) map[string]interface{
 			giftCode, valueStr, recipientPhone, recipientName, message,
 		)
 
-		return map[string]interface{}{
+		return map[string]any{
 			"screen": "SUCCESS_SCREEN",
-			"data": map[string]interface{}{
+			"data": map[string]any{
 				"gift_code": giftCode,
 				"message":   fmt.Sprintf("Gift Card %s of KES %s generated for %s!", giftCode, valueStr, recipientName),
 			},
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"screen": "SUCCESS_SCREEN",
-		"data": map[string]interface{}{
+		"data": map[string]any{
 			"message": "Action completed successfully.",
 		},
 	}
@@ -311,8 +311,8 @@ func getFlowDeliveredOrders(phone string) []map[string]string {
 	}
 }
 
-func getFlowOrderStatusDetails(orderID string) map[string]interface{} {
-	return map[string]interface{}{
+func getFlowOrderStatusDetails(orderID string) map[string]any {
+	return map[string]any{
 		"order_id":           orderID,
 		"status_label":       "Out for Delivery",
 		"courier_name":       "Ekomasi Express Courier",

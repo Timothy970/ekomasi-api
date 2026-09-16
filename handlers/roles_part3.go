@@ -25,7 +25,7 @@ import (
 // @Produce      json
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        category       query     string                 false  "Filter by category"
-// @Success      200            {object}  map[string]interface{}   "Available permissions"
+// @Success      200            {object}  map[string]any   "Available permissions"
 // @Failure      400            {object}  dtos.ErrorResponse     "Database error"
 // @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Security     BearerAuth
@@ -103,7 +103,7 @@ func GetAvailablePermissions(c *gin.Context) {
 // @Produce      json
 // @Param        Authorization  header    string                      true  "Bearer token"
 // @Param        permission     body      dtos.AvailablePermission    true  "Permission details"
-// @Success      200            {object}  map[string]interface{}        "Permission added"
+// @Success      200            {object}  map[string]any        "Permission added"
 // @Failure      400            {object}  dtos.ErrorResponse          "Validation error or duplicate key"
 // @Failure      401            {object}  dtos.ErrorResponse          "Admin authorization required"
 // @Security     BearerAuth
@@ -166,7 +166,7 @@ func AddAvailablePermission(c *gin.Context) {
 // @Produce      json
 // @Param        Authorization  header    string                      true  "Bearer token"
 // @Param        permission     body      dtos.AvailablePermission    true  "Permission category and key"
-// @Success      200            {object}  map[string]interface{}        "Permission removed"
+// @Success      200            {object}  map[string]any        "Permission removed"
 // @Failure      400            {object}  dtos.ErrorResponse          "Permission not found"
 // @Failure      401            {object}  dtos.ErrorResponse          "Admin authorization required"
 // @Security     BearerAuth
@@ -229,7 +229,7 @@ func RemoveAvailablePermission(c *gin.Context) {
 // @Produce      json
 // @Param        Authorization  header    string                            true  "Bearer token"
 // @Param        permission     body      dtos.UpdateAvailablePermission    true  "Permission update details"
-// @Success      200            {object}  map[string]interface{}              "Permission updated"
+// @Success      200            {object}  map[string]any              "Permission updated"
 // @Failure      400            {object}  dtos.ErrorResponse                "Permission not found or validation error"
 // @Failure      401            {object}  dtos.ErrorResponse                "Admin authorization required"
 // @Security     BearerAuth

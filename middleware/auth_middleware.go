@@ -63,7 +63,7 @@ func GinAuthenticateToken() gin.HandlerFunc {
 			jwtSecret = "secret"
 		}
 
-		token, err := jwt.ParseWithClaims(tokenString, &dtos.CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(tokenString, &dtos.CustomClaims{}, func(token *jwt.Token) (any, error) {
 			return []byte(jwtSecret), nil
 		})
 
@@ -121,7 +121,7 @@ func AuthenticateToken(next http.Handler) http.Handler {
 
 		if tokenString == "" {
 			// No token provided - authentication required
-			response := map[string]interface{}{
+			response := map[string]any{
 				"status_code": http.StatusUnauthorized,
 				"message":     tokenMissingMsg,
 			}
@@ -142,13 +142,13 @@ func AuthenticateToken(next http.Handler) http.Handler {
 			return
 		}
 		// Parse and validate JWT signature and expiration
-		token, err := jwt.ParseWithClaims(tokenString, &dtos.CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(tokenString, &dtos.CustomClaims{}, func(token *jwt.Token) (any, error) {
 			// Return secret key for signature validation
 			return []byte(jwtSecret), nil
 		})
 		if err != nil || !token.Valid {
 			// Token parsing failed or signature invalid or expired
-			response := map[string]interface{}{
+			response := map[string]any{
 				"status_code": http.StatusForbidden,
 				"message":     invalidTokenMsg,
 			}
@@ -213,7 +213,7 @@ func AuthenticateRefreshToken(next http.Handler) http.Handler {
 		}
 
 		// Parse and validate JWT signature and expiration
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 			// Return secret key for signature validation
 			return []byte(os.Getenv("JWT_SECRET")), nil
 		})
@@ -239,7 +239,7 @@ func AuthenticateRefreshToken(next http.Handler) http.Handler {
 		}
 
 		var permissions []string
-		if perms, ok := claims["permissions"].([]interface{}); ok {
+		if perms, ok := claims["permissions"].([]any); ok {
 			for _, perm := range perms {
 				if permStr, ok := perm.(string); ok {
 					permissions = append(permissions, permStr)

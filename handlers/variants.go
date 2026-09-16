@@ -29,7 +29,7 @@ var variantWithID = "Variant with ID "
 // @Accept       json
 // @Produce      json
 // @Param        variant  body      dtos.VariantRequest     true  "Variant details"
-// @Success      200      {object}  map[string]interface{}    "Variant created successfully"
+// @Success      200      {object}  map[string]any    "Variant created successfully"
 // @Failure      400      {object}  dtos.ErrorResponse      "Invalid request or creation failed"
 // @Failure      401      {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
@@ -101,7 +101,7 @@ func CreateVariant(c *gin.Context) {
 // @Param        variants  query     array                    false  "Array of variant JSON objects"
 // @Param        page      query     int                      false  "Page number (default: 1)"
 // @Param        limit     query     int                      false  "Items per page (default: 10)"
-// @Success      200       {object}  map[string]interface{}   "Products matching variants with pagination"
+// @Success      200       {object}  map[string]any   "Products matching variants with pagination"
 // @Failure      400       {object}  dtos.ErrorResponse       "Invalid variant JSON or query failed"
 // @Router       /api/products/variants-products [get]
 func GetVariantProductsHandler(c *gin.Context) {

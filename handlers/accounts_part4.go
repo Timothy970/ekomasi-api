@@ -24,11 +24,11 @@ import (
 // @Produce json
 // @Param entry_id path string true "Journal Entry ID"
 // @Param request body dtos.UpdateJournalEntryRequest true "Journal entry update request"
-// @Success 200 {object} map[string]interface{} "Journal entry updated successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid request body or validation failed"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 404 {object} map[string]interface{} "Journal entry not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Journal entry updated successfully"
+// @Failure 400 {object} map[string]any "Invalid request body or validation failed"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 404 {object} map[string]any "Journal entry not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/entries/{entry_id} [patch]
 // @Security BearerAuth
 func UpdateEntry(c *gin.Context) {
@@ -101,10 +101,10 @@ func UpdateEntry(c *gin.Context) {
 // @Tags Admin
 // @Produce json
 // @Param entry_id path string true "Journal Entry ID"
-// @Success 200 {object} map[string]interface{} "Journal entry deleted successfully"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 404 {object} map[string]interface{} "Journal entry not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Journal entry deleted successfully"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 404 {object} map[string]any "Journal entry not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/entries/{entry_id} [delete]
 // @Security BearerAuth
 func DeleteEntry(c *gin.Context) {

@@ -1,7 +1,3 @@
-// Package handlers provides HTTP request handlers for warehouse management.
-// This file contains handlers for managing warehouse locations in the e-commerce platform,
-// including CRUD operations for warehouse facilities, inventory tracking locations, and
-// distribution center management. Essential for multi-location inventory control and order fulfillment.
 package handlers
 
 import (
@@ -15,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// warehouseWithID is a constant prefix for warehouse-related log messages
 var warehouseWithID = "Warehouse with ID "
 
 // CreateWarehouse creates a new warehouse location in the system.
@@ -28,7 +23,7 @@ var warehouseWithID = "Warehouse with ID "
 // @Accept       json
 // @Produce      json
 // @Param        warehouse  body      dtos.CreateWarehouseRequest  true  "Warehouse creation details"
-// @Success      200        {object}  map[string]interface{}         "Warehouse created successfully"
+// @Success      200        {object}  map[string]any         "Warehouse created successfully"
 // @Failure      400        {object}  dtos.ErrorResponse           "Invalid request or creation failed"
 // @Failure      401        {object}  dtos.ErrorResponse           "Admin authorization required"
 // @Security     BearerAuth
@@ -245,7 +240,7 @@ func GetWarehouse(c *gin.Context) {
 // @Produce      json
 // @Param        warehouse_id  path      string                        true  "Warehouse ID"
 // @Param        warehouse     body      dtos.UpdateWarehouseRequest   true  "Updated warehouse details"
-// @Success      200           {object}  map[string]interface{}          "Warehouse updated successfully"
+// @Success      200           {object}  map[string]any          "Warehouse updated successfully"
 // @Failure      400           {object}  dtos.ErrorResponse            "Invalid request or update failed"
 // @Failure      401           {object}  dtos.ErrorResponse            "Admin authorization required"
 // @Failure      404           {object}  dtos.ErrorResponse            "Warehouse not found"
@@ -316,54 +311,8 @@ func UpdateWarehouse(c *gin.Context) {
 // @Tags         Warehouses
 // @Produce      json
 // @Param        warehouse_id  path      string                  true  "Warehouse ID"
-// @Success      200           {object}  map[string]interface{}    "Warehouse deleted successfully"
+// @Success      200           {object}  map[string]any    "Warehouse deleted successfully"
 // @Failure      401           {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Failure      404           {object}  dtos.ErrorResponse      "Warehouse not found"
 // @Security     BearerAuth
 // @Router       /api/admin/warehouses/{warehouse_id} [delete]
-func DeleteWarehouse(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Verify user has admin privileges (only admins can delete warehouses)
-	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Warehouse", "warehouse.delete")
-	if !ok {
-		// Authorization failed, RequireAdmin already sent error response
-		return
-	}
-	// Extract warehouse ID from URL path parameters
-	id := c.Param("warehouse_id")
-	// Delete warehouse from database (may be soft delete)
-	err := models.DeleteWarehouse(id)
-	if err != nil {
-		// Deletion failed (warehouse not found, has dependencies, or database error)
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Warehouse",
-				Description: "Failed to delete warehouse with ID " + id,
-				Code:        http.StatusNotFound,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	// Invalidate warehouse caches to ensure fresh data
-	utils.DeleteCacheByPrefix("warehouses_")
-	utils.DeleteCacheByPrefix("warehouses_pagination_")
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Warehouse",
-			Description: warehouseWithID + id + " deleted successfully",
-			Code:        http.StatusOK,
-		},
-		Payload:   nil,
-		Message:   "Warehouse deleted successfully",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request:   c.Request,
-		RawBody:   requestSummary})
-}

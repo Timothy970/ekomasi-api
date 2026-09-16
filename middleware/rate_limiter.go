@@ -7,8 +7,32 @@ import (
 	"time"
 
 	"ekomasi_backend/dtos"
+
+	"strings"
+
 	"github.com/gin-gonic/gin"
 )
+
+// getClientIP extracts the real client IP from the request
+func getClientIP(r *http.Request) string {
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		return strings.TrimSpace(ip)
+	}
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		ips := strings.Split(xff, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
+	}
+	if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
+		return strings.TrimSpace(ip)
+	}
+	ip := r.RemoteAddr
+	if pos := strings.LastIndex(ip, ":"); pos != -1 {
+		ip = ip[:pos]
+	}
+	return ip
+}
 
 // GinRateLimiter creates a native Gin Redis token-bucket rate limiter middleware
 func GinRateLimiter(maxRequests int, windowSeconds int, keyPrefix string) gin.HandlerFunc {

@@ -35,7 +35,7 @@ var productWithID = "Product with ID "
 // @Param        review_id   path      string  true   "Review ID"
 // @Param        page        query     int     false  "Page number (default: 1)"
 // @Param        size        query     int     false  "Page size (default: 10)"
-// @Success      200         {object}  map[string]interface{}  "Review details with pagination"
+// @Success      200         {object}  map[string]any  "Review details with pagination"
 // @Failure      500         {object}  dtos.ErrorResponse      "Internal server error"
 // @Router       /api/products/{product_id}/reviews/{review_id} [get]
 func GetReview(c *gin.Context) {
@@ -71,7 +71,7 @@ func GetReview(c *gin.Context) {
 
 	// Build response payload with reviews data
 	// TODO1: Consider caching review data in Redis for better performance
-	response := map[string]interface{}{
+	response := map[string]any{
 		"reviews": reviews,
 	}
 	// Include pagination metadata if available
@@ -106,7 +106,7 @@ func GetReview(c *gin.Context) {
 // @Param        size        query     int     false  "Page size (default: 10)"
 // @Param        sort_by     query     string  false  "Sort order (newest, oldest, highest_rated, lowest_rated)"
 // @Param        ratings     query     int     false  "Filter by rating (1-5 stars)"
-// @Success      200         {object}  map[string]interface{}  "Reviews list with pagination"
+// @Success      200         {object}  map[string]any  "Reviews list with pagination"
 // @Failure      404         {object}  dtos.ErrorResponse      "Product not found"
 // @Failure      500         {object}  dtos.ErrorResponse      "Internal server error"
 // @Router       /api/products/{product_id}/reviews [get]
@@ -161,7 +161,7 @@ func GetProductReviews(c *gin.Context) {
 
 	// Build response payload with reviews data
 	// TODO1: Consider caching review data in Redis for better performance
-	response := map[string]interface{}{
+	response := map[string]any{
 		"reviews": reviews,
 	}
 	// Include pagination metadata if available

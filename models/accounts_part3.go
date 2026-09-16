@@ -111,7 +111,7 @@ var UpdateEntry = func(db DBExecutor, id string, req dtos.UpdateJournalEntryRequ
 	// Update entry header if fields are provided
 	if req.EntryDate != nil || req.Description != nil || req.Reference != nil {
 		query := "UPDATE journal_entries SET "
-		args := []interface{}{}
+		args := []any{}
 		updates := []string{}
 
 		if req.EntryDate != nil {

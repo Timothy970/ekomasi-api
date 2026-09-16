@@ -17,7 +17,7 @@ import (
 // @Tags         Sales
 // @Produce      json
 // @Param        filter  query     string                       false  "Time filter (week, month, quarter, year) default: week"
-// @Success      200     {object}  map[string]interface{}       "Revenue and expenses data"
+// @Success      200     {object}  map[string]any       "Revenue and expenses data"
 // @Failure      404     {object}  dtos.ErrorResponse           "Failed to generate report"
 // @Router       /api/reports/sales/revenue-vs-expenses [get]
 func GetRevenueVsExpenses(c *gin.Context) {
@@ -76,7 +76,7 @@ func GetRevenueVsExpenses(c *gin.Context) {
 // @Description  Retrieve comprehensive overview of revenue, customer count, and order metrics
 // @Tags         Sales
 // @Produce      json
-// @Success      200  {object}  map[string]interface{}     "Business overview data"
+// @Success      200  {object}  map[string]any     "Business overview data"
 // @Failure      404  {object}  dtos.ErrorResponse        "Failed to generate overview"
 // @Router       /api/reports/sales/business-overview [get]
 func GetRevenueCustomersOrdersOverview(c *gin.Context) {

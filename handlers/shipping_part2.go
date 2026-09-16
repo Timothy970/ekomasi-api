@@ -147,7 +147,7 @@ func DecodeRequestBody[T any](c *gin.Context, requestSummary string, start time.
 // @Produce      json
 // @Param        page  query     int                       false  "Page number (default: 1)"
 // @Param        size  query     int                       false  "Page size (default: 10)"
-// @Success      200   {object}  map[string]interface{}    "Locations with pagination"
+// @Success      200   {object}  map[string]any    "Locations with pagination"
 // @Failure      400   {object}  dtos.ErrorResponse        "Failed to retrieve locations"
 // @Router       /api/locations [get]
 func ListLocations(c *gin.Context) {
@@ -196,7 +196,7 @@ func ListLocations(c *gin.Context) {
 		pagination = cachedPagination
 	}
 	// Build response payload with locations and pagination metadata
-	response := map[string]interface{}{
+	response := map[string]any{
 		"locations":  locations,
 		"pagination": pagination,
 	}

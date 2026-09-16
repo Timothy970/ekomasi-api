@@ -19,7 +19,7 @@ import (
 // @Tags         Deals
 // @Produce      json
 // @Param        deal_id  path      string  true  "Deal ID"
-// @Success      200      {object}  map[string]interface{}
+// @Success      200      {object}  map[string]any
 // @Failure      500      {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/deals/{deal_id} [delete]
@@ -68,7 +68,7 @@ func DeleteDealHandler(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        deal_product  body      dtos.ProductDeal  true  "Deal Product Details"
-// @Success      200           {object}  map[string]interface{}
+// @Success      200           {object}  map[string]any
 // @Failure      400           {object}  dtos.ErrorResponse
 // @Failure      500           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
@@ -125,7 +125,7 @@ func AddProductToDealHandler(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        deal_product  body      dtos.ProductDeal  true  "Deal Product Details"
-// @Success      200           {object}  map[string]interface{}
+// @Success      200           {object}  map[string]any
 // @Failure      400           {object}  dtos.ErrorResponse
 // @Failure      500           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
@@ -181,7 +181,7 @@ func RemoveProductFromDealHandler(c *gin.Context) {
 // @Param        deal_id  path      string  true   "Deal ID"
 // @Param        page     query     int     false  "Page number"
 // @Param        size     query     int     false  "Page size"
-// @Success      200      {object}  map[string]interface{}
+// @Success      200      {object}  map[string]any
 // @Failure      500      {object}  dtos.ErrorResponse
 // @Router       /api/deals/{deal_id}/products [get]
 func GetDealWithProductsHandler(c *gin.Context) {
@@ -231,7 +231,7 @@ func GetDealWithProductsHandler(c *gin.Context) {
 // @Param        image     formData  file    true   "Deal Image"
 // @Param        duration  formData  string  true   "Duration (YYYY-MM-DD to YYYY-MM-DD)"
 // @Param        products  formData  string  true   "JSON array of products"
-// @Success      201       {object}  map[string]interface{}
+// @Success      201       {object}  map[string]any
 // @Failure      400       {object}  dtos.ErrorResponse
 // @Failure      500       {object}  dtos.ErrorResponse
 // @Security     BearerAuth

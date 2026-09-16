@@ -91,9 +91,9 @@ func createPaginationMeta(page, limit, total int) *dtos.PaginationMeta {
 //   - strings: []string - Strings to convert
 //
 // Returns:
-//   - []interface{}: Interface slice
-func makeInterfaceSlice(strings []string) []interface{} {
-	args := make([]interface{}, len(strings))
+//   - []any: Interface slice
+func makeInterfaceSlice(strings []string) []any {
+	args := make([]any, len(strings))
 	for i, s := range strings {
 		args[i] = s
 	}

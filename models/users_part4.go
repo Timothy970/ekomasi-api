@@ -99,7 +99,7 @@ func DeletePartnerByID(db DBExecutor, partnerID string) error {
 //   - error: Database error or nil on success
 func GetAllSubscribers(db DBExecutor, size, limit int, q string, startDate string, endDate string) ([]dtos.Subscriber, *dtos.PaginationMeta, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 
 	countQuery := "SELECT COUNT(*) FROM subscribers"
 	selectQuery := `

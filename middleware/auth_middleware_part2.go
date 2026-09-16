@@ -71,7 +71,7 @@ func UserFromContext(ctx context.Context) (AuthenticatedUser, bool) {
 
 // sendResponse marshals and sends a JSON response with specified status code.
 // Generic helper for sending structured JSON responses.
-func sendResponse(response map[string]interface{}, code int, w http.ResponseWriter) {
+func sendResponse(response map[string]any, code int, w http.ResponseWriter) {
 	// Marshal response map to JSON bytes
 	respBytes, err := json.Marshal(response)
 	if err != nil {
@@ -89,7 +89,7 @@ func sendResponse(response map[string]interface{}, code int, w http.ResponseWrit
 // Convenience wrapper for consistent error response format.
 func sendErrorResponse(w http.ResponseWriter, code int, message string) {
 	// Build error response structure
-	response := map[string]interface{}{
+	response := map[string]any{
 		"status_code": code,
 		"message":     message,
 	}
@@ -130,7 +130,7 @@ func IsUserTokenPassed(r *http.Request) (*AuthenticatedUser, bool) {
 	}
 
 	var permissions []string
-	if perms, ok := claims["permissions"].([]interface{}); ok {
+	if perms, ok := claims["permissions"].([]any); ok {
 		for _, perm := range perms {
 			if permStr, ok := perm.(string); ok {
 				permissions = append(permissions, permStr)
@@ -181,7 +181,7 @@ func GetTokenAndAuthenticatedUser(w http.ResponseWriter, r *http.Request) (bool,
 	}
 
 	// Parse and validate JWT signature and expiration
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		// Return secret key for signature validation
 		return []byte(os.Getenv("JWT_SECRET")), nil
 	})
@@ -208,7 +208,7 @@ func GetTokenAndAuthenticatedUser(w http.ResponseWriter, r *http.Request) (bool,
 
 	// Build authenticated user object from validated token claims
 	var permissions []string
-	if perms, ok := claims["permissions"].([]interface{}); ok {
+	if perms, ok := claims["permissions"].([]any); ok {
 		for _, perm := range perms {
 			if permStr, ok := perm.(string); ok {
 				permissions = append(permissions, permStr)

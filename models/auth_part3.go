@@ -38,7 +38,7 @@ import (
 func insertUser(db DBExecutor, userID, roleID string, input dtos.RegisterRequest, role string, tenantID int) error {
 	// Initialize base columns that are always inserted
 	columns := []string{"user_id", "role_id", "role", "tenant_id"}
-	values := []interface{}{userID, roleID, role, tenantID}
+	values := []any{userID, roleID, role, tenantID}
 
 	// Helper function to add optional fields only if not empty
 	addIfNotEmpty := func(field string, value string) {
@@ -121,10 +121,10 @@ func isEmailAndPhoneThere(db DBExecutor, email, phone, userID string, tenantID i
 //
 // Returns:
 //   - []string: Array of SET clauses for the UPDATE query
-//   - []interface{}: Array of values corresponding to the SET clauses
-func buildUpdateFields(input dtos.RegisterRequest, role string) ([]string, []interface{}) {
+//   - []any: Array of values corresponding to the SET clauses
+func buildUpdateFields(input dtos.RegisterRequest, role string) ([]string, []any) {
 	setClauses := []string{}
-	values := []interface{}{}
+	values := []any{}
 
 	// Add firstname to update if provided
 	if input.Firstname != "" {

@@ -101,7 +101,7 @@ func GetShippingCostHandler(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        location  body      dtos.ShippingCostResponse  true  "Location and rate details"
-// @Success      200       {object}  map[string]interface{}       "Location added successfully"
+// @Success      200       {object}  map[string]any       "Location added successfully"
 // @Failure      400       {object}  dtos.ErrorResponse         "Invalid request or duplicate location"
 // @Failure      401       {object}  dtos.ErrorResponse         "Admin authorization required"
 // @Security     BearerAuth
@@ -173,7 +173,7 @@ func StoreShippingRates(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        feedback  body      dtos.DeliveryFeedback   true  "Delivery feedback details"
-// @Success      200       {object}  map[string]interface{}    "Feedback submitted successfully"
+// @Success      200       {object}  map[string]any    "Feedback submitted successfully"
 // @Failure      400       {object}  dtos.ErrorResponse      "Invalid feedback data"
 // @Router       /api/deliveries/feedback [post]
 func SubmitFeedbackHandler(c *gin.Context) {

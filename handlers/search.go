@@ -23,7 +23,7 @@ func SearchProductsFacetedHandler(c *gin.Context) {
 
 	// Build dynamic SQL query for fast search with facet filters
 	sqlQuery := `SELECT id, name, slug, price, stock, image_url, created_at FROM products WHERE status = 'active'`
-	args := []interface{}{}
+	args := []any{}
 
 	if query != "" {
 		sqlQuery += ` AND (name LIKE ? OR description LIKE ?)`
@@ -54,7 +54,7 @@ func SearchProductsFacetedHandler(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	var products []map[string]interface{}
+	var products []map[string]any
 	for rows.Next() {
 		var id int
 		var name, slug, imageURL, createdAt string
@@ -62,7 +62,7 @@ func SearchProductsFacetedHandler(c *gin.Context) {
 		var stock int
 		rows.Scan(&id, &name, &slug, &price, &stock, &imageURL, &createdAt)
 
-		products = append(products, map[string]interface{}{
+		products = append(products, map[string]any{
 			"id":         id,
 			"name":       name,
 			"slug":       slug,
@@ -79,7 +79,7 @@ func SearchProductsFacetedHandler(c *gin.Context) {
 			Description: "Faceted search completed",
 			Code:        http.StatusOK,
 		},
-		Payload: map[string]interface{}{
+		Payload: map[string]any{
 			"query":    query,
 			"total":    len(products),
 			"products": products,

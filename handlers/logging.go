@@ -32,10 +32,10 @@ var dateFormat = "2006-01-02"
 // @Param start_date query string false "Start date for date range filter (format: YYYY-MM-DD)"
 // @Param end_date query string false "End date for date range filter (format: YYYY-MM-DD)"
 // @Param q query string false "Search query across log fields"
-// @Success 200 {object} map[string]interface{} "User logs retrieved successfully with pagination"
-// @Failure 400 {object} map[string]interface{} "Invalid date range or parameters"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "User logs retrieved successfully with pagination"
+// @Failure 400 {object} map[string]any "Invalid date range or parameters"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/logs [get]
 // @Security BearerAuth
 func GetUserLogs(c *gin.Context) {
@@ -197,11 +197,11 @@ func isValidDateRange(start, end string) bool {
 // @Param user_id path string true "User ID to retrieve logs for"
 // @Param page query int false "Page number for pagination (default: 1)"
 // @Param size query int false "Number of items per page (default: 10)"
-// @Success 200 {object} map[string]interface{} "User logs retrieved successfully with pagination"
-// @Failure 400 {object} map[string]interface{} "Invalid user ID or parameters"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 404 {object} map[string]interface{} "User not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "User logs retrieved successfully with pagination"
+// @Failure 400 {object} map[string]any "Invalid user ID or parameters"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 404 {object} map[string]any "User not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/logs/user/{user_id} [get]
 // @Security BearerAuth
 func GetUserLogsByUserID(c *gin.Context) {

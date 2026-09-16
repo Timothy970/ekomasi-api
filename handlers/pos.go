@@ -31,9 +31,9 @@ var (
 // @Tags POS
 // @Produce json
 // @Param barcode query string true "Product barcode to scan"
-// @Success 200 {object} map[string]interface{} "Product scanned successfully"
-// @Failure 400 {object} map[string]interface{} "Barcode missing or invalid"
-// @Failure 404 {object} map[string]interface{} "Product not found"
+// @Success 200 {object} map[string]any "Product scanned successfully"
+// @Failure 400 {object} map[string]any "Barcode missing or invalid"
+// @Failure 404 {object} map[string]any "Product not found"
 // @Router /api/pos/scan [get]
 // @Security BearerAuth
 func ScanProductsHandler(c *gin.Context) {
@@ -108,10 +108,10 @@ func ScanProductsHandler(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param request body dtos.CashPayment true "Cash payment details"
-// @Success 200 {object} map[string]interface{} "Payment processed successfully with change details"
-// @Failure 400 {object} map[string]interface{} "Invalid request or insufficient payment"
-// @Failure 404 {object} map[string]interface{} "Order not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Payment processed successfully with change details"
+// @Failure 400 {object} map[string]any "Invalid request or insufficient payment"
+// @Failure 404 {object} map[string]any "Order not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/pos/cash-payment [post]
 // @Security BearerAuth
 func ProcessCashPaymentHandler(c *gin.Context) {
@@ -247,10 +247,10 @@ func ProcessCashPaymentHandler(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param request body dtos.SplitPaymentRequest true "Split payment details with multiple payment methods"
-// @Success 200 {object} map[string]interface{} "Payment processed successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid request, insufficient payment, or unsupported method"
-// @Failure 404 {object} map[string]interface{} "Order not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Payment processed successfully"
+// @Failure 400 {object} map[string]any "Invalid request, insufficient payment, or unsupported method"
+// @Failure 404 {object} map[string]any "Order not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/pos/split-payment [post]
 // @Security BearerAuth
 func ProcessSplitPaymentHandler(c *gin.Context) {

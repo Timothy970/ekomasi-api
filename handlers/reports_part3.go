@@ -215,7 +215,7 @@ func ExportJournalEntriesCSVHandler(c *gin.Context) {
 // @Param        time_range  query  string  false  "Time range (daily, weekly, monthly, yearly)"
 // @Param        page        query  int     false  "Page number (default: 1)"
 // @Param        size        query  int     false  "Page size (default: 10)"
-// @Success      200         {object}  map[string]interface{}  "Top selling products with pagination"
+// @Success      200         {object}  map[string]any  "Top selling products with pagination"
 // @Failure      500         {object}  dtos.ErrorResponse      "Internal server error"
 // @Security     BearerAuth
 // @Router       /reports/top-selling-products [get]

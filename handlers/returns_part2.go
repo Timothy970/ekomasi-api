@@ -83,7 +83,7 @@ func GetReturnByIDHandler(c *gin.Context) {
 // @Tags         Returns
 // @Produce      json
 // @Param        return_id  path      string                true  "Return ID"
-// @Success      200        {object}  map[string]interface{}  "Return deleted successfully"
+// @Success      200        {object}  map[string]any  "Return deleted successfully"
 // @Failure      400        {object}  dtos.ErrorResponse    "Return not found or deletion failed"
 // @Failure      401        {object}  dtos.ErrorResponse    "User not authorized (admin required)"
 // @Security     BearerAuth
@@ -146,7 +146,7 @@ func DeleteReturnHandler(c *gin.Context) {
 // @Param        q       query     string  false  "Search query for order ID or customer name"
 // @Param        page    query     int     false  "Page number (default: 1)"
 // @Param        size    query     int     false  "Page size (default: 10)"
-// @Success      200     {object}  map[string]interface{}  "Returns list with pagination"
+// @Success      200     {object}  map[string]any  "Returns list with pagination"
 // @Failure      400     {object}  dtos.ErrorResponse      "Fetch failed"
 // @Failure      401     {object}  dtos.ErrorResponse      "User not authorized (admin required)"
 // @Security     BearerAuth

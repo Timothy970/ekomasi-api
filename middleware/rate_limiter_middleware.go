@@ -13,8 +13,8 @@ import (
 var RedisClient *redis.Client
 
 // RateLimiterMiddleware creates a Redis token-bucket rate limiter for sensitive routes
-// @param limit: Max allowed requests per window
-// @param windowDuration: Rate limit window (e.g. 1 minute)
+// Param limit: Max allowed requests per window
+// Param windowDuration: Rate limit window (e.g. 1 minute)
 func RateLimiterMiddleware(limit int, windowDuration time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ip := c.ClientIP()

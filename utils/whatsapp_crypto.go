@@ -22,11 +22,11 @@ type FlowEncryptedRequest struct {
 }
 
 type FlowDecryptedRequest struct {
-	Version   string                 `json:"version"`
-	Action    string                 `json:"action"` // "INIT", "data_exchange", "ping"
-	Screen    string                 `json:"screen"`
-	Data      map[string]interface{} `json:"data"`
-	FlowToken string                 `json:"flow_token"`
+	Version   string         `json:"version"`
+	Action    string         `json:"action"` // "INIT", "data_exchange", "ping"
+	Screen    string         `json:"screen"`
+	Data      map[string]any `json:"data"`
+	FlowToken string         `json:"flow_token"`
 }
 
 // DecryptFlowPayload decrypts incoming WhatsApp Flow Data Endpoint payloads using RSA-OAEP and AES-128-GCM
@@ -102,7 +102,7 @@ func DecryptFlowPayload(req FlowEncryptedRequest, privateKeyPEM string) (*FlowDe
 }
 
 // EncryptFlowResponse encrypts outgoing flow response using the AES key and inverted IV per Meta spec
-func EncryptFlowResponse(responseObj interface{}, aesKey []byte, iv []byte) (string, error) {
+func EncryptFlowResponse(responseObj any, aesKey []byte, iv []byte) (string, error) {
 	plainJSON, err := json.Marshal(responseObj)
 	if err != nil {
 		return "", fmt.Errorf("marshal response: %w", err)

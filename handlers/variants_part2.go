@@ -25,7 +25,7 @@ import (
 // @Produce      json
 // @Param        variant_id  path      string                  true  "Variant ID"
 // @Param        variant     body      dtos.VariantRequest     true  "Updated variant details"
-// @Success      200         {object}  map[string]interface{}    "Variant updated successfully"
+// @Success      200         {object}  map[string]any    "Variant updated successfully"
 // @Failure      400         {object}  dtos.ErrorResponse      "Invalid request or update failed"
 // @Failure      401         {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
@@ -96,7 +96,7 @@ func UpdateVariant(c *gin.Context) {
 // @Tags         Variants
 // @Produce      json
 // @Param        variant_id  path      string                  true  "Variant ID"
-// @Success      200         {object}  map[string]interface{}    "Variant deleted successfully"
+// @Success      200         {object}  map[string]any    "Variant deleted successfully"
 // @Failure      400         {object}  dtos.ErrorResponse      "Delete failed"
 // @Failure      401         {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth
@@ -157,7 +157,7 @@ func DeleteVariant(c *gin.Context) {
 // @Produce      json
 // @Param        variant_id  path      string                       true  "Variant ID"
 // @Param        product     body      dtos.ProductVariantRequest   true  "Product variant association details"
-// @Success      200         {object}  map[string]interface{}         "Product added to variant successfully"
+// @Success      200         {object}  map[string]any         "Product added to variant successfully"
 // @Failure      400         {object}  dtos.ErrorResponse           "Invalid request or association failed"
 // @Failure      401         {object}  dtos.ErrorResponse           "Admin authorization required"
 // @Security     BearerAuth
@@ -230,7 +230,7 @@ func AddProductVariant(c *gin.Context) {
 // @Produce      json
 // @Param        variant_id  path      string                  true  "Variant ID"
 // @Param        product_id  path      string                  true  "Product ID"
-// @Success      200         {object}  map[string]interface{}    "Product removed from variant successfully"
+// @Success      200         {object}  map[string]any    "Product removed from variant successfully"
 // @Failure      400         {object}  dtos.ErrorResponse      "Remove operation failed"
 // @Failure      401         {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Security     BearerAuth

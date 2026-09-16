@@ -50,7 +50,7 @@ func GetBulkUploadProducts(db DBExecutor, startDate, endDate, name string, page,
 
 	// Build filter conditions and args
 	var conditions string
-	var args []interface{}
+	var args []any
 
 	if startDate != "" && endDate != "" {
 		conditions += " AND created_at BETWEEN ? AND ?"

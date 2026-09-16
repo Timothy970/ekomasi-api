@@ -23,11 +23,11 @@ import (
 // @Produce json
 // @Param bundle_id path string true "Bundle ID"
 // @Param request body dtos.AddProductsToBundle true "Product IDs to remove from bundle"
-// @Success 200 {object} map[string]interface{} "Products removed successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid request or validation failed"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 404 {object} map[string]interface{} "Bundle not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Products removed successfully"
+// @Failure 400 {object} map[string]any "Invalid request or validation failed"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 404 {object} map[string]any "Bundle not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/bundles/{bundle_id}/products [delete]
 // @Security BearerAuth
 func RemoveProductsFromBundleHandler(c *gin.Context) {

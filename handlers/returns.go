@@ -27,7 +27,7 @@ import (
 // @Accept       json
 // @Produce      json
 // @Param        request  body      dtos.ReturnRequest       true  "Return request details"
-// @Success      201      {object}  map[string]interface{}     "Return request created successfully"
+// @Success      201      {object}  map[string]any     "Return request created successfully"
 // @Failure      400      {object}  dtos.ErrorResponse       "Invalid request or validation failed"
 // @Failure      401      {object}  dtos.ErrorResponse       "User not authenticated"
 // @Security     BearerAuth
@@ -151,7 +151,7 @@ func CreateReturnsHandler(c *gin.Context) {
 // @Produce      json
 // @Param        return_id  path      string                    true  "Return ID"
 // @Param        request    body      dtos.ReturnStatusUpdate   true  "Status update details"
-// @Success      200        {object}  map[string]interface{}      "Status updated successfully"
+// @Success      200        {object}  map[string]any      "Status updated successfully"
 // @Failure      400        {object}  dtos.ErrorResponse        "Invalid request or update failed"
 // @Failure      401        {object}  dtos.ErrorResponse        "User not authorized (admin required)"
 // @Security     BearerAuth

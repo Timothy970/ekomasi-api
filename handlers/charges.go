@@ -223,7 +223,7 @@ func GetAllChargesHandler(c *gin.Context) {
 // @Tags         Charges
 // @Produce      json
 // @Param        charge_id  path      string  true  "Charge ID"
-// @Success      200        {object}  map[string]interface{}
+// @Success      200        {object}  map[string]any
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/charges/{charge_id} [delete]
@@ -271,7 +271,7 @@ func DeleteChargeHandler(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        request  body      dtos.AddChargeToProductRequest  true  "Association Details"
-// @Success      200      {object}  map[string]interface{}
+// @Success      200      {object}  map[string]any
 // @Failure      400      {object}  dtos.ErrorResponse
 // @Failure      500      {object}  dtos.ErrorResponse
 // @Security     BearerAuth

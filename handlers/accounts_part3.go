@@ -22,10 +22,10 @@ import (
 // @Tags Admin
 // @Produce json
 // @Param account_id path string true "Account ID"
-// @Success 200 {object} map[string]interface{} "Account deleted successfully"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 404 {object} map[string]interface{} "Account not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Account deleted successfully"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 404 {object} map[string]any "Account not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/accounts/{account_id} [delete]
 // @Security BearerAuth
 func DeleteAccount(c *gin.Context) {
@@ -95,10 +95,10 @@ func DeleteAccount(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param request body dtos.CreateJournalEntryRequest true "Journal entry creation request"
-// @Success 200 {object} map[string]interface{} "Journal entry created successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid request body or validation failed"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Journal entry created successfully"
+// @Failure 400 {object} map[string]any "Invalid request body or validation failed"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/entries [post]
 // @Security BearerAuth
 func CreateEntry(c *gin.Context) {
@@ -170,9 +170,9 @@ func CreateEntry(c *gin.Context) {
 // @Produce json
 // @Param page query int false "Page number (default: 1)"
 // @Param size query int false "Page size (default: 10)"
-// @Success 200 {object} map[string]interface{} "Journal entries retrieved successfully with pagination metadata"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Journal entries retrieved successfully with pagination metadata"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/entries [get]
 // @Security BearerAuth
 func ListEntries(c *gin.Context) {
@@ -216,7 +216,7 @@ func ListEntries(c *gin.Context) {
 			Description: "Journal entries fetched successfully",
 			Code:        http.StatusOK,
 		},
-		Payload: map[string]interface{}{
+		Payload: map[string]any{
 			"accounts":   entries,
 			"pagination": meta,
 		},
@@ -236,9 +236,9 @@ func ListEntries(c *gin.Context) {
 // @Tags Accounts
 // @Produce json
 // @Param entry_id path string true "Journal Entry ID"
-// @Success 200 {object} map[string]interface{} "Journal entry details retrieved successfully"
-// @Failure 404 {object} map[string]interface{} "Journal entry not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Journal entry details retrieved successfully"
+// @Failure 404 {object} map[string]any "Journal entry not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/entries/{entry_id} [get]
 // @Security BearerAuth
 func GetEntry(c *gin.Context) {

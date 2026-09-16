@@ -35,7 +35,7 @@ var noUser = "User is not validated"
 // @Produce      json
 // @Param        Authorization  header    string                    true   "Bearer token"
 // @Param        wishlist       body      dtos.CreateWishlistItem   true   "Wishlist item to add"
-// @Success      200            {object}  map[string]interface{}      "Product added to wishlist"
+// @Success      200            {object}  map[string]any      "Product added to wishlist"
 // @Failure      400            {object}  dtos.ErrorResponse        "Invalid request"
 // @Failure      401            {object}  dtos.ErrorResponse        "User not authenticated"
 // @Security     BearerAuth
@@ -148,7 +148,7 @@ func AddToWishList(c *gin.Context) {
 // @Produce      json
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        product_id     path      string                 true   "Product ID to remove"
-// @Success      200            {object}  map[string]interface{}   "Product removed from wishlist"
+// @Success      200            {object}  map[string]any   "Product removed from wishlist"
 // @Failure      401            {object}  dtos.ErrorResponse     "User not authenticated"
 // @Failure      404            {object}  dtos.ErrorResponse     "Product not in wishlist"
 // @Security     BearerAuth
@@ -255,7 +255,7 @@ func RemoveFromWishList(c *gin.Context) {
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        page           query     int                    false  "Page number (default: 1)"
 // @Param        size           query     int                    false  "Page size (default: 10)"
-// @Success      200            {object}  map[string]interface{}   "Wishlists with pagination"
+// @Success      200            {object}  map[string]any   "Wishlists with pagination"
 // @Failure      401            {object}  dtos.ErrorResponse     "User not authenticated"
 // @Failure      404            {object}  dtos.ErrorResponse     "No wishlists found"
 // @Security     BearerAuth
@@ -320,7 +320,7 @@ func GetAllUserWishList(c *gin.Context) {
 		return
 	}
 	// Construct response with wishlists and optional pagination metadata
-	response := map[string]interface{}{
+	response := map[string]any{
 		"wishlists": wishlists,
 	}
 	if pagination != nil {

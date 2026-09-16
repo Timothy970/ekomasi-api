@@ -21,10 +21,10 @@ import (
 // @Tags Admin
 // @Produce json
 // @Param payment_option_id path string true "Payment Option ID"
-// @Success 200 {object} map[string]interface{} "Payment option deleted successfully"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 404 {object} map[string]interface{} "Payment option not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Payment option deleted successfully"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 404 {object} map[string]any "Payment option not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/payment-options/{payment_option_id} [delete]
 // @Security BearerAuth
 func DeletePaymentOptionHandler(c *gin.Context) {

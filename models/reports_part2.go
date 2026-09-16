@@ -58,8 +58,8 @@ func CashFlow(from, to time.Time, cashAccountIDs []string) (inflows, outflows, b
 	placeholders = strings.TrimRight(placeholders, ",")
 
 	// Helper function to build query arguments
-	args := func(extra ...interface{}) []interface{} {
-		a := make([]interface{}, 0, len(cashAccountIDs)+len(extra))
+	args := func(extra ...any) []any {
+		a := make([]any, 0, len(cashAccountIDs)+len(extra))
 		for _, id := range cashAccountIDs {
 			a = append(a, id)
 		}
@@ -89,7 +89,7 @@ func CashFlow(from, to time.Time, cashAccountIDs []string) (inflows, outflows, b
 			AND je.entry_date < ?
 		WHERE ca.account_id IN (%s)
 	`, normalBalanceExpr("je"), placeholders)
-	if err = DB.QueryRow(qBegin, append([]interface{}{from}, toAny(cashAccountIDs)...)...).Scan(&beginCash); err != nil {
+	if err = DB.QueryRow(qBegin, append([]any{from}, toAny(cashAccountIDs)...)...).Scan(&beginCash); err != nil {
 		return
 	}
 
@@ -101,22 +101,22 @@ func CashFlow(from, to time.Time, cashAccountIDs []string) (inflows, outflows, b
 			AND je.entry_date <= ?
 		WHERE ca.account_id IN (%s)
 	`, normalBalanceExpr("je"), placeholders)
-	if err = DB.QueryRow(qEnd, append([]interface{}{to}, toAny(cashAccountIDs)...)...).Scan(&endCash); err != nil {
+	if err = DB.QueryRow(qEnd, append([]any{to}, toAny(cashAccountIDs)...)...).Scan(&endCash); err != nil {
 		return
 	}
 
 	return
 }
 
-// toAny converts a string slice to an interface{} slice for SQL query arguments.
+// toAny converts a string slice to an any slice for SQL query arguments.
 //
 // Parameters:
 //   - ss: []string - String slice to convert
 //
 // Returns:
-//   - []interface{} - Interface slice suitable for DB.Query variadic args
-func toAny(ss []string) []interface{} {
-	out := make([]interface{}, len(ss))
+//   - []any - Interface slice suitable for DB.Query variadic args
+func toAny(ss []string) []any {
+	out := make([]any, len(ss))
 	for i, s := range ss {
 		out[i] = s
 	}

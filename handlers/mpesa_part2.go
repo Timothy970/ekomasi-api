@@ -81,8 +81,8 @@ func toInt(s string) int64 {
 
 // store mpesa receipt number
 func storeMpesaMpesaReceiptNumber(items []struct {
-	Name  string      `json:"Name"`
-	Value interface{} `json:"Value"`
+	Name  string `json:"Name"`
+	Value any    `json:"Value"`
 }, orderID string) error {
 	var mpesaCode string
 	for _, item := range items {
@@ -161,8 +161,8 @@ func handleFailedPayment(c *gin.Context, callback dtos.STKCallbackRequest) {
 
 // ✅ extractMetadata now matches the exact struct definition in your DTO
 func extractMetadata(items []struct {
-	Name  string      `json:"Name"`
-	Value interface{} `json:"Value"`
+	Name  string `json:"Name"`
+	Value any    `json:"Value"`
 }) (float64, string, string) {
 	var amount float64
 	var mpesaCode, phone string
@@ -205,7 +205,7 @@ func processOrderUpdate(orderType, deliveryID, orderID, status string) {
 	}
 }
 
-func buildPaymentSuccessPayload(orderID, deliveryID interface{}, status string) map[string]interface{} {
+func buildPaymentSuccessPayload(orderID, deliveryID any, status string) map[string]any {
 	event := "payment_failed"
 	if status == "COMPLETED" {
 		event = "payment_success"
@@ -214,7 +214,7 @@ func buildPaymentSuccessPayload(orderID, deliveryID interface{}, status string) 
 	if status == "COMPLETED" {
 		message = "Your payment was successful!"
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"event":       event,
 		"message":     message,
 		"order_id":    orderID,
@@ -266,7 +266,7 @@ func HandleMpesaVoucherPayment(db models.DBExecutor, orderID, phoneNumber string
 
 func (m *MpesaClient) FetchPayBillBalance() (map[string]any, error) {
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"Initiator":          m.InitiatorName,
 		"SecurityCredential": m.SecurityCredential,
 		"CommandID":          "AccountBalance",
@@ -300,7 +300,7 @@ func (m *MpesaClient) FetchPayBillBalance() (map[string]any, error) {
 	}
 	defer res.Body.Close()
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
 		log.Printf("Error decoding response %s", err)
 		return map[string]any{}, err

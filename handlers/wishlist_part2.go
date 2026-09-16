@@ -32,7 +32,7 @@ import (
 // @Produce      json
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        wishlist       body      dtos.CreateWishlist    true   "Wishlist name and details"
-// @Success      201            {object}  map[string]interface{}   "Wishlist created successfully"
+// @Success      201            {object}  map[string]any   "Wishlist created successfully"
 // @Failure      400            {object}  dtos.ErrorResponse     "Invalid request"
 // @Failure      401            {object}  dtos.ErrorResponse     "User not authenticated"
 // @Security     BearerAuth
@@ -109,7 +109,7 @@ func CreateWishList(c *gin.Context) {
 // @Produce      json
 // @Param        Authorization  header    string                        true   "Bearer token"
 // @Param        share          body      dtos.ShareWishlistPayload     true   "Recipient email and message"
-// @Success      200            {object}  map[string]interface{}          "Wishlist shared successfully"
+// @Success      200            {object}  map[string]any          "Wishlist shared successfully"
 // @Failure      400            {object}  dtos.ErrorResponse            "Invalid request"
 // @Failure      403            {object}  dtos.ErrorResponse            "Wishlist is private"
 // @Failure      404            {object}  dtos.ErrorResponse            "Wishlist not found or empty"
@@ -242,7 +242,7 @@ func SendWishlistToShare(c *gin.Context) {
 // @Tags         Wishlist
 // @Produce      json
 // @Param        wishlist_id  path      string                 true  "Base64-encoded wishlist ID"
-// @Success      200          {object}  map[string]interface{}   "Shared wishlist details"
+// @Success      200          {object}  map[string]any   "Shared wishlist details"
 // @Failure      400          {object}  dtos.ErrorResponse     "Invalid wishlist link"
 // @Failure      403          {object}  dtos.ErrorResponse     "Wishlist is private"
 // @Failure      404          {object}  dtos.ErrorResponse     "Wishlist not found"

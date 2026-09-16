@@ -25,10 +25,10 @@ import (
 // @Accept json
 // @Produce json
 // @Param request body dtos.VoucherPayment true "Voucher payment details"
-// @Success 200 {object} map[string]interface{} "Payment processed successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid voucher or insufficient balance"
-// @Failure 404 {object} map[string]interface{} "Order not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Payment processed successfully"
+// @Failure 400 {object} map[string]any "Invalid voucher or insufficient balance"
+// @Failure 404 {object} map[string]any "Order not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/pos/voucher-payment [post]
 // @Security BearerAuth
 func ProcessVoucherPaymentHandler(c *gin.Context) {
@@ -259,8 +259,8 @@ func updateVoucherBalanceAndHistory(db models.DBExecutor, voucherCode string, vo
 // @Accept json
 // @Produce json
 // @Param request body dtos.CreditPayment true "Credit payment details"
-// @Success 200 {object} map[string]interface{} "Payment processed successfully with change details"
-// @Failure 400 {object} map[string]interface{} "Invalid request or insufficient payment"
-// @Failure 404 {object} map[string]interface{} "Order not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Payment processed successfully with change details"
+// @Failure 400 {object} map[string]any "Invalid request or insufficient payment"
+// @Failure 404 {object} map[string]any "Order not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/pos/credit-payment [post]

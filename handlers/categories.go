@@ -147,7 +147,7 @@ func GetCategoryByIDHandler(c *gin.Context) {
 // @Param        page  query     int     false  "Page number"
 // @Param        size  query     int     false  "Page size"
 // @Param        q     query     string  false  "Search query"
-// @Success      200   {object}  map[string]interface{}
+// @Success      200   {object}  map[string]any
 // @Failure      400   {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/categories [get]
@@ -201,7 +201,7 @@ func AdminGetCategoriesHandler(c *gin.Context) {
 // @Description  Retrieve a hierarchical list of categories and their subcategories
 // @Tags         Categories
 // @Produce      json
-// @Success      200  {object}  map[string]interface{}
+// @Success      200  {object}  map[string]any
 // @Failure      400  {object}  dtos.ErrorResponse
 // @Router       /api/categories/tree [get]
 func GetCategoriesWithSubCategoriesHandler(c *gin.Context) {

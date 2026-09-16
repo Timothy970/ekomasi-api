@@ -161,7 +161,7 @@ func isChartAccountNameAndDescriptionThere(db DBExecutor, name, description stri
 var ListAccounts = func(db DBExecutor, page, size int, accountType, q string) ([]dtos.ChartOfAccount, dtos.PaginationMeta, error) {
 	// Build WHERE clause for filtering
 	whereClause := ""
-	args := []interface{}{}
+	args := []any{}
 
 	if accountType != "" || q != "" {
 		whereClause = " WHERE"

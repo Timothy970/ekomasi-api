@@ -19,10 +19,10 @@ import (
 //   - data: JSON string to unmarshal
 //
 // Returns:
-//   - map[string]interface{}: Unmarshaled map
+//   - map[string]any: Unmarshaled map
 //   - error: JSON unmarshal error if data is invalid
-func ConvertStringToMap(data string) (map[string]interface{}, error) {
-	var result map[string]interface{}
+func ConvertStringToMap(data string) (map[string]any, error) {
+	var result map[string]any
 	err := json.Unmarshal([]byte(data), &result)
 	return result, err
 }

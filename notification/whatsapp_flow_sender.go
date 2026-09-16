@@ -12,11 +12,11 @@ import (
 )
 
 type FlowInteractivePayload struct {
-	MessagingProduct string                 `json:"messaging_product"`
-	RecipientType    string                 `json:"recipient_type"`
-	To               string                 `json:"to"`
-	Type             string                 `json:"type"` // "interactive"
-	Interactive      map[string]interface{} `json:"interactive"`
+	MessagingProduct string         `json:"messaging_product"`
+	RecipientType    string         `json:"recipient_type"`
+	To               string         `json:"to"`
+	Type             string         `json:"type"` // "interactive"
+	Interactive      map[string]any `json:"interactive"`
 }
 
 // SendWhatsAppFlowMessage sends an interactive WhatsApp Flow invitation message to a recipient
@@ -34,27 +34,27 @@ func SendWhatsAppFlowMessage(toPhone string, flowID string, flowToken string, ct
 		RecipientType:    "individual",
 		To:               toPhone,
 		Type:             "interactive",
-		Interactive: map[string]interface{}{
+		Interactive: map[string]any{
 			"type": "flow",
-			"header": map[string]interface{}{
+			"header": map[string]any{
 				"type": "text",
 				"text": "Ekomasi Interactive Store",
 			},
-			"body": map[string]interface{}{
+			"body": map[string]any{
 				"text": "Tap below to complete your action directly inside WhatsApp.",
 			},
-			"footer": map[string]interface{}{
+			"footer": map[string]any{
 				"text": "Powered by Ekomasi",
 			},
-			"action": map[string]interface{}{
+			"action": map[string]any{
 				"name": "flow",
-				"parameters": map[string]interface{}{
+				"parameters": map[string]any{
 					"flow_message_version": "3.0",
 					"flow_token":           flowToken,
 					"flow_id":              flowID,
 					"flow_cta":             ctaText,
 					"flow_action":          "navigate",
-					"flow_action_payload": map[string]interface{}{
+					"flow_action_payload": map[string]any{
 						"screen": initialScreen,
 					},
 					"mode": "draft",

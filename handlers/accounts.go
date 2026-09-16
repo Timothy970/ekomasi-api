@@ -31,10 +31,10 @@ var (
 // @Accept json
 // @Produce json
 // @Param request body dtos.CreateAccountRequest true "Account creation request"
-// @Success 201 {object} map[string]interface{} "Account created successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid request body or validation failed"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 201 {object} map[string]any "Account created successfully"
+// @Failure 400 {object} map[string]any "Invalid request body or validation failed"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/accounts [post]
 // @Security BearerAuth
 func CreateAccount(c *gin.Context) {
@@ -198,10 +198,10 @@ func CreateAccount(c *gin.Context) {
 // @Tags Accounts
 // @Produce json
 // @Param account_type query string true "Account Type (asset, liability, equity, revenue, expense)"
-// @Success 200 {object} map[string]interface{} "Next available code retrieved successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid account type"
-// @Failure 401 {object} map[string]interface{} "Unauthorized"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Next available code retrieved successfully"
+// @Failure 400 {object} map[string]any "Invalid account type"
+// @Failure 401 {object} map[string]any "Unauthorized"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/accounts/next-code [get]
 // @Security BearerAuth
 func GetNextAccountCode(c *gin.Context) {

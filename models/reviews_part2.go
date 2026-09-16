@@ -193,7 +193,7 @@ func UpdateReview(db DBExecutor, req dtos.UpdateReview, reviewID string, product
 
 	// Build dynamic UPDATE query with only provided fields
 	query := "UPDATE product_reviews SET"
-	args := []interface{}{}
+	args := []any{}
 	updates := []string{}
 
 	if req.Status != nil {

@@ -72,7 +72,7 @@ func ExampleHandler(c *gin.Context) {
 	span.SetAttributes(attribute.String("operation.status", "completed"))
 
 	// Return response
-	response := map[string]interface{}{
+	response := map[string]any{
 		"message":   "Example operation completed",
 		"timestamp": time.Now().Unix(),
 		"trace_id":  span.SpanContext().TraceID().String(),
@@ -153,7 +153,7 @@ func HealthCheckHandler(c *gin.Context) {
 		span.SetStatus(codes.Ok, "Health check passed")
 	}
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"status":    status,
 		"timestamp": time.Now().Unix(),
 		"checks": map[string]bool{

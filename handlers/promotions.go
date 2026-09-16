@@ -32,7 +32,7 @@ var promoCodeWithID = "Promo code with ID "
 // @Param        minimum_order_value   formData  number   false  "Minimum order value to apply promo"
 // @Param        maximum_use           formData  integer  false  "Maximum number of uses allowed"
 // @Param        is_active             formData  boolean  false  "Active status (default: true)"
-// @Success      200                   {object}  map[string]interface{}  "Promo code created successfully"
+// @Success      200                   {object}  map[string]any  "Promo code created successfully"
 // @Failure      400                   {object}  dtos.ErrorResponse      "Invalid request data"
 // @Failure      500                   {object}  dtos.ErrorResponse      "Internal server error"
 // @Security     BearerAuth
@@ -120,7 +120,7 @@ func AddPromoCodeHandler(c *gin.Context) {
 // @Param        minimum_order_value   formData  number   false  "Minimum order value to apply promo"
 // @Param        maximum_use           formData  integer  false  "Maximum number of uses allowed"
 // @Param        is_active             formData  boolean  false  "Active status"
-// @Success      200                   {object}  map[string]interface{}  "Promo code updated successfully"
+// @Success      200                   {object}  map[string]any  "Promo code updated successfully"
 // @Failure      400                   {object}  dtos.ErrorResponse      "Invalid request data"
 // @Failure      404                   {object}  dtos.ErrorResponse      "Promo code not found"
 // @Failure      500                   {object}  dtos.ErrorResponse      "Internal server error"
@@ -203,7 +203,7 @@ func UpdatePromoCodeHandler(c *gin.Context) {
 // @Tags         Promotions
 // @Produce      json
 // @Param        promo_id  path      string  true  "Promo code ID"
-// @Success      200       {object}  map[string]interface{}  "Promo code details"
+// @Success      200       {object}  map[string]any  "Promo code details"
 // @Failure      404       {object}  dtos.ErrorResponse      "Promo code not found"
 // @Security     BearerAuth
 // @Router       /admin/promotions/promo-codes/{promo_id} [get]
@@ -258,7 +258,7 @@ func GetPromoCodeByIDHandler(c *gin.Context) {
 // @Produce      json
 // @Param        page   query     int     false  "Page number (default: 1)"
 // @Param        size   query     int     false  "Page size (default: 10)"
-// @Success      200    {object}  map[string]interface{}  "List of promo codes with pagination"
+// @Success      200    {object}  map[string]any  "List of promo codes with pagination"
 // @Failure      500    {object}  dtos.ErrorResponse      "Internal server error"
 // @Security     BearerAuth
 // @Router       /admin/promotions/promo-codes [get]

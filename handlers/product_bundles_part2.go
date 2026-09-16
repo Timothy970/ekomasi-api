@@ -32,11 +32,11 @@ import (
 // @Param keep_selling formData boolean false "Continue selling when out of stock"
 // @Param compare_at_price formData number false "Original price before discount"
 // @Param stock_quantity formData int false "Stock quantity"
-// @Success 200 {object} map[string]interface{} "Bundle updated successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid request or validation failed"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 404 {object} map[string]interface{} "Bundle not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Bundle updated successfully"
+// @Failure 400 {object} map[string]any "Invalid request or validation failed"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 404 {object} map[string]any "Bundle not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/bundles/{bundle_id} [patch]
 // @Security BearerAuth
 func UpdateBundleHandler(c *gin.Context) {
@@ -154,10 +154,10 @@ func UpdateBundleHandler(c *gin.Context) {
 // @Tags Admin
 // @Produce json
 // @Param bundle_id path string true "Bundle ID"
-// @Success 200 {object} map[string]interface{} "Bundle deleted successfully"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 404 {object} map[string]interface{} "Bundle not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Bundle deleted successfully"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 404 {object} map[string]any "Bundle not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/bundles/{bundle_id} [delete]
 // @Security BearerAuth
 func DeleteBundleHandler(c *gin.Context) {
@@ -218,11 +218,11 @@ func DeleteBundleHandler(c *gin.Context) {
 // @Produce json
 // @Param bundle_id path string true "Bundle ID"
 // @Param request body []dtos.BundleProducts true "Array of products to add with IDs and quantities"
-// @Success 200 {object} map[string]interface{} "Products added successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid request or validation failed"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 404 {object} map[string]interface{} "Bundle not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Products added successfully"
+// @Failure 400 {object} map[string]any "Invalid request or validation failed"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 404 {object} map[string]any "Bundle not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/bundles/{bundle_id}/products [post]
 // @Security BearerAuth
 func AddProductsToBundleHandler(c *gin.Context) {

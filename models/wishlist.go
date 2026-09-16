@@ -134,10 +134,10 @@ func GetAllUserWishList(db DBExecutor, userID, wishlistID string, limit, page in
 //
 // Returns:
 //   - string: SQL query
-//   - []interface{}: Query arguments
-func buildWishlistQuery(userID, wishlistID string, limit, page int) (string, []interface{}) {
+//   - []any: Query arguments
+func buildWishlistQuery(userID, wishlistID string, limit, page int) (string, []any) {
 	query := `SELECT wishlist_id, name, is_public FROM wishlists WHERE user_id = ?`
-	args := []interface{}{userID}
+	args := []any{userID}
 
 	// Add specific wishlist filter if provided
 	if wishlistID != "" {

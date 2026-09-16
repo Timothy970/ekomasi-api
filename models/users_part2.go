@@ -130,7 +130,7 @@ func GetAllUsersWithPagination(db DBExecutor, limit, offset int, q, role string,
 //   - error: Database error or nil on success
 func countUsers(db DBExecutor, q, role, isAdmin string, tenantID int) (int, error) {
 	query := "SELECT COUNT(*) FROM users"
-	var args []interface{}
+	var args []any
 	var conditions []string
 
 	// Scope by tenant ID
@@ -190,7 +190,7 @@ func fetchUsers(db DBExecutor, limit, offset int, q, role, isAdmin string, tenan
 		FROM users
 	`
 
-	var args []interface{}
+	var args []any
 	var conditions []string
 
 	// Scope by tenant ID

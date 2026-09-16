@@ -23,10 +23,10 @@ import (
 // @Accept json
 // @Produce json
 // @Param request body dtos.PaymentOption true "Payment option creation request"
-// @Success 201 {object} map[string]interface{} "Payment option created successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid request body or validation failed"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 201 {object} map[string]any "Payment option created successfully"
+// @Failure 400 {object} map[string]any "Invalid request body or validation failed"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/payment-options [post]
 // @Security BearerAuth
 func CreatePaymentOptionHandler(c *gin.Context) {
@@ -94,8 +94,8 @@ func CreatePaymentOptionHandler(c *gin.Context) {
 // @Param size query int false "Page size (default: 10)"
 // @Param q query string false "Search query for payment option name"
 // @Param status query string false "Filter by payment option status (e.g., active, inactive)"
-// @Success 200 {object} map[string]interface{} "Payment options retrieved successfully with pagination"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Payment options retrieved successfully with pagination"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/payment-options [get]
 // @Security BearerAuth
 func ListPaymentOptionsHandler(c *gin.Context) {
@@ -149,9 +149,9 @@ func ListPaymentOptionsHandler(c *gin.Context) {
 // @Tags Payments
 // @Produce json
 // @Param payment_option_id path string true "Payment Option ID"
-// @Success 200 {object} map[string]interface{} "Payment option details retrieved successfully"
-// @Failure 404 {object} map[string]interface{} "Payment option not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Payment option details retrieved successfully"
+// @Failure 404 {object} map[string]any "Payment option not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/payment-options/{payment_option_id} [get]
 // @Security BearerAuth
 func GetPaymentOptionByIDHandler(c *gin.Context) {
@@ -206,11 +206,11 @@ func GetPaymentOptionByIDHandler(c *gin.Context) {
 // @Produce json
 // @Param payment_option_id path string true "Payment Option ID"
 // @Param request body dtos.PaymentOptionUpdate true "Payment option update request"
-// @Success 200 {object} map[string]interface{} "Payment option updated successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid request body or validation failed"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 404 {object} map[string]interface{} "Payment option not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Payment option updated successfully"
+// @Failure 400 {object} map[string]any "Invalid request body or validation failed"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 404 {object} map[string]any "Payment option not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/payment-options/{payment_option_id} [patch]
 // @Security BearerAuth
 func UpdatePaymentOptionHandler(c *gin.Context) {

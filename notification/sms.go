@@ -42,7 +42,7 @@ func SendSmsMessages(to, message string) {
 	method := "POST"
 
 	// Construct SMS payload with authentication and message data
-	newPayload := map[string]interface{}{
+	newPayload := map[string]any{
 		"apikey":    os.Getenv("SMSAPIKEY"),    // SMS API authentication key
 		"partnerID": os.Getenv("SMSPARTNERID"), // Partner identification
 		"mobile":    to,                        // Recipient mobile number

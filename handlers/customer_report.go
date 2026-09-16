@@ -24,10 +24,10 @@ import (
 // @Param start query string false "Start date for report (format: YYYY-MM-DD, default: 30 days ago)"
 // @Param end query string false "End date for report (format: YYYY-MM-DD, default: today)"
 // @Param duration query int false "Duration in months to consider a customer as returning (default: 0)"
-// @Success 200 {object} map[string]interface{} "Customer retention report generated successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid date format or parameters"
-// @Failure 404 {object} map[string]interface{} "No data found for specified range"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Customer retention report generated successfully"
+// @Failure 400 {object} map[string]any "Invalid date format or parameters"
+// @Failure 404 {object} map[string]any "No data found for specified range"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/reports/customer-retention [get]
 // @Security BearerAuth
 func GetCustomerRetention(c *gin.Context) {
@@ -83,7 +83,7 @@ func GetCustomerRetention(c *gin.Context) {
 			Description: "Customer retention report generated successfully",
 			Code:        http.StatusOK,
 		},
-		Payload: map[string]interface{}{
+		Payload: map[string]any{
 			"new_customers":              ret.NewCustomers,     // Count of first-time customers
 			"returning_customers":        ret.NewCustomers,     // Count of repeat customers
 			"retention_rate":             rate,                 // Percentage of returning customers
@@ -111,10 +111,10 @@ func GetCustomerRetention(c *gin.Context) {
 // @Param start query string false "Start date for report (format: YYYY-MM-DD, default: 30 days ago)"
 // @Param end query string false "End date for report (format: YYYY-MM-DD, default: today)"
 // @Param period query string false "Time period grouping: month, quarter, or year (default: month)"
-// @Success 200 {object} map[string]interface{} "Customer retention trend report generated successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid date format or period parameter"
-// @Failure 404 {object} map[string]interface{} "No data found for specified range"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Customer retention trend report generated successfully"
+// @Failure 400 {object} map[string]any "Invalid date format or period parameter"
+// @Failure 404 {object} map[string]any "No data found for specified range"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/reports/customer-retention/trends [get]
 // @Security BearerAuth
 func GetCustomerRetentionTrends(c *gin.Context) {
@@ -196,10 +196,10 @@ func GetCustomerRetentionTrends(c *gin.Context) {
 // @Produce json
 // @Param start query string false "Start date for report (format: YYYY-MM-DD, default: 30 days ago)"
 // @Param end query string false "End date for report (format: YYYY-MM-DD, default: today)"
-// @Success 200 {object} map[string]interface{} "Customer retention summary generated successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid date format"
-// @Failure 404 {object} map[string]interface{} "No data found for specified range"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Customer retention summary generated successfully"
+// @Failure 400 {object} map[string]any "Invalid date format"
+// @Failure 404 {object} map[string]any "No data found for specified range"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/reports/customer-retention/summary [get]
 // @Security BearerAuth
 func GetCustomerRetentionSummary(c *gin.Context) {

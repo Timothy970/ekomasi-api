@@ -43,7 +43,7 @@ func GetAllTransactions(page, limit int, status, q string) ([]dtos.TransactionsL
 
 	// Build WHERE clause with dynamic filters
 	where := "WHERE 1=1"
-	var args []interface{}
+	var args []any
 
 	// Add status filter (case-insensitive)
 	if status != "" && status != "All" {

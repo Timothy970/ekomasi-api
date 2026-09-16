@@ -25,7 +25,7 @@ import (
 // @Param        start_date  query     string                        false  "Start date (YYYY-MM-DD)"
 // @Param        end_date    query     string                        false  "End date (YYYY-MM-DD)"
 // @Param        export      query     string                        false  "Export format (csv, xlsx, pdf)"
-// @Success      200         {object}  map[string]interface{}        "Sales by region data"
+// @Success      200         {object}  map[string]any        "Sales by region data"
 // @Failure      404         {object}  dtos.ErrorResponse            "Failed to generate report"
 // @Router       /api/reports/sales/by-region [get]
 func GetSalesByRegion(c *gin.Context) {
@@ -201,8 +201,8 @@ func exportPDF(c *gin.Context, data []dtos.RegionSales) {
 // @Tags         Sales
 // @Produce      json
 // @Param        year  query     int                          true   "Year (YYYY format)"
-// @Success      200   {object}  map[string]interface{}        "Monthly sales and orders data"
-// @Failure      400   {object}  map[string]interface{}         "Invalid year parameter"
+// @Success      200   {object}  map[string]any        "Monthly sales and orders data"
+// @Failure      400   {object}  map[string]any         "Invalid year parameter"
 // @Failure      404   {object}  dtos.ErrorResponse           "Failed to generate report"
 // @Router       /api/reports/sales/monthly-comparison [get]
 func GetSalesVsOrdersPerMonth(c *gin.Context) {

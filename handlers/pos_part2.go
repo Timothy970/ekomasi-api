@@ -241,9 +241,9 @@ func validateSplitPaymentMethods(methods []dtos.PaymentMethod) error {
 // @Tags POS
 // @Produce json
 // @Param order_id path string true "Order ID"
-// @Success 200 {object} map[string]interface{} "Receipt sent to printer"
-// @Failure 404 {object} map[string]interface{} "Order not found"
-// @Failure 500 {object} map[string]interface{} "Printer error"
+// @Success 200 {object} map[string]any "Receipt sent to printer"
+// @Failure 404 {object} map[string]any "Order not found"
+// @Failure 500 {object} map[string]any "Printer error"
 // @Router /api/pos/receipt/print/{order_id} [post]
 // @Security BearerAuth
 func PrintReceiptHandler(c *gin.Context) {
@@ -260,8 +260,8 @@ func PrintReceiptHandler(c *gin.Context) {
 // @Produce application/pdf
 // @Param order_id path string true "Order ID"
 // @Success 200 {file} application/pdf "Receipt PDF file"
-// @Failure 404 {object} map[string]interface{} "Order not found"
-// @Failure 500 {object} map[string]interface{} "PDF generation failed"
+// @Failure 404 {object} map[string]any "Order not found"
+// @Failure 500 {object} map[string]any "PDF generation failed"
 // @Router /api/pos/receipt/download/{order_id} [get]
 // @Security BearerAuth
 func DownloadReceiptHandler(c *gin.Context) {

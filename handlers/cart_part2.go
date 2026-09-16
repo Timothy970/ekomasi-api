@@ -135,7 +135,7 @@ func calculateDifferentDiscountTypes(promo *dtos.PromotionData, item dtos.CartIt
 	}
 }
 
-// func checkIfProductHasDiscount(item dtos.CartItem) (map[string]interface{}, error) {
+// func checkIfProductHasDiscount(item dtos.CartItem) (map[string]any, error) {
 // 	discountData
 // }
 

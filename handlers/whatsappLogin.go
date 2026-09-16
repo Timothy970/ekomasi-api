@@ -38,7 +38,7 @@ var session = "whatsapp_session"
 // @Accept       json
 // @Produce      json
 // @Param        login  body      dtos.WhatsappLogin       true  "Phone number for WhatsApp login"
-// @Success      200    {object}  map[string]interface{}     "Verification message sent successfully"
+// @Success      200    {object}  map[string]any     "Verification message sent successfully"
 // @Failure      400    {object}  dtos.ErrorResponse       "Invalid request or phone number"
 // @Failure      429    {object}  dtos.ErrorResponse       "Too many login attempts"
 // @Failure      500    {object}  dtos.ErrorResponse       "Internal server error"
@@ -166,7 +166,7 @@ func WhatsAppLoginHandler(c *gin.Context) {
 // @Tags         Authentication
 // @Produce      json
 // @Param        token  query     string                   true  "Verification token from WhatsApp message"
-// @Success      200    {object}  map[string]interface{}     "Verification successful with auth token"
+// @Success      200    {object}  map[string]any     "Verification successful with auth token"
 // @Failure      400    {object}  dtos.ErrorResponse       "Missing verification token"
 // @Failure      401    {object}  dtos.ErrorResponse       "Invalid or expired token"
 // @Failure      500    {object}  dtos.ErrorResponse       "Token generation failed"
@@ -273,7 +273,7 @@ func VerifyWhatsAppHandler(c *gin.Context) {
 			Description: "WhatsApp verification successful",
 			Code:        http.StatusOK,
 		},
-		Payload: map[string]interface{}{
+		Payload: map[string]any{
 			"token":      authToken,
 			"expires_in": 3600,
 		},

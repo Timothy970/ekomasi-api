@@ -135,7 +135,7 @@ func GetRoles(db DBExecutor, name, startDate, endDate string) ([]dtos.Role, erro
 		SELECT role_id, name, description, created_at, updated_at
 		FROM roles 
 	`
-	var args []interface{}
+	var args []any
 	var conditions []string
 
 	// Apply name filter (case-insensitive partial match)

@@ -104,7 +104,7 @@ func GetResultParameterValue(params []dtos.ResultParameter, key string) string {
 
 func (m *MpesaClient) CheckMpesaTransactionStatus(req dtos.MpesaTransactionStatus) (*dtos.MpesaTransactionStatusRequest, error) {
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"Initiator":          m.InitiatorName,
 		"SecurityCredential": m.SecurityCredential,
 		"CommandID":          "TransactionStatusQuery",
@@ -172,7 +172,7 @@ func MpesaCallbackHandler(c *gin.Context) {
 	}
 
 	// Save as "done" in Redis
-	finalObj := map[string]interface{}{
+	finalObj := map[string]any{
 		"status": "done",
 		"data":   callback,
 	}
@@ -193,7 +193,7 @@ func HandleTransactionStatusCallback(c *gin.Context) {
 		c.String(http.StatusBadRequest, "failed to parse callback")
 		return
 	}
-	message := map[string]interface{}{}
+	message := map[string]any{}
 	if callback.Result.ResultCode == 0 {
 		message["status"] = "success"
 		message["message"] = "Transaction status fetched successfully"

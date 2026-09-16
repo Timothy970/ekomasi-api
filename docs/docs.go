@@ -10188,6 +10188,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/inventories/{inventory_id}/pdf": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Download inventory data as PDF",
+                "produces": [
+                    "application/pdf"
+                ],
+                "tags": [
+                    "Inventories"
+                ],
+                "summary": "Download inventory PDF",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Inventory ID",
+                        "name": "inventory_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/locations": {
             "get": {
                 "description": "Retrieve paginated list of all delivery locations with shipping rates",
@@ -13774,7 +13814,34 @@ const docTemplate = `{
         },
         "/api/reports/inventory/turnover/{product_id}": {
             "get": {
+                "description": "Get inventory turnover report by product",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Reports"
+                ],
+                "summary": "Get inventory turnover report by product",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Product ID",
+                        "name": "product_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Period (weekly, monthly, etc.)",
+                        "name": "period",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start Date (YYYY-MM-DD)",
+                        "name": "start",
+                        "in": "query"
+                    },
                     {
                         "type": "string",
                         "description": "End Date (YYYY-MM-DD)",

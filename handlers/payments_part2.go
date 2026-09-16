@@ -22,10 +22,10 @@ import (
 // @Tags Admin
 // @Produce json
 // @Param payment_id path string true "Payment ID"
-// @Success 200 {object} map[string]interface{} "Payment deleted successfully"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 404 {object} map[string]interface{} "Payment not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Payment deleted successfully"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 404 {object} map[string]any "Payment not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/payments/{payment_id} [delete]
 // @Security BearerAuth
 func DeletePaymentHandler(c *gin.Context) {
@@ -90,10 +90,10 @@ func DeletePaymentHandler(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param request body dtos.Refund true "Refund request details"
-// @Success 201 {object} map[string]interface{} "Refund requested successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid request body or validation failed"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - user authentication required"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 201 {object} map[string]any "Refund requested successfully"
+// @Failure 400 {object} map[string]any "Invalid request body or validation failed"
+// @Failure 401 {object} map[string]any "Unauthorized - user authentication required"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/payments/refund [post]
 // @Security BearerAuth
 func RequestRefund(c *gin.Context) {
@@ -182,11 +182,11 @@ func RequestRefund(c *gin.Context) {
 // @Produce json
 // @Param refund_id path string true "Refund ID"
 // @Param request body dtos.RefundPayload true "Refund status update"
-// @Success 200 {object} map[string]interface{} "Refund status updated successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid status or request body"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 404 {object} map[string]interface{} "Refund not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Refund status updated successfully"
+// @Failure 400 {object} map[string]any "Invalid status or request body"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 404 {object} map[string]any "Refund not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/payments/refund/{refund_id} [patch]
 // @Security BearerAuth
 func ProcessRefund(c *gin.Context) {

@@ -23,7 +23,7 @@ import (
 // @Tags         Purchase Orders
 // @Produce      json
 // @Param        po_id  path      string                  true  "Purchase order ID"
-// @Success      200    {object}  map[string]interface{}  "Purchase order deleted successfully"
+// @Success      200    {object}  map[string]any  "Purchase order deleted successfully"
 // @Failure      400    {object}  dtos.ErrorResponse      "Invalid request"
 // @Failure      404    {object}  dtos.ErrorResponse      "Purchase order not found"
 // @Security     BearerAuth
@@ -86,7 +86,7 @@ func DeletePurchaseOrder(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        request  body      dtos.PurchaseOrderItem      true  "Purchase order item details"
-// @Success      200      {object}  map[string]interface{}      "Product added to purchase order successfully"
+// @Success      200      {object}  map[string]any      "Product added to purchase order successfully"
 // @Failure      400      {object}  dtos.ErrorResponse          "Invalid request data"
 // @Failure      404      {object}  dtos.ErrorResponse          "Purchase order or product not found"
 // @Security     BearerAuth
@@ -157,7 +157,7 @@ func AddPurchaseOrderItem(c *gin.Context) {
 // @Tags         Purchase Orders
 // @Produce      json
 // @Param        po_item_id  path      string                  true  "Purchase order item ID"
-// @Success      200         {object}  map[string]interface{}  "Product removed from purchase order successfully"
+// @Success      200         {object}  map[string]any  "Product removed from purchase order successfully"
 // @Failure      400         {object}  dtos.ErrorResponse      "Invalid request"
 // @Failure      404         {object}  dtos.ErrorResponse      "Purchase order item not found"
 // @Security     BearerAuth

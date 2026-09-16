@@ -121,9 +121,9 @@ func GetBundleProductsHandler(c *gin.Context) {
 // @Tags Product Bundles
 // @Produce json
 // @Param bundle_id path string true "Bundle ID"
-// @Success 200 {object} map[string]interface{} "Bundle retrieved successfully"
-// @Failure 404 {object} map[string]interface{} "Bundle not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Bundle retrieved successfully"
+// @Failure 404 {object} map[string]any "Bundle not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/bundles/{bundle_id} [get]
 // @Security BearerAuth
 func GetBundleByIDProductsHandler(c *gin.Context) {
@@ -187,10 +187,10 @@ func GetBundleByIDProductsHandler(c *gin.Context) {
 // @Param keep_selling formData boolean false "Continue selling when out of stock (default: true)"
 // @Param compare_at_price formData number false "Original price before discount"
 // @Param stock_quantity formData int false "Stock quantity"
-// @Success 201 {object} map[string]interface{} "Bundle created successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid request or validation failed"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 201 {object} map[string]any "Bundle created successfully"
+// @Failure 400 {object} map[string]any "Invalid request or validation failed"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/bundles [post]
 // @Security BearerAuth
 func CreateBundleHandler(c *gin.Context) {

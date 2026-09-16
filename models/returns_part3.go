@@ -36,7 +36,7 @@ import (
 func GetAllOwnerReturns(db DBExecutor, status, q, ownerID string) ([]dtos.ReturnResponse, error) {
 	// Build dynamic WHERE clause for filtering
 	where := "WHERE 1=1"
-	var args []interface{}
+	var args []any
 
 	// Add status filter if specified (case-insensitive)
 	if status != "" && status != "All" {

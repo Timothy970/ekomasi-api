@@ -34,7 +34,7 @@ var pOrderWithID = "Purchase Order with ID "
 // @Accept       json
 // @Produce      json
 // @Param        request  body      dtos.CreatePurchaseOrderRequest  true  "Purchase order details"
-// @Success      200      {object}  map[string]interface{}           "Purchase order created successfully"
+// @Success      200      {object}  map[string]any           "Purchase order created successfully"
 // @Failure      400      {object}  dtos.ErrorResponse               "Invalid request data"
 // @Failure      500      {object}  dtos.ErrorResponse               "Internal server error"
 // @Security     BearerAuth
@@ -251,7 +251,7 @@ func GetPurchaseOrder(c *gin.Context) {
 // @Produce      json
 // @Param        po_id    path      string                            true  "Purchase order ID"
 // @Param        request  body      dtos.UpdatePurchaseOrderRequest   true  "Updated purchase order details"
-// @Success      200      {object}  map[string]interface{}            "Purchase order updated successfully"
+// @Success      200      {object}  map[string]any            "Purchase order updated successfully"
 // @Failure      400      {object}  dtos.ErrorResponse                "Invalid request data"
 // @Failure      404      {object}  dtos.ErrorResponse                "Purchase order not found"
 // @Security     BearerAuth

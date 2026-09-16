@@ -245,7 +245,7 @@ func ListPaymentOptions(db DBExecutor, searchParam, status string, page, size in
 	// Build conditions and args for count query
 	countQuery := `SELECT COUNT(*) FROM payment_options`
 	var conditions []string
-	var countArgs []interface{}
+	var countArgs []any
 
 	// Add name filter (partial match)
 	if searchParam != "" {
@@ -273,7 +273,7 @@ func ListPaymentOptions(db DBExecutor, searchParam, status string, page, size in
 		SELECT id, name, type, config_json, is_active, created_at
 		FROM payment_options
 	`
-	var queryArgs []interface{}
+	var queryArgs []any
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 		queryArgs = append(queryArgs, countArgs...)

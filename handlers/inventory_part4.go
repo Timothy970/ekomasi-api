@@ -5,93 +5,12 @@ import (
 	"ekomasi_backend/models"
 	"ekomasi_backend/utils"
 	"encoding/json"
-	"fmt"
-	"mime/multipart"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
-
-func handleImageUpload(r *http.Request, field string) ([]string, error) {
-	if r.MultipartForm == nil {
-		return nil, nil
-	}
-	files := r.MultipartForm.File[field]
-	if len(files) == 0 {
-		return nil, nil
-	}
-
-	var urls []string
-	for _, fh := range files {
-		url, err := utils.UploadMediaToGCS([]*multipart.FileHeader{fh})
-		if err != nil {
-			return nil, fmt.Errorf("failed to upload %s: %w", field, err)
-		}
-		urls = append(urls, url)
-	}
-	return urls, nil
-}
-func handleInventoryTracking(db models.DBExecutor, req *dtos.StockEntryRequest, storeID string, quantity int) (string, error) {
-
-	inventoryData := dtos.InventoryTracking{
-		ProductID:         req.ProductID,
-		Quantity:          quantity,
-		LowStockThreshold: req.MinimumStockLevel,
-		StoreID:           storeID,
-		SupplierID:        req.SupplierID}
-	// insert into db
-	inventoryID, err := models.StoreInventoryTracking(db, inventoryData)
-	if err != nil {
-		return "", err
-	}
-	return inventoryID, nil
-}
-
-func handleBatch(db models.DBExecutor, req *dtos.StockEntryRequest, inventoryID string) (string, error) {
-	//  Store batch details in DB along with urls
-	var images []string
-	if req.BatchImages != nil {
-		images = *req.BatchImages
-	}
-
-	batchData := dtos.Batch{
-		InventoryID:       inventoryID,
-		BatchNumber:       req.BatchNumber,
-		Images:            images,
-		ExpiryDate:        req.ExpiryDate,
-		ManufacturingDate: req.ManufacturingDate,
-	}
-	batchID, err := models.StoreBatchDetails(db, batchData)
-	if err != nil {
-		return "", err
-	}
-
-	return batchID, nil
-}
-func handleInspection(db models.DBExecutor, req *dtos.StockEntryRequest, batchID string) error {
-
-	// Store inspection details in DB
-	var images []string
-	if req.InspectionImage != nil {
-		images = *req.InspectionImage
-	}
-
-	inspectionData := dtos.Inspection{
-		BatchID:         batchID,
-		InspectionDate:  req.InspectionDate,
-		InspectorID:     req.InspectorID,
-		InspectionNotes: req.InspectionNotes,
-		Images:          images,
-	}
-	err := models.StoreInspectionDetails(db, inspectionData)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
 
 func handleStoreConditonsAndNotes(db models.DBExecutor, req *dtos.StockEntryRequest, batchID string) error {
 	conditionData := dtos.InventoryCondition{
@@ -156,7 +75,7 @@ func GetInventoryStockSummary(c *gin.Context) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure user is admin
-	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", "inventory.view"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", inventoryView); !ok {
 		return
 	}
 	id := c.Param("inventory_id")
@@ -197,7 +116,7 @@ func GetInventoryStockHistory(c *gin.Context) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure user is admin
-	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", "inventory.view"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", inventoryView); !ok {
 		return
 	}
 	page, size := parsePagination(c.Query("page"), c.Query("size"))
@@ -231,4 +150,55 @@ func GetInventoryStockHistory(c *gin.Context) {
 		Function:  utils.GetCurrentFuncName(),
 		Request:   c.Request,
 		RawBody:   requestSummary})
+}
+
+func validateStockEntryDates(req *dtos.StockEntryRequest) (string, string) {
+	expiryDate, err := time.Parse(dateLayout, req.ExpiryDate)
+	if err != nil {
+		return "Invalid expiry date format. Expected YYYY-MM-DD", "Invalid expiry date format when creating stock entry"
+	}
+
+	mfgDate, err := time.Parse(dateLayout, req.ManufacturingDate)
+	if err != nil {
+		return "Invalid manufacturing date format. Expected YYYY-MM-DD", "Invalid manufacturing date format when creating stock entry"
+	}
+
+	inspectionDate, err := time.Parse(dateLayout, req.InspectionDate)
+	if err != nil {
+		return "Invalid inspection date format. Expected YYYY-MM-DD", "Invalid inspection date format when creating stock entry"
+	}
+
+	if inspectionDate.After(time.Now()) {
+		return "Inspection date cannot be in the future", "Inspection date cannot be in the future when creating stock entry"
+	}
+
+	if expiryDate.Before(mfgDate) || expiryDate.Equal(mfgDate) {
+		return "Expiry date must be after manufacturing date", "Expiry date must be after manufacturing date when creating stock entry"
+	}
+
+	return "", ""
+}
+
+func processStoreQuantities(tx models.DBExecutor, req *dtos.StockEntryRequest) ([]string, string, error) {
+	var inventoryIDs []string
+	for _, warehouse := range req.StoreQuantity {
+		storeID := warehouse.StoreID
+		quantity := warehouse.Quantity
+		inventoryID, err := handleInventoryTracking(tx, req, storeID, quantity)
+		if err != nil {
+			return nil, "Failed to store inventory tracking when creating stock entry", err
+		}
+		inventoryIDs = append(inventoryIDs, inventoryID)
+		batchID, err := handleBatch(tx, req, inventoryID)
+		if err != nil {
+			return nil, "Failed to store batch details when creating stock entry", err
+		}
+		if err := handleInspection(tx, req, batchID); err != nil {
+			return nil, "Failed to store inspection details when creating stock entry", err
+		}
+		if err := handleStoreConditonsAndNotes(tx, req, batchID); err != nil {
+			return nil, "Failed to store handling notes when creating stock entry", err
+		}
+	}
+	return inventoryIDs, "", nil
 }

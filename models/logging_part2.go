@@ -40,7 +40,7 @@ func UnknownUser() *dtos.Users {
 //
 // Returns:
 //   - string: WHERE clause (e.g., "WHERE l.module = ? AND l.level = ?") or empty string
-//   - []interface{}: Argument values matching placeholders in WHERE clause
+//   - []any: Argument values matching placeholders in WHERE clause
 //
 // Filter Logic:
 //   - Module: Exact match on l.module (skip if "all" or empty)
@@ -53,8 +53,8 @@ func UnknownUser() *dtos.Users {
 //   - Date range uses indexed l.timestamp column
 //   - Search uses EXISTS subquery to avoid full table scan on users
 //   - Wildcards are added to search term (case-insensitive)
-func buildUserLogsFilter(filters UserLogFilters) (string, []interface{}) {
-	var args []interface{}
+func buildUserLogsFilter(filters UserLogFilters) (string, []any) {
+	var args []any
 	var conditions []string
 
 	// Filter by module (skip "all" or empty)

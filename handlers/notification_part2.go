@@ -27,7 +27,7 @@ import (
 // @Param        Authorization      header    string                      true   "Bearer token"
 // @Param        notification_id    path      string                      true   "Notification ID"
 // @Param        notification       body      dtos.UpdateNotification     true   "Updated status"
-// @Success      200                {object}  map[string]interface{}        "Notification updated"
+// @Success      200                {object}  map[string]any        "Notification updated"
 // @Failure      400                {object}  dtos.ErrorResponse          "Invalid request"
 // @Failure      401                {object}  dtos.ErrorResponse          "Admin authorization required"
 // @Failure      404                {object}  dtos.ErrorResponse          "Notification not found"
@@ -101,7 +101,7 @@ func UpdateNotificationHandler(c *gin.Context) {
 // @Produce      json
 // @Param        Authorization      header    string                 true  "Bearer token"
 // @Param        notification_id    path      string                 true  "Notification ID"
-// @Success      200                {object}  map[string]interface{}   "Notification deleted"
+// @Success      200                {object}  map[string]any   "Notification deleted"
 // @Failure      401                {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Failure      404                {object}  dtos.ErrorResponse     "Notification not found"
 // @Security     BearerAuth
@@ -164,7 +164,7 @@ func DeleteNotificationHandler(c *gin.Context) {
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        page           query     int                    false  "Page number"
 // @Param        limit          query     int                    false  "Page size"
-// @Success      200            {object}  map[string]interface{}   "Logs with pagination"
+// @Success      200            {object}  map[string]any   "Logs with pagination"
 // @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Failure      500            {object}  dtos.ErrorResponse     "Failed to retrieve logs"
 // @Security     BearerAuth

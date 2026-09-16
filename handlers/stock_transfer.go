@@ -24,7 +24,7 @@ import (
 // @Accept       json
 // @Produce      json
 // @Param        transfer  body      dtos.StockTransferDTO    true  "Stock transfer details"
-// @Success      201       {object}  map[string]interface{}     "Transfer created successfully"
+// @Success      201       {object}  map[string]any     "Transfer created successfully"
 // @Failure      400       {object}  dtos.ErrorResponse       "Invalid request or validation failed"
 // @Failure      401       {object}  dtos.ErrorResponse       "Admin authorization required"
 // @Security     BearerAuth
@@ -110,7 +110,7 @@ func CreateStockTransfer(c *gin.Context) {
 // @Param        page  query     int                       false  "Page number (default: 1)"
 // @Param        size  query     int                       false  "Page size (default: 10)"
 // @Param        q     query     string                    false  "Search query"
-// @Success      200   {object}  map[string]interface{}    "Stock transfers with pagination"
+// @Success      200   {object}  map[string]any    "Stock transfers with pagination"
 // @Failure      401   {object}  dtos.ErrorResponse        "Admin authorization required"
 // @Failure      500   {object}  dtos.ErrorResponse        "Failed to list transfers"
 // @Security     BearerAuth
@@ -170,7 +170,7 @@ func ListStockTransfers(c *gin.Context) {
 // @Tags         Stock Transfers
 // @Produce      json
 // @Param        transfer_id  path      string                  true  "Transfer ID"
-// @Success      200          {object}  map[string]interface{}      "Transfer details"
+// @Success      200          {object}  map[string]any      "Transfer details"
 // @Failure      404          {object}  dtos.ErrorResponse      "Transfer not found"
 // @Router       /api/stock_transfers/{transfer_id} [get]
 func GetStockTransfer(c *gin.Context) {
@@ -226,7 +226,7 @@ func GetStockTransfer(c *gin.Context) {
 // @Produce      json
 // @Param        transfer_id  path      string                       true  "Transfer ID"
 // @Param        update       body      dtos.StockTransferUpdateDTO  true  "Updated quantity"
-// @Success      200          {object}  map[string]interface{}         "Transfer updated successfully"
+// @Success      200          {object}  map[string]any         "Transfer updated successfully"
 // @Failure      400          {object}  dtos.ErrorResponse           "Invalid request or update failed"
 // @Failure      401          {object}  dtos.ErrorResponse           "Admin authorization required"
 // @Security     BearerAuth

@@ -40,7 +40,7 @@ import (
 //   - error: API communication error, marshaling error, or nil on success
 func SendEmail(to string, subject string, body string) error {
 	// Construct email payload with authentication and metadata
-	newPayload := map[string]interface{}{
+	newPayload := map[string]any{
 		"apikey":       os.Getenv("APIKEY"),             // API authentication key
 		"partnerID":    os.Getenv("PARTNERID"),          // Partner identification
 		"from_address": os.Getenv("SENDER_EMAIL"),       // Sender email address
@@ -50,7 +50,7 @@ func SendEmail(to string, subject string, body string) error {
 		"time":         time.Now(),                      // Current timestamp
 		"date":         time.Now().Format("2006-01-02"), // Current date
 		"scheduled":    false,                           // Immediate send (not scheduled)
-		"attachments":  []interface{}{},                 // No attachments by default
+		"attachments":  []any{},                         // No attachments by default
 	}
 
 	// Send email via API and get response
@@ -69,13 +69,13 @@ func SendEmail(to string, subject string, body string) error {
 // the response from the email service.
 //
 // Parameters:
-//   - data: map[string]interface{} - Email payload containing all required fields
+//   - data: map[string]any - Email payload containing all required fields
 //     (apikey, partnerID, from_address, to_address, subject, body, etc.)
 //
 // Returns:
 //   - string: Response body from the email service API
 //   - error: JSON marshaling error, HTTP request error, or nil on success
-func sendSingleEmail(data map[string]interface{}) (string, error) {
+func sendSingleEmail(data map[string]any) (string, error) {
 	// Get email service base URL from environment
 	sendUrl := os.Getenv("V2_URL")
 	url := sendUrl + "/services/send-email"

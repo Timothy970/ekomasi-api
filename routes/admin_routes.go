@@ -1,9 +1,10 @@
 package routes
 
 import (
-	"github.com/gin-gonic/gin"
 	"ekomasi_backend/handlers"
 	"ekomasi_backend/middleware"
+
+	"github.com/gin-gonic/gin"
 )
 
 // SetupAdminGinRoutes configures all admin-specific routes using native Gin router groups
@@ -213,10 +214,6 @@ func SetupAdminGinRoutes(api *gin.RouterGroup) {
 	admin.DELETE("/promotions/types/:id", middleware.GinAuthenticateToken(), handlers.DeletePromotionsTypesHandler)
 	admin.PATCH("/promotions/types/:id", middleware.GinAuthenticateToken(), handlers.UpdatePromotionsTypesHandler)
 	admin.POST("/orders/assign-rider", middleware.GinAuthenticateToken(), handlers.RiderAssignOrder)
-
-	admin.POST("/swagger-ips", middleware.GinAuthenticateToken(), handlers.AddAllowedIPHandler)
-	admin.GET("/swagger-ips", middleware.GinAuthenticateToken(), handlers.ListAllowedIPsHandler)
-	admin.DELETE("/swagger-ips/:ip", middleware.GinAuthenticateToken(), handlers.DeleteAllowedIPHandler)
 	admin.POST("/partners", middleware.GinAuthenticateToken(), handlers.AddPartner)
 	admin.DELETE("/partners/:partner_id", middleware.GinAuthenticateToken(), handlers.DeletePartner)
 	admin.GET("/subscribers", middleware.GinAuthenticateToken(), handlers.GetAllSubscribersHandler)

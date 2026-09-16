@@ -213,7 +213,7 @@ func HandleMpesaMoneyReturn(c *gin.Context) {
 }
 
 func (m *MpesaClient) HandleMoneyReturn(amount float64, phoneNumber string) (MpesaMoneyReturnResponse, error) {
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"OriginatorConversationID": randString(24),
 		"InitiatorName":            m.InitiatorName,
 		"SecurityCredential":       m.SecurityCredential,
@@ -249,7 +249,7 @@ func (m *MpesaClient) HandleMoneyReturn(amount float64, phoneNumber string) (Mpe
 	}
 	defer res.Body.Close()
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
 		log.Printf("Error decoding response %s", err)
 		return MpesaMoneyReturnResponse{}, err

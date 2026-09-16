@@ -22,7 +22,7 @@ import (
 // @Tags         Variants
 // @Produce      json
 // @Param        product_id  path      string                    true  "Product ID"
-// @Success      200         {object}  map[string]interface{}    "Product variant options"
+// @Success      200         {object}  map[string]any    "Product variant options"
 // @Failure      400         {object}  dtos.ErrorResponse        "Failed to list variants"
 // @Router       /api/products/{product_id}/variants [get]
 func ListProductVariants(c *gin.Context) {
@@ -71,7 +71,7 @@ func ListProductVariants(c *gin.Context) {
 // @Description  Batch update product image URLs (utility endpoint)
 // @Tags         Utilities
 // @Produce      json
-// @Success      200  {object}  map[string]interface{}   "Migration completed with rows affected count"
+// @Success      200  {object}  map[string]any   "Migration completed with rows affected count"
 // @Failure      500  {object}  string                   "Migration failed"
 // @Router       /api/admin/migrate-image-urls [post]
 func MigrateImageURLs(c *gin.Context) {
@@ -84,7 +84,7 @@ func MigrateImageURLs(c *gin.Context) {
 	}
 
 	// Return success response with affected rows count
-	resp := map[string]interface{}{
+	resp := map[string]any{
 		"message":       "Image URLs updated successfully",
 		"rows_affected": rows,
 	}

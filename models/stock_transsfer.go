@@ -175,7 +175,7 @@ func ListStockTransfers(db DBExecutor, page, size int, searchParam string) ([]dt
 	offset := (page - 1) * size
 
 	// Build count query with joins
-	var countArgs []interface{}
+	var countArgs []any
 	countQuery := `
 		SELECT COUNT(*)
 		FROM stock_transfers st
@@ -185,7 +185,7 @@ func ListStockTransfers(db DBExecutor, page, size int, searchParam string) ([]dt
 	`
 
 	// Build select query with enriched data
-	var selectArgs []interface{}
+	var selectArgs []any
 	selectQuery := `
 		SELECT 
 			st.transfer_id,

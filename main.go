@@ -133,8 +133,9 @@ func main() {
 	// Setup all application routes on Gin Engine
 	routes.SetupGinRoutes(ginEngine)
 
-	// Swagger route
-	ginEngine.GET("/swagger/*any", gin.WrapH(httpSwagger.WrapHandler))
+	// Swagger route protected with Basic Auth
+	swaggerGroup := ginEngine.Group("/swagger", middleware.SwaggerBasicAuth())
+	swaggerGroup.GET("/*any", gin.WrapH(httpSwagger.WrapHandler))
 
 	// Static file serving
 	ginEngine.Static("/static", "./static")

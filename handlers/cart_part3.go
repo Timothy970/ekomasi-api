@@ -268,7 +268,7 @@ func ValidateVoucherCodeHandler(c *gin.Context) {
 			Description: "Voucher code validated successfully",
 			Code:        http.StatusOK,
 		},
-		Payload:   map[string]interface{}{"voucher_balance": voucherBalance},
+		Payload:   map[string]any{"voucher_balance": voucherBalance},
 		Message:   "Voucher code validated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),

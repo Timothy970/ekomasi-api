@@ -23,9 +23,9 @@ import (
 // @Param category_id query string true "Category ID for filtering products"
 // @Param start_date query string false "Start date (YYYY-MM-DD) for report period"
 // @Param end_date query string false "End date (YYYY-MM-DD) for report period"
-// @Success 200 {object} map[string]interface{} "Product performance report generated successfully"
-// @Failure 400 {object} map[string]interface{} "Category ID missing or invalid date range"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Product performance report generated successfully"
+// @Failure 400 {object} map[string]any "Category ID missing or invalid date range"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/reports/products/performance [get]
 // @Security BearerAuth
 func GetProductPerformanceSummary(c *gin.Context) {
@@ -102,10 +102,10 @@ func GetProductPerformanceSummary(c *gin.Context) {
 // @Param product_id path string true "Product ID"
 // @Param start_date query string false "Start date (YYYY-MM-DD) for report period"
 // @Param end_date query string false "End date (YYYY-MM-DD) for report period"
-// @Success 200 {object} map[string]interface{} "Individual product performance report generated successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid date range"
-// @Failure 404 {object} map[string]interface{} "Product not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Individual product performance report generated successfully"
+// @Failure 400 {object} map[string]any "Invalid date range"
+// @Failure 404 {object} map[string]any "Product not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/reports/products/{product_id}/performance [get]
 // @Security BearerAuth
 func GetIndividualProductPerformanceSummary(c *gin.Context) {

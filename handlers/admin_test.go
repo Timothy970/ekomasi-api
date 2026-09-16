@@ -90,15 +90,15 @@ package handlers
 // func TestDeleteCategoryHandler(t *testing.T) {
 // 	testCases := []struct {
 // 		name     string
-// 		input    map[string]interface{}
-// 		mockFunc func(map[string]interface{}) error
+// 		input    map[string]any
+// 		mockFunc func(map[string]any) error
 // 		wantErr  error
 // 		wantMsg  string
 // 	}{
 // 		{
 // 			name:  "success",
 // 			input: nil,
-// 			mockFunc: func(map[string]interface{}) error {
+// 			mockFunc: func(map[string]any) error {
 // 				return nil
 // 			},
 // 			wantErr: nil,
@@ -107,7 +107,7 @@ package handlers
 // 		{
 // 			name:  "Category not found",
 // 			input: nil,
-// 			mockFunc: func(map[string]interface{}) error {
+// 			mockFunc: func(map[string]any) error {
 // 				return errors.New("category not found")
 // 			},
 // 			wantErr: errors.New("Category with given ID not found"),

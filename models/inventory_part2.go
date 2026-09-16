@@ -123,7 +123,7 @@ func UpdateInventory(db DBExecutor, inventoryID string, quantity, threshold *int
 
 	// Build dynamic UPDATE query
 	query := "UPDATE inventory SET "
-	args := []interface{}{}
+	args := []any{}
 
 	// Add quantity if provided
 	if quantity != nil {

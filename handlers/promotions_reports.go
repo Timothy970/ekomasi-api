@@ -21,7 +21,7 @@ import (
 // @Tags         Reports
 // @Produce      json
 // @Param        promotion_id  path      string  true  "Promotion ID"
-// @Success      200           {object}  map[string]interface{}  "Promotion effectiveness metrics"
+// @Success      200           {object}  map[string]any  "Promotion effectiveness metrics"
 // @Failure      404           {object}  dtos.ErrorResponse      "Promotion not found"
 // @Security     BearerAuth
 // @Router       /reports/promotions/effectiveness/{promotion_id} [get]
@@ -78,7 +78,7 @@ func GetEffectiveness(c *gin.Context) {
 // @Param        promotion_id  path      string  true  "Promotion ID"
 // @Param        start         query     string  true  "Start date (YYYY-MM-DD)"
 // @Param        end           query     string  true  "End date (YYYY-MM-DD)"
-// @Success      200           {object}  map[string]interface{}  "Promotion comparison data"
+// @Success      200           {object}  map[string]any  "Promotion comparison data"
 // @Failure      400           {object}  dtos.ErrorResponse      "Invalid date range"
 // @Failure      404           {object}  dtos.ErrorResponse      "Promotion not found"
 // @Security     BearerAuth
@@ -136,7 +136,7 @@ func GetComparison(c *gin.Context) {
 // @Produce      json
 // @Param        start  query     string  true  "Start date (YYYY-MM-DD)"
 // @Param        end    query     string  true  "End date (YYYY-MM-DD)"
-// @Success      200    {object}  map[string]interface{}  "Promotion summary statistics"
+// @Success      200    {object}  map[string]any  "Promotion summary statistics"
 // @Failure      400    {object}  dtos.ErrorResponse      "Invalid date range"
 // @Failure      404    {object}  dtos.ErrorResponse      "No data found"
 // @Security     BearerAuth

@@ -5,6 +5,17 @@ import (
 	"fmt"
 )
 
+type ProductJSONLDParams struct {
+	Name        string
+	Image       string
+	Description string
+	SKU         string
+	Currency    string
+	Price       float64
+	InStock     bool
+	ProductURL  string
+}
+
 type ProductSchemaLD struct {
 	Context     string  `json:"@context"`
 	Type        string  `json:"@type"`
@@ -24,12 +35,13 @@ type OfferLD struct {
 }
 
 // GenerateProductJSONLD constructs a valid Schema.org Product JSON-LD string
-func GenerateProductJSONLD(name, image, description, sku, currency string, price float64, inStock bool, productURL string) (string, error) {
+func GenerateProductJSONLD(params ProductJSONLDParams) (string, error) {
 	avail := "https://schema.org/InStock"
-	if !inStock {
+	if !params.InStock {
 		avail = "https://schema.org/OutOfStock"
 	}
 
+	currency := params.Currency
 	if currency == "" {
 		currency = "KES"
 	}
@@ -37,16 +49,16 @@ func GenerateProductJSONLD(name, image, description, sku, currency string, price
 	ld := ProductSchemaLD{
 		Context:     "https://schema.org",
 		Type:        "Product",
-		Name:        name,
-		Image:       image,
-		Description: description,
-		SKU:         sku,
+		Name:        params.Name,
+		Image:       params.Image,
+		Description: params.Description,
+		SKU:         params.SKU,
 		Offers: OfferLD{
 			Type:          "Offer",
 			PriceCurrency: currency,
-			Price:         price,
+			Price:         params.Price,
 			Availability:  avail,
-			URL:           productURL,
+			URL:           params.ProductURL,
 		},
 	}
 

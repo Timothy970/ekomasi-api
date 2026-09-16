@@ -81,7 +81,7 @@ func GetAllDeals(db DBExecutor, page, size int, isAdmin bool) ([]dtos.Deal, *dto
 	var (
 		countTotal  int
 		whereClause string
-		args        []interface{}
+		args        []any
 	)
 
 	// Apply filters only if NOT admin

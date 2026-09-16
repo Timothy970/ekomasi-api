@@ -59,7 +59,7 @@ func UpdateProductFeature(db DBExecutor, input dtos.ProductFeature, featureID st
 
 	// Build dynamic update query based on which fields are provided
 	query := "UPDATE product_features SET "
-	args := []interface{}{}
+	args := []any{}
 	if input.Image != nil {
 		// Update image if provided
 		query += "image = ?, "

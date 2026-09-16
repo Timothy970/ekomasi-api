@@ -26,7 +26,7 @@ import (
 // @Produce      json
 // @Param        Authorization  header    string                 true  "Bearer token"
 // @Param        role_id        path      string                 true  "Role ID"
-// @Success      200            {object}  map[string]interface{}   "Role deleted"
+// @Success      200            {object}  map[string]any   "Role deleted"
 // @Failure      400            {object}  dtos.ErrorResponse     "Role not found or in use"
 // @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Security     BearerAuth
@@ -85,7 +85,7 @@ func DeleteRoleHandler(c *gin.Context) {
 // @Produce      json
 // @Param        Authorization  header    string                 true   "Bearer token"
 // @Param        category       query     string                 false  "Filter by category"
-// @Success      200            {object}  map[string]interface{}   "Permissions list"
+// @Success      200            {object}  map[string]any   "Permissions list"
 // @Failure      400            {object}  dtos.ErrorResponse     "Database error"
 // @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Security     BearerAuth
@@ -150,7 +150,7 @@ func GetPermissionsHandler(c *gin.Context) {
 // @Param        Authorization  header    string               true  "Bearer token"
 // @Param        role_id        path      string               true  "Role ID"
 // @Param        permissions    body      map[string][]string  true  "Permission IDs to add"
-// @Success      200            {object}  map[string]interface{} "Permissions added"
+// @Success      200            {object}  map[string]any "Permissions added"
 // @Failure      400            {object}  dtos.ErrorResponse   "Invalid permission ID or role not found"
 // @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
 // @Security     BearerAuth
@@ -241,7 +241,7 @@ func AddPermissionsToRoleHandler(c *gin.Context) {
 // @Param        Authorization  header    string               true  "Bearer token"
 // @Param        role_id        path      string               true  "Role ID"
 // @Param        permissions    body      map[string][]string  true  "Permission IDs to remove"
-// @Success      200            {object}  map[string]interface{} "Permissions removed"
+// @Success      200            {object}  map[string]any "Permissions removed"
 // @Failure      400            {object}  dtos.ErrorResponse   "Invalid permission ID or role not found"
 // @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
 // @Security     BearerAuth

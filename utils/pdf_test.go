@@ -10,19 +10,19 @@ import (
 func TestEllipseText(t *testing.T) {
 	tests := []struct {
 		input    string
-		max      int
+		maxLen   int
 		expected string
 	}{
 		{"Short text", 20, "Short text"},
 		{"Exact length text", 17, "Exact length text"},
-		{"This is a long description that needs truncation", 20, "This is a long des..."},
+		{"This is a long description that needs truncation", 20, "This is a long de..."},
 		{"ABC", 2, "AB"},
 	}
 
 	for _, tt := range tests {
-		result := EllipseText(tt.input, tt.max)
+		result := EllipseText(tt.input, tt.maxLen)
 		if result != tt.expected {
-			t.Errorf("EllipseText(%q, %d) = %q; expected %q", tt.input, tt.max, result, tt.expected)
+			t.Errorf("EllipseText(%q, %d) = %q; expected %q", tt.input, tt.maxLen, result, tt.expected)
 		}
 	}
 }

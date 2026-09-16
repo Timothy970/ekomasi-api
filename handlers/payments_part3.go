@@ -22,8 +22,8 @@ import (
 // @Produce json
 // @Param page query int false "Page number (default: 1)"
 // @Param size query int false "Page size (default: 10)"
-// @Success 200 {object} map[string]interface{} "Refunds retrieved successfully with pagination"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Refunds retrieved successfully with pagination"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/refunds [get]
 // @Security BearerAuth
 func ListRefundsHandler(c *gin.Context) {
@@ -108,9 +108,9 @@ func ListRefundsHandler(c *gin.Context) {
 // @Tags Payments
 // @Produce json
 // @Param refund_id path string true "Refund ID"
-// @Success 200 {object} map[string]interface{} "Refund details retrieved successfully"
-// @Failure 404 {object} map[string]interface{} "Refund not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Refund details retrieved successfully"
+// @Failure 404 {object} map[string]any "Refund not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/refunds/{refund_id} [get]
 // @Security BearerAuth
 func GetRefundByIDHandler(c *gin.Context) {
@@ -163,9 +163,9 @@ func GetRefundByIDHandler(c *gin.Context) {
 // @Tags Payments
 // @Produce json
 // @Param user_id path string true "User ID"
-// @Success 200 {object} map[string]interface{} "Refund details retrieved successfully"
-// @Failure 404 {object} map[string]interface{} "User or refund not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Refund details retrieved successfully"
+// @Failure 404 {object} map[string]any "User or refund not found"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/refunds/user/{user_id} [get]
 // @Security BearerAuth
 func GetRefundByUserIDHandler(c *gin.Context) {
@@ -220,10 +220,10 @@ func GetRefundByUserIDHandler(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param request body dtos.Voucher true "Voucher creation request"
-// @Success 201 {object} map[string]interface{} "Voucher created successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid request body or validation failed"
-// @Failure 401 {object} map[string]interface{} "Unauthorized - admin access required"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 201 {object} map[string]any "Voucher created successfully"
+// @Failure 400 {object} map[string]any "Invalid request body or validation failed"
+// @Failure 401 {object} map[string]any "Unauthorized - admin access required"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/admin/vouchers [post]
 // @Security BearerAuth
 func CreateVoucherHandler(c *gin.Context) {

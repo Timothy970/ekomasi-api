@@ -125,7 +125,7 @@ func UploadImageHandler2(c *gin.Context) {
 // @Param        q           query     string  false  "Search query"
 // @Param        start_date  query     string  false  "Start date (YYYY-MM-DD)"
 // @Param        end_date    query     string  false  "End date (YYYY-MM-DD)"
-// @Success      200         {object}  map[string]interface{}
+// @Success      200         {object}  map[string]any
 // @Failure      401         {object}  dtos.ErrorResponse
 // @Failure      500         {object}  dtos.ErrorResponse
 // @Security     BearerAuth
@@ -173,7 +173,7 @@ func GetAllSubscribersHandler(c *gin.Context) {
 			Description: "Subscribers fetched successfully",
 			Code:        http.StatusOK,
 		},
-		Payload: map[string]interface{}{
+		Payload: map[string]any{
 			"subscribers": subscribers,
 			"pagination":  meta,
 		},

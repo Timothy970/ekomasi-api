@@ -9156,6 +9156,31 @@ paths:
       summary: Download inventory CSV
       tags:
       - Inventories
+  /api/inventories/{inventory_id}/pdf:
+    get:
+      description: Download inventory data as PDF
+      parameters:
+      - description: Inventory ID
+        in: path
+        name: inventory_id
+        required: true
+        type: string
+      produces:
+      - application/pdf
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dtos.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Download inventory PDF
+      tags:
+      - Inventories
   /api/locations:
     get:
       description: Retrieve paginated list of all delivery locations with shipping
@@ -11527,11 +11552,27 @@ paths:
       - Reports
   /api/reports/inventory/turnover/{product_id}:
     get:
+      description: Get inventory turnover report by product
       parameters:
+      - description: Product ID
+        in: path
+        name: product_id
+        required: true
+        type: string
+      - description: Period (weekly, monthly, etc.)
+        in: query
+        name: period
+        type: string
+      - description: Start Date (YYYY-MM-DD)
+        in: query
+        name: start
+        type: string
       - description: End Date (YYYY-MM-DD)
         in: query
         name: end
         type: string
+      produces:
+      - application/json
       responses:
         "200":
           description: OK
@@ -11541,6 +11582,9 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/dtos.ErrorResponse'
+      summary: Get inventory turnover report by product
+      tags:
+      - Reports
   /api/reports/products/{product_id}/performance:
     get:
       description: Generates a detailed performance report for a single product within

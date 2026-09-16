@@ -209,7 +209,7 @@ var CreateEntry = func(db DBExecutor, req dtos.CreateJournalEntryRequest) (strin
 var ListEntries = func(db DBExecutor, page, size int, q string) ([]dtos.JournalEntry, dtos.PaginationMeta, error) {
 	// Build WHERE clause for filtering
 	whereClause := ""
-	args := []interface{}{}
+	args := []any{}
 
 	if q != "" {
 		whereClause = " WHERE (description LIKE ? OR reference LIKE ?)"

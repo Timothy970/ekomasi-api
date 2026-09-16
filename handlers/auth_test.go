@@ -224,15 +224,15 @@ package handlers
 // func TestUserLogin(t *testing.T) {
 // 	testCases := []struct {
 // 		name     string
-// 		input    map[string]interface{}
-// 		mockFunc func(map[string]interface{}) error
+// 		input    map[string]any
+// 		mockFunc func(map[string]any) error
 // 		wantErr  error
 // 		wantMsg  string
 // 	}{
 // 		{
 // 			name:  "success",
-// 			input: map[string]interface{}{"phone": PhoneNumber},
-// 			mockFunc: func(map[string]interface{}) error {
+// 			input: map[string]any{"phone": PhoneNumber},
+// 			mockFunc: func(map[string]any) error {
 // 				return nil
 // 			},
 // 			wantErr: nil,
@@ -240,8 +240,8 @@ package handlers
 // 		},
 // 		{
 // 			name:  EmailPhone,
-// 			input: map[string]interface{}{},
-// 			mockFunc: func(map[string]interface{}) error {
+// 			input: map[string]any{},
+// 			mockFunc: func(map[string]any) error {
 // 				return errors.New("Email or phone is required")
 // 			},
 // 			wantErr: errors.New("Email or phone is required"),
@@ -249,8 +249,8 @@ package handlers
 // 		},
 // 		{
 // 			name:  NoUserFound,
-// 			input: map[string]interface{}{"phone": PhoneNumber},
-// 			mockFunc: func(map[string]interface{}) error {
+// 			input: map[string]any{"phone": PhoneNumber},
+// 			mockFunc: func(map[string]any) error {
 // 				return errors.New(NoUserFound)
 // 			},
 // 			wantErr: errors.New(NoUserFound),

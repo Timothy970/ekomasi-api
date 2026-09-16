@@ -77,9 +77,9 @@ type ResetPasswordRequest struct {
 	Token    string `json:"token"`
 }
 type RegisterResponse struct {
-	Message string                 `json:"message"`
-	User    interface{}            `json:"user"` // Replace `interface{}` with your actual user struct if available
-	Token   map[string]interface{} `json:"token"`
+	Message string         `json:"message"`
+	User    any            `json:"user"` // Replace `any` with your actual user struct if available
+	Token   map[string]any `json:"token"`
 }
 type UserAddress struct {
 	AddressID string `json:"address_id"`

@@ -63,7 +63,7 @@ func GetUserIDFromVerificationToken(token string) (string, error) {
 // @Accept       json
 // @Produce      json
 // @Param        webhook  body      dtos.WhatsAppWebhook     true  "WhatsApp webhook payload"
-// @Success      200      {object}  map[string]interface{}     "Webhook processed successfully"
+// @Success      200      {object}  map[string]any     "Webhook processed successfully"
 // @Failure      400      {object}  dtos.ErrorResponse       "Invalid webhook payload"
 // @Router       /api/auth/whatsapp/webhook [post]
 func WhatsAppWebhookHandler(c *gin.Context) {

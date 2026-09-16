@@ -20,7 +20,7 @@ import (
 // @Accept       json
 // @Produce      json
 // @Param        config  body      dtos.TenantPaymentGatewayConfig  true  "Gateway configuration"
-// @Success      200     {object}  map[string]interface{}
+// @Success      200     {object}  map[string]any
 // @Router       /api/admin/payments/gateways [post]
 func ConfigurePaymentGatewayHandler(c *gin.Context) {
 	start := time.Now()
@@ -97,7 +97,7 @@ func ConfigurePaymentGatewayHandler(c *gin.Context) {
 // @Description  Get configurations for all payment gateways available to the current tenant
 // @Tags         Payments
 // @Produce      json
-// @Success      200  {object}  map[string]interface{}
+// @Success      200  {object}  map[string]any
 // @Router       /api/payments/gateways [get]
 func GetPaymentGatewayConfigsHandler(c *gin.Context) {
 	start := time.Now()

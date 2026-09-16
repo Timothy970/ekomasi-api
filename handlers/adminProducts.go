@@ -35,9 +35,9 @@ import (
 // @Param end_date query string false "Filter products created before this date"
 // @Param page query int false "Page number for pagination (default: 1)"
 // @Param size query int false "Number of items per page (default: 10)"
-// @Success 200 {object} map[string]interface{} "Products retrieved successfully with pagination and filters"
-// @Failure 400 {object} map[string]interface{} "Invalid sort parameter or other validation error"
-// @Failure 500 {object} map[string]interface{} "Internal server error during search"
+// @Success 200 {object} map[string]any "Products retrieved successfully with pagination and filters"
+// @Failure 400 {object} map[string]any "Invalid sort parameter or other validation error"
+// @Failure 500 {object} map[string]any "Internal server error during search"
 // @Router /api/admin/products/search [get]
 // @Security BearerAuth
 func AdminSearchProductsHandler(c *gin.Context) {
@@ -152,10 +152,10 @@ func AdminSearchProductsHandler(c *gin.Context) {
 			Description: "Products fetched successfully",
 			Code:        http.StatusOK,
 		},
-		Payload: map[string]interface{}{
+		Payload: map[string]any{
 			"products":   products,   // Array of product objects
 			"pagination": pagination, // Pagination metadata (total, pages, current page)
-			"filters": map[string]interface{}{
+			"filters": map[string]any{
 				// Echo back applied filters for client confirmation
 				"q":             searchParams.Q,
 				"category_name": searchParams.CategoryName,

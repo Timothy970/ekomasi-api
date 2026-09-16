@@ -150,7 +150,7 @@ func GetProductReviews(db DBExecutor, productID, sortBy string, rating, limit, p
 
 // countReviews counts total reviews matching the filter criteria
 func countReviews(db DBExecutor, productID string, rating int) (int, error) {
-	countArgs := []interface{}{productID}
+	countArgs := []any{productID}
 	countQuery := `
 		SELECT COUNT(*)
 		FROM product_reviews
@@ -168,7 +168,7 @@ func countReviews(db DBExecutor, productID string, rating int) (int, error) {
 
 // fetchPaginatedReviews retrieves reviews with sorting and pagination
 func fetchPaginatedReviews(db DBExecutor, productID, sortBy string, rating, limit, offset int) ([]dtos.ReviewResponse, error) {
-	queryArgs := []interface{}{productID}
+	queryArgs := []any{productID}
 	query := `
 		SELECT review_id, user_id, score, details, created_at
 		FROM product_reviews

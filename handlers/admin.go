@@ -244,7 +244,7 @@ func UpdateCategoryHandler(c *gin.Context) {
 // @Tags         Admin
 // @Produce      json
 // @Param        category_id  path      string  true  "Category ID"
-// @Success      200          {object}  map[string]interface{}
+// @Success      200          {object}  map[string]any
 // @Failure      400          {object}  dtos.ErrorResponse
 // @Failure      409          {object}  dtos.ErrorResponse
 // @Security     BearerAuth

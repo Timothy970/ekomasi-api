@@ -93,7 +93,7 @@ func UpdatePaymentOption(db DBExecutor, id string, paymentOption dtos.PaymentOpt
 	query := `
 		UPDATE payment_options
 		SET name = ?, type = ?, is_active = ?`
-	var args []interface{}
+	var args []any
 	args = append(args, paymentOption.Name, paymentOption.Type, paymentOption.IsActive)
 
 	// Conditionally update configs if provided

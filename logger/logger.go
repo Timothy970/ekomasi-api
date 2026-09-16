@@ -22,7 +22,7 @@ type LogEntry struct {
 	Level    LogLevel
 	Message  string
 	UserID   *string // nullable
-	Metadata map[string]interface{}
+	Metadata map[string]any
 	Module   *string // nullable
 	Role     *string // nullable
 }

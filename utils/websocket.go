@@ -34,28 +34,33 @@ const (
 
 // WSMessage defines the structure for Redis-broadcasted WebSocket messages.
 type WSMessage struct {
-	Key     string      `json:"key"`
-	Payload interface{} `json:"payload"`
+	Key     string `json:"key"`
+	Payload any    `json:"payload"`
 }
 
 // wsChannel is the Redis channel name for WebSocket broadcasts.
 const wsChannel = "ws_broadcast"
 
-// HandleWebSocket upgrades HTTP connection to WebSocket and manages lifecycle.
-// It uses a "key" query parameter to identify the connection.
-func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Extract connection identifier from query parameter
+// extractWSKey extracts the connection identifier key from the HTTP request query parameters.
+func extractWSKey(r *http.Request) string {
 	key := r.URL.Query().Get("key")
 	if key == "" {
 		// Fallback for backward compatibility or if specific identifiers are provided
 		orderID := r.URL.Query().Get("order_id")
 		deliveryID := r.URL.Query().Get("delivery_id")
 		if orderID != "" && deliveryID != "" {
-			key = orderID + ":" + deliveryID
-		} else {
-			key = r.URL.Query().Get("user_id")
+			return orderID + ":" + deliveryID
 		}
+		return r.URL.Query().Get("user_id")
 	}
+	return key
+}
+
+// HandleWebSocket upgrades HTTP connection to WebSocket and manages lifecycle.
+// It uses a "key" query parameter to identify the connection.
+func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// Extract connection identifier from query parameter
+	key := extractWSKey(r)
 
 	if key == "" {
 		http.Error(w, "Missing connection identifier (key, user_id, or order_id+delivery_id)", http.StatusBadRequest)
@@ -79,45 +84,58 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
-	// Store connection in map with thread safety
+	registerConnection(key, conn)
+
+	ticker := time.NewTicker(pingPeriod)
+	defer cleanupConnection(key, conn, ticker)
+
+	// Start read pump loop in a background goroutine
+	go readPump(key, conn)
+
+	// Run ping pump loop in current goroutine
+	pingPump(conn, ticker)
+}
+
+// registerConnection safely stores the active connection in the connections map.
+func registerConnection(key string, conn *websocket.Conn) {
 	mu.Lock()
+	defer mu.Unlock()
 	activeConnections[key] = conn
 	log.Printf("WebSocket connected for key %s", key)
-	mu.Unlock()
+}
 
-	// Setup ping ticker for keep-alive
-	ticker := time.NewTicker(pingPeriod)
-	// Cleanup function when connection closes
-	defer func() {
-		ticker.Stop()
-		conn.Close()
+// cleanupConnection handles resources cleanup upon WebSocket closure.
+func cleanupConnection(key string, conn *websocket.Conn, ticker *time.Ticker) {
+	ticker.Stop()
+	conn.Close()
 
-		// Remove connection from map ONLY if it's the same connection we added
-		// This prevents a newer reconnection from being deleted by an old connection's cleanup
-		mu.Lock()
-		if activeConnections[key] == conn {
-			delete(activeConnections, key)
-			log.Printf("WebSocket closed for key %s", key)
-		} else {
-			log.Printf("WebSocket for key %s was already replaced by a newer connection, skipping cleanup", key)
-		}
-		mu.Unlock()
-	}()
+	// Remove connection from map ONLY if it's the same connection we added
+	// This prevents a newer reconnection from being deleted by an old connection's cleanup
+	mu.Lock()
+	defer mu.Unlock()
+	if activeConnections[key] == conn {
+		delete(activeConnections, key)
+		log.Printf("WebSocket closed for key %s", key)
+	} else {
+		log.Printf("WebSocket for key %s was already replaced by a newer connection, skipping cleanup", key)
+	}
+}
 
-	// Read pump: Keep connection alive by reading messages
-	go func() {
-		for {
-			_, _, err := conn.ReadMessage()
-			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Printf("WebSocket error for %s: %v", key, err)
-				}
-				break
+// readPump reads incoming WebSocket messages to keep the connection alive.
+func readPump(key string, conn *websocket.Conn) {
+	for {
+		_, _, err := conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("WebSocket error for %s: %v", key, err)
 			}
+			break
 		}
-	}()
+	}
+}
 
-	// Ping pump: Send periodic pings to keep connection alive
+// pingPump sends periodic ping messages to maintain the WebSocket connection.
+func pingPump(conn *websocket.Conn, ticker *time.Ticker) {
 	for range ticker.C {
 		conn.SetWriteDeadline(time.Now().Add(writeWait))
 		if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
@@ -128,7 +146,7 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 // SendToUser broadcasts a JSON message to a specific connection identified by key.
 // In a multi-instance environment, this publishes to Redis so all instances can check local connections.
-func SendToUser(key string, message interface{}) {
+func SendToUser(key string, message any) {
 	if RedisClient == nil {
 		// Fallback to local send if Redis is not configured
 		sendLocally(key, message)
@@ -157,7 +175,7 @@ func SendToUser(key string, message interface{}) {
 }
 
 // sendLocally sends a JSON message to a connection on the current server instance.
-func sendLocally(key string, message interface{}) {
+func sendLocally(key string, message any) {
 	var conn *websocket.Conn
 	var ok bool
 

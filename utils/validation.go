@@ -1,28 +1,3 @@
-// Package utils provides validation utilities for the Ekomasi e-commerce platform.
-//
-// This file contains validation and authorization functions:
-//   - Struct validation with user-friendly error messages
-//   - HTTP request validation and response handling
-//   - Admin role verification
-//   - Permission-based access control
-//   - Role and permission caching
-//
-// Validation Features:
-//   - go-playground/validator integration
-//   - Field-level validation with custom messages
-//   - Automatic error response generation
-//   - Performance timing for all validations
-//
-// Authorization Features:
-//   - Admin role checking
-//   - Granular permission verification
-//   - Role-based access control (RBAC)
-//   - Permission caching for performance
-//   - Missing permission reporting
-//
-// Thread Safety:
-//   - Uses cached role permissions when available
-//   - Database queries for cache misses
 package utils
 
 import (
@@ -36,8 +11,6 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-// validate is the shared validator instance used for struct validation.
-// Uses go-playground/validator for declarative validation rules.
 var validate = validator.New()
 
 // tagToMessage maps validation tags to user-friendly error messages.
@@ -306,7 +279,7 @@ var RequirePermissions = func(
 	hasPermission := false
 	userPermissions := user.Permissions
 	for _, userPermission := range userPermissions {
-		if strings.ToLower(userPermission) == strings.ToLower(allowedPermission) {
+		if strings.EqualFold(userPermission, allowedPermission) {
 			hasPermission = true
 			break
 		}
@@ -316,7 +289,7 @@ var RequirePermissions = func(
 		errorMsg := "You don't have permission to perform this action"
 		//get the description of the needed permission
 		for _, perm := range availablePermissions {
-			if strings.ToLower(perm.Key) == strings.ToLower(allowedPermission) {
+			if strings.EqualFold(perm.Key, allowedPermission) {
 				errorMsg = fmt.Sprintf("You don't have permission to %s", strings.ToLower(perm.Description))
 				break
 			}
@@ -354,28 +327,3 @@ func RequireGinPermissions(
 }
 
 // ValidateGinStructAndRespond validates struct fields and responds via Gin if invalid
-func ValidateGinStructAndRespond(
-	data interface{},
-	c *gin.Context,
-	requestSummary string,
-	start time.Time,
-	module string,
-) bool {
-	errs := ValidateStruct(data)
-	if len(errs) > 0 {
-		RespondWithGinError(c, ErrorJSONResponseOptions{
-			CollectiveInfo: CollectiveInfo{
-				Module:      module,
-				Description: "Validation failed",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   fmt.Sprintf("Validation failed: %v", errs),
-			TimeTaken: time.Since(start),
-			Function:  GetCurrentFuncName(),
-			Request:   c.Request,
-			RawBody:   requestSummary,
-		})
-		return false
-	}
-	return true
-}

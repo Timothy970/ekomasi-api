@@ -108,7 +108,7 @@ func GetPromotionDetails(db DBExecutor, promotionID string) (time.Time, time.Tim
 //   - error: Database error or nil on success
 func GetPromotionEffectiveness(db DBExecutor, productIDs []string, start, end time.Time) ([]dtos.PromotionEffectiveness, error) {
 	var query string
-	var args []interface{}
+	var args []any
 
 	// Build dynamic IN clause with placeholders
 	placeholders := "?" + strings.Repeat(",?", len(productIDs)-1)
@@ -172,7 +172,7 @@ func GetPromotionAggregate(db DBExecutor, productIDs []string, start, end time.T
 	`
 
 	// Build args array with product IDs and date range
-	args := make([]interface{}, len(productIDs)+2)
+	args := make([]any, len(productIDs)+2)
 	for i, id := range productIDs {
 		args[i] = id
 	}

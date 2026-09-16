@@ -172,7 +172,7 @@ func UpdateProductHandler(c *gin.Context) {
 // @Tags         Admin
 // @Produce      json
 // @Param        product_id  path      string  true  "Product ID"
-// @Success      200         {object}  map[string]interface{}
+// @Success      200         {object}  map[string]any
 // @Failure      400         {object}  dtos.ErrorResponse
 // @Failure      409         {object}  dtos.ErrorResponse
 // @Security     BearerAuth
@@ -232,7 +232,7 @@ func DeleteProductHandler(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        coupon  body      dtos.PromoCode  true  "Coupon Details"
-// @Success      200     {object}  map[string]interface{}
+// @Success      200     {object}  map[string]any
 // @Failure      400     {object}  dtos.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/admin/coupons [post]

@@ -224,7 +224,7 @@ func (m *MpesaClient) generateToken() error {
 		return fmt.Errorf("failed to get token, status: %d, body: %s", res.StatusCode, string(body))
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
 		return err
 	}
@@ -238,11 +238,11 @@ func (m *MpesaClient) generateToken() error {
 	return nil
 }
 
-func (m *MpesaClient) LipaNaMpesaOnline(paymentRequest dtos.MpesaRequest) (map[string]interface{}, error) {
+func (m *MpesaClient) LipaNaMpesaOnline(paymentRequest dtos.MpesaRequest) (map[string]any, error) {
 	timestamp := time.Now().Format("20060102150405")
 	password := base64.StdEncoding.EncodeToString([]byte(m.ShortCode + m.Passkey + timestamp))
 	log.Printf("Payment request::::%v", paymentRequest)
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"BusinessShortCode": m.ShortCode,
 		"Password":          password,
 		"Timestamp":         timestamp,
@@ -278,7 +278,7 @@ func (m *MpesaClient) LipaNaMpesaOnline(paymentRequest dtos.MpesaRequest) (map[s
 	}
 	defer res.Body.Close()
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
 		log.Printf("Error decoding response::: %s", err)
 		return nil, err

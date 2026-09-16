@@ -35,7 +35,7 @@ var (
 // @Produce      json
 // @Param        Authorization  header    string               true  "Bearer token"
 // @Param        role           body      dtos.RoleRequest     true  "Role details with permissions"
-// @Success      201            {object}  map[string]interface{} "Role created"
+// @Success      201            {object}  map[string]any "Role created"
 // @Failure      400            {object}  dtos.ErrorResponse   "Invalid permission ID or validation error"
 // @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
 // @Security     BearerAuth
@@ -145,7 +145,7 @@ func isValidPermissionKeys(permissionKeys []string, supportedPermissions []dtos.
 // @Param        name           query     string                 false  "Filter by role name"
 // @Param        start_date     query     string                 false  "Filter from date (YYYY-MM-DD)"
 // @Param        end_date       query     string                 false  "Filter to date (YYYY-MM-DD)"
-// @Success      200            {object}  map[string]interface{}   "Roles list"
+// @Success      200            {object}  map[string]any   "Roles list"
 // @Failure      400            {object}  dtos.ErrorResponse     "Invalid date format"
 // @Failure      401            {object}  dtos.ErrorResponse     "Admin authorization required"
 // @Security     BearerAuth
@@ -246,7 +246,7 @@ func GetRolesHandler(c *gin.Context) {
 // @Param        Authorization  header    string               true  "Bearer token"
 // @Param        role_id        path      string               true  "Role ID"
 // @Param        role           body      dtos.RoleRequest     true  "Updated role details"
-// @Success      200            {object}  map[string]interface{} "Role updated"
+// @Success      200            {object}  map[string]any "Role updated"
 // @Failure      400            {object}  dtos.ErrorResponse   "Validation error or role not found"
 // @Failure      401            {object}  dtos.ErrorResponse   "Admin authorization required"
 // @Security     BearerAuth

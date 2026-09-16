@@ -1,15 +1,3 @@
-// Package models provides data access functions for purchase order management.
-//
-// This file handles purchase order operations including:
-//   - Purchase order creation and CRUD operations
-//   - Purchase order item management (add/remove products)
-//   - Supplier validation and association
-//   - Purchase order status tracking (pending, approved, received, cancelled)
-//   - Paginated listing with associated items
-//   - Dynamic query building for partial updates
-//
-// Purchase orders track inventory procurement from suppliers with line items
-// for each product/variant ordered, quantities, and unit costs.
 package models
 
 import (
@@ -20,7 +8,6 @@ import (
 	"github.com/teris-io/shortid"
 )
 
-// Error messages for purchase order operations
 var nopurcahseorder = "purchase order not found"
 var wherepo = "po_id = ?"
 
@@ -247,7 +234,7 @@ func UpdatePurchaseOrder(db DBExecutor, req dtos.UpdatePurchaseOrderRequest, poI
 
 	// Build dynamic UPDATE query
 	query := "UPDATE purchase_orders SET "
-	args := []interface{}{}
+	args := []any{}
 
 	// Add status field if provided
 	if req.Status != "" {
@@ -332,61 +319,3 @@ func DeletePurchaseOrder(db DBExecutor, id string) error {
 //  3. Validate variant exists
 //  4. Generate unique line item ID
 //  5. Insert line item into purchase_order_items
-func AddProductToPurchaseOrder(db DBExecutor, item dtos.PurchaseOrderItem) error {
-	// Validate purchase order exists
-	err := isPurchaseOrderThere(db, item.PoID)
-	if err != nil {
-		return err
-	}
-
-	// Validate product exists
-	err = IsProductThere(db, item.ProductID)
-	if err != nil {
-		return err
-	}
-
-	// Validate variant exists
-	err = isVariantThere(db, item.VariantID)
-	if err != nil {
-		return err
-	}
-
-	// Generate unique line item ID
-	itemID, _ := shortid.Generate()
-
-	// Insert line item
-	query := `
-		INSERT INTO purchase_order_items 
-		(po_item_id, po_id, product_id, variant_id, quantity, unit_cost)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`
-
-	if _, err = db.Exec(query, itemID, item.PoID, item.ProductID, item.VariantID, item.Quantity, item.UnitCost); err != nil {
-		return err
-	}
-	return nil
-}
-
-// RemoveProductFromPurchaseOrder removes a line item from a purchase order.
-//
-// Parameters:
-//   - itemID: string - The po_item_id to remove
-//
-// Returns:
-//   - error: "no item found with given ID", database error, or nil on success
-func RemoveProductFromPurchaseOrder(db DBExecutor, itemID string) error {
-	// Delete line item
-	query := `DELETE FROM purchase_order_items WHERE po_item_id = ?`
-
-	result, err := db.Exec(query, itemID)
-	if err != nil {
-		return err
-	}
-
-	// Check if item was found and deleted
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		return errors.New("no item found with given ID")
-	}
-	return nil
-}

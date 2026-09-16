@@ -178,33 +178,33 @@ func normalizeTopSellingTimeRange(timeRange string) string {
 //   - now: time.Time - The current timestamp for date calculations
 //
 // Returns:
-//   - []interface{}: Array of arguments for SQL query:
+//   - []any: Array of arguments for SQL query:
 //   - "daily": [startOfDay, startOfNextDay]
 //   - "weekly": [startOfDay(6 days ago), startOfNextDay]
 //   - "monthly": [startOfMonth, startOfNextMonth]
 //   - "yearly": [startOfYear, startOfNextYear]
 //   - "": [] - Empty array (no date filter)
-func getDateFilterArgs(timeRange string, now time.Time) []interface{} {
+func getDateFilterArgs(timeRange string, now time.Time) []any {
 	loc := now.Location()
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 	startOfNextDay := startOfDay.AddDate(0, 0, 1)
 
 	switch timeRange {
 	case "daily":
-		return []interface{}{startOfDay, startOfNextDay}
+		return []any{startOfDay, startOfNextDay}
 	case "weekly":
 		startOfLast7Days := startOfDay.AddDate(0, 0, -6)
-		return []interface{}{startOfLast7Days, startOfNextDay}
+		return []any{startOfLast7Days, startOfNextDay}
 	case "monthly":
 		startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 		startOfNextMonth := startOfMonth.AddDate(0, 1, 0)
-		return []interface{}{startOfMonth, startOfNextMonth}
+		return []any{startOfMonth, startOfNextMonth}
 	case "yearly":
 		startOfYear := time.Date(now.Year(), time.January, 1, 0, 0, 0, 0, loc)
 		startOfNextYear := startOfYear.AddDate(1, 0, 0)
-		return []interface{}{startOfYear, startOfNextYear}
+		return []any{startOfYear, startOfNextYear}
 	default:
 		// No date filter - return empty array
-		return []interface{}{}
+		return []any{}
 	}
 }

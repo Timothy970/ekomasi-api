@@ -175,7 +175,7 @@ func GetInventoryStockSummary(db DBExecutor, inventoryID, storeID string) (*dtos
 		WHERE inventory_id = ?
 	`
 
-	args := []interface{}{inventoryID}
+	args := []any{inventoryID}
 
 	// Add optional warehouse filter
 	if storeID != "" {
@@ -198,7 +198,7 @@ func GetInventoryStockSummary(db DBExecutor, inventoryID, storeID string) (*dtos
 		FROM order_items
 		WHERE product_id = ?
 	`
-	salesArgs := []interface{}{productID}
+	salesArgs := []any{productID}
 
 	// Add optional warehouse filter for sales
 	if storeID != "" {

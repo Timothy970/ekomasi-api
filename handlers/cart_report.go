@@ -23,9 +23,9 @@ import (
 // @Produce json
 // @Param start query string false "Start date for report (format: YYYY-MM-DD, default: 30 days ago)"
 // @Param end query string false "End date for report (format: YYYY-MM-DD, default: today)"
-// @Success 200 {object} map[string]interface{} "Cart abandonment report generated successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid date format"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Cart abandonment report generated successfully"
+// @Failure 400 {object} map[string]any "Invalid date format"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/reports/cart-abandonment [get]
 // @Security BearerAuth
 func CartAbandonmentReport(c *gin.Context) {
@@ -84,9 +84,9 @@ func CartAbandonmentReport(c *gin.Context) {
 // @Param start query string false "Start date for report (format: YYYY-MM-DD, default: 30 days ago)"
 // @Param end query string false "End date for report (format: YYYY-MM-DD, default: today)"
 // @Param period query string false "Time period granularity: daily, weekly, or monthly (default: daily)"
-// @Success 200 {object} map[string]interface{} "Cart abandonment trend report generated successfully"
-// @Failure 400 {object} map[string]interface{} "Invalid date format or period"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Success 200 {object} map[string]any "Cart abandonment trend report generated successfully"
+// @Failure 400 {object} map[string]any "Invalid date format or period"
+// @Failure 500 {object} map[string]any "Internal server error"
 // @Router /api/reports/cart-abandonment/trend [get]
 // @Security BearerAuth
 func CartAbandonmentTrendReport(c *gin.Context) {

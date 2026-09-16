@@ -52,7 +52,7 @@ func CreateWarrantType(db DBExecutor, wt dtos.CreateWarrantyTypeRequest) error {
 func isWarrantyTypeNameUnique(db DBExecutor, name string, warrantyID string) error {
 	// Build condition to check warranty type name uniqueness
 	condition := "LOWER(name) = LOWER(?)"
-	args := []interface{}{strings.ToLower(name)}
+	args := []any{strings.ToLower(name)}
 
 	// Exclude current record if warrantyID is provided (for updates)
 	if warrantyID != "" {

@@ -63,7 +63,7 @@ func UpdateBundle(db DBExecutor, req dtos.Bundle, bundleID string) error {
 // updateBundleMetadata updates bundle fields based on provided data
 func updateBundleMetadata(db DBExecutor, req dtos.Bundle, bundleID string) error {
 	query := "UPDATE products SET"
-	args := []interface{}{}
+	args := []any{}
 	updates := []string{}
 
 	if req.Name != "" {

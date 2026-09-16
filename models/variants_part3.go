@@ -87,8 +87,8 @@ func executeVariantQuery(db DBExecutor, variantIDs, variantNames []string) ([]*d
 //
 // Returns:
 //   - string: SQL query
-//   - []interface{}: Query arguments
-func buildVariantQuery(variantIDs, variantNames []string) (string, []interface{}) {
+//   - []any: Query arguments
+func buildVariantQuery(variantIDs, variantNames []string) (string, []any) {
 	// Base query joins variants with product_variants
 	query := `
         SELECT v.variant_id, v.variant_type, v.name, v.hex_code,
@@ -97,7 +97,7 @@ func buildVariantQuery(variantIDs, variantNames []string) (string, []interface{}
         INNER JOIN product_variants pv ON v.variant_id = pv.variant_id
         WHERE 1=1
     `
-	var args []interface{}
+	var args []any
 
 	// Add IN clause for variant IDs if provided
 	query, args = addInClause(query, args, "v.variant_id", variantIDs)
@@ -111,14 +111,14 @@ func buildVariantQuery(variantIDs, variantNames []string) (string, []interface{}
 //
 // Parameters:
 //   - query: string - Current SQL query
-//   - args: []interface{} - Current query arguments
+//   - args: []any - Current query arguments
 //   - field: string - Field name for IN clause
 //   - values: []string - Values for IN clause
 //
 // Returns:
 //   - string: Updated SQL query
-//   - []interface{}: Updated query arguments
-func addInClause(query string, args []interface{}, field string, values []string) (string, []interface{}) {
+//   - []any: Updated query arguments
+func addInClause(query string, args []any, field string, values []string) (string, []any) {
 	if len(values) == 0 {
 		return query, args
 	}

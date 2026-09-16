@@ -29,7 +29,7 @@ var dealWithID = "Deal with ID "
 // @Accept       json
 // @Produce      json
 // @Param        deal  body      dtos.CreateDeal  true  "Deal Details"
-// @Success      201   {object}  map[string]interface{}
+// @Success      201   {object}  map[string]any
 // @Failure      400   {object}  dtos.ErrorResponse
 // @Failure      500   {object}  dtos.ErrorResponse
 // @Security     BearerAuth
@@ -87,7 +87,7 @@ func CreateDealHandler(c *gin.Context) {
 // @Produce      json
 // @Param        page  query     int     false  "Page number"
 // @Param        size  query     int     false  "Page size"
-// @Success      200   {object}  map[string]interface{}
+// @Success      200   {object}  map[string]any
 // @Failure      404   {object}  dtos.ErrorResponse
 // @Router       /api/deals [get]
 func GetDealsHandler(c *gin.Context) {
@@ -144,7 +144,7 @@ func GetDealsHandler(c *gin.Context) {
 // @Param        start_date formData  string  false  "Start Date"
 // @Param        end_date   formData  string  false  "End Date"
 // @Param        is_active  formData  bool    false  "Is Active"
-// @Success      200        {object}  map[string]interface{}
+// @Success      200        {object}  map[string]any
 // @Failure      400        {object}  dtos.ErrorResponse
 // @Failure      500        {object}  dtos.ErrorResponse
 // @Security     BearerAuth

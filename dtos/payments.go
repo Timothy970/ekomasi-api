@@ -23,8 +23,8 @@ type STKCallbackRequest struct {
 			ResultDesc        string `json:"ResultDesc"`
 			CallbackMetadata  struct {
 				Item []struct {
-					Name  string      `json:"Name"`
-					Value interface{} `json:"Value"`
+					Name  string `json:"Name"`
+					Value any    `json:"Value"`
 				} `json:"Item"`
 			} `json:"CallbackMetadata"`
 		} `json:"stkCallback"`
@@ -44,8 +44,8 @@ type TransactionStatusSafaricomResponse struct {
 		ResultDesc       string `json:"ResultDesc"`
 		ResultParameters struct {
 			ResultParameter []struct {
-				Key   string      `json:"Key"`
-				Value interface{} `json:"Value,omitempty"`
+				Key   string `json:"Key"`
+				Value any    `json:"Value,omitempty"`
 			} `json:"ResultParameter"`
 		} `json:"ResultParameters"`
 		ResultType    int    `json:"ResultType"`
@@ -281,8 +281,8 @@ type MpesaTransactionRufundResponse struct {
 		TransactionID            string `json:"TransactionID"`
 		ResultParameters         struct {
 			ResultParameter []struct {
-				Key   string      `json:"Key"`
-				Value interface{} `json:"Value"`
+				Key   string `json:"Key"`
+				Value any    `json:"Value"`
 			} `json:"ResultParameter"`
 		} `json:"ResultParameters"`
 		ReferenceData struct {

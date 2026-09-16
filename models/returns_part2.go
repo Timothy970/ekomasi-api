@@ -20,9 +20,9 @@ import (
 )
 
 // buildReturnFilters constructs WHERE clause and arguments for return filtering
-func buildReturnFilters(status, q string) (string, []interface{}) {
+func buildReturnFilters(status, q string) (string, []any) {
 	where := "WHERE 1=1"
-	var args []interface{}
+	var args []any
 
 	if status != "" && status != "All" {
 		where += " AND LOWER(r.status) LIKE ?"
@@ -44,7 +44,7 @@ func buildReturnFilters(status, q string) (string, []interface{}) {
 }
 
 // countTotalReturns counts total matching records for pagination
-func countTotalReturns(db DBExecutor, where string, args []interface{}) (int, error) {
+func countTotalReturns(db DBExecutor, where string, args []any) (int, error) {
 	countQuery := `
 		SELECT COUNT(DISTINCT r.return_id)
 		FROM returns r
@@ -58,7 +58,7 @@ func countTotalReturns(db DBExecutor, where string, args []interface{}) (int, er
 }
 
 // fetchReturnsWithDetails retrieves returns with product details and refunds
-func fetchReturnsWithDetails(db DBExecutor, where string, args []interface{}, size, offset int) ([]dtos.ReturnResponse, error) {
+func fetchReturnsWithDetails(db DBExecutor, where string, args []any, size, offset int) ([]dtos.ReturnResponse, error) {
 	selectQuery := `
 		SELECT DISTINCT r.return_id, r.reason, r.status, r.created_at, r.order_id
 		FROM returns r

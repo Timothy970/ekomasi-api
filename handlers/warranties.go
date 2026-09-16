@@ -24,7 +24,7 @@ import (
 // @Accept       json
 // @Produce      json
 // @Param        warranty  body      dtos.CreateWarrantyTypeRequest  true  "Warranty type details"
-// @Success      201       {object}  map[string]interface{}            "Warranty type created successfully"
+// @Success      201       {object}  map[string]any            "Warranty type created successfully"
 // @Failure      400       {object}  dtos.ErrorResponse              "Invalid request or creation failed"
 // @Failure      401       {object}  dtos.ErrorResponse              "Admin authorization required"
 // @Security     BearerAuth
@@ -93,7 +93,7 @@ func CreateWarrantType(c *gin.Context) {
 // @Description  Retrieve all warranty types/categories available in the system
 // @Tags         Warranties
 // @Produce      json
-// @Success      200  {object}  map[string]interface{}  "Warranty types retrieved successfully"
+// @Success      200  {object}  map[string]any  "Warranty types retrieved successfully"
 // @Failure      500  {object}  dtos.ErrorResponse    "Failed to retrieve warranty types"
 // @Router       /api/warranty-types [get]
 func GetAllWarrantyTypes(c *gin.Context) {
@@ -146,7 +146,7 @@ func GetAllWarrantyTypes(c *gin.Context) {
 // @Produce      json
 // @Param        warranty_type_id  path      string                  true  "Warranty Type ID"
 // @Param        warranty          body      dtos.WarrantyType       true  "Updated warranty type details"
-// @Success      200               {object}  map[string]interface{}    "Warranty type updated successfully"
+// @Success      200               {object}  map[string]any    "Warranty type updated successfully"
 // @Failure      400               {object}  dtos.ErrorResponse      "Invalid request or update failed"
 // @Failure      401               {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Failure      404               {object}  dtos.ErrorResponse      "Warranty type not found"
@@ -216,7 +216,7 @@ func UpdateWarrantType(c *gin.Context) {
 // @Tags         Warranties
 // @Produce      json
 // @Param        warranty_type_id  path      string                  true  "Warranty Type ID"
-// @Success      200               {object}  map[string]interface{}    "Warranty type deleted successfully"
+// @Success      200               {object}  map[string]any    "Warranty type deleted successfully"
 // @Failure      401               {object}  dtos.ErrorResponse      "Admin authorization required"
 // @Failure      404               {object}  dtos.ErrorResponse      "Warranty type not found"
 // @Security     BearerAuth
@@ -276,7 +276,7 @@ func DeleteWarrantType(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        warranties  body      dtos.AddProductWarrantiesRequest  true  "Product ID and warranty type IDs"
-// @Success      200         {object}  map[string]interface{}              "Product warranties added successfully"
+// @Success      200         {object}  map[string]any              "Product warranties added successfully"
 // @Failure      400         {object}  dtos.ErrorResponse                "Invalid request or association failed"
 // @Failure      401         {object}  dtos.ErrorResponse                "Admin authorization required"
 // @Security     BearerAuth

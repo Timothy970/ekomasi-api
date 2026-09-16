@@ -112,9 +112,9 @@ func SendWhatsappMessages(to int, message string, template string) error {
 //   - to: int - Recipient phone number
 //
 // Returns:
-//   - map[string]interface{}: Template-specific payload
+//   - map[string]any: Template-specific payload
 //   - error: Environment variable parsing error, unknown template error, or nil on success
-func createSendPayload(template, message string, to int) (map[string]interface{}, error) {
+func createSendPayload(template, message string, to int) (map[string]any, error) {
 	// Parse and validate partner ID from environment
 	partnerID, err := strconv.Atoi(os.Getenv("PARTNERID"))
 	if err != nil {
@@ -131,7 +131,7 @@ func createSendPayload(template, message string, to int) (map[string]interface{}
 	switch template {
 	case "Otp":
 		// OTP template: Single recipient with OTP code
-		return map[string]interface{}{
+		return map[string]any{
 			"partner_api_key": os.Getenv("APIKEY"), // API authentication key
 			"partner_id":      partnerID,           // Partner identification
 			"template_name":   "auth_otp_template", // OTP template name
@@ -143,13 +143,13 @@ func createSendPayload(template, message string, to int) (map[string]interface{}
 
 	case "Auth":
 		// Auth template: User verification with button URL parameter
-		return map[string]interface{}{
+		return map[string]any{
 			"partner_id":      partnerID,           // Partner identification
 			"partner_api_key": os.Getenv("APIKEY"), // API authentication key
 			"sender":          sender,              // WhatsApp sender ID
 			"template_name":   "user_verification", // Verification template name
 			"category":        "UTILITY",           // Message category
-			"recipients": []map[string]interface{}{ // Array of recipients
+			"recipients": []map[string]any{ // Array of recipients
 				{
 					"phone_number":        to,                // Recipient phone number
 					"buttonURL_variables": []string{message}, // URL parameter for button

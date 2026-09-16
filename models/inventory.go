@@ -62,7 +62,7 @@ func ListInventory(db DBExecutor, page, size int, categoryID, stock, storeID, se
 
 	// Build dynamic filter conditions
 	var filters []string
-	var args []interface{}
+	var args []any
 
 	// Filter by category if provided
 	if categoryID != "" {
