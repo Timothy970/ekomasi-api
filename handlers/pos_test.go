@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"ekomasi_backend/dtos"
 	"ekomasi_backend/middleware"
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -106,7 +106,6 @@ func TestProcessSplitPaymentHandler(t *testing.T) {
 		c, _ := gin.CreateTestContext(rr)
 		c.Request = req
 		ProcessSplitPaymentHandler(c)
-
 
 		// --- Assertions ---
 		if status := rr.Code; status != http.StatusOK {

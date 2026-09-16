@@ -40,7 +40,7 @@ type WalletTransactionDTO struct {
 
 // PayWithWalletRequest holds payload for paying for an order using wallet or store credit
 type PayWithWalletRequest struct {
-	OrderID         string  `json:"order_id" validate:"required"`
-	UseStoreCredit  bool    `json:"use_store_credit"`
-	AmountToDeduct  float64 `json:"amount_to_deduct" validate:"required,gt=0"`
+	OrderID        string  `json:"order_id" validate:"required"`
+	UseStoreCredit bool    `json:"use_store_credit"`
+	AmountToDeduct float64 `json:"amount_to_deduct" validate:"required,gt=0"`
 }

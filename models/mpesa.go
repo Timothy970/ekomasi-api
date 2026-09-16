@@ -21,10 +21,9 @@ import "ekomasi_backend/dtos"
 //   - error: Order status update error, stock update error, or nil on success
 //
 // Workflow:
-//   1. Change order status to "Refunded"
-//   2. Iterate through all order items
-//   3. Restore stock quantity for each item
-//
+//  1. Change order status to "Refunded"
+//  2. Iterate through all order items
+//  3. Restore stock quantity for each item
 func HandleMpesaMoneyReturnRefunds(db DBExecutor, order dtos.Order) error {
 	// Update order status to refunded
 	status := "REFUNDED"

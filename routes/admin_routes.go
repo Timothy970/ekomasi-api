@@ -66,12 +66,14 @@ func SetupAdminGinRoutes(api *gin.RouterGroup) {
 	admin.DELETE("/products/categories/:category_id", middleware.GinAuthenticateToken(), handlers.DeleteCategoryHandler)
 
 	// Admin users
+	const userByIDPath = "/users/:user_id"
+
 	admin.GET("/users", middleware.GinAuthenticateToken(), handlers.GetAllUsers)
 	admin.POST("/users", middleware.GinAuthenticateToken(), handlers.AddUser)
 	admin.GET("/users/csv", middleware.GinAuthenticateToken(), handlers.DownloadUsersCSVHandler)
-	admin.GET("/users/:user_id", middleware.GinAuthenticateToken(), handlers.GetUserByID)
-	admin.PATCH("/users/:user_id", middleware.GinAuthenticateToken(), handlers.UpdateUserByAdmin)
-	admin.DELETE("/users/:user_id", middleware.GinAuthenticateToken(), handlers.DeleteUserByAdmin)
+	admin.GET(userByIDPath, middleware.GinAuthenticateToken(), handlers.GetUserByID)
+	admin.PATCH(userByIDPath, middleware.GinAuthenticateToken(), handlers.UpdateUserByAdmin)
+	admin.DELETE(userByIDPath, middleware.GinAuthenticateToken(), handlers.DeleteUserByAdmin)
 	admin.PATCH("/users/:user_id/activate", middleware.GinAuthenticateToken(), handlers.ActivateUserByAdmin)
 	admin.DELETE("/users/:user_id/de-activate", middleware.GinAuthenticateToken(), handlers.DeactivateUserByAdmin)
 
@@ -103,24 +105,28 @@ func SetupAdminGinRoutes(api *gin.RouterGroup) {
 	admin.DELETE("/socials/:social_id", middleware.GinAuthenticateToken(), handlers.DeleteSocialLinkHandler)
 
 	// Admin payments
+	const paymentByIDPath = "/payments/:payment_id"
+
 	admin.POST("/payments", middleware.GinAuthenticateToken(), handlers.CreatePaymentHandler)
 	admin.GET("/payments", middleware.GinAuthenticateToken(), handlers.ListPaymentsHandler)
-	admin.GET("/payments/:payment_id", middleware.GinAuthenticateToken(), handlers.GetPaymentByIDHandler)
-	admin.PATCH("/payments/:payment_id", middleware.GinAuthenticateToken(), handlers.UpdatePaymentHandler)
-	admin.DELETE("/payments/:payment_id", middleware.GinAuthenticateToken(), handlers.DeletePaymentHandler)
+	admin.GET(paymentByIDPath, middleware.GinAuthenticateToken(), handlers.GetPaymentByIDHandler)
+	admin.PATCH(paymentByIDPath, middleware.GinAuthenticateToken(), handlers.UpdatePaymentHandler)
+	admin.DELETE(paymentByIDPath, middleware.GinAuthenticateToken(), handlers.DeletePaymentHandler)
 	admin.PATCH("/process-refund/:refund_id", middleware.GinAuthenticateToken(), handlers.ProcessRefund)
 
 	// Admin vouchers
+	const voucherByIDPath = "/vouchers/:voucher_id"
+
 	admin.POST("/vouchers", middleware.GinAuthenticateToken(), handlers.CreateVoucherDesign)
 	admin.PATCH("/vouchers/designs/:voucher_id", middleware.GinAuthenticateToken(), handlers.EditVoucherDesign)
 	admin.GET("/vouchers", middleware.GinAuthenticateToken(), handlers.ListVouchersHandler)
 	admin.GET("/vouchers/purchases", middleware.GinAuthenticateToken(), handlers.ListVoucherPurchasesHandler)
 	admin.GET("/vouchers/purchases/:purchase_id", middleware.GinAuthenticateToken(), handlers.GetVoucherPurchasesHandler)
 	admin.DELETE("/vouchers/designs/:voucher_id", middleware.GinAuthenticateToken(), handlers.DeleteVoucherDesign)
-	admin.GET("/vouchers/:voucher_id", middleware.GinAuthenticateToken(), handlers.GetVoucherHandler)
+	admin.GET(voucherByIDPath, middleware.GinAuthenticateToken(), handlers.GetVoucherHandler)
 	admin.POST("/vouchers/create", middleware.GinAuthenticateToken(), handlers.CreateVoucherHandlerTest)
-	admin.PATCH("/vouchers/:voucher_id", middleware.GinAuthenticateToken(), handlers.UpdateVoucherHandler)
-	admin.DELETE("/vouchers/:voucher_id", middleware.GinAuthenticateToken(), handlers.DeleteVoucherHandler)
+	admin.PATCH(voucherByIDPath, middleware.GinAuthenticateToken(), handlers.UpdateVoucherHandler)
+	admin.DELETE(voucherByIDPath, middleware.GinAuthenticateToken(), handlers.DeleteVoucherHandler)
 
 	// Admin inventory & locations & deliveries
 	admin.POST("/locations", middleware.GinAuthenticateToken(), handlers.StoreShippingRates)
@@ -165,11 +171,12 @@ func SetupAdminGinRoutes(api *gin.RouterGroup) {
 	api.PATCH("/admin/charges/:charge_id", middleware.GinAuthenticateToken(), handlers.UpdateChargeHandler)
 	api.DELETE("/admin/charges/:charge_id", middleware.GinAuthenticateToken(), handlers.DeleteChargeHandler)
 
+	const promoCodeIDPath = "/admin/promo-codes/:promo_id"
 	api.POST("/admin/promo-codes", middleware.GinAuthenticateToken(), handlers.AddPromoCodeHandler)
 	api.GET("/admin/promo-codes", middleware.GinAuthenticateToken(), handlers.GetAllPromoCodesHandler)
-	api.GET("/admin/promo-codes/:promo_id", middleware.GinAuthenticateToken(), handlers.GetPromoCodeByIDHandler)
-	api.PATCH("/admin/promo-codes/:promo_id", middleware.GinAuthenticateToken(), handlers.UpdatePromoCodeHandler)
-	api.DELETE("/admin/promo-codes/:promo_id", middleware.GinAuthenticateToken(), handlers.DeletePromoCodeHandler)
+	api.GET(promoCodeIDPath, middleware.GinAuthenticateToken(), handlers.GetPromoCodeByIDHandler)
+	api.PATCH(promoCodeIDPath, middleware.GinAuthenticateToken(), handlers.UpdatePromoCodeHandler)
+	api.DELETE(promoCodeIDPath, middleware.GinAuthenticateToken(), handlers.DeletePromoCodeHandler)
 
 	// Admin roles & permissions & logs & static pages
 	admin.GET("/logs/:user_id", middleware.GinAuthenticateToken(), handlers.GetUserLogsByUserID)
@@ -184,20 +191,22 @@ func SetupAdminGinRoutes(api *gin.RouterGroup) {
 	admin.PATCH("/roles/:role_id", middleware.GinAuthenticateToken(), handlers.UpdateRoleHandler)
 	admin.DELETE("/roles/:role_id", middleware.GinAuthenticateToken(), handlers.DeleteRoleHandler)
 
+	const permissionsAvailablePath = "/permissions/available"
 	admin.GET("/permissions", middleware.GinAuthenticateToken(), handlers.GetPermissionsHandler)
-	admin.GET("/permissions/available", middleware.GinAuthenticateToken(), handlers.GetAvailablePermissions)
-	admin.POST("/permissions/available", middleware.GinAuthenticateToken(), handlers.AddAvailablePermission)
-	admin.PATCH("/permissions/available", middleware.GinAuthenticateToken(), handlers.UpdateAvailablePermission)
-	admin.DELETE("/permissions/available", middleware.GinAuthenticateToken(), handlers.RemoveAvailablePermission)
+	admin.GET(permissionsAvailablePath, middleware.GinAuthenticateToken(), handlers.GetAvailablePermissions)
+	admin.POST(permissionsAvailablePath, middleware.GinAuthenticateToken(), handlers.AddAvailablePermission)
+	admin.PATCH(permissionsAvailablePath, middleware.GinAuthenticateToken(), handlers.UpdateAvailablePermission)
+	admin.DELETE(permissionsAvailablePath, middleware.GinAuthenticateToken(), handlers.RemoveAvailablePermission)
 
 	admin.POST("/static-pages", middleware.GinAuthenticateToken(), handlers.CreateStaticPage)
 	admin.PATCH("/static-pages/:static_page_id", middleware.GinAuthenticateToken(), handlers.UpdateStaticPage)
 	admin.DELETE("/static-pages/:static_page_id", middleware.GinAuthenticateToken(), handlers.DeleteStaticPage)
 
-	admin.DELETE("/payment-options/:payment_option_id", middleware.GinAuthenticateToken(), handlers.DeletePaymentOptionHandler)
-	admin.GET("/payment-options/:payment_option_id", middleware.GinAuthenticateToken(), handlers.GetPaymentOptionByIDHandler)
+	const paymentOptionIDPath = "/payment-options/:payment_option_id"
+	admin.DELETE(paymentOptionIDPath, middleware.GinAuthenticateToken(), handlers.DeletePaymentOptionHandler)
+	admin.GET(paymentOptionIDPath, middleware.GinAuthenticateToken(), handlers.GetPaymentOptionByIDHandler)
 	admin.GET("/payment-options", middleware.GinAuthenticateToken(), handlers.ListPaymentOptionsHandler)
-	admin.PATCH("/payment-options/:payment_option_id", middleware.GinAuthenticateToken(), handlers.UpdatePaymentOptionHandler)
+	admin.PATCH(paymentOptionIDPath, middleware.GinAuthenticateToken(), handlers.UpdatePaymentOptionHandler)
 	admin.POST("/payment-options", middleware.GinAuthenticateToken(), handlers.CreatePaymentOptionHandler)
 
 	admin.POST("/promotions/types", middleware.GinAuthenticateToken(), handlers.CreatePromotionsTypesHandler)
@@ -214,11 +223,10 @@ func SetupAdminGinRoutes(api *gin.RouterGroup) {
 	admin.GET("/subscribers/csv", middleware.GinAuthenticateToken(), handlers.DownloadSubscribersCSVHandler)
 
 	// Admin tenants management
+	const tenantIDPath = "/tenants/:id"
 	admin.POST("/tenants", middleware.GinAuthenticateToken(), handlers.CreateTenantHandler)
 	admin.GET("/tenants", middleware.GinAuthenticateToken(), handlers.GetAllTenantsHandler)
-	admin.GET("/tenants/:id", middleware.GinAuthenticateToken(), handlers.GetTenantByIDHandler)
-	admin.PATCH("/tenants/:id", middleware.GinAuthenticateToken(), handlers.UpdateTenantHandler)
-	admin.DELETE("/tenants/:id", middleware.GinAuthenticateToken(), handlers.DeleteTenantHandler)
+	admin.GET(tenantIDPath, middleware.GinAuthenticateToken(), handlers.GetTenantByIDHandler)
+	admin.PATCH(tenantIDPath, middleware.GinAuthenticateToken(), handlers.UpdateTenantHandler)
+	admin.DELETE(tenantIDPath, middleware.GinAuthenticateToken(), handlers.DeleteTenantHandler)
 }
-
-// SetupAdminRoutes configures all admin-specific routes

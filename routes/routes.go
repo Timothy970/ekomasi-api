@@ -33,4 +33,3 @@ func SetupGinRoutes(router *gin.Engine) {
 	SetupWhatsAppGinRoutes(api)
 	SetupWalletGinRoutes(api)
 }
-

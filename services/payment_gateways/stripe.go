@@ -77,10 +77,10 @@ func (s *StripeService) InitializeTransaction(req dtos.PaymentInitializeRequest)
 	}
 
 	var stripeSession struct {
-		ID         string `json:"id"`
-		URL        string `json:"url"`
-		Status     string `json:"status"`
-		Error      struct {
+		ID     string `json:"id"`
+		URL    string `json:"url"`
+		Status string `json:"status"`
+		Error  struct {
 			Message string `json:"message"`
 		} `json:"error"`
 	}

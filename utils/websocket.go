@@ -198,7 +198,7 @@ func StartWebSocketBroadcaster() {
 	go func() {
 		for {
 			pubsub := RedisClient.Subscribe(ctx, wsChannel)
-			
+
 			// Verify subscription is working
 			_, err := pubsub.Receive(ctx)
 			if err != nil {

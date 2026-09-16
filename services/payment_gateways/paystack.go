@@ -115,13 +115,13 @@ func (s *PaystackService) VerifyTransaction(reference string) (*dtos.PaymentVeri
 		Status  bool   `json:"status"`
 		Message string `json:"message"`
 		Data    struct {
-			Status          string    `json:"status"` // 'success', 'failed'
-			Reference       string    `json:"reference"`
-			Amount          float64   `json:"amount"` // in kobo/cents
-			Currency        string    `json:"currency"`
-			Channel         string    `json:"channel"`
-			PaidAt          time.Time `json:"paid_at"`
-			Customer        struct {
+			Status    string    `json:"status"` // 'success', 'failed'
+			Reference string    `json:"reference"`
+			Amount    float64   `json:"amount"` // in kobo/cents
+			Currency  string    `json:"currency"`
+			Channel   string    `json:"channel"`
+			PaidAt    time.Time `json:"paid_at"`
+			Customer  struct {
 				Email string `json:"email"`
 			} `json:"customer"`
 		} `json:"data"`

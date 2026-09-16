@@ -14,6 +14,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	inventoryView = "inventory.view"
+	dateLayout    = "2006-01-02"
+)
+
 // ListInventory retrieves a paginated list of inventories.
 // This endpoint is restricted to administrators.
 //
@@ -87,7 +92,7 @@ func ListInventory(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        inventory  body      dtos.CreateInventoryRequest  true  "Inventory Details"
-// @Success      200        {object}  map[string]interface{}
+// @Success      200        {object}  map[string]any
 // @Failure      400        {object}  dtos.ErrorResponse
 // @Failure      409        {object}  dtos.ErrorResponse
 // @Security     BearerAuth
@@ -231,7 +236,7 @@ func DownloadInventoryCSV(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Type", "text/csv")
+	c.Header(contentType, contentTypeCSV)
 	c.Header("Content-Disposition", "attachment; filename=inventory.csv")
 
 	if err := utils.ExportInventoryCSV(c.Writer, *inv); err != nil {
@@ -268,7 +273,7 @@ func DownloadInventoryPDF(c *gin.Context) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure user is admin
-	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", "inventory.view"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", inventoryView); !ok {
 		return
 	}
 	id := c.Param("inventory_id")
@@ -323,7 +328,7 @@ func DownloadInventoryPDF(c *gin.Context) {
 // @Produce      json
 // @Param        inventory_id  path      string                      true  "Inventory ID"
 // @Param        inventory     body      dtos.UpdateInventoryRequest true  "Inventory Details"
-// @Success      200           {object}  map[string]interface{}
+// @Success      200           {object}  map[string]any
 // @Failure      400           {object}  dtos.ErrorResponse
 // @Failure      409           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
@@ -398,7 +403,7 @@ func UpdateInventory(c *gin.Context) {
 // @Tags         Inventories
 // @Produce      json
 // @Param        inventory_id  path      string  true  "Inventory ID"
-// @Success      200           {object}  map[string]interface{}
+// @Success      200           {object}  map[string]any
 // @Failure      400           {object}  dtos.ErrorResponse
 // @Failure      409           {object}  dtos.ErrorResponse
 // @Security     BearerAuth
@@ -594,7 +599,7 @@ func GetInventoryTurnoverByProduct(c *gin.Context) {
 // @Param        handling_notes       formData  string  false  "Handling Notes"
 // @Param        batch_images         formData  file    false  "Batch Images"
 // @Param        inspection_images    formData  file    false  "Inspection Images"
-// @Success      201                  {object}  map[string]interface{}
+// @Success      201                  {object}  map[string]any
 // @Failure      400                  {object}  dtos.ErrorResponse
 // @Failure      404                  {object}  dtos.ErrorResponse
 // @Failure      500                  {object}  dtos.ErrorResponse
@@ -679,87 +684,24 @@ func StockEntry(c *gin.Context) {
 		MinimumStockLevel: parseInt(c.Request.FormValue("minimum_stock_level")),
 		StoreQuantity:     ParseStoreInfoArray(c.Request.FormValue("store_quantity")),
 		SupplierID:        supplierID,
-		BuyingPrice:       parseFloat(c.Request.FormValue("buying_price")),
+		BuyingPrice:      Number.parseFloat(c.Request.FormValue("buying_price")),
 		HandlingNotes:     &handlingNotes,
-		SellingPrice:      parseFloat(c.Request.FormValue("selling_price")),
+		SellingPrice:     Number.parseFloat(c.Request.FormValue("selling_price")),
 		VariantQuantity:   ParseVariantQuantityArray(c.Request.FormValue("variant_quantity")),
 	}
 	//Validate the request
 	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Inventory") {
 		return
 	}
-	// Parse dates for comparison
-	expiryDate, err := time.Parse("2006-01-02", req.ExpiryDate)
-	if err != nil {
+	// Parse and validate dates
+	if msg, desc := validateStockEntryDates(req); msg != "" {
 		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Inventory",
-				Description: "Invalid expiry date format when creating stock entry",
+				Description: desc,
 				Code:        http.StatusBadRequest,
 			},
-			Message:   "Invalid expiry date format. Expected YYYY-MM-DD",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-
-	mfgDate, err := time.Parse("2006-01-02", req.ManufacturingDate)
-	if err != nil {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Inventory",
-				Description: "Invalid manufacturing date format when creating stock entry",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   "Invalid manufacturing date format. Expected YYYY-MM-DD",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-
-	inspectionDate, err := time.Parse("2006-01-02", req.InspectionDate)
-	if err != nil {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Inventory",
-				Description: "Invalid inspection date format when creating stock entry",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   "Invalid inspection date format. Expected YYYY-MM-DD",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	//inspection date cannot be in the future
-	if inspectionDate.After(time.Now()) {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Inventory",
-				Description: "Inspection date cannot be in the future when creating stock entry",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   "Inspection date cannot be in the future",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-
-	if expiryDate.Before(mfgDate) || expiryDate.Equal(mfgDate) {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Inventory",
-				Description: "Expiry date must be after manufacturing date when creating stock entry",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   "Expiry date must be after manufacturing date",
+			Message:   msg,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
 			Request:   c.Request,
@@ -811,75 +753,21 @@ func StockEntry(c *gin.Context) {
 		}
 	}()
 
-	var invetoryIDS []string
-	for _, warehouse := range req.StoreQuantity {
-		storeID := warehouse.StoreID
-		quantity := warehouse.Quantity
-		inventoryID, err := handleInventoryTracking(tx, req, storeID, quantity)
-		if err != nil {
-			tx.Rollback()
-			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Inventory",
-					Description: "Failed to store inventory tracking when creating stock entry",
-					Code:        http.StatusNotFound,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   c.Request,
-				RawBody:   requestSummary})
-			return
-		}
-		invetoryIDS = append(invetoryIDS, inventoryID)
-		batchID, err := handleBatch(tx, req, inventoryID)
-		if err != nil {
-			tx.Rollback()
-			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Inventory",
-					Description: "Failed to store batch details when creating stock entry",
-					Code:        http.StatusNotFound,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   c.Request,
-				RawBody:   requestSummary})
-			return
-		}
-		err = handleInspection(tx, req, batchID)
-		if err != nil {
-			tx.Rollback()
-			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Inventory",
-					Description: "Failed to store inspection details when creating stock entry",
-					Code:        http.StatusNotFound,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   c.Request,
-				RawBody:   requestSummary})
-			return
-		}
-		err = handleStoreConditonsAndNotes(tx, req, batchID)
-		if err != nil {
-			tx.Rollback()
-			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Inventory",
-					Description: "Failed to store handling notes when creating stock entry",
-					Code:        http.StatusNotFound,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request:   c.Request,
-				RawBody:   requestSummary})
-			return
-		}
+	invetoryIDS, errDesc, err := processStoreQuantities(tx, req)
+	if err != nil {
+		tx.Rollback()
+		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
+			CollectiveInfo: utils.CollectiveInfo{
+				Module:      "Inventory",
+				Description: errDesc,
+				Code:        http.StatusNotFound,
+			},
+			Message:   err.Error(),
+			TimeTaken: time.Since(start),
+			Function:  utils.GetCurrentFuncName(),
+			Request:   c.Request,
+			RawBody:   requestSummary})
+		return
 	}
 	//update product buying price and selling price
 	if err := models.UpdateProductPrices(tx, req.ProductID, req.BuyingPrice, req.SellingPrice); err != nil {
@@ -1047,8 +935,8 @@ func parseInt(s string) int {
 	return val
 }
 
-// parseFloat safely parses a string to float64, returns 0 if parsing fails
-func parseFloat(s string) float64 {
+//Number.parseFloat safely parses a string to float64, returns 0 if parsing fails
+funcNumber.parseFloat(s string) float64 {
 	val, err := strconv.ParseFloat(s, 64)
 	if err != nil {
 		return 0
@@ -1088,7 +976,7 @@ func GetInventoryStockSummary(c *gin.Context) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure user is admin
-	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", "inventory.view"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", inventoryView); !ok {
 		return
 	}
 	id := c.Param("inventory_id")
@@ -1129,7 +1017,7 @@ func GetInventoryStockHistory(c *gin.Context) {
 	// Read and restore body FIRST
 	requestSummary := utils.GetRequestSummary(c.Request)
 	// Ensure user is admin
-	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", "inventory.view"); !ok {
+	if _, ok := utils.RequireGinPermissions(c, start, requestSummary, "Inventory", inventoryView); !ok {
 		return
 	}
 	page, size := parsePagination(c.Query("page"), c.Query("size"))
@@ -1164,3 +1052,55 @@ func GetInventoryStockHistory(c *gin.Context) {
 		Request:   c.Request,
 		RawBody:   requestSummary})
 }
+
+func validateStockEntryDates(req *dtos.StockEntryRequest) (string, string) {
+	expiryDate, err := time.Parse(dateLayout, req.ExpiryDate)
+	if err != nil {
+		return "Invalid expiry date format. Expected YYYY-MM-DD", "Invalid expiry date format when creating stock entry"
+	}
+
+	mfgDate, err := time.Parse(dateLayout, req.ManufacturingDate)
+	if err != nil {
+		return "Invalid manufacturing date format. Expected YYYY-MM-DD", "Invalid manufacturing date format when creating stock entry"
+	}
+
+	inspectionDate, err := time.Parse(dateLayout, req.InspectionDate)
+	if err != nil {
+		return "Invalid inspection date format. Expected YYYY-MM-DD", "Invalid inspection date format when creating stock entry"
+	}
+
+	if inspectionDate.After(time.Now()) {
+		return "Inspection date cannot be in the future", "Inspection date cannot be in the future when creating stock entry"
+	}
+
+	if expiryDate.Before(mfgDate) || expiryDate.Equal(mfgDate) {
+		return "Expiry date must be after manufacturing date", "Expiry date must be after manufacturing date when creating stock entry"
+	}
+
+	return "", ""
+}
+
+func processStoreQuantities(tx models.DBExecutor, req *dtos.StockEntryRequest) ([]string, string, error) {
+	var inventoryIDs []string
+	for _, warehouse := range req.StoreQuantity {
+		storeID := warehouse.StoreID
+		quantity := warehouse.Quantity
+		inventoryID, err := handleInventoryTracking(tx, req, storeID, quantity)
+		if err != nil {
+			return nil, "Failed to store inventory tracking when creating stock entry", err
+		}
+		inventoryIDs = append(inventoryIDs, inventoryID)
+		batchID, err := handleBatch(tx, req, inventoryID)
+		if err != nil {
+			return nil, "Failed to store batch details when creating stock entry", err
+		}
+		if err := handleInspection(tx, req, batchID); err != nil {
+			return nil, "Failed to store inspection details when creating stock entry", err
+		}
+		if err := handleStoreConditonsAndNotes(tx, req, batchID); err != nil {
+			return nil, "Failed to store handling notes when creating stock entry", err
+		}
+	}
+	return inventoryIDs, "", nil
+}
+

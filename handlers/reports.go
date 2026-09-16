@@ -5,15 +5,14 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
 	"ekomasi_backend/dtos"
 	"ekomasi_backend/models"
 	"ekomasi_backend/utils"
 	"fmt"
-	"math"
 	"net/http"
-	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // Date format constants for error messages
@@ -70,7 +69,7 @@ func BalanceSheet(c *gin.Context) {
 				Message:   "Invalid as of date",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request: c.Request,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -92,7 +91,7 @@ func BalanceSheet(c *gin.Context) {
 				Message:   "Invalid comparison date",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request: c.Request,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -112,7 +111,7 @@ func BalanceSheet(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -149,7 +148,7 @@ func BalanceSheet(c *gin.Context) {
 		Message:   fmt.Sprintf("Balance sheet as of %s", asOfStr),
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -193,7 +192,7 @@ func IncomeStatement(c *gin.Context) {
 			Message:   "from and to are required and must be in YYYY-MM-DD format",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -210,7 +209,7 @@ func IncomeStatement(c *gin.Context) {
 			Message:   invalidfrom,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -227,7 +226,7 @@ func IncomeStatement(c *gin.Context) {
 			Message:   invalidto,
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -245,7 +244,7 @@ func IncomeStatement(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -285,558 +284,6 @@ func IncomeStatement(c *gin.Context) {
 		Message:   "Income statement",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
-
-// CashFlow generates a direct method cash flow statement for specified cash accounts.
-// It tracks cash inflows and outflows to show the net change in cash position
-// over a specific period.
-//
-// @Summary      Generate cash flow report
-// @Description  Retrieve a cash flow statement showing inflows, outflows, and net cash change for specified accounts
-// @Tags         Reports
-// @Accept       json
-// @Produce      json
-// @Param        request  body      dtos.CashFlowRequest      true  "Cash flow request with date range and account IDs"
-// @Success      200      {object}  dtos.CashFlowResponse     "Cash flow report"
-// @Failure      400      {object}  dtos.ErrorResponse        "Invalid request data"
-// @Failure      500      {object}  dtos.ErrorResponse        "Internal server error"
-// @Security     BearerAuth
-// @Router       /reports/cash-flow [post]
-func CashFlow(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Verify user has admin privileges (required for viewing financial reports)
-	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
-	if !ok {
-		// Authorization failed, RequireAdmin already sent error response
-		return
-	}
-	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.CashFlowRequest](c, requestSummary, start)
-	if !ok {
-		// Request body parsing failed, DecodeRequestBody already sent error response
-		return
-	}
-	// Validate all required fields in the request
-	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Reports") {
-		// Validation failed, ValidateStructAndRespond already sent error response
-		return
-	}
-
-	// Parse start date from string to time.Time
-	from, err := time.Parse(date, req.From)
-	if err != nil {
-		// Invalid start date format, return error response
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Reports",
-				Description: "Invalid from date for cash flow report",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   invalidfrom,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	// Parse end date from string to time.Time
-	to, err := time.Parse(date, req.To)
-	if err != nil {
-		// Invalid end date format, return error response
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Reports",
-				Description: "Invalid to date for cash flow report",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   invalidto,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	// Fetch cash flow data from database for specified cash accounts
-	inflows, outflows, begin, end, err := models.CashFlow(from, to, req.CashAccountIDs)
-	if err != nil {
-		// Database query failed, return error response
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Reports",
-				Description: "Failed to generate cash flow report",
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	// Build cash flow response structure
-	resp := dtos.CashFlowResponse{
-		From:          from,               // Report start date
-		To:            to,                 // Report end date
-		TotalInflows:  inflows,            // Sum of all cash received
-		TotalOutflows: outflows,           // Sum of all cash paid
-		NetChange:     inflows - outflows, // Net cash increase/decrease
-		BeginningCash: begin,              // Cash balance at start
-		EndingCash:    end,                // Cash balance at end
-	}
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Reports",
-			Description: "Cash flow report generated successfully",
-			Code:        http.StatusOK,
-		},
-		Payload:   resp,
-		Message:   "Cash flow",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
-		RawBody:   requestSummary})
-}
-
-// Ledger generates a general ledger report for a specific account.
-// It shows all transactions (journal entries) affecting an account with a running balance,
-// providing a complete transaction history with pagination support.
-//
-// @Summary      Generate general ledger report
-// @Description  Retrieve a paginated general ledger showing all transactions for a specific account with running balance
-// @Tags         Reports
-// @Produce      json
-// @Param        account_id  path      string                true  "Account ID"
-// @Param        from        query     string                true  "Start date (YYYY-MM-DD)"
-// @Param        to          query     string                true  "End date (YYYY-MM-DD)"
-// @Param        page        query     int                   false "Page number (default: 1)"
-// @Param        size        query     int                   false "Page size (default: 10)"
-// @Success      200         {object}  dtos.LedgerResponse   "General ledger report"
-// @Failure      400         {object}  dtos.ErrorResponse    "Invalid parameters"
-// @Failure      500         {object}  dtos.ErrorResponse    "Internal server error"
-// @Security     BearerAuth
-// @Router       /reports/ledger/{account_id} [get]
-func Ledger(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Verify user has admin privileges (required for viewing ledger reports)
-	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
-	if !ok {
-		// Authorization failed, RequireAdmin already sent error response
-		return
-	}
-	// Extract account ID from URL path parameters
-	accountID := c.Param("account_id")
-
-	// Extract date range parameters from query string
-	fromStr := c.Query("from")
-	toStr := c.Query("to")
-	if fromStr == "" || toStr == "" {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Reports",
-				Description: "from and to are required and in YYYY-MM-DD format",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   "from and to are required YYYY-MM-DD",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	// Parse start date from string to time.Time
-	from, err := time.Parse(date, fromStr)
-	if err != nil {
-		// Invalid start date format, return error response
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Reports",
-				Description: "Invalid from date for ledger report",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   invalidfrom,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	// Parse end date from string to time.Time
-	to, err := time.Parse(date, toStr)
-	if err != nil {
-		// Invalid end date format, return error response
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Reports",
-				Description: "Invalid to date for ledger report",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   invalidto,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	// Parse pagination parameters from query string
-	page, _ := strconv.Atoi(c.Query("page"))
-	size, _ := strconv.Atoi(c.Query("size"))
-	// Apply default pagination values if not provided or invalid
-	if page < 1 {
-		page = 1 // Default to first page
-	}
-	if size <= 0 {
-		size = 10 // Default page size
-	}
-
-	// Fetch ledger data from database (account info, opening balance, entries, total count)
-	acct, opening, rows, total, err := models.Ledger(accountID, from, to, page, size)
-	if err != nil {
-		// Database query failed, return error response
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Reports",
-				Description: "Failed to generate ledger report",
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-
-	// Compute running balance across returned page
-	running := opening
-	entries := make([]dtos.LedgerEntry, 0, len(rows))
-	// Determine sign convention based on account type:
-	// Debit-normal accounts (Assets/Expenses): balance increases with debits
-	// Credit-normal accounts (Liabilities/Equity/Revenue): balance increases with credits
-	debitNormal := acct.Type == "Asset" || acct.Type == "Expense"
-
-	// Process each transaction and calculate running balance
-	for _, r := range rows {
-		var delta float64
-		// Calculate balance change based on account type
-		if debitNormal {
-			// For debit-normal accounts: debit increases, credit decreases
-			delta = r.Debit - r.Credit
-		} else {
-			// For credit-normal accounts: credit increases, debit decreases
-			delta = r.Credit - r.Debit
-		}
-		// Apply change to running balance
-		running += delta
-		// Add entry with calculated running balance
-		entries = append(entries, dtos.LedgerEntry{
-			EntryID:        r.EntryID,
-			EntryDate:      r.Date,
-			Description:    r.Desc,
-			Debit:          r.Debit,
-			Credit:         r.Credit,
-			RunningBalance: running,
-		})
-	}
-
-	// Build pagination metadata for navigation
-	meta := dtos.PaginationMeta{
-		Page:       page,                                           // Current page number
-		Size:       size,                                           // Items per page
-		TotalItems: total,                                          // Total number of transactions
-		TotalPages: int(math.Ceil(float64(total) / float64(size))), // Total pages
-		HasPrev:    page > 1,                                       // Has previous page
-		HasNext:    page*size < total,                              // Has next page
-	}
-
-	// Build complete ledger response structure
-	resp := dtos.LedgerResponse{
-		AccountID:      acct.ID,   // Account identifier
-		AccountCode:    acct.Code, // Account code
-		AccountName:    acct.Name, // Account name
-		AccountType:    acct.Type, // Account type (Asset, Liability, etc.)
-		From:           from,      // Report start date
-		To:             to,        // Report end date
-		OpeningBalance: opening,   // Balance at start of period
-		Entries:        entries,   // Paginated transaction entries
-		ClosingBalance: running,   // Balance at end of entries
-		Meta:           meta,      // Pagination metadata
-	}
-	// Return successful response with ledger data
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Reports",
-			Description: "Ledger report generated successfully",
-			Code:        http.StatusOK,
-		},
-		Payload:   resp,
-		Message:   "Ledger",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
-		RawBody:   requestSummary})
-}
-
-// ExportAccountsCSVHandler exports the chart of accounts to a CSV file.
-// It allows filtering by account type and code prefix for customized exports.
-//
-// @Summary      Export chart of accounts to CSV
-// @Description  Download a CSV file containing the chart of accounts with optional filters
-// @Tags         Reports
-// @Produce      text/csv
-// @Param        account_type  query  string  false  "Filter by account type (Asset, Liability, etc.)"
-// @Param        code_prefix   query  string  false  "Filter by account code prefix"
-// @Success      200           "CSV file download"
-// @Failure      500           {object}  dtos.ErrorResponse  "Internal server error"
-// @Security     BearerAuth
-// @Router       /reports/export/accounts [get]
-func ExportAccountsCSVHandler(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Verify user has admin privileges (required for exporting accounts)
-	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
-	if !ok {
-		// Authorization failed, RequireAdmin already sent error response
-		return
-	}
-	// Extract optional filter parameters from query string
-	accountType := c.Query("account_type")
-	codePrefix := c.Query("code_prefix")
-	q := c.Query("q")
-
-	// Set response headers for CSV file download
-	c.Header("Content-Type", "text/csv")
-	c.Header("Content-Disposition", "attachment;filename=chart_of_accounts.csv")
-
-	// Generate and stream CSV data directly to response writer
-	if err := models.ExportAccountsToCSV(c.Writer, accountType, codePrefix, q); err != nil {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Reports",
-				Description: "Failed to export chart of accounts to CSV",
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-	}
-}
-
-// ExportBalanceSheetCSVHandler exports the balance sheet to a CSV file.
-//
-// @Summary      Export balance sheet to CSV
-// @Description  Download a CSV file containing the balance sheet report
-// @Tags         Reports
-// @Produce      text/csv
-// @Param        as_of         query  string  false  "Report date (YYYY-MM-DD)"
-// @Param        compare_with  query  string  false  "Comparison date (YYYY-MM-DD)"
-// @Success      200           "CSV file download"
-// @Failure      500           {object}  dtos.ErrorResponse  "Internal server error"
-// @Security     BearerAuth
-// @Router       /reports/export/balance-sheet [get]
-func ExportBalanceSheetCSVHandler(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Verify user has admin privileges
-	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
-	if !ok {
-		return
-	}
-
-	// Extract 'as_of' date parameter
-	asOfStr := c.Query("as_of")
-	var asOf time.Time
-	var err error
-
-	if asOfStr == "" {
-		asOf = time.Now()
-	} else {
-		asOf, err = time.Parse(date, asOfStr)
-		if err != nil {
-			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Reports",
-					Description: "Invalid as of date for balance sheet export",
-					Code:        http.StatusBadRequest,
-				},
-				Message:   "Invalid as of date",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request: c.Request,
-				RawBody:   requestSummary})
-			return
-		}
-	}
-
-	// Extract 'compare_with' date parameter
-	compareWithStr := c.Query("compare_with")
-	var compareWith *time.Time
-
-	if compareWithStr != "" {
-		t, err := time.Parse(date, compareWithStr)
-		if err != nil {
-			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Reports",
-					Description: "Invalid comparison date for balance sheet export",
-					Code:        http.StatusBadRequest,
-				},
-				Message:   "Invalid comparison date",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request: c.Request,
-				RawBody:   requestSummary})
-			return
-		}
-		compareWith = &t
-	}
-
-	// Set response headers for CSV file download
-	c.Header("Content-Type", "text/csv")
-	c.Header("Content-Disposition", "attachment;filename=balance_sheet.csv")
-
-	// Generate and stream CSV data directly to response writer
-	if err := models.ExportBalanceSheetToCSV(c.Writer, asOf, compareWith); err != nil {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Reports",
-				Description: "Failed to export balance sheet to CSV",
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-	}
-}
-
-// ExportJournalEntriesCSVHandler exports journal entries to a CSV file.
-// It allows filtering by date range and specific account for customized exports.
-//
-// @Summary      Export journal entries to CSV
-// @Description  Download a CSV file containing journal entries with optional date and account filters
-// @Tags         Reports
-// @Produce      text/csv
-// @Param        start_date  query  string  false  "Start date filter (YYYY-MM-DD)"
-// @Param        end_date    query  string  false  "End date filter (YYYY-MM-DD)"
-// @Param        account_id  query  string  false  "Filter by specific account ID"
-// @Success      200         "CSV file download"
-// @Failure      500         {object}  dtos.ErrorResponse  "Internal server error"
-// @Security     BearerAuth
-// @Router       /reports/export/journal-entries [get]
-func ExportJournalEntriesCSVHandler(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Verify user has admin privileges (required for exporting journal entries)
-	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
-	if !ok {
-		// Authorization failed, RequireAdmin already sent error response
-		return
-	}
-	// Extract optional filter parameters from query string
-	startDate := c.Query("start_date")
-	endDate := c.Query("end_date")
-	accountID := c.Query("account_id")
-	q := c.Query("q")
-
-	// Set response headers for CSV file download
-	c.Header("Content-Type", "text/csv")
-	c.Header("Content-Disposition", "attachment;filename=journal_entries.csv")
-
-	// Generate and stream CSV data directly to response writer
-	if err := models.ExportJournalEntriesToCSV(c.Writer, startDate, endDate, accountID, q); err != nil {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Reports",
-				Description: "Failed to export journal entries to CSV",
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-	}
-}
-
-// TopSellingProductsReport generates a report of best-selling products.
-// It ranks products by sales volume or revenue over a specified time period,
-// providing insights for inventory and marketing decisions.
-//
-// @Summary      Get top selling products report
-// @Description  Retrieve a paginated list of best-selling products ranked by sales performance
-// @Tags         Reports
-// @Produce      json
-// @Param        time_range  query  string  false  "Time range (daily, weekly, monthly, yearly)"
-// @Param        page        query  int     false  "Page number (default: 1)"
-// @Param        size        query  int     false  "Page size (default: 10)"
-// @Success      200         {object}  map[string]interface{}  "Top selling products with pagination"
-// @Failure      500         {object}  dtos.ErrorResponse      "Internal server error"
-// @Security     BearerAuth
-// @Router       /reports/top-selling-products [get]
-func TopSellingProductsReport(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Verify user has admin privileges (required for viewing sales reports)
-	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Reports", "")
-	if !ok {
-		// Authorization failed, RequireAdmin already sent error response
-		return
-	}
-	// Extract time range filter (e.g., "last_7_days", "last_30_days", "this_month")
-	timeRange := c.Query("time_range")
-	// Parse pagination parameters from query string
-	page, limit := parsePagination(c.Query("page"), c.Query("size"))
-
-	// Fetch top selling products from database
-	products, pagination, err := models.GetTopSellingProducts(timeRange, page, limit)
-	if err != nil {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Reports",
-				Description: "Failed to generate top selling products report",
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Reports",
-			Description: "Top selling products report generated successfully",
-			Code:        http.StatusOK,
-		},
-		Payload: map[string]any{
-			"products":   products,
-			"pagination": pagination,
-		},
-		Message:   "Top selling products report",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
-		RawBody:   requestSummary})
-}
-
-//Report to get Low Stock Products

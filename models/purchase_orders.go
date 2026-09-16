@@ -13,8 +13,8 @@
 package models
 
 import (
-	"ekomasi_backend/dtos"
 	"database/sql"
+	"ekomasi_backend/dtos"
 	"errors"
 
 	"github.com/teris-io/shortid"

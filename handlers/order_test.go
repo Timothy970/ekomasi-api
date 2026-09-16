@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"ekomasi_backend/dtos"
 	"bytes"
+	"ekomasi_backend/dtos"
 	"encoding/json"
 	"errors"
 	"net/http"

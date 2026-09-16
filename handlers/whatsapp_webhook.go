@@ -153,4 +153,3 @@ func RegisterWhatsAppPublicKeyHandler(c *gin.Context) {
 
 	c.JSON(resp.StatusCode, jsonResult)
 }
-

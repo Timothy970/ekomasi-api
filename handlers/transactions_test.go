@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"ekomasi_backend/dtos"
 	"ekomasi_backend/middleware"
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -56,7 +56,6 @@ func TestGetAllTransactionHandler(t *testing.T) {
 	c.Request = req
 
 	GetAllTransactionHandler(c)
-
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
@@ -119,7 +118,6 @@ func TestUpdateTransactionStatusHandler_Success(t *testing.T) {
 	c.Params = gin.Params{gin.Param{Key: "transaction_id", Value: "tx-1"}}
 
 	UpdateTransactionStatusHandler(c)
-
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)

@@ -23,8 +23,8 @@
 package utils
 
 import (
-	"ekomasi_backend/dtos"
 	"bytes"
+	"ekomasi_backend/dtos"
 	"fmt"
 	"net/http"
 	"path/filepath"

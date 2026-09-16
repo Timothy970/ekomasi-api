@@ -59,6 +59,8 @@ definitions:
       quantity:
         minimum: 1
         type: integer
+      variation_sku:
+        type: string
     required:
     - cart_id
     - product_id
@@ -296,6 +298,48 @@ definitions:
     - read_time_minutes
     - title
     type: object
+  dtos.BulkImportDiagnosticResult:
+    properties:
+      created_skus:
+        items:
+          type: string
+        type: array
+      errors:
+        items:
+          $ref: '#/definitions/dtos.BulkValidationRowError'
+        type: array
+      invalid_rows_count:
+        type: integer
+      mode:
+        type: string
+      processed_count:
+        type: integer
+      total_rows:
+        type: integer
+      updated_skus:
+        items:
+          type: string
+        type: array
+      valid_rows_count:
+        type: integer
+      validate_only:
+        type: boolean
+    type: object
+  dtos.BulkValidationRowError:
+    properties:
+      error_message:
+        type: string
+      field:
+        type: string
+      product_name:
+        type: string
+      row_number:
+        type: integer
+      sku:
+        type: string
+      value:
+        type: string
+    type: object
   dtos.BundleProducts:
     properties:
       product_id:
@@ -332,16 +376,19 @@ definitions:
     - delivery_time
     - design_id
     - from_name
-    - message
     - to_email
     - to_name
     type: object
   dtos.CartItem:
     properties:
+      is_variant:
+        type: boolean
       product:
         $ref: '#/definitions/dtos.Product'
       quantity:
         type: integer
+      variation_sku:
+        type: string
     type: object
   dtos.CashFlowRequest:
     properties:
@@ -504,6 +551,10 @@ definitions:
     type: object
   dtos.CreateDeal:
     properties:
+      brandID:
+        type: string
+      dealType:
+        type: string
       description:
         type: string
       discount:
@@ -555,9 +606,32 @@ definitions:
     - lines
     type: object
   dtos.CreateOrderPayload:
+    properties:
+      guest_delivery_address:
+        $ref: '#/definitions/dtos.GuestDeliveryAddress'
+      guest_personal_details:
+        $ref: '#/definitions/dtos.GuestPersonalDetails'
+      is_guest_order:
+        type: boolean
+      location_id:
+        type: integer
+      order_items:
+        items:
+          $ref: '#/definitions/dtos.OrderItemPayload'
+        type: array
+      order_source:
+        type: string
+      promo_code:
+        type: string
+      store_id:
+        type: string
+    required:
+    - order_items
     type: object
   dtos.CreateProduct:
     properties:
+      barcode:
+        type: string
       buying_price:
         type: number
       category_id:
@@ -579,10 +653,6 @@ definitions:
         type: string
       search_vector:
         type: string
-      sell_when_out_of_stock:
-        type: boolean
-      show_stock_quantity:
-        type: boolean
       sku:
         type: string
       stock_quantity:
@@ -594,7 +664,6 @@ definitions:
     - category_id
     - description
     - name
-    - price
     - search_vector
     - sku
     type: object
@@ -723,6 +792,32 @@ definitions:
         items:
           $ref: '#/definitions/dtos.VariantResponse'
         type: array
+    type: object
+  dtos.GuestDeliveryAddress:
+    properties:
+      apartment:
+        type: string
+      city:
+        type: string
+      country:
+        type: string
+      postal_code:
+        type: string
+      state:
+        type: string
+      street:
+        type: string
+    type: object
+  dtos.GuestPersonalDetails:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      phone:
+        type: string
     type: object
   dtos.Image:
     properties:
@@ -1015,6 +1110,99 @@ definitions:
     required:
     - recipient_id
     type: object
+  dtos.OrderItemPayload:
+    properties:
+      product_id:
+        type: string
+      quantity:
+        type: integer
+      variation_sku:
+        type: string
+    required:
+    - product_id
+    - quantity
+    type: object
+  dtos.OrderProduct:
+    properties:
+      category_id:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      is_reviewed:
+        type: boolean
+      last_updated:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      product_id:
+        type: string
+      review_id:
+        type: string
+      search_vector:
+        type: string
+      sku:
+        type: string
+      stock_quantity:
+        type: integer
+      urls:
+        items:
+          $ref: '#/definitions/dtos.Image'
+        type: array
+      warranty:
+        $ref: '#/definitions/dtos.ProductWarranty'
+    type: object
+  dtos.OrderTimelineStep:
+    properties:
+      completed_at:
+        type: string
+      description:
+        type: string
+      is_completed:
+        type: boolean
+      is_current:
+        type: boolean
+      step:
+        description: '''placed'', ''processing'', ''shipped'', ''out_for_delivery'',
+          ''delivered'''
+        type: string
+      title:
+        type: string
+    type: object
+  dtos.OrderTrackingTimelineResponse:
+    properties:
+      created_at:
+        type: string
+      customer_email:
+        type: string
+      customer_name:
+        type: string
+      delivery_address:
+        type: string
+      delivery_status:
+        type: string
+      estimated_delivery:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/dtos.OrderProduct'
+        type: array
+      order_id:
+        type: string
+      order_status:
+        type: string
+      payment_status:
+        type: string
+      timeline_steps:
+        items:
+          $ref: '#/definitions/dtos.OrderTimelineStep'
+        type: array
+      tracking_token:
+        type: string
+    type: object
   dtos.PaginatedPurchaseOrdersResponse:
     properties:
       data:
@@ -1065,6 +1253,42 @@ definitions:
     - order_id
     - payment_method
     - transaction_id
+    type: object
+  dtos.PaymentInitializeRequest:
+    properties:
+      amount:
+        type: number
+      callback_url:
+        type: string
+      currency:
+        type: string
+      email:
+        type: string
+      gateway_name:
+        description: '''paystack'', ''flutterwave'', ''stripe'''
+        type: string
+      order_id:
+        type: string
+    required:
+    - amount
+    - email
+    - gateway_name
+    - order_id
+    type: object
+  dtos.PaymentInitializeResponse:
+    properties:
+      access_code:
+        type: string
+      authorization_url:
+        type: string
+      gateway_name:
+        type: string
+      message:
+        type: string
+      reference:
+        type: string
+      status:
+        type: boolean
     type: object
   dtos.PaymentMethod:
     properties:
@@ -1126,8 +1350,32 @@ definitions:
     required:
     - status
     type: object
+  dtos.PaymentVerifyResponse:
+    properties:
+      amount:
+        type: number
+      channel:
+        type: string
+      currency:
+        type: string
+      customer_email:
+        type: string
+      gateway_name:
+        type: string
+      paid_at:
+        type: string
+      reference:
+        type: string
+      status:
+        description: '''SUCCESS'', ''FAILED'', ''PENDING'''
+        type: string
+    type: object
   dtos.Product:
     properties:
+      barcode:
+        type: string
+      bundle_quantity:
+        type: integer
       category_id:
         type: string
       category_name:
@@ -1153,6 +1401,8 @@ definitions:
           $ref: '#/definitions/dtos.ProductFeature'
         type: array
       in_today_deal:
+        type: boolean
+      is_featured:
         type: boolean
       last_updated:
         type: string
@@ -1181,10 +1431,6 @@ definitions:
         type: array
       search_vector:
         type: string
-      sell_when_out_of_stock:
-        type: boolean
-      show_stock_quantity:
-        type: boolean
       sku:
         type: string
       stock_quantity:
@@ -1196,6 +1442,10 @@ definitions:
       urls:
         items:
           $ref: '#/definitions/dtos.Image'
+        type: array
+      variant_selection:
+        items:
+          $ref: '#/definitions/dtos.VariantSelection'
         type: array
       warranty:
         $ref: '#/definitions/dtos.ProductWarranty'
@@ -1261,46 +1511,20 @@ definitions:
     type: object
   dtos.ProductSpecification:
     properties:
-      age:
-        description: ids of the age variants
-        items:
-          type: string
-        minItems: 1
-        type: array
       brand:
         description: brand id for the variant brand
         type: string
       category_id:
         type: string
-      color:
-        description: color variants ids
-        items:
-          type: string
-        minItems: 1
-        type: array
       dimensions:
-        type: string
-      discount_type:
-        description: type id
-        type: string
-      expiry_date:
-        type: string
-      manufacture_date:
         type: string
       manufacturer:
         type: string
-      material:
-        description: material variant ids
-        items:
-          type: string
-        minItems: 1
-        type: array
       product_id:
         type: string
-      size:
-        description: size variant ids
+      variant_selections:
         items:
-          type: string
+          $ref: '#/definitions/dtos.VariantSelection'
         type: array
       warranty_period:
         description: in months
@@ -1309,18 +1533,13 @@ definitions:
         description: warranty type id
         type: string
       weight:
-        type: integer
+        type: number
       weight_limit:
-        type: integer
+        type: number
     required:
-    - age
     - category_id
-    - color
-    - material
     - product_id
     - warranty_period
-    - weight
-    - weight_limit
     type: object
   dtos.ProductTax:
     properties:
@@ -1579,6 +1798,9 @@ definitions:
     type: object
   dtos.ReturnStatusUpdate:
     properties:
+      phone_number:
+        description: Optional, required if status is Approved
+        type: string
       status:
         enum:
         - Pending
@@ -1671,6 +1893,8 @@ definitions:
         type: integer
       icon_class:
         type: string
+      id:
+        type: integer
       platform:
         type: string
       url:
@@ -1695,33 +1919,12 @@ definitions:
     properties:
       author:
         type: string
-      created_at:
+      content:
         type: string
-      description:
+      created_at:
         type: string
       path:
         type: string
-      sections:
-        items:
-          properties:
-            banner:
-              $ref: '#/definitions/dtos.BlogImage'
-            images:
-              items:
-                $ref: '#/definitions/dtos.BlogImage'
-              type: array
-            paragraphs:
-              items:
-                $ref: '#/definitions/dtos.Paragraph'
-              type: array
-            position:
-              type: integer
-            title:
-              type: string
-          required:
-          - position
-          type: object
-        type: array
       static_page_id:
         type: string
       title:
@@ -1729,7 +1932,7 @@ definitions:
       updated_at:
         type: string
     required:
-    - description
+    - content
     - path
     - title
     type: object
@@ -1741,6 +1944,8 @@ definitions:
         type: string
       quantity:
         type: integer
+      status:
+        type: string
       to_warehouse_id:
         type: string
       transfer_date:
@@ -1759,14 +1964,38 @@ definitions:
     type: object
   dtos.StockTransferUpdateDTO:
     properties:
+      from_warehouse_id:
+        type: string
+      product_id:
+        type: string
       quantity:
         type: integer
+      status:
+        type: string
+      to_warehouse_id:
+        type: string
+      transfer_date:
+        type: string
+      transfer_details:
+        type: string
+      transfer_id:
+        type: string
+      variant_id:
+        type: string
     required:
+    - from_warehouse_id
+    - product_id
     - quantity
+    - status
+    - to_warehouse_id
     type: object
   dtos.Subscriber:
     properties:
+      created_at:
+        type: string
       email:
+        type: string
+      subscriber_id:
         type: string
     required:
     - email
@@ -1786,6 +2015,39 @@ definitions:
     required:
     - contact_phone
     - name
+    type: object
+  dtos.TenantPaymentGatewayConfig:
+    properties:
+      created_at:
+        type: string
+      currency:
+        type: string
+      encryption_key:
+        type: string
+      gateway_name:
+        description: '''paystack'', ''flutterwave'', ''stripe'''
+        type: string
+      id:
+        type: string
+      is_enabled:
+        type: boolean
+      merchant_id:
+        type: string
+      mode:
+        description: '''test'' or ''live'''
+        type: string
+      public_key:
+        type: string
+      secret_key:
+        type: string
+      tenant_id:
+        type: string
+      updated_at:
+        type: string
+      webhook_secret:
+        type: string
+    required:
+    - gateway_name
     type: object
   dtos.Text:
     properties:
@@ -2042,6 +2304,26 @@ definitions:
         type: string
       variant_type:
         type: string
+    type: object
+  dtos.VariantSelection:
+    properties:
+      additional_price:
+        type: number
+      name:
+        type: string
+      sku:
+        type: string
+      stock_quantity:
+        type: integer
+      variant_ids:
+        items:
+          type: string
+        minItems: 1
+        type: array
+    required:
+    - name
+    - sku
+    - variant_ids
     type: object
   dtos.VerifyOTP:
     properties:
@@ -2538,35 +2820,6 @@ paths:
       tags:
       - Promotions
   /admin/promotions/promo-codes:
-    get:
-      description: Retrieve a paginated list of all promotional discount codes with
-        their details
-      parameters:
-      - description: 'Page number (default: 1)'
-        in: query
-        name: page
-        type: integer
-      - description: 'Page size (default: 10)'
-        in: query
-        name: size
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: List of promo codes with pagination
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/dtos.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get all promo codes
-      tags:
-      - Promotions
     post:
       consumes:
       - multipart/form-data
@@ -5434,6 +5687,30 @@ paths:
       summary: Update a payment by ID
       tags:
       - Admin
+  /api/admin/payments/gateways:
+    post:
+      consumes:
+      - application/json
+      description: Save public key, secret key, and settings for Paystack, Flutterwave,
+        or Stripe per tenant
+      parameters:
+      - description: Gateway configuration
+        in: body
+        name: config
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.TenantPaymentGatewayConfig'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Configure Tenant Payment Gateway
+      tags:
+      - Payments
   /api/admin/payments/refund/{refund_id}:
     patch:
       consumes:
@@ -6590,6 +6867,80 @@ paths:
       summary: Create stock transfer
       tags:
       - Stock Transfers
+  /api/admin/subscribers:
+    get:
+      description: Retrieve a paginated list of newsletter subscribers with optional
+        filtering
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: size
+        type: integer
+      - description: Search query
+        in: query
+        name: q
+        type: string
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dtos.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dtos.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all subscribers
+      tags:
+      - Admin
+  /api/admin/subscribers/csv:
+    get:
+      description: Download a CSV file containing all subscribers or filtered results
+      parameters:
+      - description: Search query
+        in: query
+        name: q
+        type: string
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: Download subscribers CSV
+      tags:
+      - Admin
   /api/admin/suppliers:
     post:
       consumes:
@@ -7136,6 +7487,35 @@ paths:
               type: string
             type: object
       summary: Deactivate a user by an admin
+      tags:
+      - Admin
+  /api/admin/users/csv:
+    get:
+      description: Download a CSV file containing all users or filtered results by
+        search, role, or isAdmin
+      parameters:
+      - description: Search query (name, phone, email)
+        in: query
+        name: q
+        type: string
+      - description: Filter by role
+        in: query
+        name: role
+        type: string
+      - description: Filter by admin status
+        in: query
+        name: isAdmin
+        type: string
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: Download users CSV
       tags:
       - Admin
   /api/admin/vouchers:
@@ -8776,31 +9156,6 @@ paths:
       summary: Download inventory CSV
       tags:
       - Inventories
-  /api/inventories/{inventory_id}/pdf:
-    get:
-      description: Download inventory data as PDF
-      parameters:
-      - description: Inventory ID
-        in: path
-        name: inventory_id
-        required: true
-        type: string
-      produces:
-      - application/pdf
-      responses:
-        "200":
-          description: OK
-          schema:
-            type: file
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/dtos.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Download inventory PDF
-      tags:
-      - Inventories
   /api/locations:
     get:
       description: Retrieve paginated list of all delivery locations with shipping
@@ -9019,6 +9374,30 @@ paths:
       summary: Release order
       tags:
       - Orders
+  /api/orders/{order_id}/tracking:
+    get:
+      description: Get 5-step visual tracking timeline ('placed', 'processing', 'shipped',
+        'out_for_delivery', 'delivered')
+      parameters:
+      - description: Order ID
+        in: path
+        name: order_id
+        required: true
+        type: string
+      - description: Guest Tracking Token
+        in: query
+        name: token
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.OrderTrackingTimelineResponse'
+      summary: Visual Order Tracking Timeline
+      tags:
+      - Orders
   /api/orders/new:
     post:
       consumes:
@@ -9119,6 +9498,68 @@ paths:
       security:
       - BearerAuth: []
       summary: Get payment option by ID
+      tags:
+      - Payments
+  /api/payments/card/initialize:
+    post:
+      consumes:
+      - application/json
+      description: Create authorization checkout URL for Paystack, Flutterwave, or
+        Stripe
+      parameters:
+      - description: Payment initialization details
+        in: body
+        name: initReq
+        required: true
+        schema:
+          $ref: '#/definitions/dtos.PaymentInitializeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.PaymentInitializeResponse'
+      summary: Initialize Card/Online Payment
+      tags:
+      - Payments
+  /api/payments/card/verify:
+    get:
+      description: Verify payment completion status using reference code
+      parameters:
+      - description: Gateway Name ('paystack', 'flutterwave', 'stripe')
+        in: query
+        name: gateway
+        required: true
+        type: string
+      - description: Transaction Reference or Session ID
+        in: query
+        name: reference
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dtos.PaymentVerifyResponse'
+      summary: Verify Card/Online Payment
+      tags:
+      - Payments
+  /api/payments/gateways:
+    get:
+      description: Get configurations for all payment gateways available to the current
+        tenant
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List Tenant Payment Gateways
       tags:
       - Payments
   /api/payments/refund:
@@ -10125,21 +10566,29 @@ paths:
     post:
       consumes:
       - multipart/form-data
-      description: Upload multiple products using a CSV file
+      description: Upload multiple products via CSV with dry-run pre-validation and
+        row-by-row error diagnostics
       parameters:
       - description: CSV File
         in: formData
         name: file
         required: true
         type: file
+      - description: If true, run dry-run pre-validation without DB writes
+        in: query
+        name: validate_only
+        type: boolean
+      - description: 'Import mode: ''upsert'', ''create_only'', ''update_stock'''
+        in: query
+        name: mode
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/dtos.BulkImportDiagnosticResult'
         "400":
           description: Bad Request
           schema:
@@ -10150,7 +10599,7 @@ paths:
             $ref: '#/definitions/dtos.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Bulk upload products
+      summary: Bulk upload and validate products
       tags:
       - Products
   /api/products/bulk-upload/{bulk_product_id}:
@@ -11078,27 +11527,11 @@ paths:
       - Reports
   /api/reports/inventory/turnover/{product_id}:
     get:
-      description: Get inventory turnover report by product
       parameters:
-      - description: Product ID
-        in: path
-        name: product_id
-        required: true
-        type: string
-      - description: Period (weekly, monthly, etc.)
-        in: query
-        name: period
-        type: string
-      - description: Start Date (YYYY-MM-DD)
-        in: query
-        name: start
-        type: string
       - description: End Date (YYYY-MM-DD)
         in: query
         name: end
         type: string
-      produces:
-      - application/json
       responses:
         "200":
           description: OK
@@ -11108,9 +11541,6 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/dtos.ErrorResponse'
-      summary: Get inventory turnover report by product
-      tags:
-      - Reports
   /api/reports/products/{product_id}/performance:
     get:
       description: Generates a detailed performance report for a single product within
@@ -11246,7 +11676,6 @@ paths:
           description: Failed to generate report
           schema:
             $ref: '#/definitions/dtos.ErrorResponse'
-      summary: Get sales by region
       tags:
       - Sales
   /api/reports/sales/customer-segmentation:
@@ -11345,7 +11774,6 @@ paths:
           description: Failed to generate report
           schema:
             $ref: '#/definitions/dtos.ErrorResponse'
-      summary: Get revenue vs expenses comparison
       tags:
       - Sales
   /api/reports/sales/trends/overtime:
@@ -12394,6 +12822,56 @@ paths:
               type: string
             type: object
       summary: Update a user
+      tags:
+      - Users
+  /api/user/me/verify-update:
+    patch:
+      consumes:
+      - application/json
+      description: Verify the OTP sent to the new email/phone to finalize the profile
+        update.
+      parameters:
+      - description: OTP verification
+        in: body
+        name: otp
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Profile updated successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request payload
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized or invalid OTP
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Pending update not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Verify user update
       tags:
       - Users
   /api/user/products/recommendations:
@@ -13504,7 +13982,7 @@ paths:
       description: Retrieve a paginated list of best-selling products ranked by sales
         performance
       parameters:
-      - description: Time range (last_7_days, last_30_days, this_month, etc.)
+      - description: Time range (daily, weekly, monthly, yearly)
         in: query
         name: time_range
         type: string

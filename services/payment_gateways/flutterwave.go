@@ -24,11 +24,11 @@ func NewFlutterwaveService(secretKey, publicKey string) *FlutterwaveService {
 }
 
 type flwInitRequest struct {
-	TxRef         string `json:"tx_ref"`
-	Amount        string `json:"amount"`
-	Currency      string `json:"currency"`
-	RedirectURL   string `json:"redirect_url"`
-	Customer      flwCustomer `json:"customer"`
+	TxRef          string      `json:"tx_ref"`
+	Amount         string      `json:"amount"`
+	Currency       string      `json:"currency"`
+	RedirectURL    string      `json:"redirect_url"`
+	Customer       flwCustomer `json:"customer"`
 	Customizations struct {
 		Title       string `json:"title"`
 		Description string `json:"description"`

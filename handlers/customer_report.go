@@ -4,12 +4,13 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
 	"ekomasi_backend/models"
 	"ekomasi_backend/utils"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // GetCustomerRetention generates a comprehensive customer retention report for a specified date range.
@@ -60,7 +61,7 @@ func GetCustomerRetention(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -94,7 +95,7 @@ func GetCustomerRetention(c *gin.Context) {
 		Message:   "Customer retention report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -142,7 +143,7 @@ func GetCustomerRetentionTrends(c *gin.Context) {
 				Message:   "Period should be either month, quarter or year",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request: c.Request,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -164,7 +165,7 @@ func GetCustomerRetentionTrends(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -180,7 +181,7 @@ func GetCustomerRetentionTrends(c *gin.Context) {
 		Message:   "Customer retention trend report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -224,7 +225,7 @@ func GetCustomerRetentionSummary(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -240,7 +241,7 @@ func GetCustomerRetentionSummary(c *gin.Context) {
 		Message:   "Customer retention summary report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }

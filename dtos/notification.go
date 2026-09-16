@@ -36,9 +36,9 @@ type LogListResponse struct {
 }
 
 type SendTemplateRequest struct {
-	ChatID      string         `json:"chatId"`
-	TemplateName string        `json:"templateName"`
-	Vars        map[string]any `json:"vars"`
+	ChatID       string         `json:"chatId"`
+	TemplateName string         `json:"templateName"`
+	Vars         map[string]any `json:"vars"`
 }
 
 type SendTextRequest struct {

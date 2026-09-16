@@ -90,11 +90,11 @@ type WhatsAppCloudConfig struct {
 }
 
 type StorageConfig struct {
-	Bucket               string
-	FlociEndpoint        string
-	UseCloudinary        bool
-	CloudinaryCloudName  string
-	CloudinaryAPIKey     string
+	Bucket              string
+	FlociEndpoint       string
+	UseCloudinary       bool
+	CloudinaryCloudName string
+	CloudinaryAPIKey    string
 	CloudinaryAPISecret string
 }
 
@@ -203,11 +203,11 @@ func LoadConfig(envFiles ...string) *Config {
 				FlowPassphrase:     getEnv("WHATSAPP_FLOW_PASSPHRASE", ""),
 			},
 			Storage: StorageConfig{
-				Bucket:               getEnv("STORAGE_BUCKET", getEnv("BUCKET_NAME", "development-ecommerce-api-images")),
-				FlociEndpoint:        getEnv("FLOCI_ENDPOINT", ""),
-				UseCloudinary:        getEnvAsBool("USE_CLOUDINARY", false),
-				CloudinaryCloudName:  getEnv("CLOUDINARY_CLOUD_NAME", ""),
-				CloudinaryAPIKey:     getEnv("CLOUDINARY_API_KEY", ""),
+				Bucket:              getEnv("STORAGE_BUCKET", getEnv("BUCKET_NAME", "development-ecommerce-api-images")),
+				FlociEndpoint:       getEnv("FLOCI_ENDPOINT", ""),
+				UseCloudinary:       getEnvAsBool("USE_CLOUDINARY", false),
+				CloudinaryCloudName: getEnv("CLOUDINARY_CLOUD_NAME", ""),
+				CloudinaryAPIKey:    getEnv("CLOUDINARY_API_KEY", ""),
 				CloudinaryAPISecret: getEnv("CLOUDINARY_API_SECRET", ""),
 			},
 		}

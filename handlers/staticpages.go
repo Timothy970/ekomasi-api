@@ -5,13 +5,14 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
 	"ekomasi_backend/dtos"
 	"ekomasi_backend/middleware"
 	"ekomasi_backend/models"
 	"ekomasi_backend/utils"
 	"net/http"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // CreateStaticPage creates a new static content page in the CMS.
@@ -68,7 +69,7 @@ func CreateStaticPage(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -84,7 +85,7 @@ func CreateStaticPage(c *gin.Context) {
 		Message:   "Static page created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -121,7 +122,7 @@ func GetStaticPages(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -137,7 +138,7 @@ func GetStaticPages(c *gin.Context) {
 		Message:   "Static pages fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 
@@ -175,7 +176,7 @@ func GetStaticPageByID(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -191,7 +192,7 @@ func GetStaticPageByID(c *gin.Context) {
 		Message:   "Static page fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -236,7 +237,7 @@ func DeleteStaticPage(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -252,7 +253,7 @@ func DeleteStaticPage(c *gin.Context) {
 		Message:   "Static page deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -311,7 +312,7 @@ func UpdateStaticPage(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -327,7 +328,7 @@ func UpdateStaticPage(c *gin.Context) {
 		Message:   "Static page updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }

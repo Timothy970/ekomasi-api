@@ -4,12 +4,13 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
 	"ekomasi_backend/models"
 	"ekomasi_backend/utils"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // CartAbandonmentReport generates a comprehensive cart abandonment report for a specified date range.
@@ -50,7 +51,7 @@ func CartAbandonmentReport(c *gin.Context) {
 			Message:   "failed to generate report: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -67,7 +68,7 @@ func CartAbandonmentReport(c *gin.Context) {
 		Message:   "Cart abandonment report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }
@@ -119,7 +120,7 @@ func CartAbandonmentTrendReport(c *gin.Context) {
 			Message:   "failed to generate report: " + err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 		return
@@ -136,7 +137,7 @@ func CartAbandonmentTrendReport(c *gin.Context) {
 		Message:   "Cart abandonment trend report generated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary,
 	})
 }

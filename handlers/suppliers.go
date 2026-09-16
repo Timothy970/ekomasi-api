@@ -5,13 +5,14 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
 	"ekomasi_backend/dtos"
 	"ekomasi_backend/models"
 	"ekomasi_backend/utils"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // supplierWithID is a constant prefix for supplier-related log messages
@@ -67,7 +68,7 @@ func CreateSupplier(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -84,7 +85,7 @@ func CreateSupplier(c *gin.Context) {
 		Message:   "Supplier created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -141,7 +142,7 @@ func ListSuppliers(c *gin.Context) {
 				Message:   err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request: c.Request,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 			return
 		}
@@ -168,7 +169,7 @@ func ListSuppliers(c *gin.Context) {
 		Message:   "Suppliers fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -212,7 +213,7 @@ func GetSupplierByID(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -227,7 +228,7 @@ func GetSupplierByID(c *gin.Context) {
 		Message:   "Supplier fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -281,7 +282,7 @@ func UpdateSupplier(c *gin.Context) {
 			Message:   "Invalid phone number",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -299,7 +300,7 @@ func UpdateSupplier(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -316,7 +317,7 @@ func UpdateSupplier(c *gin.Context) {
 		Message:   "Supplier updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -359,7 +360,7 @@ func DeleteSupplier(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -376,6 +377,6 @@ func DeleteSupplier(c *gin.Context) {
 		Message:   "Supplier deleted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

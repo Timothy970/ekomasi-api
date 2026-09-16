@@ -1,8 +1,9 @@
 package routes
 
 import (
-	"github.com/gin-gonic/gin"
 	"ekomasi_backend/handlers"
+
+	"github.com/gin-gonic/gin"
 )
 
 // SetupHomeGinRoutes configures all homepage-related routes using native Gin router groups

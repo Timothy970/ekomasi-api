@@ -22,12 +22,12 @@ type BalanceSheetAccount struct {
 }
 
 type BalanceSheetCategory struct {
-	Category        string                `json:"category"`
-	Accounts        []BalanceSheetAccount `json:"accounts"`
-	Total           float64               `json:"total"`
-	PreviousTotal   *float64              `json:"previous_total,omitempty"`
-	Change          *float64              `json:"change,omitempty"`
-	ChangePercent   *float64              `json:"change_percent,omitempty"`
+	Category      string                `json:"category"`
+	Accounts      []BalanceSheetAccount `json:"accounts"`
+	Total         float64               `json:"total"`
+	PreviousTotal *float64              `json:"previous_total,omitempty"`
+	Change        *float64              `json:"change,omitempty"`
+	ChangePercent *float64              `json:"change_percent,omitempty"`
 }
 
 type BalanceSheetSection struct {

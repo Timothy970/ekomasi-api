@@ -1,9 +1,10 @@
 package routes
 
 import (
-	"github.com/gin-gonic/gin"
 	"ekomasi_backend/handlers"
 	"ekomasi_backend/middleware"
+
+	"github.com/gin-gonic/gin"
 )
 
 // SetupCartGinRoutes configures all cart-related routes using native Gin router groups

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"ekomasi_backend/dtos"
@@ -19,19 +18,9 @@ func GinRateLimiter(maxRequests int, windowSeconds int, keyPrefix string) gin.Ha
 			return
 		}
 
-		r := c.Request
-		ip := r.Header.Get("X-Forwarded-For")
-		if ip == "" {
-			ip = r.Header.Get("X-Real-IP")
-		}
-		if ip == "" {
-			ip = r.RemoteAddr
-		}
-		if idx := strings.Index(ip, ":"); idx != -1 {
-			ip = ip[:idx]
-		}
+		ip := getClientIP(c.Request)
 
-		tenantID := TenantIDFromContext(r.Context())
+		tenantID := TenantIDFromContext(c.Request.Context())
 		redisKey := fmt.Sprintf("rate_limit:%s:tenant_%d:ip_%s", keyPrefix, tenantID, ip)
 
 		ctx := context.Background()
@@ -71,16 +60,7 @@ func RateLimiter(maxRequests int, windowSeconds int, keyPrefix string) func(http
 			}
 
 			// Get IP address
-			ip := r.Header.Get("X-Forwarded-For")
-			if ip == "" {
-				ip = r.Header.Get("X-Real-IP")
-			}
-			if ip == "" {
-				ip = r.RemoteAddr
-			}
-			if idx := strings.Index(ip, ":"); idx != -1 {
-				ip = ip[:idx]
-			}
+			ip := getClientIP(r)
 
 			tenantID := TenantIDFromContext(r.Context())
 			redisKey := fmt.Sprintf("rate_limit:%s:tenant_%d:ip_%s", keyPrefix, tenantID, ip)
@@ -101,7 +81,7 @@ func RateLimiter(maxRequests int, windowSeconds int, keyPrefix string) func(http
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", windowSeconds))
 				w.WriteHeader(http.StatusTooManyRequests)
-				w.Write([]byte(fmt.Sprintf(`{"status_code":429,"message":"Too many requests. Please try again in %d seconds.","module":"RateLimiter"}`, windowSeconds)))
+				w.Write(fmt.Appendf(nil, `{"status_code":429,"message":"Too many requests. Please try again in %d seconds.","module":"RateLimiter"}`, windowSeconds))
 				return
 			}
 

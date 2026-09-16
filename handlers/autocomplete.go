@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
 	"ekomasi_backend/dtos"
 	"ekomasi_backend/models"
 	"ekomasi_backend/utils"
@@ -9,6 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // AutoCompleteHandler provides autocomplete suggestions for product searches.
@@ -53,7 +54,7 @@ func AutoCompleteHandler(c *gin.Context) {
 				Message:   "Failed to fetch autocomplete suggestions: " + err.Error(),
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request: c.Request,
+				Request:   c.Request,
 				RawBody:   requestSummary,
 			})
 			return
@@ -72,7 +73,7 @@ func AutoCompleteHandler(c *gin.Context) {
 			Message:   "Autocomplete suggestions",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary,
 		})
 	}

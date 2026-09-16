@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
 	"ekomasi_backend/dtos"
 	"ekomasi_backend/models"
 	"ekomasi_backend/notification"
@@ -10,6 +9,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // Riders orders retrieves all orders attached to a rider. This endpoint is used by riders to view their assigned orders.
@@ -87,7 +88,7 @@ func RiderListOrders(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -103,7 +104,7 @@ func RiderListOrders(c *gin.Context) {
 		Message:   "All Rider Orders",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -151,7 +152,7 @@ func RiderAssignOrder(c *gin.Context) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -168,7 +169,7 @@ func RiderAssignOrder(c *gin.Context) {
 		Message:   "Order assigned to rider successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -272,7 +273,7 @@ func RiderUpdateOrderStatus(c *gin.Context) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -287,6 +288,6 @@ func RiderUpdateOrderStatus(c *gin.Context) {
 		Message:   "Order status updated by rider successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

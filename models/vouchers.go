@@ -11,9 +11,9 @@
 package models
 
 import (
-	"ekomasi_backend/dtos"
 	"crypto/rand"
 	"database/sql"
+	"ekomasi_backend/dtos"
 	"encoding/hex"
 	"encoding/json"
 	"errors"

@@ -5,12 +5,13 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
 	"ekomasi_backend/dtos"
 	"ekomasi_backend/models"
 	"ekomasi_backend/utils"
 	"net/http"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // CreateStockTransfer initiates a new stock transfer between warehouses.
@@ -61,7 +62,7 @@ func CreateStockTransfer(c *gin.Context) {
 			Message:   "From and To warehouse cannot be the same",
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -77,7 +78,7 @@ func CreateStockTransfer(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -94,7 +95,7 @@ func CreateStockTransfer(c *gin.Context) {
 		Message:   "Stock transfer created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -141,7 +142,7 @@ func ListStockTransfers(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -156,7 +157,7 @@ func ListStockTransfers(c *gin.Context) {
 		Message:   "Stock transfers fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -193,7 +194,7 @@ func GetStockTransfer(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -210,7 +211,7 @@ func GetStockTransfer(c *gin.Context) {
 		Message:   "Stock transfer fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -267,7 +268,7 @@ func UpdateStockTransfer(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -284,6 +285,6 @@ func UpdateStockTransfer(c *gin.Context) {
 		Message:   "Stock transfer updated successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

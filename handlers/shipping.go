@@ -5,17 +5,16 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
+	"database/sql"
 	"ekomasi_backend/dtos"
 	"ekomasi_backend/models"
 	"ekomasi_backend/utils"
-	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // GetShippingCostHandler calculates shipping costs based on delivery location.
@@ -66,7 +65,7 @@ func GetShippingCostHandler(c *gin.Context) {
 			Message:   err.Error(),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -87,7 +86,7 @@ func GetShippingCostHandler(c *gin.Context) {
 		Message:   "Delivery rates fetched successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 
 }
@@ -143,7 +142,7 @@ func StoreShippingRates(c *gin.Context) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -160,7 +159,7 @@ func StoreShippingRates(c *gin.Context) {
 		Message:   "Location added successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -202,7 +201,7 @@ func SubmitFeedbackHandler(c *gin.Context) {
 			Message:   fmt.Sprintf("%s", err),
 			TimeTaken: time.Since(start),
 			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
+			Request:   c.Request,
 			RawBody:   requestSummary})
 		return
 	}
@@ -217,7 +216,7 @@ func SubmitFeedbackHandler(c *gin.Context) {
 		Message:   "Feedback submitted successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }
 
@@ -257,7 +256,7 @@ func GetDeliveryFeedbacks(c *gin.Context) {
 				Message:   "No delivery feedback found",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request: c.Request,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 		} else {
 			// Database query failed
@@ -271,7 +270,7 @@ func GetDeliveryFeedbacks(c *gin.Context) {
 				Message:   "Error fetching feedback",
 				TimeTaken: time.Since(start),
 				Function:  utils.GetCurrentFuncName(),
-				Request: c.Request,
+				Request:   c.Request,
 				RawBody:   requestSummary})
 		}
 		return
@@ -289,443 +288,6 @@ func GetDeliveryFeedbacks(c *gin.Context) {
 		Message:   "Feedback",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
-		RawBody:   requestSummary})
-}
-
-// GetUserDeliveryFeedbacks retrieves all delivery feedback submitted by a specific user.
-// Shows user's delivery experience history and feedback patterns.
-// Useful for customer service and understanding user satisfaction trends.
-//
-// @Summary      Get user's delivery feedback
-// @Description  Retrieve all delivery feedback submitted by a specific user
-// @Tags         Delivery Feedback
-// @Produce      json
-// @Param        user_id  path      string                    true  "User ID"
-// @Success      200      {array}   dtos.DeliveryFeedback     "User's feedback list"
-// @Failure      404      {object}  dtos.ErrorResponse        "No feedback found for user"
-// @Failure      500      {object}  dtos.ErrorResponse        "Error fetching feedback"
-// @Router       /api/deliveries/feedback/user/{user_id} [get]
-func GetUserDeliveryFeedbacks(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Extract user ID from URL path parameters
-	userID := c.Param("user_id")
-	// Fetch all feedback submitted by the user from database
-	feedback, err := models.GetDeliveryUserFeedBack(models.DB, userID)
-	if err != nil {
-		// Handle different error types with appropriate responses
-		if err == sql.ErrNoRows {
-			// User has not submitted any feedback yet
-			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Users",
-					Description: "Delivery feedback not found for user ID " + userID,
-					Code:        http.StatusNotFound,
-				},
-				Message:   "Delivery feedback not found",
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request: c.Request,
-				RawBody:   requestSummary})
-		} else {
-			// Database query failed
-			log.Printf("error getting feedback:::%v", err)
-			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Users",
-					Description: "Error fetching feedback for user ID " + userID,
-					Code:        http.StatusInternalServerError,
-				},
-				Message:   err.Error(),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request: c.Request,
-				RawBody:   requestSummary})
-		}
-		return
-	}
-
-	// Return user's feedback history for satisfaction tracking
-
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Users",
-			Description: "Feedback fetched successfully for user ID " + userID,
-			Code:        http.StatusOK,
-		},
-		Payload:   feedback,
-		Message:   "Feedback",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
-		RawBody:   requestSummary})
-}
-
-// DecodeRequestBody is a generic helper function for parsing JSON request bodies using Gin context.
-// Provides consistent error handling and validation across all handlers.
-// Detects malformed JSON, type mismatches, and unknown fields automatically.
-func DecodeRequestBody[T any](c *gin.Context, requestSummary string, start time.Time) (*T, bool) {
-	var req T
-	// Initialize JSON decoder with strict validation
-	decoder := json.NewDecoder(c.Request.Body)
-	decoder.DisallowUnknownFields() // Reject unexpected fields in JSON
-
-	// Attempt to decode JSON into the generic type T
-	if err := decoder.Decode(&req); err != nil {
-		var msg string
-		log.Printf("Error decoding request body: %v", err)
-		// Provide specific error messages based on error type
-		switch e := err.(type) {
-		case *json.SyntaxError:
-			// JSON syntax error with position information
-			msg = fmt.Sprintf("Request body contains badly-formed data (at position %d)", e.Offset)
-		case *json.UnmarshalTypeError:
-			// Type mismatch error with field and expected type
-			msg = fmt.Sprintf("Request body has invalid type for field %q at position %d. Expected %v",
-				e.Field, e.Offset, e.Type)
-		default:
-			// Generic decoding error
-			msg = "Invalid request body: " + err.Error()
-		}
-
-		// Send detailed error response to client
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Requests",
-				Description: msg,
-				Code:        http.StatusBadRequest,
-			},
-			Message:   msg,
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-			RawBody:   requestSummary,
-		})
-		return nil, false
-	}
-
-	// Successfully decoded request body
-	return &req, true
-}
-
-// ListLocations retrieves all delivery locations with pagination.
-// Displays available delivery areas with shipping rates for customer reference.
-// Includes Redis caching for optimal performance on frequently accessed data.
-//
-// @Summary      List delivery locations
-// @Description  Retrieve paginated list of all delivery locations with shipping rates
-// @Tags         Locations
-// @Produce      json
-// @Param        page  query     int                       false  "Page number (default: 1)"
-// @Param        size  query     int                       false  "Page size (default: 10)"
-// @Success      200   {object}  map[string]interface{}    "Locations with pagination"
-// @Failure      400   {object}  dtos.ErrorResponse        "Failed to retrieve locations"
-// @Router       /api/locations [get]
-func ListLocations(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Parse pagination parameters from query string
-	page, size := parsePagination(c.Query("page"), c.Query("size"))
-	// Generate cache keys for locations and pagination data
-	cacheKeyLocations := fmt.Sprintf("locations_%d_size_%d", page, size)
-	cacheKeyPagination := fmt.Sprintf("locations_pagination_%d_size_%d", page, size)
-	var locations []dtos.Location
-	var cachedLocation []dtos.Location
-	var pagination dtos.PaginationMeta
-	var cachedPagination dtos.PaginationMeta
-	// Try to fetch locations from Redis cache
-	_ = utils.GetCache(cacheKeyLocations, &cachedLocation)
-	_ = utils.GetCache(cacheKeyPagination, &cachedPagination)
-	if cachedLocation == nil {
-		// Cache miss - fetch from database
-		var err error
-		locations, pagination, err = models.ListLocations(models.DB, page, size)
-		if err != nil {
-			// Database query failed
-			utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-				CollectiveInfo: utils.CollectiveInfo{
-					Module:      "Shipping",
-					Description: "Failed to retrieve locations",
-					Code:        http.StatusBadRequest,
-				},
-				Message:   fmt.Sprintf("%s", err),
-				TimeTaken: time.Since(start),
-				Function:  utils.GetCurrentFuncName(),
-				Request: c.Request,
-				RawBody:   requestSummary})
-			return
-
-		}
-		// Store results in Redis cache for future requests
-		_ = utils.SetCache(cacheKeyLocations, cachedLocation)
-		_ = utils.SetCache(cacheKeyPagination, cachedPagination)
-	} else {
-		// Cache hit - use cached data
-		locations = cachedLocation
-		pagination = cachedPagination
-	}
-	// Build response payload with locations and pagination metadata
-	response := map[string]interface{}{
-		"locations":  locations,
-		"pagination": pagination,
-	}
-
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Shipping",
-			Description: "Locations fetched successfully",
-			Code:        http.StatusOK,
-		},
-		Payload:   response,
-		Message:   "Locations fetched successfully",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
-		RawBody:   requestSummary})
-}
-
-// GetLocation retrieves detailed information for a specific delivery location.
-// Displays location name, delivery area, shipping rate, and availability status.
-// Used for location-specific shipping information during checkout.
-//
-// @Summary      Get location details
-// @Description  Retrieve detailed information for a specific delivery location
-// @Tags         Locations
-// @Produce      json
-// @Param        location_id  path      int                 true  "Location ID"
-// @Success      200          {object}  dtos.Location       "Location details"
-// @Failure      400          {object}  dtos.ErrorResponse  "Location not found"
-// @Router       /api/locations/{location_id} [get]
-func GetLocation(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Extract location ID from URL path parameters
-	locationID := c.Param("location_id")
-	// Convert location ID string to integer
-	id, _ := strconv.Atoi(locationID)
-	// Fetch location details from database
-	loc, err := models.GetLocationByID(models.DB, id)
-	if err != nil {
-		// Location not found or database error
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Shipping",
-				Description: "Failed to fetch location details",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   fmt.Sprintf("%s", err),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	// Return location details for display
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Shipping",
-			Description: "Location fetched successfully",
-			Code:        http.StatusOK,
-		},
-		Payload:   loc,
-		Message:   "Location fetched sucessfully",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
-		RawBody:   requestSummary})
-}
-
-// UpdateLocation modifies an existing delivery location's details.
-// Admin-only operation for updating location names, areas, and shipping rates.
-// Essential for maintaining accurate delivery zones and pricing.
-//
-// @Summary      Update location
-// @Description  Update delivery location details and shipping rate (admin only)
-// @Tags         Admin
-// @Accept       json
-// @Produce      json
-// @Param        location_id  path      int                   true  "Location ID"
-// @Param        location     body      dtos.UpdateLocation   true  "Updated location details"
-// @Success      200          {object}  map[string]interface{}  "Location updated successfully"
-// @Failure      400          {object}  dtos.ErrorResponse    "Update failed"
-// @Failure      401          {object}  dtos.ErrorResponse    "Admin authorization required"
-// @Security     BearerAuth
-// @Router       /api/admin/locations/{location_id} [patch]
-func UpdateLocation(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Extract location ID from URL path parameters
-	locationID := c.Param("location_id")
-	// Verify user has admin privileges (only admins can update locations)
-	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Shipping", "")
-	if !ok {
-		// Authorization failed, RequireAdmin already sent error response
-		return
-	}
-	// Decode and parse JSON request body
-	req, ok := DecodeRequestBody[dtos.UpdateLocation](c, requestSummary, start)
-	if !ok {
-		// Request body parsing failed, DecodeRequestBody already sent error response
-		return
-	}
-	// Validate all required fields in the request
-	if !utils.ValidateGinStructAndRespond(req, c, requestSummary, start, "Shipping") {
-		// Validation failed, ValidateStructAndRespond already sent error response
-		return
-	}
-
-	// Update location details in database
-	if err := models.UpdateLocation(models.DB, *req, locationID); err != nil {
-		// Update failed (location not found or database error)
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Shipping",
-				Description: "Failed to update location with ID " + locationID,
-				Code:        http.StatusBadRequest,
-			},
-			Message:   fmt.Sprintf("%s", err),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	// Invalidate location caches to ensure fresh data
-	utils.DeleteCacheByPrefix("locations_")
-	utils.DeleteCacheByPrefix("locations_pagination_")
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Shipping",
-			Description: "Location with ID " + locationID + " updated successfully",
-			Code:        http.StatusOK,
-		},
-		Payload:   nil,
-		Message:   "Location updated sucessfully",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
-		RawBody:   requestSummary})
-}
-
-// DeleteLocation permanently removes a delivery location from the system.
-// Admin-only operation for discontinuing service to specific areas.
-// Deletion may fail if location is referenced in active orders.
-//
-// @Summary      Delete location
-// @Description  Permanently remove a delivery location (admin only)
-// @Tags         Admin
-// @Produce      json
-// @Param        location_id  path      int                   true  "Location ID"
-// @Success      200          {object}  map[string]interface{}  "Location deleted successfully"
-// @Failure      400          {object}  dtos.ErrorResponse    "Deletion failed"
-// @Failure      401          {object}  dtos.ErrorResponse    "Admin authorization required"
-// @Security     BearerAuth
-// @Router       /api/admin/locations/{location_id} [delete]
-func DeleteLocation(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Extract location ID from URL path parameters
-	locationID := c.Param("location_id")
-	// Verify user has admin privileges (only admins can delete locations)
-	_, ok := utils.RequireGinPermissions(c, start, requestSummary, "Shipping", "")
-	if !ok {
-		// Authorization failed, RequireAdmin already sent error response
-		return
-	}
-
-	// Permanently delete location from database
-	if err := models.DeleteLocation(models.DB, locationID); err != nil {
-		// Deletion failed (location not found, in use, or database error)
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Shipping",
-				Description: "Failed to delete location with ID " + locationID,
-				Code:        http.StatusBadRequest,
-			},
-			Message:   fmt.Sprintf("%s", err),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	// Invalidate location caches to ensure fresh data
-	utils.DeleteCacheByPrefix("locations_")
-	utils.DeleteCacheByPrefix("locations_pagination_")
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Shipping",
-			Description: "Location with ID " + locationID + " deleted successfully",
-			Code:        http.StatusOK,
-		},
-		Payload:   nil,
-		Message:   "Location deleted sucessfully",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
-		RawBody:   requestSummary})
-}
-
-// DeleteFeedbackHandler permanently removes delivery feedback from the system.
-// Allows deletion of inappropriate or mistaken feedback submissions.
-// Should be used sparingly to maintain feedback authenticity.
-//
-// @Summary      Delete delivery feedback
-// @Description  Permanently remove delivery feedback
-// @Tags         Delivery Feedback
-// @Produce      json
-// @Param        feedback_id  path      string                true  "Feedback ID"
-// @Success      200          {object}  map[string]interface{}  "Feedback deleted successfully"
-// @Failure      400          {object}  dtos.ErrorResponse    "Deletion failed"
-// @Router       /api/deliveries/feedback/{feedback_id} [delete]
-func DeleteFeedbackHandler(c *gin.Context) {
-	// Start performance tracking for this request
-	start := time.Now()
-	// Get request summary for logging
-	requestSummary := utils.GetRequestSummary(c.Request)
-	// Extract feedback ID from URL path parameters
-	feedbackID := c.Param("feedback_id")
-
-	// Permanently delete feedback from database
-	err := models.DeleteDeliveryFeedback(models.DB, feedbackID)
-	if err != nil {
-		// Deletion failed (feedback not found or database error)
-		log.Printf("Error adding new feed back: %v", err)
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Users",
-				Description: "Failed to delete delivery feedback with ID " + feedbackID,
-				Code:        http.StatusBadRequest,
-			},
-			Message:   fmt.Sprintf("%s", err),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request: c.Request,
-			RawBody:   requestSummary})
-		return
-	}
-	// Feedback deleted successfully
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Users",
-			Description: "Feedback with ID " + feedbackID + " deleted successfully",
-			Code:        http.StatusOK,
-		},
-		Payload:   nil,
-		Message:   "Feedback deleted successfully",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request: c.Request,
+		Request:   c.Request,
 		RawBody:   requestSummary})
 }

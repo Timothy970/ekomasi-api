@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"ekomasi_backend/config"
 	"ekomasi_backend/dtos"
 	"ekomasi_backend/handlers"
@@ -8,12 +10,9 @@ import (
 	"ekomasi_backend/models"
 	"ekomasi_backend/routes"
 	"ekomasi_backend/utils"
-	"context"
-	"database/sql"
 	"flag"
 	"fmt"
 	"log"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -30,12 +29,6 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/rs/cors"
 	httpSwagger "github.com/swaggo/http-swagger"
-	"github.com/uptrace/uptrace-go/uptrace"
-
-	// "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // Define constants for JWT
@@ -46,12 +39,6 @@ const (
 var Db *sql.DB
 var redisClient *redis.Client
 
-// OpenTelemetry components
-var tracer trace.Tracer
-var meter metric.Meter
-var logger *slog.Logger
-var ekomasi = "ekomasi-backend"
-
 const migrationDir = "migrations"
 
 // Load environment variables and global configuration
@@ -60,36 +47,13 @@ func init() {
 	config.LoadConfig()
 }
 
-
 func main() {
-	ctx := context.Background()
-
 	// Retrieve application configuration
 	cfg := config.Get()
 
-	// Configure OpenTelemetry with comprehensive setup
-	uptrace.ConfigureOpentelemetry(
-		// Use environment variable for DSN or fallback to hardcoded value
-		uptrace.WithDSN(os.Getenv("UPTRACE_DSN")),
-		uptrace.WithServiceName("Ekomasi"),
-		uptrace.WithServiceVersion("1.0.0"),
-		uptrace.WithDeploymentEnvironment(cfg.Server.Environment),
-	)
-
-	// Initialize OpenTelemetry components
-	tracer = otel.Tracer(ekomasi)
-	meter = otel.Meter(ekomasi)
-
-	// Setup structured logging with OpenTelemetry integration
-	utils.InitLogger()
-	logger = utils.Logger
-
-	// Also set up the standard log package to use structured logging
-	log.SetFlags(0)
+	// Standard log configuration
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.SetOutput(os.Stdout)
-
-	// Ensure proper shutdown
-	defer uptrace.Shutdown(ctx)
 
 	/**
 		// @title Ekomasi API
@@ -141,7 +105,7 @@ func main() {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
 	fmt.Println("Connected to Redis")
-	// Initialize the database connection with OpenTelemetry instrumentation
+	// Initialize the database connection
 	Db, err = initDBConnection(
 		cfg.Database.User, cfg.Database.Password,
 		cfg.Database.Host, cfg.Database.Port, cfg.Database.Name,
@@ -151,8 +115,8 @@ func main() {
 	}
 	defer Db.Close()
 
-	// Pass wrapped Db to models for tracing
-	models.DB = utils.NewWrappedDB(Db)
+	// Pass Db to models
+	models.DB = Db
 	//pass redis to models
 	handlers.Redis = redisClient
 	utils.RedisClient = redisClient
@@ -160,8 +124,7 @@ func main() {
 	middleware.RedisClient = redisClient
 	// Start WebSocket broadcaster for multi-instance support
 	utils.StartWebSocketBroadcaster()
-	// Initialize router with OpenTelemetry middleware
-	// Initialize Gin Engine router with high performance, tenant middleware, and error recovery
+	// Initialize router with high performance, tenant middleware, and error recovery
 	ginEngine := gin.Default()
 
 	// Register WebSocket handler on Gin Engine
@@ -237,7 +200,7 @@ func main() {
 	log.Println("Server exiting gracefully.")
 }
 
-// Function to initialize a database connection with OpenTelemetry instrumentation
+// Function to initialize a database connection
 func initDBConnection(user, password, host, port, dbName string) (*sql.DB, error) {
 	cfg := mysql.Config{
 		User:      user,
@@ -255,8 +218,7 @@ func initDBConnection(user, password, host, port, dbName string) (*sql.DB, error
 		},
 	}
 
-	// Open database connection with OpenTelemetry instrumentation
-	// We'll wrap it manually since otelsql package isn't available
+	// Open database connection
 	db, err := sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
 		return nil, fmt.Errorf("error opening database connection: %v", err)

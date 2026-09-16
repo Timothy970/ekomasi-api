@@ -511,50 +511,6 @@ const docTemplate = `{
             }
         },
         "/admin/promotions/promo-codes": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retrieve a paginated list of all promotional discount codes with their details",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Promotions"
-                ],
-                "summary": "Get all promo codes",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size (default: 10)",
-                        "name": "size",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "List of promo codes with pagination",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "$ref": "#/definitions/dtos.ErrorResponse"
-                        }
-                    }
-                }
-            },
             "post": {
                 "security": [
                     {
@@ -4742,6 +4698,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/admin/payments/gateways": {
+            "post": {
+                "description": "Save public key, secret key, and settings for Paystack, Flutterwave, or Stripe per tenant",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "Configure Tenant Payment Gateway",
+                "parameters": [
+                    {
+                        "description": "Gateway configuration",
+                        "name": "config",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dtos.TenantPaymentGatewayConfig"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/payments/refund/{refund_id}": {
             "patch": {
                 "security": [
@@ -6699,6 +6690,121 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/admin/subscribers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a paginated list of newsletter subscribers with optional filtering",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get all subscribers",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/subscribers/csv": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Download a CSV file containing all subscribers or filtered results",
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Download subscribers CSV",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/suppliers": {
             "post": {
                 "security": [
@@ -7205,6 +7311,51 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/users/csv": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Download a CSV file containing all users or filtered results by search, role, or isAdmin",
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Download users CSV",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query (name, phone, email)",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by role",
+                        "name": "role",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by admin status",
+                        "name": "isAdmin",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
                         }
                     }
                 }
@@ -10037,46 +10188,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/inventories/{inventory_id}/pdf": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Download inventory data as PDF",
-                "produces": [
-                    "application/pdf"
-                ],
-                "tags": [
-                    "Inventories"
-                ],
-                "summary": "Download inventory PDF",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Inventory ID",
-                        "name": "inventory_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "file"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dtos.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/locations": {
             "get": {
                 "description": "Retrieve paginated list of all delivery locations with shipping rates",
@@ -10462,6 +10573,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/orders/{order_id}/tracking": {
+            "get": {
+                "description": "Get 5-step visual tracking timeline ('placed', 'processing', 'shipped', 'out_for_delivery', 'delivered')",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Visual Order Tracking Timeline",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order ID",
+                        "name": "order_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Guest Tracking Token",
+                        "name": "token",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.OrderTrackingTimelineResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/payment-options": {
             "get": {
                 "security": [
@@ -10562,6 +10708,97 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/payments/card/initialize": {
+            "post": {
+                "description": "Create authorization checkout URL for Paystack, Flutterwave, or Stripe",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "Initialize Card/Online Payment",
+                "parameters": [
+                    {
+                        "description": "Payment initialization details",
+                        "name": "initReq",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dtos.PaymentInitializeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.PaymentInitializeResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/payments/card/verify": {
+            "get": {
+                "description": "Verify payment completion status using reference code",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "Verify Card/Online Payment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Gateway Name ('paystack', 'flutterwave', 'stripe')",
+                        "name": "gateway",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction Reference or Session ID",
+                        "name": "reference",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dtos.PaymentVerifyResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/payments/gateways": {
+            "get": {
+                "description": "Get configurations for all payment gateways available to the current tenant",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "List Tenant Payment Gateways",
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -11606,7 +11843,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Upload multiple products using a CSV file",
+                "description": "Upload multiple products via CSV with dry-run pre-validation and row-by-row error diagnostics",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -11616,7 +11853,7 @@ const docTemplate = `{
                 "tags": [
                     "Products"
                 ],
-                "summary": "Bulk upload products",
+                "summary": "Bulk upload and validate products",
                 "parameters": [
                     {
                         "type": "file",
@@ -11624,14 +11861,25 @@ const docTemplate = `{
                         "name": "file",
                         "in": "formData",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "If true, run dry-run pre-validation without DB writes",
+                        "name": "validate_only",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Import mode: 'upsert', 'create_only', 'update_stock'",
+                        "name": "mode",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/dtos.BulkImportDiagnosticResult"
                         }
                     },
                     "400": {
@@ -13526,34 +13774,7 @@ const docTemplate = `{
         },
         "/api/reports/inventory/turnover/{product_id}": {
             "get": {
-                "description": "Get inventory turnover report by product",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Reports"
-                ],
-                "summary": "Get inventory turnover report by product",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Product ID",
-                        "name": "product_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Period (weekly, monthly, etc.)",
-                        "name": "period",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Start Date (YYYY-MM-DD)",
-                        "name": "start",
-                        "in": "query"
-                    },
                     {
                         "type": "string",
                         "description": "End Date (YYYY-MM-DD)",
@@ -13742,7 +13963,6 @@ const docTemplate = `{
                 "tags": [
                     "Sales"
                 ],
-                "summary": "Get sales by region",
                 "parameters": [
                     {
                         "type": "string",
@@ -13900,7 +14120,6 @@ const docTemplate = `{
                 "tags": [
                     "Sales"
                 ],
-                "summary": "Get revenue vs expenses comparison",
                 "parameters": [
                     {
                         "type": "string",
@@ -15509,6 +15728,80 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/user/me/verify-update": {
+            "patch": {
+                "description": "Verify the OTP sent to the new email/phone to finalize the profile update.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Verify user update",
+                "parameters": [
+                    {
+                        "description": "OTP verification",
+                        "name": "otp",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Profile updated successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request payload",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized or invalid OTP",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Pending update not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -17227,7 +17520,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Time range (last_7_days, last_30_days, this_month, etc.)",
+                        "description": "Time range (daily, weekly, monthly, yearly)",
                         "name": "time_range",
                         "in": "query"
                     },
@@ -17461,6 +17754,9 @@ const docTemplate = `{
                 "quantity": {
                     "type": "integer",
                     "minimum": 1
+                },
+                "variation_sku": {
+                    "type": "string"
                 }
             }
         },
@@ -17812,6 +18108,70 @@ const docTemplate = `{
                 }
             }
         },
+        "dtos.BulkImportDiagnosticResult": {
+            "type": "object",
+            "properties": {
+                "created_skus": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.BulkValidationRowError"
+                    }
+                },
+                "invalid_rows_count": {
+                    "type": "integer"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "processed_count": {
+                    "type": "integer"
+                },
+                "total_rows": {
+                    "type": "integer"
+                },
+                "updated_skus": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "valid_rows_count": {
+                    "type": "integer"
+                },
+                "validate_only": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "dtos.BulkValidationRowError": {
+            "type": "object",
+            "properties": {
+                "error_message": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "product_name": {
+                    "type": "string"
+                },
+                "row_number": {
+                    "type": "integer"
+                },
+                "sku": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "dtos.BundleProducts": {
             "type": "object",
             "required": [
@@ -17835,7 +18195,6 @@ const docTemplate = `{
                 "delivery_time",
                 "design_id",
                 "from_name",
-                "message",
                 "to_email",
                 "to_name"
             ],
@@ -17872,11 +18231,17 @@ const docTemplate = `{
         "dtos.CartItem": {
             "type": "object",
             "properties": {
+                "is_variant": {
+                    "type": "boolean"
+                },
                 "product": {
                     "$ref": "#/definitions/dtos.Product"
                 },
                 "quantity": {
                     "type": "integer"
+                },
+                "variation_sku": {
+                    "type": "string"
                 }
             }
         },
@@ -18125,6 +18490,12 @@ const docTemplate = `{
                 "start_date"
             ],
             "properties": {
+                "brandID": {
+                    "type": "string"
+                },
+                "dealType": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },
@@ -18193,7 +18564,39 @@ const docTemplate = `{
             }
         },
         "dtos.CreateOrderPayload": {
-            "type": "object"
+            "type": "object",
+            "required": [
+                "order_items"
+            ],
+            "properties": {
+                "guest_delivery_address": {
+                    "$ref": "#/definitions/dtos.GuestDeliveryAddress"
+                },
+                "guest_personal_details": {
+                    "$ref": "#/definitions/dtos.GuestPersonalDetails"
+                },
+                "is_guest_order": {
+                    "type": "boolean"
+                },
+                "location_id": {
+                    "type": "integer"
+                },
+                "order_items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.OrderItemPayload"
+                    }
+                },
+                "order_source": {
+                    "type": "string"
+                },
+                "promo_code": {
+                    "type": "string"
+                },
+                "store_id": {
+                    "type": "string"
+                }
+            }
         },
         "dtos.CreateProduct": {
             "type": "object",
@@ -18201,11 +18604,13 @@ const docTemplate = `{
                 "category_id",
                 "description",
                 "name",
-                "price",
                 "search_vector",
                 "sku"
             ],
             "properties": {
+                "barcode": {
+                    "type": "string"
+                },
                 "buying_price": {
                     "type": "number"
                 },
@@ -18236,12 +18641,6 @@ const docTemplate = `{
                 },
                 "search_vector": {
                     "type": "string"
-                },
-                "sell_when_out_of_stock": {
-                    "type": "boolean"
-                },
-                "show_stock_quantity": {
-                    "type": "boolean"
                 },
                 "sku": {
                     "type": "string"
@@ -18445,6 +18844,46 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dtos.VariantResponse"
                     }
+                }
+            }
+        },
+        "dtos.GuestDeliveryAddress": {
+            "type": "object",
+            "properties": {
+                "apartment": {
+                    "type": "string"
+                },
+                "city": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "postal_code": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "street": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.GuestPersonalDetails": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
                 }
             }
         },
@@ -18890,6 +19329,145 @@ const docTemplate = `{
                 }
             }
         },
+        "dtos.OrderItemPayload": {
+            "type": "object",
+            "required": [
+                "product_id",
+                "quantity"
+            ],
+            "properties": {
+                "product_id": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer"
+                },
+                "variation_sku": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.OrderProduct": {
+            "type": "object",
+            "properties": {
+                "category_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_reviewed": {
+                    "type": "boolean"
+                },
+                "last_updated": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "product_id": {
+                    "type": "string"
+                },
+                "review_id": {
+                    "type": "string"
+                },
+                "search_vector": {
+                    "type": "string"
+                },
+                "sku": {
+                    "type": "string"
+                },
+                "stock_quantity": {
+                    "type": "integer"
+                },
+                "urls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.Image"
+                    }
+                },
+                "warranty": {
+                    "$ref": "#/definitions/dtos.ProductWarranty"
+                }
+            }
+        },
+        "dtos.OrderTimelineStep": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_completed": {
+                    "type": "boolean"
+                },
+                "is_current": {
+                    "type": "boolean"
+                },
+                "step": {
+                    "description": "'placed', 'processing', 'shipped', 'out_for_delivery', 'delivered'",
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.OrderTrackingTimelineResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "customer_email": {
+                    "type": "string"
+                },
+                "customer_name": {
+                    "type": "string"
+                },
+                "delivery_address": {
+                    "type": "string"
+                },
+                "delivery_status": {
+                    "type": "string"
+                },
+                "estimated_delivery": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.OrderProduct"
+                    }
+                },
+                "order_id": {
+                    "type": "string"
+                },
+                "order_status": {
+                    "type": "string"
+                },
+                "payment_status": {
+                    "type": "string"
+                },
+                "timeline_steps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.OrderTimelineStep"
+                    }
+                },
+                "tracking_token": {
+                    "type": "string"
+                }
+            }
+        },
         "dtos.PaginatedPurchaseOrdersResponse": {
             "type": "object",
             "properties": {
@@ -18963,6 +19541,59 @@ const docTemplate = `{
                 },
                 "voucher_id": {
                     "type": "string"
+                }
+            }
+        },
+        "dtos.PaymentInitializeRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "email",
+                "gateway_name",
+                "order_id"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "callback_url": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "gateway_name": {
+                    "description": "'paystack', 'flutterwave', 'stripe'",
+                    "type": "string"
+                },
+                "order_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.PaymentInitializeResponse": {
+            "type": "object",
+            "properties": {
+                "access_code": {
+                    "type": "string"
+                },
+                "authorization_url": {
+                    "type": "string"
+                },
+                "gateway_name": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "reference": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "boolean"
                 }
             }
         },
@@ -19054,9 +19685,45 @@ const docTemplate = `{
                 }
             }
         },
+        "dtos.PaymentVerifyResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "channel": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "customer_email": {
+                    "type": "string"
+                },
+                "gateway_name": {
+                    "type": "string"
+                },
+                "paid_at": {
+                    "type": "string"
+                },
+                "reference": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "'SUCCESS', 'FAILED', 'PENDING'",
+                    "type": "string"
+                }
+            }
+        },
         "dtos.Product": {
             "type": "object",
             "properties": {
+                "barcode": {
+                    "type": "string"
+                },
+                "bundle_quantity": {
+                    "type": "integer"
+                },
                 "category_id": {
                     "type": "string"
                 },
@@ -19094,6 +19761,9 @@ const docTemplate = `{
                     }
                 },
                 "in_today_deal": {
+                    "type": "boolean"
+                },
+                "is_featured": {
                     "type": "boolean"
                 },
                 "last_updated": {
@@ -19136,12 +19806,6 @@ const docTemplate = `{
                 "search_vector": {
                     "type": "string"
                 },
-                "sell_when_out_of_stock": {
-                    "type": "boolean"
-                },
-                "show_stock_quantity": {
-                    "type": "boolean"
-                },
                 "sku": {
                     "type": "string"
                 },
@@ -19158,6 +19822,12 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/dtos.Image"
+                    }
+                },
+                "variant_selection": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dtos.VariantSelection"
                     }
                 },
                 "warranty": {
@@ -19256,24 +19926,11 @@ const docTemplate = `{
         "dtos.ProductSpecification": {
             "type": "object",
             "required": [
-                "age",
                 "category_id",
-                "color",
-                "material",
                 "product_id",
-                "warranty_period",
-                "weight",
-                "weight_limit"
+                "warranty_period"
             ],
             "properties": {
-                "age": {
-                    "description": "ids of the age variants",
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "brand": {
                     "description": "brand id for the variant brand",
                     "type": "string"
@@ -19281,46 +19938,19 @@ const docTemplate = `{
                 "category_id": {
                     "type": "string"
                 },
-                "color": {
-                    "description": "color variants ids",
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "dimensions": {
-                    "type": "string"
-                },
-                "discount_type": {
-                    "description": "type id",
-                    "type": "string"
-                },
-                "expiry_date": {
-                    "type": "string"
-                },
-                "manufacture_date": {
                     "type": "string"
                 },
                 "manufacturer": {
                     "type": "string"
                 },
-                "material": {
-                    "description": "material variant ids",
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "product_id": {
                     "type": "string"
                 },
-                "size": {
-                    "description": "size variant ids",
+                "variant_selections": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/dtos.VariantSelection"
                     }
                 },
                 "warranty_period": {
@@ -19332,10 +19962,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "weight": {
-                    "type": "integer"
+                    "type": "number"
                 },
                 "weight_limit": {
-                    "type": "integer"
+                    "type": "number"
                 }
             }
         },
@@ -19731,6 +20361,10 @@ const docTemplate = `{
                 "status"
             ],
             "properties": {
+                "phone_number": {
+                    "description": "Optional, required if status is Approved",
+                    "type": "string"
+                },
                 "status": {
                     "type": "string",
                     "enum": [
@@ -19869,6 +20503,9 @@ const docTemplate = `{
                 "icon_class": {
                     "type": "string"
                 },
+                "id": {
+                    "type": "integer"
+                },
                 "platform": {
                     "type": "string"
                 },
@@ -19898,7 +20535,7 @@ const docTemplate = `{
         "dtos.StaticPageRequest": {
             "type": "object",
             "required": [
-                "description",
+                "content",
                 "path",
                 "title"
             ],
@@ -19906,46 +20543,14 @@ const docTemplate = `{
                 "author": {
                     "type": "string"
                 },
-                "created_at": {
+                "content": {
                     "type": "string"
                 },
-                "description": {
+                "created_at": {
                     "type": "string"
                 },
                 "path": {
                     "type": "string"
-                },
-                "sections": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": [
-                            "position"
-                        ],
-                        "properties": {
-                            "banner": {
-                                "$ref": "#/definitions/dtos.BlogImage"
-                            },
-                            "images": {
-                                "type": "array",
-                                "items": {
-                                    "$ref": "#/definitions/dtos.BlogImage"
-                                }
-                            },
-                            "paragraphs": {
-                                "type": "array",
-                                "items": {
-                                    "$ref": "#/definitions/dtos.Paragraph"
-                                }
-                            },
-                            "position": {
-                                "type": "integer"
-                            },
-                            "title": {
-                                "type": "string"
-                            }
-                        }
-                    }
                 },
                 "static_page_id": {
                     "type": "string"
@@ -19976,6 +20581,9 @@ const docTemplate = `{
                 "quantity": {
                     "type": "integer"
                 },
+                "status": {
+                    "type": "string"
+                },
                 "to_warehouse_id": {
                     "type": "string"
                 },
@@ -19996,11 +20604,39 @@ const docTemplate = `{
         "dtos.StockTransferUpdateDTO": {
             "type": "object",
             "required": [
-                "quantity"
+                "from_warehouse_id",
+                "product_id",
+                "quantity",
+                "status",
+                "to_warehouse_id"
             ],
             "properties": {
+                "from_warehouse_id": {
+                    "type": "string"
+                },
+                "product_id": {
+                    "type": "string"
+                },
                 "quantity": {
                     "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "to_warehouse_id": {
+                    "type": "string"
+                },
+                "transfer_date": {
+                    "type": "string"
+                },
+                "transfer_details": {
+                    "type": "string"
+                },
+                "transfer_id": {
+                    "type": "string"
+                },
+                "variant_id": {
+                    "type": "string"
                 }
             }
         },
@@ -20010,7 +20646,13 @@ const docTemplate = `{
                 "email"
             ],
             "properties": {
+                "created_at": {
+                    "type": "string"
+                },
                 "email": {
+                    "type": "string"
+                },
+                "subscriber_id": {
                     "type": "string"
                 }
             }
@@ -20035,6 +20677,55 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "supplier_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "dtos.TenantPaymentGatewayConfig": {
+            "type": "object",
+            "required": [
+                "gateway_name"
+            ],
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "encryption_key": {
+                    "type": "string"
+                },
+                "gateway_name": {
+                    "description": "'paystack', 'flutterwave', 'stripe'",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_enabled": {
+                    "type": "boolean"
+                },
+                "merchant_id": {
+                    "type": "string"
+                },
+                "mode": {
+                    "description": "'test' or 'live'",
+                    "type": "string"
+                },
+                "public_key": {
+                    "type": "string"
+                },
+                "secret_key": {
+                    "type": "string"
+                },
+                "tenant_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "webhook_secret": {
                     "type": "string"
                 }
             }
@@ -20418,6 +21109,35 @@ const docTemplate = `{
                 },
                 "variant_type": {
                     "type": "string"
+                }
+            }
+        },
+        "dtos.VariantSelection": {
+            "type": "object",
+            "required": [
+                "name",
+                "sku",
+                "variant_ids"
+            ],
+            "properties": {
+                "additional_price": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sku": {
+                    "type": "string"
+                },
+                "stock_quantity": {
+                    "type": "integer"
+                },
+                "variant_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

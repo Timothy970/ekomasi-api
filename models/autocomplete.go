@@ -22,8 +22,8 @@
 package models
 
 import (
-	"ekomasi_backend/dtos"
 	"database/sql"
+	"ekomasi_backend/dtos"
 	"fmt"
 	"net/url"
 	"sort"

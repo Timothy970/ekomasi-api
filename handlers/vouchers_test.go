@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"ekomasi_backend/dtos"
 	"ekomasi_backend/middleware"
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -37,7 +37,6 @@ func TestRedeemVoucherHandler(t *testing.T) {
 			WithArgs("VOUCHER123").
 			WillReturnRows(voucherRows)
 
-
 		// Then UPDATE vouchers SET user_id = ? WHERE code = ?
 		mock.ExpectExec("UPDATE vouchers SET user_id = \\? WHERE code = \\?").
 			WithArgs(sqlmock.AnyArg(), "VOUCHER123").
@@ -67,4 +66,3 @@ func TestRedeemVoucherHandler(t *testing.T) {
 		}
 	})
 }
-

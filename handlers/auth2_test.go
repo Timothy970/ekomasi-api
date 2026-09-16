@@ -1,10 +1,10 @@
 package handlers
 
 import (
+	"bytes"
 	"ekomasi_backend/dtos"
 	"ekomasi_backend/models"
 	"ekomasi_backend/utils"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"

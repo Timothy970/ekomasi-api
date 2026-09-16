@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"ekomasi_backend/models"
 	"database/sql"
+	"ekomasi_backend/models"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"

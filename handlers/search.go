@@ -80,9 +80,9 @@ func SearchProductsFacetedHandler(c *gin.Context) {
 			Code:        http.StatusOK,
 		},
 		Payload: map[string]interface{}{
-			"query":      query,
-			"total":      len(products),
-			"products":   products,
+			"query":    query,
+			"total":    len(products),
+			"products": products,
 		},
 		Message:   "Products retrieved",
 		TimeTaken: time.Since(start),

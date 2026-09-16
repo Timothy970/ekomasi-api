@@ -29,9 +29,9 @@
 package utils
 
 import (
-	"ekomasi_backend/dtos"
 	"bytes"
 	"crypto/rand"
+	"ekomasi_backend/dtos"
 	"encoding/base64"
 	"errors"
 	"fmt"
