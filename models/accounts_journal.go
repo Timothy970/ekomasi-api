@@ -138,7 +138,7 @@ var UpdateEntry = func(db DBExecutor, id string, req dtos.UpdateJournalEntryRequ
 	}
 
 	// Update lines if provided
-	if req.Lines != nil && len(req.Lines) > 0 {
+	if len(req.Lines) > 0 {
 		// Validate at least 2 lines
 		if len(req.Lines) < 2 {
 			return errors.New("journal entry must have at least 2 lines")

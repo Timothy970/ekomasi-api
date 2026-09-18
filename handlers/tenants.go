@@ -10,7 +10,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetActiveTenantGinHandler resolves and returns the settings for the currently active tenant using Gin Context
+// TenantRequest is the DTO for creating or updating a tenant.
+type TenantRequest struct {
+	Name      string `json:"name"`
+	Domain    string `json:"domain"`       // canonical slug reference
+	Slogan    string `json:"slogan"`
+	Logo      string `json:"logo"`
+	AppLogo   string `json:"app_logo"`
+	AdminLogo string `json:"admin_logo"`
+	// Initial URL registrations (optional; managed via tenant_urls endpoints post-create)
+	StorefrontURL string `json:"storefront_url"`
+	AdminURL      string `json:"admin_url"`
+}
+
+// GetActiveTenantGinHandler returns the tenant resolved for the current request.
 func GetActiveTenantGinHandler(c *gin.Context) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(c.Request)
@@ -32,7 +45,7 @@ func GetActiveTenantGinHandler(c *gin.Context) {
 	})
 }
 
-// CreateTenantGinHandler creates a new tenant natively using Gin context. Restricted to superadmins.
+// CreateTenantGinHandler creates a new tenant. Superadmin only.
 func CreateTenantGinHandler(c *gin.Context) {
 	start := time.Now()
 	requestSummary := utils.GetRequestSummary(c.Request)
@@ -69,7 +82,7 @@ func CreateTenantGinHandler(c *gin.Context) {
 		return
 	}
 
-	if req.Name == "" || (req.Domain == "" && req.AppDomain == "" && req.AdminDomain == "") {
+	if req.Name == "" || req.Domain == "" {
 		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
 				Module:      "Tenants",
@@ -84,19 +97,21 @@ func CreateTenantGinHandler(c *gin.Context) {
 		return
 	}
 
-	if req.Domain == "" {
-		if req.AppDomain != "" {
-			req.Domain = req.AppDomain
-		} else {
-			req.Domain = req.AdminDomain
-		}
+	storefrontURL := req.StorefrontURL
+	if storefrontURL == "" {
+		storefrontURL = req.Domain
 	}
 
-	err := models.CreateTenant(
-		models.DB, req.Name, req.Domain, req.AppDomain, req.AdminDomain, req.Slogan, req.Logo, req.Color,
-		req.AppLogo, req.AppPrimaryColor, req.AppSecondaryColor, req.AppTertiaryColor,
-		req.AdminLogo, req.AdminPrimaryColor, req.AdminSecondaryColor, req.AdminTertiaryColor,
-	)
+	err := models.CreateTenant(models.DB, models.CreateTenantParams{
+		Name:          req.Name,
+		Domain:        req.Domain,
+		Slogan:        req.Slogan,
+		Logo:          req.Logo,
+		AppLogo:       req.AppLogo,
+		AdminLogo:     req.AdminLogo,
+		StorefrontURL: storefrontURL,
+		AdminURL:      req.AdminURL,
+	})
 	if err != nil {
 		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
 			CollectiveInfo: utils.CollectiveInfo{
@@ -118,142 +133,6 @@ func CreateTenantGinHandler(c *gin.Context) {
 			Description: "Tenant created successfully",
 			Code:        http.StatusCreated,
 		},
-		Message:   "Tenant created successfully",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request:   c.Request,
-		RawBody:   requestSummary,
-	})
-}
-
-type TenantRequest struct {
-	Name                string `json:"name"`
-	Domain              string `json:"domain"`
-	AppDomain           string `json:"app_domain"`
-	AdminDomain         string `json:"admin_domain"`
-	Slogan              string `json:"slogan"`
-	Logo                string `json:"logo"`
-	Color               string `json:"color"`
-	AppLogo             string `json:"app_logo"`
-	AppPrimaryColor     string `json:"app_primary_color"`
-	AppSecondaryColor   string `json:"app_secondary_color"`
-	AppTertiaryColor    string `json:"app_tertiary_color"`
-	AdminLogo           string `json:"admin_logo"`
-	AdminPrimaryColor   string `json:"admin_primary_color"`
-	AdminSecondaryColor string `json:"admin_secondary_color"`
-	AdminTertiaryColor  string `json:"admin_tertiary_color"`
-}
-
-// GetActiveTenantHandler resolves and returns the settings for the currently active tenant
-func GetActiveTenantHandler(c *gin.Context) {
-	start := time.Now()
-	requestSummary := utils.GetRequestSummary(c.Request)
-
-	tenant := middleware.TenantFromContext(c.Request.Context())
-
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Tenants",
-			Description: "Active tenant configuration retrieved successfully",
-			Code:        http.StatusOK,
-		},
-		Payload:   tenant,
-		Message:   "Active tenant details",
-		TimeTaken: time.Since(start),
-		Function:  utils.GetCurrentFuncName(),
-		Request:   c.Request,
-		RawBody:   requestSummary,
-	})
-}
-
-// CreateTenantHandler creates a new tenant. Restricted to superadmins.
-func CreateTenantHandler(c *gin.Context) {
-	start := time.Now()
-	requestSummary := utils.GetRequestSummary(c.Request)
-
-	// Ensure the user is authenticated and is a superadmin
-	authuser, ok := middleware.UserFromContext(c.Request.Context())
-	if !ok || authuser.Role != "superadmin" {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Tenants",
-				Description: "Unauthorized to create a tenant",
-				Code:        http.StatusForbidden,
-			},
-			Message:   "Only superadmins can manage tenants",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-		})
-		return
-	}
-
-	var req TenantRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Tenants",
-				Description: "Failed to decode tenant request",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-		})
-		return
-	}
-
-	if req.Name == "" || (req.Domain == "" && req.AppDomain == "" && req.AdminDomain == "") {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Tenants",
-				Description: "Name and domain are required",
-				Code:        http.StatusBadRequest,
-			},
-			Message:   "Name and domain are required fields",
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-		})
-		return
-	}
-
-	if req.Domain == "" {
-		if req.AppDomain != "" {
-			req.Domain = req.AppDomain
-		} else {
-			req.Domain = req.AdminDomain
-		}
-	}
-
-	err := models.CreateTenant(
-		models.DB, req.Name, req.Domain, req.AppDomain, req.AdminDomain, req.Slogan, req.Logo, req.Color,
-		req.AppLogo, req.AppPrimaryColor, req.AppSecondaryColor, req.AppTertiaryColor,
-		req.AdminLogo, req.AdminPrimaryColor, req.AdminSecondaryColor, req.AdminTertiaryColor,
-	)
-	if err != nil {
-		utils.RespondWithGinError(c, utils.ErrorJSONResponseOptions{
-			CollectiveInfo: utils.CollectiveInfo{
-				Module:      "Tenants",
-				Description: "Failed to create tenant in database",
-				Code:        http.StatusInternalServerError,
-			},
-			Message:   err.Error(),
-			TimeTaken: time.Since(start),
-			Function:  utils.GetCurrentFuncName(),
-			Request:   c.Request,
-		})
-		return
-	}
-
-	utils.RespondWithGinJSON(c, utils.SuccessJSONResponseOptions{
-		CollectiveInfo: utils.CollectiveInfo{
-			Module:      "Tenants",
-			Description: "Tenant created successfully",
-			Code:        http.StatusCreated,
-		},
-		Payload:   nil,
 		Message:   "Tenant created successfully",
 		TimeTaken: time.Since(start),
 		Function:  utils.GetCurrentFuncName(),

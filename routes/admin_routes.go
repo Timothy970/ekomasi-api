@@ -221,9 +221,15 @@ func SetupAdminGinRoutes(api *gin.RouterGroup) {
 
 	// Admin tenants management
 	const tenantIDPath = "/tenants/:id"
-	admin.POST("/tenants", middleware.GinAuthenticateToken(), handlers.CreateTenantHandler)
+	admin.POST("/tenants", middleware.GinAuthenticateToken(), handlers.CreateTenantGinHandler)
 	admin.GET("/tenants", middleware.GinAuthenticateToken(), handlers.GetAllTenantsHandler)
 	admin.GET(tenantIDPath, middleware.GinAuthenticateToken(), handlers.GetTenantByIDHandler)
 	admin.PATCH(tenantIDPath, middleware.GinAuthenticateToken(), handlers.UpdateTenantHandler)
 	admin.DELETE(tenantIDPath, middleware.GinAuthenticateToken(), handlers.DeleteTenantHandler)
+
+	// Tenant URL management
+	admin.GET("/tenants/:id/urls", middleware.GinAuthenticateToken(), handlers.GetTenantURLsGinHandler)
+	admin.POST("/tenants/:id/urls", middleware.GinAuthenticateToken(), handlers.AddTenantURLGinHandler)
+	admin.DELETE("/tenants/:id/urls/:url_id", middleware.GinAuthenticateToken(), handlers.DeleteTenantURLGinHandler)
+	admin.PATCH("/tenants/:id/urls/:url_id", middleware.GinAuthenticateToken(), handlers.SetTenantURLPrimaryGinHandler)
 }

@@ -16,7 +16,7 @@ func SetupGinRoutes(router *gin.Engine) {
 	api := router.Group("/api")
 
 	// Public tenant resolution route
-	api.GET("/tenant/active", handlers.GetActiveTenantHandler)
+	api.GET("/tenant/active", handlers.GetActiveTenantGinHandler)
 
 	// Setup all route groups
 	SetupAuthGinRoutes(api)

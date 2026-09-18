@@ -170,9 +170,17 @@ func (r *AnalyticsRepository) GetAbandonedCarts(page, size int) (*AbandonedCarts
 			}
 			cart.Items = append(cart.Items, item)
 		}
+		if err := itemRows.Err(); err != nil {
+			itemRows.Close()
+			return nil, fmt.Errorf("error iterating cart items: %w", err)
+		}
 		itemRows.Close()
 
 		carts = append(carts, cart)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating abandoned carts: %w", err)
 	}
 
 	// Step 4: Build pagination metadata

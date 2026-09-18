@@ -8,96 +8,106 @@ import (
 	"time"
 )
 
+// Tenant represents a registered storefront tenant in the system.
 type Tenant struct {
-	ID                  int       `json:"id"`
-	Name                string    `json:"name"`
-	Domain              string    `json:"domain"`
-	AppDomain           string    `json:"app_domain"`
-	AdminDomain         string    `json:"admin_domain"`
-	Slogan              string    `json:"slogan"`
-	Logo                string    `json:"logo"`
-	Color               string    `json:"color"`
-	AppLogo             string    `json:"app_logo"`
-	AppPrimaryColor     string    `json:"app_primary_color"`
-	AppSecondaryColor   string    `json:"app_secondary_color"`
-	AppTertiaryColor    string    `json:"app_tertiary_color"`
-	AdminLogo           string    `json:"admin_logo"`
-	AdminPrimaryColor   string    `json:"admin_primary_color"`
-	AdminSecondaryColor string    `json:"admin_secondary_color"`
-	AdminTertiaryColor  string    `json:"admin_tertiary_color"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
+	ID        int          `json:"id"`
+	Name      string       `json:"name"`
+	Domain    string       `json:"domain"` // canonical slug/reference, kept for display & logs
+	Slogan    string       `json:"slogan"`
+	Logo      string       `json:"logo"`
+	AppLogo   string       `json:"app_logo"`
+	AdminLogo string       `json:"admin_logo"`
+	URLs      []TenantURL  `json:"urls,omitempty"`
+	CreatedAt time.Time    `json:"created_at"`
+	UpdatedAt time.Time    `json:"updated_at"`
 }
 
-func CreateTenant(
-	db DBExecutor,
-	name, domain, appDomain, adminDomain, slogan, logo, color,
-	appLogo, appPrimaryColor, appSecondaryColor, appTertiaryColor,
-	adminLogo, adminPrimaryColor, adminSecondaryColor, adminTertiaryColor string,
-) error {
-	if appDomain == "" {
-		appDomain = domain
+// TenantURL represents a single domain/URL entry linked to a tenant.
+type TenantURL struct {
+	ID        int       `json:"id"`
+	TenantID  int       `json:"tenant_id"`
+	URL       string    `json:"url"`
+	URLType   string    `json:"url_type"` // "storefront" | "admin"
+	IsPrimary bool      `json:"is_primary"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+const conditionIDEquals = "id = ?"
+
+// ─── Tenant CRUD ────────────────────────────────────────────────────────────
+
+// CreateTenantParams holds all parameters for creating a new tenant.
+type CreateTenantParams struct {
+	Name          string
+	Domain        string
+	Slogan        string
+	Logo          string
+	AppLogo       string
+	AdminLogo     string
+	StorefrontURL string
+	AdminURL      string
+}
+
+// CreateTenant inserts a new tenant record. The initial storefront and admin
+// domains are registered as primary entries in tenant_urls.
+func CreateTenant(db DBExecutor, p CreateTenantParams) error {
+	if p.AppLogo == "" {
+		p.AppLogo = p.Logo
 	}
-	if adminDomain == "" {
-		adminDomain = domain
+	if p.AdminLogo == "" {
+		p.AdminLogo = p.Logo
 	}
-	if appLogo == "" {
-		appLogo = logo
-	}
-	if appPrimaryColor == "" {
-		appPrimaryColor = color
-	}
-	if appSecondaryColor == "" {
-		appSecondaryColor = "#E8298A"
-	}
-	if appTertiaryColor == "" {
-		appTertiaryColor = "#EEF2FF"
-	}
-	if adminLogo == "" {
-		adminLogo = logo
-	}
-	if adminPrimaryColor == "" {
-		adminPrimaryColor = "#0f172a"
-	}
-	if adminSecondaryColor == "" {
-		adminSecondaryColor = "#AF52DE"
-	}
-	if adminTertiaryColor == "" {
-		adminTertiaryColor = "#1B202E"
+	if p.StorefrontURL == "" {
+		p.StorefrontURL = p.Domain
 	}
 
-	exists, err := RecordExists(db, "tenants", "domain = ? OR app_domain = ? OR admin_domain = ?", domain, appDomain, adminDomain)
+	// Check domain uniqueness against tenant_urls
+	exists, err := RecordExists(db, "tenant_urls", "url = ?", p.StorefrontURL)
 	if err != nil {
 		return err
 	}
 	if exists {
-		return fmt.Errorf("tenant with matching domain already exists")
+		return fmt.Errorf("a tenant with URL %q already exists", p.StorefrontURL)
 	}
 
 	query := `
-		INSERT INTO tenants (
-			name, domain, app_domain, admin_domain, slogan, logo, color,
-			app_logo, app_primary_color, app_secondary_color, app_tertiary_color,
-			admin_logo, admin_primary_color, admin_secondary_color, admin_tertiary_color
-		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO tenants (name, domain, slogan, logo, app_logo, admin_logo)
+		VALUES (?, ?, ?, ?, ?, ?)
 	`
-	_, err = db.Exec(
-		query,
-		name, domain, appDomain, adminDomain, slogan, logo, color,
-		appLogo, appPrimaryColor, appSecondaryColor, appTertiaryColor,
-		adminLogo, adminPrimaryColor, adminSecondaryColor, adminTertiaryColor,
-	)
-	return err
+	result, err := db.Exec(query, p.Name, p.Domain, p.Slogan, p.Logo, p.AppLogo, p.AdminLogo)
+	if err != nil {
+		return err
+	}
+
+	tenantID, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	id := int(tenantID)
+
+	// Register storefront URL as primary
+	if err := AddTenantURL(db, id, p.StorefrontURL, "storefront", true); err != nil {
+		return err
+	}
+
+	// Register admin URL if provided and different
+	if p.AdminURL != "" && p.AdminURL != p.StorefrontURL {
+		if err := AddTenantURL(db, id, p.AdminURL, "admin", true); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
+// UpdateTenant updates mutable tenant fields (name, slogan, logos).
+// Domain routing is managed separately via the TenantURL CRUD.
 func UpdateTenant(
 	db DBExecutor, id int,
-	name, domain, appDomain, adminDomain, slogan, logo, color,
-	appLogo, appPrimaryColor, appSecondaryColor, appTertiaryColor,
-	adminLogo, adminPrimaryColor, adminSecondaryColor, adminTertiaryColor string,
+	name, slogan, logo, appLogo, adminLogo string,
 ) error {
-	exists, err := RecordExists(db, "tenants", "id = ?", id)
+	exists, err := RecordExists(db, "tenants", conditionIDEquals, id)
 	if err != nil {
 		return err
 	}
@@ -107,45 +117,29 @@ func UpdateTenant(
 
 	query := `
 		UPDATE tenants
-		SET name = ?, domain = ?, app_domain = ?, admin_domain = ?, slogan = ?, logo = ?, color = ?,
-		    app_logo = ?, app_primary_color = ?, app_secondary_color = ?, app_tertiary_color = ?,
-		    admin_logo = ?, admin_primary_color = ?, admin_secondary_color = ?, admin_tertiary_color = ?
+		SET name = ?, slogan = ?, logo = ?, app_logo = ?, admin_logo = ?
 		WHERE id = ?
 	`
-	_, err = db.Exec(
-		query,
-		name, domain, appDomain, adminDomain, slogan, logo, color,
-		appLogo, appPrimaryColor, appSecondaryColor, appTertiaryColor,
-		adminLogo, adminPrimaryColor, adminSecondaryColor, adminTertiaryColor,
-		id,
-	)
+	_, err = db.Exec(query, name, slogan, logo, appLogo, adminLogo, id)
 	return err
 }
 
+// GetTenantByID retrieves a tenant along with all its registered URLs.
 func GetTenantByID(db DBExecutor, id int) (*Tenant, error) {
 	query := `
-		SELECT id, name, domain, 
-		       COALESCE(app_domain, domain) as app_domain, 
-		       COALESCE(admin_domain, domain) as admin_domain, 
-		       slogan, logo, color, 
-		       COALESCE(app_logo, logo) as app_logo, 
-		       COALESCE(app_primary_color, color, '#4f46e5') as app_primary_color, 
-		       COALESCE(app_secondary_color, '#E8298A') as app_secondary_color, 
-		       COALESCE(app_tertiary_color, '#EEF2FF') as app_tertiary_color, 
-		       COALESCE(admin_logo, logo) as admin_logo, 
-		       COALESCE(admin_primary_color, '#0f172a') as admin_primary_color, 
-		       COALESCE(admin_secondary_color, '#AF52DE') as admin_secondary_color, 
-		       COALESCE(admin_tertiary_color, '#1B202E') as admin_tertiary_color, 
+		SELECT id, name, domain,
+		       COALESCE(slogan, '') as slogan,
+		       COALESCE(logo, '') as logo,
+		       COALESCE(app_logo, logo, '') as app_logo,
+		       COALESCE(admin_logo, logo, '') as admin_logo,
 		       created_at, updated_at
 		FROM tenants
 		WHERE id = ?
 	`
 	var t Tenant
 	err := db.QueryRow(query, id).Scan(
-		&t.ID, &t.Name, &t.Domain, &t.AppDomain, &t.AdminDomain, &t.Slogan, &t.Logo, &t.Color,
-		&t.AppLogo, &t.AppPrimaryColor, &t.AppSecondaryColor, &t.AppTertiaryColor,
-		&t.AdminLogo, &t.AdminPrimaryColor, &t.AdminSecondaryColor, &t.AdminTertiaryColor,
-		&t.CreatedAt, &t.UpdatedAt,
+		&t.ID, &t.Name, &t.Domain, &t.Slogan, &t.Logo,
+		&t.AppLogo, &t.AdminLogo, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -153,9 +147,19 @@ func GetTenantByID(db DBExecutor, id int) (*Tenant, error) {
 		}
 		return nil, err
 	}
+
+	urls, err := GetTenantURLs(db, t.ID)
+	if err != nil {
+		return nil, err
+	}
+	t.URLs = urls
+
 	return &t, nil
 }
 
+// GetTenantByDomain resolves the tenant whose tenant_urls table contains an
+// exact match for the given domain string (port-stripped or full).
+// Falls back to tenant ID=1 if no match found.
 func GetTenantByDomain(db DBExecutor, domain string) (*Tenant, error) {
 	cleanDomain := domain
 	if idx := strings.Index(domain, ":"); idx != -1 {
@@ -163,31 +167,22 @@ func GetTenantByDomain(db DBExecutor, domain string) (*Tenant, error) {
 	}
 
 	query := `
-		SELECT id, name, domain, 
-		       COALESCE(app_domain, domain) as app_domain, 
-		       COALESCE(admin_domain, domain) as admin_domain, 
-		       slogan, logo, color, 
-		       COALESCE(app_logo, logo) as app_logo, 
-		       COALESCE(app_primary_color, color, '#4f46e5') as app_primary_color, 
-		       COALESCE(app_secondary_color, '#E8298A') as app_secondary_color, 
-		       COALESCE(app_tertiary_color, '#EEF2FF') as app_tertiary_color, 
-		       COALESCE(admin_logo, logo) as admin_logo, 
-		       COALESCE(admin_primary_color, '#0f172a') as admin_primary_color, 
-		       COALESCE(admin_secondary_color, '#AF52DE') as admin_secondary_color, 
-		       COALESCE(admin_tertiary_color, '#1B202E') as admin_tertiary_color, 
-		       created_at, updated_at
-		FROM tenants
-		WHERE domain = ? OR app_domain = ? OR admin_domain = ?
-		   OR domain LIKE ? OR app_domain LIKE ? OR admin_domain LIKE ?
-		ORDER BY id ASC LIMIT 1
+		SELECT t.id, t.name, t.domain,
+		       COALESCE(t.slogan, '') as slogan,
+		       COALESCE(t.logo, '') as logo,
+		       COALESCE(t.app_logo, t.logo, '') as app_logo,
+		       COALESCE(t.admin_logo, t.logo, '') as admin_logo,
+		       t.created_at, t.updated_at
+		FROM tenants t
+		JOIN tenant_urls u ON u.tenant_id = t.id
+		WHERE u.url = ? OR u.url = ?
+		ORDER BY t.id ASC
+		LIMIT 1
 	`
-	likePattern := cleanDomain + "%"
 	var t Tenant
-	err := db.QueryRow(query, domain, domain, domain, likePattern, likePattern, likePattern).Scan(
-		&t.ID, &t.Name, &t.Domain, &t.AppDomain, &t.AdminDomain, &t.Slogan, &t.Logo, &t.Color,
-		&t.AppLogo, &t.AppPrimaryColor, &t.AppSecondaryColor, &t.AppTertiaryColor,
-		&t.AdminLogo, &t.AdminPrimaryColor, &t.AdminSecondaryColor, &t.AdminTertiaryColor,
-		&t.CreatedAt, &t.UpdatedAt,
+	err := db.QueryRow(query, domain, cleanDomain).Scan(
+		&t.ID, &t.Name, &t.Domain, &t.Slogan, &t.Logo,
+		&t.AppLogo, &t.AdminLogo, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -195,23 +190,24 @@ func GetTenantByDomain(db DBExecutor, domain string) (*Tenant, error) {
 		}
 		return nil, err
 	}
+
+	urls, err := GetTenantURLs(db, t.ID)
+	if err != nil {
+		return nil, err
+	}
+	t.URLs = urls
+
 	return &t, nil
 }
 
+// GetAllTenants retrieves all tenants along with their registered URLs.
 func GetAllTenants(db DBExecutor) ([]Tenant, error) {
 	query := `
-		SELECT id, name, domain, 
-		       COALESCE(app_domain, domain) as app_domain, 
-		       COALESCE(admin_domain, domain) as admin_domain, 
-		       slogan, logo, color, 
-		       COALESCE(app_logo, logo) as app_logo, 
-		       COALESCE(app_primary_color, color, '#4f46e5') as app_primary_color, 
-		       COALESCE(app_secondary_color, '#E8298A') as app_secondary_color, 
-		       COALESCE(app_tertiary_color, '#EEF2FF') as app_tertiary_color, 
-		       COALESCE(admin_logo, logo) as admin_logo, 
-		       COALESCE(admin_primary_color, '#0f172a') as admin_primary_color, 
-		       COALESCE(admin_secondary_color, '#AF52DE') as admin_secondary_color, 
-		       COALESCE(admin_tertiary_color, '#1B202E') as admin_tertiary_color, 
+		SELECT id, name, domain,
+		       COALESCE(slogan, '') as slogan,
+		       COALESCE(logo, '') as logo,
+		       COALESCE(app_logo, logo, '') as app_logo,
+		       COALESCE(admin_logo, logo, '') as admin_logo,
 		       created_at, updated_at
 		FROM tenants
 		ORDER BY id ASC
@@ -226,20 +222,32 @@ func GetAllTenants(db DBExecutor) ([]Tenant, error) {
 	for rows.Next() {
 		var t Tenant
 		if err := rows.Scan(
-			&t.ID, &t.Name, &t.Domain, &t.AppDomain, &t.AdminDomain, &t.Slogan, &t.Logo, &t.Color,
-			&t.AppLogo, &t.AppPrimaryColor, &t.AppSecondaryColor, &t.AppTertiaryColor,
-			&t.AdminLogo, &t.AdminPrimaryColor, &t.AdminSecondaryColor, &t.AdminTertiaryColor,
-			&t.CreatedAt, &t.UpdatedAt,
+			&t.ID, &t.Name, &t.Domain, &t.Slogan, &t.Logo,
+			&t.AppLogo, &t.AdminLogo, &t.CreatedAt, &t.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
 		tenants = append(tenants, t)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Load URLs for each tenant
+	for i := range tenants {
+		urls, err := GetTenantURLs(db, tenants[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		tenants[i].URLs = urls
+	}
+
 	return tenants, nil
 }
 
+// DeleteTenant removes a tenant. All associated tenant_urls are cascade-deleted.
 func DeleteTenant(db DBExecutor, id int) error {
-	exists, err := RecordExists(db, "tenants", "id = ?", id)
+	exists, err := RecordExists(db, "tenants", conditionIDEquals, id)
 	if err != nil {
 		return err
 	}
@@ -248,5 +256,101 @@ func DeleteTenant(db DBExecutor, id int) error {
 	}
 
 	_, err = db.Exec("DELETE FROM tenants WHERE id = ?", id)
+	return err
+}
+
+// ─── Tenant URL CRUD ─────────────────────────────────────────────────────────
+
+// GetTenantURLs retrieves all URLs registered for a tenant.
+func GetTenantURLs(db DBExecutor, tenantID int) ([]TenantURL, error) {
+	query := `
+		SELECT id, tenant_id, url, url_type, is_primary, created_at, updated_at
+		FROM tenant_urls
+		WHERE tenant_id = ?
+		ORDER BY is_primary DESC, url_type ASC, id ASC
+	`
+	rows, err := db.Query(query, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var urls []TenantURL
+	for rows.Next() {
+		var u TenantURL
+		if err := rows.Scan(
+			&u.ID, &u.TenantID, &u.URL, &u.URLType, &u.IsPrimary,
+			&u.CreatedAt, &u.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		urls = append(urls, u)
+	}
+	return urls, rows.Err()
+}
+
+// AddTenantURL registers a new URL for a tenant.
+// If isPrimary is true, it demotes any existing primary of the same url_type.
+func AddTenantURL(db DBExecutor, tenantID int, url, urlType string, isPrimary bool) error {
+	if url == "" {
+		return errors.New("url cannot be empty")
+	}
+	if urlType != "storefront" && urlType != "admin" {
+		return errors.New("url_type must be 'storefront' or 'admin'")
+	}
+
+	// Check uniqueness globally across all tenants
+	exists, err := RecordExists(db, "tenant_urls", "url = ?", url)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("URL %q is already registered to a tenant", url)
+	}
+
+	// Demote existing primary for same type if this one is primary
+	if isPrimary {
+		_, err = db.Exec(
+			"UPDATE tenant_urls SET is_primary = 0 WHERE tenant_id = ? AND url_type = ? AND is_primary = 1",
+			tenantID, urlType,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = db.Exec(
+		"INSERT INTO tenant_urls (tenant_id, url, url_type, is_primary) VALUES (?, ?, ?, ?)",
+		tenantID, url, urlType, isPrimary,
+	)
+	return err
+}
+
+// DeleteTenantURL removes a URL entry by its ID.
+func DeleteTenantURL(db DBExecutor, urlID int) error {
+	exists, err := RecordExists(db, "tenant_urls", conditionIDEquals, urlID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("tenant URL not found")
+	}
+	_, err = db.Exec("DELETE FROM tenant_urls WHERE id = ?", urlID)
+	return err
+}
+
+// SetTenantURLPrimary marks a given URL as primary for its url_type, demoting others.
+func SetTenantURLPrimary(db DBExecutor, urlID, tenantID int, urlType string) error {
+	_, err := db.Exec(
+		"UPDATE tenant_urls SET is_primary = 0 WHERE tenant_id = ? AND url_type = ?",
+		tenantID, urlType,
+	)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(
+		"UPDATE tenant_urls SET is_primary = 1 WHERE id = ? AND tenant_id = ?",
+		urlID, tenantID,
+	)
 	return err
 }

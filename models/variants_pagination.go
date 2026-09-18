@@ -42,7 +42,7 @@ func findProductsByIDs(productMap map[string]dtos.Product, productIDs []string) 
 //
 // Returns:
 //   - error: Database error or nil on success
-func handleAllVariants(db DBExecutor, variants []dtos.Variant, variantMap map[string]*dtos.VariantWithProducts) error {
+func handleAllVariants(_ DBExecutor, variants []dtos.Variant, variantMap map[string]*dtos.VariantWithProducts) error {
 	for _, variant := range variants {
 		// Check for "All" variant with valid ID
 		if variant.Name == "All" && variant.VariantID != "" {
